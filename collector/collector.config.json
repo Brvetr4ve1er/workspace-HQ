@@ -1,0 +1,37 @@
+{
+  "_note": "Classification + scan config for the WorkspaceHQ deterministic collector. Edit this to add/retire projects without touching collector code. Paths are relative to root; a trailing/embedded * is glob-resolved.",
+  "root": "C:/Users/ROG STRIX/Documents",
+  "ignore": ["My Music", "My Pictures", "My Videos", ".claude", ".workspace-scan", "workspace hq", "cursor"],
+  "prune_dirs": ["node_modules", ".venv", "venv", ".next", "dist", "build", ".git", "tessdata", "__pycache__", ".turbo", "coverage", "vendor", ".cache", "out", ".svelte-kit"],
+  "prune_dir_patterns": ["chroma", "chromadb", ".chroma"],
+  "source_ext": [".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".py", ".html", ".css", ".scss"],
+  "products": [
+    { "id": "alliance-travel", "name": "alliance travel", "path": "alliance travel", "stack": ["HTML", "CSS", "JavaScript", "Cloudflare Pages"], "dev_cmd": "python -m http.server 5500 --directory site", "canonical_branch": "main" },
+    { "id": "crucix", "name": "Crucix", "path": "Crucix", "stack": ["Node", "Express", "OSINT"], "dev_cmd": "npm run dev", "canonical_branch": "main" },
+    { "id": "almaflowclim", "name": "almaflowclim.fr", "path": "almaflowclim.fr", "stack": ["HTML", "CSS", "Static"], "dev_cmd": "python -m http.server 8080", "canonical_branch": "main" },
+    { "id": "doctor-cherfia-clinic", "name": "DOCTOR CHERFIA CLINIC", "path": "DOCTOR CHERFIA CLINIC/clinic-ui-*", "stack": ["Next.js", "TypeScript", "Tailwind", "shadcn"], "dev_cmd": "npm run dev", "canonical_branch": "main" },
+    { "id": "bruns-logistics", "name": "BRUNs logistics data scraper", "path": "BRUNs logistics data scraper", "stack": ["Python", "Flask", "HTMX", "SQLite", "ChromaDB"], "dev_cmd": "flask run", "canonical_branch": "main" },
+    { "id": "hamma-sat", "name": "HAMMA SAT IPTV", "path": "HAMMA SAT", "stack": ["Node", "Static", "WhatsApp checkout"], "dev_cmd": "npm run dev", "canonical_branch": "main" },
+    { "id": "etoile-de-lest", "name": "etoile de lest", "path": "etoile de lest", "stack": ["Next.js", "PWA", "Supabase"], "dev_cmd": "npm run dev", "canonical_branch": "main" },
+    { "id": "intel-scraper", "name": "INTEL SCRAPER (A.G.E.S.)", "path": "INTEL SCRAPER", "stack": ["Python", "FastAPI", "Playwright", "React"], "dev_cmd": "npm start", "canonical_branch": "main" },
+    { "id": "product-intel-wizard", "name": "product-intel-wizard", "path": "ALLIANCE PWA PROTOTYPE/product-intel-wizard", "stack": ["React", "Vite", "tambo"], "dev_cmd": "npm run dev", "canonical_branch": "main" }
+  ],
+  "vaults": [
+    { "name": "VEEMO CORTEX", "path": "VEEMO CORTEX", "role": "primary" },
+    { "name": "HEETCH", "path": "HEETCH", "role": "brand/market-intel" },
+    { "name": "BRAIN-OS-v2", "path": "ALLIANCE PWA PROTOTYPE/BRAIN-OS-v2", "role": "PARA business" }
+  ],
+  "clones": [
+    { "name": "playwright", "path": "playwright" },
+    { "name": "superset", "path": "superset" },
+    { "name": "gallery/agents", "path": "gallery" },
+    { "name": "VEEMO_CORTEX_REPOS/*", "path": "VEEMO_CORTEX_REPOS/*" }
+  ],
+  "activity_thresholds_days": { "active_within": 14, "stale_within": 60 },
+  "secret_patterns": [
+    { "name": "aws_access_key", "re": "AKIA[0-9A-Z]{16}" },
+    { "name": "openai_key", "re": "sk-[A-Za-z0-9]{20,}" },
+    { "name": "private_key_block", "re": "-----BEGIN (?:RSA |EC )?PRIVATE KEY-----" },
+    { "name": "generic_secret_assignment", "re": "(?i)(api[_-]?key|secret|token|passwd|password)\\s*[:=]\\s*['\"][^'\"]{8,}['\"]" }
+  ]
+}

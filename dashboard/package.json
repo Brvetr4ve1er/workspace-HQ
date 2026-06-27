@@ -1,0 +1,14 @@
+{
+  "name": "workspacehq",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WorkspaceHQ — gamified local admin panel over the workspace checkup",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-data": "node build-data.mjs"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0"
+  }
+}

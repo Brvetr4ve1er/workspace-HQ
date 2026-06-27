@@ -1,0 +1,82 @@
+{
+  "$schema_note": "Deterministic rules the gamification engine applies over current-vs-previous scan JSON. Editing this file re-tunes XP/levels/achievements without touching the collector or the dashboard. Kept separate from per-scan data so the rules are versioned independently.",
+  "config_version": "1.0",
+
+  "level_curve": {
+    "description": "Cumulative XP thresholds. Account/project level = highest tier whose threshold <= xp. Titles are flavor only.",
+    "tiers": [
+      { "level": 1, "min_xp": 0,    "title": "Drifter" },
+      { "level": 2, "min_xp": 150,  "title": "Tinkerer" },
+      { "level": 3, "min_xp": 350,  "title": "Builder" },
+      { "level": 4, "min_xp": 600,  "title": "Operator" },
+      { "level": 5, "min_xp": 900,  "title": "Foreman" },
+      { "level": 6, "min_xp": 1300, "title": "Architect" },
+      { "level": 7, "min_xp": 1800, "title": "Overseer" },
+      { "level": 8, "min_xp": 2400, "title": "Workspace Warden" },
+      { "level": 9, "min_xp": 3100, "title": "Grandmaster" }
+    ]
+  },
+
+  "project_score": {
+    "description": "Per-scan project score (a snapshot of current standing). xp_breakdown stores each line. Account XP accrues from quest completions + streaks over time, NOT from re-counting snapshots, so leveling reflects real progress rather than a static state.",
+    "completion_weight": 1.0,
+    "git_safety": { "in_sync": 30, "has_remote_dirty": 15, "git_no_remote": 5, "no_git": 0 },
+    "build": { "green": 20, "runs": 10, "unknown": 0, "red": -10 },
+    "tests": { "passing": 15, "present": 5, "none": 0 },
+    "activity": { "active": 10, "stale": 3, "dormant": 0 },
+    "dirty_penalty_per_file": -1,
+    "dirty_penalty_cap": -15
+  },
+
+  "xp_awards": {
+    "description": "Account XP (cumulative, what drives leveling). Awarded by the engine when the diff detects the event.",
+    "quest_completed": { "red": 100, "orange": 60, "yellow": 30 },
+    "repo_initialized": 25,
+    "first_remote": 40,
+    "first_push": 50,
+    "build_red_to_green": 75,
+    "first_test_suite": 60,
+    "streak_day": 10,
+    "anomaly_resolved": 40
+  },
+
+  "quest_xp_by_tier": { "red": 100, "orange": 60, "yellow": 30 },
+
+  "streak": {
+    "description": "Scan streak = consecutive calendar days with at least one scan. Resets if a day is missed. Bonus XP per maintained day via xp_awards.streak_day.",
+    "grace_hours": 30
+  },
+
+  "health_index": {
+    "description": "Composite 0-100 workspace health for the headline gauge. Weighted blend, clamped 0-100.",
+    "formula": "0.30*avg_completion + 0.25*git_safety_score + 0.20*build_score + 0.15*(100 - risk_score) + 0.10*test_coverage_score",
+    "components": {
+      "git_safety_score": "100 - (high_risk_repos*25 + medium_risk_repos*10), floored at 0",
+      "build_score": "percent of products with build in {green, runs}",
+      "risk_score": "high_flags*20 + medium_flags*8 + min(detected_secrets*4, 60), capped 100 (detected secrets count even before the LLM grades their severity)",
+      "test_coverage_score": "percent of products with a real passing test suite"
+    }
+  },
+
+  "git_risk_rules": {
+    "description": "Deterministic mapping from git_safety facts to risk level.",
+    "high": ["no_git", "has_git && commits==0", "has_git && !has_remote", "dirty>20"],
+    "medium": ["unpushed && ahead>0", "dirty between 6 and 20", "behind>0"],
+    "low": ["in_sync && dirty<=5"]
+  },
+
+  "achievements": [
+    { "id": "liftoff",        "name": "Liftoff",          "icon": "🚀", "desc": "Push a repo to a remote for the first time.",        "xp": 50,  "type": "milestone" },
+    { "id": "in_sync",        "name": "Clean Slate",      "icon": "🧼", "desc": "Get a repo to zero uncommitted files.",              "xp": 30,  "type": "milestone" },
+    { "id": "green_machine",  "name": "Green Machine",    "icon": "✅", "desc": "Have every product build green/runs at once.",       "xp": 120, "type": "workspace" },
+    { "id": "version_control","name": "Under Control",    "icon": "🔒", "desc": "Every product has a git repo with >=1 commit.",       "xp": 80,  "type": "workspace" },
+    { "id": "test_first",     "name": "Safety Net",       "icon": "🥅", "desc": "Add the first real passing test suite to a product.","xp": 60,  "type": "milestone" },
+    { "id": "crash_slayer",   "name": "Crash Slayer",     "icon": "🔧", "desc": "Flip a product from a red/crashing build to green.",  "xp": 75,  "type": "milestone" },
+    { "id": "quest_streak_5", "name": "On a Roll",        "icon": "🔥", "desc": "Complete 5 quests.",                                  "xp": 50,  "type": "counter", "need": 5 },
+    { "id": "debt_zero",      "name": "Inbox Zero (Code)","icon": "🏆", "desc": "Drive open RED quests to zero.",                      "xp": 150, "type": "workspace" },
+    { "id": "scan_streak_7",  "name": "Habit Formed",     "icon": "📈", "desc": "Maintain a 7-day scan streak.",                       "xp": 70,  "type": "counter", "need": 7 },
+    { "id": "declutter",      "name": "Marie Kondo",      "icon": "🧹", "desc": "Remove all stray empty folders from the workspace.",  "xp": 25,  "type": "workspace" },
+    { "id": "secret_free",    "name": "No Loose Keys",    "icon": "🔑", "desc": "No exposed secrets detected across any product.",      "xp": 60,  "type": "workspace" },
+    { "id": "documented",     "name": "Well Documented",  "icon": "📚", "desc": "Every product has a README.",                         "xp": 50,  "type": "workspace" }
+  ]
+}

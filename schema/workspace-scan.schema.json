@@ -1,0 +1,422 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veemo.local/schema/workspace-scan.schema.json",
+  "title": "Workspace Scan",
+  "description": "Canonical machine-readable record emitted by each periodic workspace checkup. One instance per scan, written as a JSON sidecar next to the human Markdown report. The WorkspaceHQ desktop app reads every 'Workspace Status *.json' to build history, trends, quests, and gamification state. This file is the single source of truth; the .md report is a rendered human view of the same data.",
+  "type": "object",
+  "required": ["schema_version", "scan", "account", "projects", "quests", "trends", "changes_since_prev", "inventory"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0", "description": "Bump on breaking schema changes; the app migrates older instances." },
+
+    "scan": {
+      "type": "object",
+      "description": "Metadata about this scan run.",
+      "required": ["id", "date", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "YYYY-MM-DD (one scan per day; suffix -N for multiple runs/day)." },
+        "date": { "type": "string", "format": "date-time" },
+        "mode": { "enum": ["manual", "nightly", "on-demand", "git-hook"] },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "previous_scan": { "type": ["string", "null"], "description": "id of the scan this one diffs against." },
+        "engine": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "collector": { "type": "string", "description": "Deterministic collector version (git/files/grep)." },
+            "enricher": { "type": ["string", "null"], "description": "LLM model used for insights/suggestions/roadmaps, or null if facts-only run." }
+          }
+        }
+      }
+    },
+
+    "account": {
+      "type": "object",
+      "description": "Workspace-wide gamification rollup (the 'player' across all projects).",
+      "required": ["level", "xp", "health_index", "totals"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "description": "Flavor rank for the current level (from gamification.config.json)." },
+        "xp": { "type": "integer", "minimum": 0, "description": "Cumulative XP across all projects + quests + streaks." },
+        "xp_into_level": { "type": "integer", "minimum": 0 },
+        "xp_to_next": { "type": "integer", "minimum": 0 },
+        "health_index": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Composite 0-100 workspace health (formula in gamification.config.json)." },
+        "health_delta": { "type": "integer", "description": "health_index change vs previous scan." },
+        "streak": { "$ref": "#/$defs/streak" },
+        "totals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "products": { "type": "integer" },
+            "vaults": { "type": "integer" },
+            "clones": { "type": "integer" },
+            "trivial": { "type": "integer" },
+            "open_quests": { "type": "integer" },
+            "red_quests": { "type": "integer" },
+            "quests_done_total": { "type": "integer" },
+            "achievements_unlocked": { "type": "integer" }
+          }
+        }
+      }
+    },
+
+    "achievements": {
+      "type": "array",
+      "description": "Snapshot of achievement state at this scan (catalog defined in gamification.config.json).",
+      "items": { "$ref": "#/$defs/achievement_state" }
+    },
+
+    "projects": {
+      "type": "array",
+      "description": "One entry per ORIGINAL PRODUCT (user code). Clones/vaults/trivial live in 'inventory' instead.",
+      "items": { "$ref": "#/$defs/project" }
+    },
+
+    "quests": {
+      "type": "array",
+      "description": "Cross-project quest board. Quests are derived from TODOs/risks; each carries an attached insight and evidence so the dashboard can show WHY it exists. State persists across scans (open -> in_progress -> done/dismissed) by matching quest id.",
+      "items": { "$ref": "#/$defs/quest" }
+    },
+
+    "trends": {
+      "type": "object",
+      "description": "Curated time-series for graphs. Deliberately minimal: only series that drive a decision. Each is an array of dated points so the app draws a line/bar without recomputation.",
+      "additionalProperties": false,
+      "properties": {
+        "health_index": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Overall workspace health over time." },
+        "completion_by_project": {
+          "type": "object",
+          "description": "project_id -> dated completion% points. Drives the per-project progress lines.",
+          "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/trend_point" } }
+        },
+        "open_quests_by_tier": {
+          "type": "array",
+          "description": "Stacked bar: red/orange/yellow open quest counts over time. Shows whether debt is shrinking.",
+          "items": {
+            "type": "object",
+            "required": ["d"],
+            "properties": {
+              "d": { "type": "string", "format": "date" },
+              "red": { "type": "integer" }, "orange": { "type": "integer" }, "yellow": { "type": "integer" }
+            }
+          }
+        },
+        "git_risk": {
+          "type": "array",
+          "description": "Count of repos at high/medium/low git-safety risk over time.",
+          "items": {
+            "type": "object",
+            "required": ["d"],
+            "properties": {
+              "d": { "type": "string", "format": "date" },
+              "high": { "type": "integer" }, "medium": { "type": "integer" }, "low": { "type": "integer" }
+            }
+          }
+        },
+        "xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative account XP over time (the 'are I leveling up' line)." }
+      }
+    },
+
+    "changes_since_prev": {
+      "type": "array",
+      "description": "Explicit, typed diff vs the previous scan. Powers the 'Changes' feed and notifications. Empty array = nothing moved.",
+      "items": { "$ref": "#/$defs/change" }
+    },
+
+    "inventory": {
+      "type": "object",
+      "description": "Cheap classification of everything that is NOT a tracked product.",
+      "additionalProperties": false,
+      "properties": {
+        "vaults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" }, "notes": { "type": "integer" }, "role": { "type": "string" }
+            }
+          }
+        },
+        "clones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" }, "origin": { "type": "string" }, "dirty": { "type": "integer" },
+              "diverged": { "type": "boolean", "description": "Has local modifications vs upstream." }
+            }
+          }
+        },
+        "trivial": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "name": { "type": "string" }, "note": { "type": "string" } }
+          }
+        },
+        "empty": { "type": "array", "items": { "type": "string" }, "description": "Folder names with no real content (cleanup candidates)." },
+        "anomalies": {
+          "type": "array",
+          "description": "Things that need a human eyeball (e.g. a referenced prototype that vanished).",
+          "items": {
+            "type": "object",
+            "required": ["type", "detail", "severity"],
+            "properties": {
+              "type": { "type": "string" },
+              "detail": { "type": "string" },
+              "severity": { "enum": ["info", "warning", "danger"] }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "streak": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scan_days": { "type": "integer", "minimum": 0, "description": "Consecutive days a scan ran." },
+        "longest_scan_days": { "type": "integer", "minimum": 0 },
+        "last_scan": { "type": "string", "format": "date" }
+      }
+    },
+
+    "trend_point": {
+      "type": "object",
+      "required": ["d", "v"],
+      "additionalProperties": false,
+      "properties": {
+        "d": { "type": "string", "format": "date" },
+        "v": { "type": "number" }
+      }
+    },
+
+    "project": {
+      "type": "object",
+      "required": ["id", "name", "kind", "path", "completion", "metrics", "activity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "kebab-case stable id (survives renames where possible)." },
+        "name": { "type": "string" },
+        "kind": { "const": "product" },
+        "path": { "type": "string" },
+        "stack": { "type": "array", "items": { "type": "string" } },
+
+        "completion": {
+          "type": "object",
+          "required": ["pct"],
+          "additionalProperties": false,
+          "properties": {
+            "pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "basis": { "type": "string", "description": "1-line justification (LLM-judged)." },
+            "delta": { "type": "integer", "description": "pct change vs previous scan." }
+          }
+        },
+
+        "level": { "type": "integer", "minimum": 1 },
+        "xp": { "type": "integer", "minimum": 0 },
+        "xp_delta": { "type": "integer" },
+        "xp_breakdown": {
+          "type": "object",
+          "description": "How this project's score was earned this scan (deterministic, per gamification.config.json).",
+          "additionalProperties": { "type": "number" }
+        },
+
+        "activity": {
+          "type": "object",
+          "required": ["state"],
+          "additionalProperties": false,
+          "properties": {
+            "state": { "enum": ["active", "stale", "dormant"] },
+            "last_commit": { "type": ["string", "null"], "format": "date" },
+            "days_since_commit": { "type": ["integer", "null"] },
+            "commit_cadence_7d": { "type": ["integer", "null"], "description": "Commits in last 7 days." }
+          }
+        },
+
+        "metrics": {
+          "type": "object",
+          "description": "The four tracked dimensions. All deterministic except completion (LLM-judged).",
+          "required": ["code_health", "git_safety", "activity", "risk_security"],
+          "additionalProperties": false,
+          "properties": {
+            "code_health": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "build": { "enum": ["green", "red", "runs", "unknown"] },
+                "build_note": { "type": "string" },
+                "tests": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "present": { "type": "boolean" },
+                    "count": { "type": ["integer", "null"] },
+                    "passing": { "type": ["integer", "null"] },
+                    "status": { "type": "string" }
+                  }
+                },
+                "todo_fixme": { "type": "integer", "minimum": 0 },
+                "files": { "type": ["integer", "null"] },
+                "loc": { "type": ["integer", "null"] },
+                "loc_delta": { "type": ["integer", "null"] }
+              }
+            },
+            "git_safety": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "has_git": { "type": "boolean" },
+                "has_remote": { "type": "boolean" },
+                "remote": { "type": ["string", "null"] },
+                "branch": { "type": ["string", "null"] },
+                "commits": { "type": "integer" },
+                "dirty": { "type": "integer", "description": "Uncommitted files (git status --porcelain)." },
+                "ahead": { "type": "integer" },
+                "behind": { "type": "integer" },
+                "unpushed": { "type": "boolean" },
+                "risk": { "enum": ["low", "medium", "high"] },
+                "flags": { "type": "array", "items": { "type": "string" }, "description": "e.g. no-commits, no-remote, many-dirty, detached-head." }
+              }
+            },
+            "activity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "state": { "enum": ["active", "stale", "dormant"] },
+                "last_modified": { "type": ["string", "null"], "format": "date" }
+              }
+            },
+            "risk_security": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "score": { "enum": ["low", "medium", "high"] },
+                "secrets_found": { "type": "integer", "minimum": 0 },
+                "stale_deps": { "type": "boolean" },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["type", "severity", "detail"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": { "type": "string", "description": "e.g. exposed_admin, missing_auth, hardcoded_secret, runtime_crash." },
+                      "severity": { "enum": ["low", "medium", "high"] },
+                      "detail": { "type": "string" },
+                      "location": { "type": "string", "description": "file:line where applicable." }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+
+        "insights": { "type": "array", "items": { "$ref": "#/$defs/insight" } },
+        "suggestions": { "type": "array", "items": { "$ref": "#/$defs/suggestion" } },
+        "roadmap": { "type": "array", "items": { "$ref": "#/$defs/roadmap_milestone" } },
+        "quest_ids": { "type": "array", "items": { "type": "string" }, "description": "Quests anchored to this project (full objects live in top-level 'quests')." }
+      }
+    },
+
+    "insight": {
+      "type": "object",
+      "required": ["id", "text", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string", "description": "One sharp sentence. LLM-generated, evidence-backed." },
+        "severity": { "enum": ["info", "warning", "danger"] },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "object", "description": "Deterministic facts that justify the insight (so it's never a hallucination)." },
+        "linked_quest_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "suggestion": {
+      "type": "object",
+      "required": ["text", "effort", "impact"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string" },
+        "effort": { "enum": ["S", "M", "L"] },
+        "impact": { "enum": ["low", "medium", "high"] },
+        "linked_quest_id": { "type": ["string", "null"] }
+      }
+    },
+
+    "roadmap_milestone": {
+      "type": "object",
+      "required": ["milestone", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "milestone": { "type": "string" },
+        "status": { "enum": ["planned", "in_progress", "done"] },
+        "target": { "type": ["string", "null"], "format": "date" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "progress_pct": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 }
+      }
+    },
+
+    "quest": {
+      "type": "object",
+      "required": ["id", "title", "tier", "status", "xp"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Stable id so state survives across scans (e.g. q-etoile-commit)." },
+        "title": { "type": "string" },
+        "project_id": { "type": ["string", "null"], "description": "null = workspace-level quest." },
+        "tier": { "enum": ["red", "orange", "yellow"], "description": "Priority -> also determines XP reward." },
+        "status": { "enum": ["open", "in_progress", "done", "dismissed"] },
+        "xp": { "type": "integer", "minimum": 0 },
+        "insight": { "type": "string", "description": "The 'why' attached to the quest (user requested insights on quests)." },
+        "evidence": { "type": "object", "description": "Deterministic facts; the engine flips status->done automatically when evidence resolves (e.g. dirty==0)." },
+        "auto_complete_when": { "type": "string", "description": "Human-readable rule the engine evaluates to auto-close, e.g. 'commits>0 && has_remote'." },
+        "created": { "type": "string", "format": "date" },
+        "completed": { "type": ["string", "null"], "format": "date" },
+        "carried_from": { "type": ["string", "null"], "format": "date", "description": "First scan this quest appeared; powers an 'age/persistence' nag." },
+        "age_days": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "change": {
+      "type": "object",
+      "required": ["type", "detail", "impact"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "description": "e.g. git_pushed, repo_initialized, build_flip, quest_completed, quest_unresolved, new_project, project_removed, anomaly." },
+        "project_id": { "type": ["string", "null"] },
+        "quest_id": { "type": ["string", "null"] },
+        "detail": { "type": "string" },
+        "impact": { "enum": ["positive", "negative", "neutral"] },
+        "notify": { "type": "boolean", "description": "Whether the desktop app should fire a tray notification." }
+      }
+    },
+
+    "achievement_state": {
+      "type": "object",
+      "required": ["id", "unlocked"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "unlocked": { "type": "boolean" },
+        "unlocked_on": { "type": ["string", "null"], "format": "date" },
+        "project_id": { "type": ["string", "null"] },
+        "progress": {
+          "type": "object",
+          "description": "For incremental achievements.",
+          "additionalProperties": false,
+          "properties": { "have": { "type": "number" }, "need": { "type": "number" } }
+        }
+      }
+    }
+  }
+}

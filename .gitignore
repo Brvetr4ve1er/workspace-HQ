@@ -1,0 +1,28 @@
+# --- dependencies ---
+**/node_modules/
+
+# --- editor / tool state ---
+.obsidian/
+.claude/
+
+# --- logs ---
+logs/
+*.log
+
+# --- generated scan outputs (rebuilt by the pipeline each run) ---
+data/latest.json
+data/raw-metrics.json
+data/enrichment.json
+data/.hud-state.json
+data/.notify-state.json
+dashboard/data.js
+
+# --- dev / preview artifacts ---
+dashboard/_*.png
+dashboard/_console.txt
+.playwright-mcp/
+
+# --- OS noise ---
+Thumbs.db
+desktop.ini
+.DS_Store

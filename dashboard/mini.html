@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WorkspaceHQ HUD</title>
+<style>
+  :root {
+    --bg0: #0c0a1e; --bg1: #14102e; --line: #2a2350;
+    --cyan: #00f0ff; --pink: #ff2bd6; --gold: #ffd23f; --purple: #b14aff;
+    --green: #3aff6e; --orange: #ffa502; --red: #ff4757; --yellow: #ffe14d;
+    --txt: #e7e3ff; --muted: #9690c4; --faint: #5e588a;
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  body { font-family: var(--mono); color: var(--txt); }
+
+  #hud {
+    -webkit-app-region: drag;            /* grab anywhere empty to move */
+    position: relative;
+    height: 100vh;
+    padding: 9px 11px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(177,74,255,.16), transparent 60%),
+      radial-gradient(120% 140% at 100% 100%, rgba(0,240,255,.12), transparent 55%),
+      linear-gradient(160deg, var(--bg1), var(--bg0));
+    box-shadow: 0 8px 26px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.02);
+    overflow: hidden;
+  }
+  /* faint scanline texture to match the main console */
+  #hud::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 12px;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay; opacity: .5;
+  }
+
+  .row { display: flex; align-items: center; gap: 8px; }
+  .top { margin-bottom: 7px; }
+
+  .lv { font-weight: 800; font-size: 11px; letter-spacing: .5px; color: var(--gold);
+        text-shadow: 0 0 8px rgba(255,210,63,.5); white-space: nowrap; }
+  .lv b { font-size: 16px; margin-left: 3px; }
+
+  .xpwrap { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .xpbar { height: 7px; border-radius: 5px; background: #1a1540; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+  .xpbar i { display: block; height: 100%; width: 0;
+             background: linear-gradient(90deg, var(--purple), var(--pink), var(--cyan));
+             box-shadow: 0 0 8px rgba(255,43,214,.6); transition: width .5s ease-out; }
+  .xptxt { font-size: 8.5px; color: var(--faint); letter-spacing: .3px; }
+
+  .btn { -webkit-app-region: no-drag; cursor: pointer; border: 0; background: transparent;
+         color: var(--faint); font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 5px; }
+  .btn:hover { color: var(--red); background: rgba(255,71,87,.12); }
+
+  .mid { margin-bottom: 7px; }
+  .hp { flex: 1; display: flex; align-items: center; gap: 6px; }
+  .hp .lbl { font-size: 9px; color: var(--muted); letter-spacing: .5px; }
+  .hpbar { flex: 1; height: 7px; border-radius: 5px; background: #1a1540; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+  .hpbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #1f9e4b, var(--green));
+             box-shadow: 0 0 8px rgba(58,255,110,.45); transition: width .5s ease-out; }
+  .hpbar i.warn { background: linear-gradient(90deg, #b06a00, var(--orange)); box-shadow: 0 0 8px rgba(255,165,2,.5); }
+  .hpbar i.crit { background: linear-gradient(90deg, #a01f2b, var(--red)); box-shadow: 0 0 9px rgba(255,71,87,.6); }
+  .hp b { font-size: 12px; font-weight: 800; min-width: 22px; text-align: right; }
+  .streak { display: flex; align-items: center; gap: 3px; font-size: 12px; }
+  .streak b { font-weight: 800; color: var(--orange); }
+
+  .quest { -webkit-app-region: no-drag; cursor: pointer; gap: 6px;
+           padding: 6px 7px; border-radius: 8px; background: rgba(255,255,255,.03);
+           box-shadow: inset 0 0 0 1px var(--line); transition: background .15s, box-shadow .15s; }
+  .quest:hover { background: rgba(0,240,255,.07); box-shadow: inset 0 0 0 1px rgba(0,240,255,.35); }
+  .tier { font-size: 8px; font-weight: 800; letter-spacing: .5px; padding: 2px 4px; border-radius: 4px;
+          color: #0c0a1e; white-space: nowrap; }
+  .tier.red { background: var(--red); } .tier.orange { background: var(--orange); } .tier.yellow { background: var(--yellow); }
+  .tier:empty { display: none; }
+  .qtitle { flex: 1; font-size: 10.5px; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qxp { font-size: 9.5px; font-weight: 800; color: var(--gold); white-space: nowrap; }
+  .qxp:empty { display: none; }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <div class="row top">
+      <div class="lv">LV<b id="lv">–</b></div>
+      <div class="xpwrap">
+        <div class="xpbar"><i id="xpfill"></i></div>
+        <span class="xptxt" id="xptxt">—</span>
+      </div>
+      <button class="btn" id="close" title="Hide HUD (re-show from tray)">×</button>
+    </div>
+    <div class="row mid">
+      <div class="hp"><span class="lbl">HP</span><div class="hpbar"><i id="hpfill"></i></div><b id="hp">0</b></div>
+      <div class="streak">🔥<b id="streak">0</b></div>
+    </div>
+    <div class="row quest" id="quest" title="Open WorkspaceHQ">
+      <span class="tier" id="qtier"></span>
+      <span class="qtitle" id="qtitle">Loading…</span>
+      <span class="qxp" id="qxp"></span>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function paint(d) {
+      if (!d) { $('qtitle').textContent = 'No scan data — run a scan'; return; }
+      $('lv').textContent = d.level;
+      $('xpfill').style.width = Math.max(0, Math.min(100, d.xpPct)) + '%';
+      $('xptxt').textContent = d.xpToNext ? (d.xpToNext + ' XP to L' + (d.level + 1)) : 'MAX LEVEL';
+      const hpf = $('hpfill');
+      hpf.style.width = Math.max(0, Math.min(100, d.hp)) + '%';
+      hpf.className = d.hp < 40 ? 'crit' : d.hp < 70 ? 'warn' : '';
+      $('hp').textContent = d.hp;
+      $('streak').textContent = d.streak;
+      const q = d.topQuest;
+      if (q) {
+        $('qtier').textContent = q.tier.toUpperCase();
+        $('qtier').className = 'tier ' + q.tier;
+        $('qtitle').textContent = q.title;
+        $('qxp').textContent = '+' + q.xp;
+      } else {
+        $('qtier').textContent = '';
+        $('qtitle').textContent = 'All quests clear ✓';
+        $('qxp').textContent = '';
+      }
+    }
+    const open = () => window.hq && window.hq.showMain && window.hq.showMain();
+    $('quest').onclick = open;
+    $('close').onclick = (e) => { e.stopPropagation(); window.hq && window.hq.miniHide && window.hq.miniHide(); };
+    if (window.hq && window.hq.onMiniUpdate) window.hq.onMiniUpdate(paint);
+    (async () => { if (window.hq && window.hq.getMiniData) paint(await window.hq.getMiniData()); })();
+  </script>
+</body>
+</html>
