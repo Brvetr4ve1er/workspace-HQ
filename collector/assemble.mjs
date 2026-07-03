@@ -139,6 +139,7 @@ function buildSideQuests(rp, en) {
     id: `sq-${rp.id}-${key}`, project_id: rp.id, kind, title, detail, source: 'deterministic',
     effort: extra.effort || 'M', impact: extra.impact || 'medium',
     severity: extra.severity || (kind === 'risk' ? 'medium' : 'info'),
+    ...(extra.data || {}),
   });
 
   // --- urgent / risk (act soon) ---
@@ -152,6 +153,13 @@ function buildSideQuests(rp, en) {
     `${g.dirty} uncommitted files — one bad command from gone.`, { severity: 'high', effort: 'S', impact: 'high' }));
   if ((code.todo_fixme || 0) >= 15) push(mk('urgent', 'todos', `Burn down ${code.todo_fixme} TODO/FIXME`,
     `${code.todo_fixme} loose ends flagged in code.`, { effort: 'M', impact: 'medium' }));
+  const rec = rp.disk?.reclaimable_bytes || 0;
+  if (rec > 100 * 1024 * 1024) {  // > 100 MB of regenerable cruft
+    const human = rec >= 1073741824 ? (rec / 1073741824).toFixed(1) + ' GB' : Math.round(rec / 1048576) + ' MB';
+    const top = (rp.disk.fat_dirs || []).slice(0, 2).map((d) => d.name).join(', ');
+    push(mk('idea', 'reclaim', `Reclaim ${human} of disk`, `Regenerable caches (${top}) — safe to purge; rebuild restores them.`,
+      { effort: 'S', impact: 'low', data: { reclaim_bytes: rec, fat_dirs: rp.disk.fat_dirs } }));
+  }
 
   // --- ideas / polish (cool things to do next) ---
   if (g.has_git && !s.has_readme) push(mk('idea', 'readme', 'Write a README',
@@ -242,12 +250,13 @@ function buildProject(rp) {
       days_since_commit: rp.activity.days_since_commit, commit_cadence_7d: carried?.activity?.commit_cadence_7d ?? null,
     },
     metrics: {
-      code_health: { build, build_note: buildNote, tests, todo_fixme: rp.code.todo_fixme, files: rp.code.files, loc: rp.code.loc, loc_delta: carried?.metrics?.code_health?.loc != null ? rp.code.loc - carried.metrics.code_health.loc : null },
-      git_safety: { has_git: g.has_git, has_remote: g.has_remote, remote: g.remote, branch: g.branch, commits: g.commits, dirty: g.dirty, ahead: g.ahead, behind: g.behind, unpushed: g.unpushed, risk, flags },
+      code_health: { build, build_note: buildNote, tests, todo_fixme: rp.code.todo_fixme, files: rp.code.files, loc: rp.code.loc, loc_delta: carried?.metrics?.code_health?.loc != null ? rp.code.loc - carried.metrics.code_health.loc : null, recent_files: rp.code.recent_files || [] },
+      git_safety: { has_git: g.has_git, has_remote: g.has_remote, remote: g.remote, branch: g.branch, commits: g.commits, dirty: g.dirty, ahead: g.ahead, behind: g.behind, unpushed: g.unpushed, risk, flags, last_commit_subject: g.last_commit_subject || null },
       activity: { state: rp.activity.state, last_modified: rp.activity.last_modified },
       risk_security: { score: rp.security.secret_count > 0 ? 'medium' : riskSecPrev.score, secrets_found: rp.security.secret_count, stale_deps: riskSecPrev.stale_deps ?? false, flags: riskFlags },
     },
     signals: sig,
+    disk: rp.disk || { reclaimable_bytes: 0, fat_dirs: [] },
     insights: en.insights ?? carried?.insights ?? [],
     suggestions: en.suggestions ?? carried?.suggestions ?? [],
     roadmap: en.roadmap ?? carried?.roadmap ?? [],
@@ -256,7 +265,13 @@ function buildProject(rp) {
   };
 }
 
-const projects = RAW.products.filter((p) => !p.missing).map(buildProject);
+// project-overrides: archived projects drop out of active counts but stay carried for history
+let projOverrides = {};
+try { projOverrides = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'project-overrides.json'), 'utf8')); } catch {}
+const allProjects = RAW.products.filter((p) => !p.missing).map(buildProject);
+allProjects.forEach((p) => { if (projOverrides[p.id]?.status === 'archived') { p.archived = true; p.archived_on = projOverrides[p.id].archived; } });
+const projects = allProjects.filter((p) => !p.archived);
+const archivedProjects = allProjects.filter((p) => p.archived);
 const prodById = new Map(projects.map((p) => [p.id, p]));
 
 // ---- quests: carry forward + auto-close + derive new git/build quests ----
@@ -366,6 +381,14 @@ const accountXp = prevXp + (prev ? xpGain : 0);
 const lv = levelFor(accountXp);
 
 // achievements
+// ---- learnings (Wave 5): Knowledge XP track + projects-with-vault-note count ----
+let learnings = [];
+try { learnings = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'learnings.json'), 'utf8')); } catch {}
+const knowledgeXp = learnings.length * 15;
+const projectsWithNote = projects.filter((p) => {
+  try { return fs.existsSync(path.join('C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Projects', String(p.name).replace(/[\\/:*?"<>|]/g, '-').trim() + '.md')); } catch { return false; }
+}).length;
+
 const achievements = GCFG.achievements.map((a) => {
   const prevA = (prev?.achievements || []).find((x) => x.id === a.id);
   let unlocked = prevA?.unlocked || false, progress = null, project_id = prevA?.project_id || null;
@@ -382,6 +405,8 @@ const achievements = GCFG.achievements.map((a) => {
     case 'crash_slayer': { const u = projects.some((p) => { const pp = prevProj.get(p.id); return pp && pp.metrics?.code_health?.build === 'red' && ['green', 'runs'].includes(p.metrics.code_health.build); }); unlocked = unlocked || u; break; }
     case 'secret_free': { const have = projects.filter((p) => (p.metrics.risk_security.secrets_found || 0) === 0).length; unlocked = unlocked || have === projects.length; progress = { have, need: projects.length }; break; }
     case 'documented': { const have = projects.filter((p) => p.signals?.has_readme).length; unlocked = unlocked || have === projects.length; progress = { have, need: projects.length }; break; }
+    case 'scribe': { unlocked = unlocked || learnings.length >= 30; progress = { have: learnings.length, need: 30 }; break; }
+    case 'cartographer': { unlocked = unlocked || projectsWithNote === projects.length; progress = { have: projectsWithNote, need: projects.length }; break; }
     default: break;
   }
   const out = { id: a.id, unlocked };
@@ -399,6 +424,7 @@ function appendTrend(arr, point, key = 'd') {
 const trends = {
   health_index: appendTrend(prev?.trends?.health_index, { d: TODAY, v: healthIndex }),
   xp: appendTrend(prev?.trends?.xp, { d: TODAY, v: accountXp }),
+  knowledge_xp: appendTrend(prev?.trends?.knowledge_xp, { d: TODAY, v: knowledgeXp }),
   completion_by_project: { ...(prev?.trends?.completion_by_project || {}) },
   open_quests_by_tier: appendTrend(prev?.trends?.open_quests_by_tier, { d: TODAY, red: tierCount('red'), orange: tierCount('orange'), yellow: tierCount('yellow') }),
   git_risk: appendTrend(prev?.trends?.git_risk, { d: TODAY, high: riskCounts.high, medium: riskCounts.medium, low: riskCounts.low }),
@@ -432,6 +458,20 @@ for (const a of achievements) {
   changes.push({ type: 'new_achievement', achievement_id: a.id, name: def.name, icon: def.icon, xp: def.xp, detail: `Unlocked: ${def.name || a.id}`, impact: 'positive', notify: true });
 }
 
+// ---- duplicate / twin-project detection ----
+const normName = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+const duplicates = [];
+const prodKeys = projects.map((p) => ({ name: p.name, key: normName(p.name) }));
+for (const dsc of RAW.discovered || []) {
+  const k = normName(dsc.name);
+  if (k.length < 4) continue;
+  const hit = prodKeys.find((p) => p.key === k || p.key.includes(k) || k.includes(p.key));
+  if (hit) duplicates.push({ type: 'twin', detail: `Folder "${dsc.name}" mirrors product "${hit.name}"`, severity: 'warning' });
+}
+const byRemote = {};
+for (const p of projects) { const r = p.metrics.git_safety.remote; if (r) (byRemote[r] = byRemote[r] || []).push(p.name); }
+for (const [r, names] of Object.entries(byRemote)) if (names.length > 1) duplicates.push({ type: 'shared_remote', detail: `${names.join(' = ')} share remote ${r}`, severity: 'warning' });
+
 // ---- inventory ----
 const inventory = {
   vaults: RAW.vaults.map((v) => ({ name: v.name, notes: v.notes, role: v.role, recent7: v.recent7 ?? 0, stale90: v.stale90 ?? 0, kb: v.kb ?? 0 })),
@@ -439,6 +479,7 @@ const inventory = {
   trivial: (prev?.inventory?.trivial || []),
   empty: RAW.discovered.filter((d) => d.classification === 'empty').map((d) => d.name),
   anomalies: (prev?.inventory?.anomalies || []),
+  duplicates,
 };
 
 // ---- side-quest feed (flattened + globally sorted for the Ideas & Risks surface) ----
@@ -451,6 +492,39 @@ const sideQuestFeed = projects
   sideQuestFeed.sort((a, b) => (kindRank[a.kind] - kindRank[b.kind]) || (sevRank[a.severity] - sevRank[b.severity]));
 }
 
+// ---- captured brain-dumps (Wave 4): route to a project by name, else Inbox ----
+let dumps = [];
+try { dumps = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'brain-dump.json'), 'utf8')); } catch { /* none */ }
+const captured = dumps.map((dp) => {
+  const k = normName(dp.text);
+  const hit = projects.find((p) => normName(p.name).length > 3 && k.includes(normName(p.name)));
+  const id = `sq-capture-${dp.id}`;
+  const ov = overrides[id];
+  return { id, project_id: hit?.id || null, project_name: hit?.name || 'Inbox', kind: 'idea', title: dp.text, detail: 'captured', source: 'capture', severity: 'info', effort: 'S', impact: 'medium', done: ov?.status === 'done', dismissed: ov?.status === 'dismissed' };
+}).filter((c) => !c.done && !c.dismissed);
+sideQuestFeed.unshift(...captured);   // fresh thoughts on top of the Ideas feed
+
+// ---- daily top-3 (deterministic): quick-win / momentum / rescue — beats the blank page ----
+const dailyTop3 = (() => {
+  const open = quests.filter((q) => q.status === 'open' || q.status === 'in_progress');
+  const tierRank = { red: 0, orange: 1, yellow: 2 };
+  const out = [], seen = new Set();
+  // quick win: prefer a low-tier (yellow) quest, oldest first
+  const qw = [...open].sort((a, b) => ((tierRank[b.tier] ?? 1) - (tierRank[a.tier] ?? 1)) || (b.age_days - a.age_days))[0];
+  if (qw) { out.push({ kind: 'quick_win', label: qw.title, project_id: qw.project_id, quest_id: qw.id, reason: '5-min win — clear something small' }); seen.add(qw.project_id); }
+  // momentum: most-recently-active non-dormant project with an open quest
+  const mom = projects
+    .filter((p) => p.activity.state !== 'dormant' && !seen.has(p.id) && open.some((q) => q.project_id === p.id))
+    .sort((a, b) => (a.activity.days_since_commit ?? 999) - (b.activity.days_since_commit ?? 999))[0];
+  if (mom) { const q = open.find((x) => x.project_id === mom.id); out.push({ kind: 'momentum', label: `Pick up ${mom.name}`, project_id: mom.id, quest_id: q?.id, reason: `last touched ${mom.activity.days_since_commit ?? '?'}d ago — keep momentum` }); seen.add(mom.id); }
+  // rescue: a dormant project with an open quest, longest neglected
+  const res = projects
+    .filter((p) => p.activity.state === 'dormant' && !seen.has(p.id) && open.some((q) => q.project_id === p.id))
+    .sort((a, b) => (b.activity.days_since_commit ?? 0) - (a.activity.days_since_commit ?? 0))[0];
+  if (res) { const q = open.find((x) => x.project_id === res.id); out.push({ kind: 'rescue', label: `Rescue ${res.name}`, project_id: res.id, quest_id: q?.id, reason: `dormant ${res.activity.days_since_commit ?? '?'}d — one action saves it` }); }
+  return out;
+})();
+
 // ---- final doc ----
 const doc = {
   schema_version: '1.0',
@@ -459,10 +533,13 @@ const doc = {
     level: lv.level, title: lv.title, xp: accountXp, xp_into_level: lv.xp_into_level, xp_to_next: lv.xp_to_next,
     health_index: healthIndex, health_delta: healthIndex - (prev?.account?.health_index ?? healthIndex),
     streak: { scan_days: scanDays, longest_scan_days: longest, last_scan: TODAY },
-    totals: { products: projects.length, vaults: inventory.vaults.length, clones: inventory.clones.length, trivial: inventory.trivial.length, open_quests: openQ.length, red_quests: tierCount('red'), quests_done_total: quests.filter((q) => q.status === 'done').length, achievements_unlocked: achievements.filter((a) => a.unlocked).length, open_side_quests: sideQuestFeed.length },
+    totals: { products: projects.length, vaults: inventory.vaults.length, clones: inventory.clones.length, trivial: inventory.trivial.length, open_quests: openQ.length, red_quests: tierCount('red'), quests_done_total: quests.filter((q) => q.status === 'done').length, achievements_unlocked: achievements.filter((a) => a.unlocked).length, open_side_quests: sideQuestFeed.length, archived: archivedProjects.length, learnings: learnings.length, knowledge_xp: knowledgeXp },
+    daily_top3: dailyTop3,
   },
   achievements,
   projects,
+  archived_projects: archivedProjects,
+  recent_learnings: learnings.slice(-10).reverse(),
   quests,
   side_quests: sideQuestFeed.slice(0, 40),
   trends,
@@ -480,3 +557,31 @@ console.log(`[assemble] L${lv.level} ${lv.title} · ${accountXp}xp (+${prev ? xp
 console.log(`[assemble] quests: ${openQ.length} open (R${tierCount('red')}/O${tierCount('orange')}/Y${tierCount('yellow')}), ${questsCompletedThisScan} auto-closed this scan`);
 console.log(`[assemble] side-quests: ${sideQuestFeed.length} open (${sideQuestFeed.filter((s) => s.kind === 'risk' || s.kind === 'urgent').length} urgent/risk) · enriched=${enriched}`);
 console.log(`[assemble] -> ${outPath}`);
+
+// ---- Daily-note injection (Wave 5): write a collapsible WorkspaceHQ block into today's daily note ----
+try {
+  const VAULT = 'C:/Users/ROG STRIX/Documents/VEEMO CORTEX';
+  const dailyDir = path.join(VAULT, '10_Daily');
+  const dailyFile = path.join(dailyDir, `${TODAY}.md`);
+  const top = (doc.account.daily_top3 || []).slice(0, 3);
+  const recentDone = quests.filter((q) => q.completed === TODAY).slice(0, 5);
+  const block = [
+    '%% workspacehq:start %%',
+    '> [!summary]+ 🎮 WorkspaceHQ — ' + TODAY,
+    `> L${lv.level} ${lv.title} · ${accountXp} XP · health ${healthIndex} (${doc.account.health_delta >= 0 ? '+' : ''}${doc.account.health_delta}) · ${openQ.length} open quests`,
+    '> ',
+    '> **Top 3 today:**',
+    ...top.map((t) => `> - [ ] wq:${t.quest_id || t.id || 'n/a'} ${t.title || t.detail || ''}${t.project_name ? ` _(${t.project_name})_` : ''}`),
+    ...(recentDone.length ? ['> ', '> **Completed today:**', ...recentDone.map((q) => `> - ✅ ${q.title} +${q.xp} XP`)] : []),
+    '%% workspacehq:end %%',
+    '',
+  ].join('\n');
+  if (fs.existsSync(dailyFile)) {
+    let cur = fs.readFileSync(dailyFile, 'utf8');
+    if (/%% workspacehq:start %%[\s\S]*?%% workspacehq:end %%/.test(cur)) cur = cur.replace(/%% workspacehq:start %%[\s\S]*?%% workspacehq:end %%\n?/, block);
+    else cur = cur.trimEnd() + '\n\n' + block;
+    fs.writeFileSync(dailyFile, cur);
+  } else if (fs.existsSync(dailyDir)) {
+    fs.writeFileSync(dailyFile, `---\ndate: ${TODAY}\ntags: [daily]\n---\n\n# ${TODAY}\n\n${block}`);
+  }
+} catch (e) { console.error('[assemble] daily-note injection failed:', e.message); }

@@ -77,6 +77,16 @@
   .qtitle { flex: 1; font-size: 10.5px; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .qxp { font-size: 9.5px; font-weight: 800; color: var(--gold); white-space: nowrap; }
   .qxp:empty { display: none; }
+
+  .mac { margin-top: 7px; gap: 5px; }
+  .mack { font-size: 8px; color: var(--faint); letter-spacing: .5px; }
+  .macbar { flex: 1; height: 6px; border-radius: 4px; background: #1a1540; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); min-width: 22px; }
+  .macbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--purple)); transition: width .4s; }
+  .macbar i.hot { background: linear-gradient(90deg, var(--orange), var(--red)); }
+  .mac b { font-size: 9px; min-width: 20px; color: var(--muted); }
+  .srv { -webkit-app-region: no-drag; cursor: pointer; color: var(--red); font-size: 11px; display: flex; align-items: center; gap: 2px; }
+  .srv:hover { background: rgba(255,71,87,.14); }
+  .srv b { color: var(--red); font-size: 9px; }
 </style>
 </head>
 <body>
@@ -97,6 +107,11 @@
       <span class="tier" id="qtier"></span>
       <span class="qtitle" id="qtitle">Loading…</span>
       <span class="qxp" id="qxp"></span>
+    </div>
+    <div class="row mac">
+      <span class="mack">CPU</span><div class="macbar"><i id="cpufill"></i></div><b id="cpu">–</b>
+      <span class="mack">RAM</span><div class="macbar"><i id="ramfill"></i></div><b id="ram">–</b>
+      <button class="srv btn" id="killsrv" title="Kill running dev servers" hidden>■<b id="srvn">0</b></button>
     </div>
   </div>
 
@@ -128,6 +143,14 @@
     $('quest').onclick = open;
     $('close').onclick = (e) => { e.stopPropagation(); window.hq && window.hq.miniHide && window.hq.miniHide(); };
     if (window.hq && window.hq.onMiniUpdate) window.hq.onMiniUpdate(paint);
+    function paintMac(m) {
+      if (!m) return;
+      $('cpu').textContent = m.cpu; $('cpufill').style.width = m.cpu + '%'; $('cpufill').className = m.cpu > 85 ? 'hot' : '';
+      $('ram').textContent = m.ram; $('ramfill').style.width = m.ram + '%'; $('ramfill').className = m.ram > 85 ? 'hot' : '';
+      const k = $('killsrv'); if (m.servers > 0) { k.hidden = false; $('srvn').textContent = m.servers; } else k.hidden = true;
+    }
+    if (window.hq && window.hq.onMachine) window.hq.onMachine(paintMac);
+    $('killsrv').onclick = (e) => { e.stopPropagation(); window.hq && window.hq.killServers && window.hq.killServers(); };
     (async () => { if (window.hq && window.hq.getMiniData) paint(await window.hq.getMiniData()); })();
   </script>
 </body>

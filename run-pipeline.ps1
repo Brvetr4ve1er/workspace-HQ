@@ -32,7 +32,7 @@ Log "WorkspaceHQ pipeline start (date=$Date)"
 $latest = Join-Path $scanDir 'data\latest.json'
 $mdOut  = Join-Path $ReportsDir "Workspace Status $Date.md"
 $steps = @( @{ name = 'collector'; args = @((Join-Path $collector 'collector.mjs')) } )
-if (-not $NoEnrich) { $steps += @{ name = 'enrich'; args = @((Join-Path $collector 'enrich.mjs'), '--reports-dir', $ReportsDir) } }
+if (-not $NoEnrich) { $steps += @{ name = 'enrich'; args = @((Join-Path $collector 'enrich.mjs'), '--reports-dir', $ReportsDir); optional = $true } }
 $steps += @{ name = 'assemble'; args = @((Join-Path $collector 'assemble.mjs'), '--date', $Date, '--reports-dir', $ReportsDir) }
 $steps += @{ name = 'render';   args = @((Join-Path $collector 'render.mjs'), '--in', $latest, '--out', $mdOut) }
 
@@ -41,7 +41,12 @@ foreach ($s in $steps) {
   $out = & node @($s.args) 2>&1
   $code = $LASTEXITCODE
   $out | ForEach-Object { Log "   $_" }
-  if ($code -ne 0) { Log "STEP FAILED: $($s.name) (exit $code)"; exit $code }
+  if ($code -ne 0) {
+    # Enrichment is a nice-to-have: if it crashes, assemble/render must still land a
+    # fresh latest.json (last good enrichment.json carries forward). Only hard steps abort.
+    if ($s.optional) { Log "STEP FAILED (optional, continuing): $($s.name) (exit $code)"; continue }
+    Log "STEP FAILED: $($s.name) (exit $code)"; exit $code
+  }
 }
 
 # Trim logs to 30 most recent.

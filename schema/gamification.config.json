@@ -77,6 +77,8 @@
     { "id": "scan_streak_7",  "name": "Habit Formed",     "icon": "📈", "desc": "Maintain a 7-day scan streak.",                       "xp": 70,  "type": "counter", "need": 7 },
     { "id": "declutter",      "name": "Marie Kondo",      "icon": "🧹", "desc": "Remove all stray empty folders from the workspace.",  "xp": 25,  "type": "workspace" },
     { "id": "secret_free",    "name": "No Loose Keys",    "icon": "🔑", "desc": "No exposed secrets detected across any product.",      "xp": 60,  "type": "workspace" },
-    { "id": "documented",     "name": "Well Documented",  "icon": "📚", "desc": "Every product has a README.",                         "xp": 50,  "type": "workspace" }
+    { "id": "documented",     "name": "Well Documented",  "icon": "📚", "desc": "Every product has a README.",                         "xp": 50,  "type": "workspace" },
+    { "id": "scribe",         "name": "Scribe",           "icon": "✍️", "desc": "Capture 30 lessons in your What I Learned log.",       "xp": 70,  "type": "counter", "need": 30 },
+    { "id": "cartographer",   "name": "Cartographer",     "icon": "🗺️", "desc": "Every product has a vault note.",                    "xp": 90,  "type": "workspace" }
   ]
 }

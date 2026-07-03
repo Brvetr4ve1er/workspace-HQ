@@ -44,7 +44,10 @@ const prompt = fs.readFileSync(path.join(__dirname, '..', 'scan-prompt.md'), 'ut
   .replace('{{PREVIOUS_SCAN}}', previousScan());
 
 console.log(`[enrich] calling ${MODEL} …`);
-const r = spawnSync(claude, ['-p', '--model', MODEL], { input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+// Hard cap: an interactive auth prompt / network stall in `claude -p` must never
+// freeze the pipeline (a hung spawnSync here is exactly what left latest.json stale).
+const r = spawnSync(claude, ['-p', '--model', MODEL], { input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 480_000, killSignal: 'SIGKILL' });
+if (r.error && r.error.code === 'ETIMEDOUT') { console.error('[enrich] claude timed out after 8min — skipping enrichment (deterministic fields carry forward).'); process.exit(0); }
 if (r.status !== 0) { console.error('[enrich] claude failed:', (r.stderr || '').slice(0, 400)); process.exit(0); }
 
 // Extract the JSON object from the model output (tolerate stray text/fences).

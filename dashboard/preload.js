@@ -5,6 +5,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('hq', {
   runScan: () => ipcRenderer.invoke('hq:scan'),
   openRepo: (relPath) => ipcRenderer.invoke('hq:open-repo', relPath),
+  openFile: (projPath, fileRel) => ipcRenderer.invoke('hq:open-file', projPath, fileRel),
+  reclaim: (projPath, dirNames) => ipcRenderer.invoke('hq:reclaim', projPath, dirNames),
+  snapshot: (projPath, name) => ipcRenderer.invoke('hq:snapshot', projPath, name),
+  captureSave: (text) => ipcRenderer.invoke('hq:capture-save', text),
+  captureCancel: () => ipcRenderer.invoke('hq:capture-cancel'),
+  claudeQuest: (projPath, prompt) => ipcRenderer.invoke('hq:claude-quest', projPath, prompt),
+  draftCommit: (projPath) => ipcRenderer.invoke('hq:draft-commit', projPath),
+  doCommit: (projPath, msg) => ipcRenderer.invoke('hq:do-commit', projPath, msg),
+  logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
+  learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
+  archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
+  reviveProject: (id) => ipcRenderer.invoke('hq:revive-project', id),
+  orphanArchive: (p) => ipcRenderer.invoke('hq:orphan-archive', p),
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
   devStart: (id) => ipcRenderer.invoke('hq:dev-start', id),
   devStop: (id) => ipcRenderer.invoke('hq:dev-stop', id),
@@ -18,9 +31,15 @@ contextBridge.exposeInMainWorld('hq', {
   getMiniData: () => ipcRenderer.invoke('hq:mini-data'),
   showMain: () => ipcRenderer.invoke('hq:show-main'),
   miniHide: () => ipcRenderer.invoke('hq:mini-hide'),
+  killServers: () => ipcRenderer.invoke('hq:kill-servers'),
   onMiniUpdate: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('hq:mini-update', handler);
     return () => ipcRenderer.removeListener('hq:mini-update', handler);
+  },
+  onMachine: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:machine', handler);
+    return () => ipcRenderer.removeListener('hq:machine', handler);
   },
 });

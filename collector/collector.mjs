@@ -65,6 +65,7 @@ function gitFacts(absPath) {
   const porcelain = git(absPath, ['status', '--porcelain']);
   const dirty = porcelain ? porcelain.split('\n').filter(Boolean).length : 0;
   const lastDate = git(absPath, ['log', '-1', '--format=%cI']);
+  const lastSubject = git(absPath, ['log', '-1', '--format=%s']);
   // ahead/behind from status -sb header
   let ahead = 0, behind = 0, unpushed = false;
   const sb = git(absPath, ['status', '-sb']);
@@ -87,6 +88,7 @@ function gitFacts(absPath) {
     behind,
     unpushed,
     last_commit_date: lastDate || null,
+    last_commit_subject: lastSubject || null,
   };
 }
 
@@ -98,6 +100,7 @@ function shouldPrune(name) {
 // Single pruned pass: file count, LOC, TODO/FIXME, secrets, newest mtime.
 function walkSource(absPath) {
   let files = 0, loc = 0, todo = 0, newest = 0, test_files = 0;
+  const newest3 = [];   // 3 most-recently-modified source files (for the re-entry ramp)
   const secrets = [];
   const stack = [absPath];
   while (stack.length) {
@@ -119,6 +122,9 @@ function walkSource(absPath) {
         try {
           const st = fs.statSync(full);
           if (st.mtimeMs > newest) newest = st.mtimeMs;
+          const rel = path.relative(absPath, full).replace(/\\/g, '/');
+          if (newest3.length < 3) { newest3.push({ p: rel, m: st.mtimeMs }); newest3.sort((a, b) => a.m - b.m); }
+          else if (st.mtimeMs > newest3[0].m) { newest3[0] = { p: rel, m: st.mtimeMs }; newest3.sort((a, b) => a.m - b.m); }
           if (st.size > 2_000_000) continue; // skip giant/minified bundles for line+secret work
           content = fs.readFileSync(full, 'utf8');
         } catch { continue; }
@@ -138,7 +144,7 @@ function walkSource(absPath) {
       }
     }
   }
-  return { files, loc, todo_fixme: todo, test_files, secrets, newest_mtime: newest };
+  return { files, loc, todo_fixme: todo, test_files, recent_files: newest3.sort((a, b) => b.m - a.m).map((x) => x.p), secrets, newest_mtime: newest };
 }
 
 // Deterministic "maturity" signals from cheap existence checks at the project root.
@@ -259,6 +265,34 @@ function dirIsEmptyish(absPath) {
   return true;
 }
 
+// Heavy, regenerable dirs the user can safely reclaim (npm install / rebuild restores them).
+const RECLAIMABLE_DIRS = ['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo'];
+// Recursive byte sum (stat only, no content reads), capped so a pathological tree can't hang the scan.
+function dirSizeBytes(absPath) {
+  let bytes = 0, count = 0;
+  const stack = [absPath];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) stack.push(full);
+      else if (e.isFile()) { try { bytes += fs.statSync(full).size; } catch { /* skip */ } if (++count > 300000) return bytes; }
+    }
+  }
+  return bytes;
+}
+function reclaimable(absPath) {
+  const fat_dirs = [];
+  for (const name of RECLAIMABLE_DIRS) {
+    const dp = path.join(absPath, name);
+    try { if (fs.statSync(dp).isDirectory()) fat_dirs.push({ name, bytes: dirSizeBytes(dp) }); } catch { /* absent */ }
+  }
+  fat_dirs.sort((a, b) => b.bytes - a.bytes);
+  return { reclaimable_bytes: fat_dirs.reduce((a, d) => a + d.bytes, 0), fat_dirs };
+}
+
 // ---- main ----
 function collectProduct(p) {
   const resolved = resolveGlob(p.path);
@@ -268,6 +302,7 @@ function collectProduct(p) {
   const g = gitFacts(abs);
   const code = walkSource(abs);
   const sig = projectSignals(abs);
+  const disk = reclaimable(abs);
   const newest = Math.max(code.newest_mtime, g.last_commit_date ? Date.parse(g.last_commit_date) : 0);
   const dsm = daysSince(newest || code.newest_mtime);
   const dscommit = daysSince(g.last_commit_date ? Date.parse(g.last_commit_date) : 0);
@@ -279,7 +314,7 @@ function collectProduct(p) {
     dev_cmd: p.dev_cmd || null,
     canonical_branch: p.canonical_branch || 'main',
     git: g,
-    code: { files: code.files, loc: code.loc, todo_fixme: code.todo_fixme },
+    code: { files: code.files, loc: code.loc, todo_fixme: code.todo_fixme, recent_files: code.recent_files },
     signals: {
       has_tests: code.test_files > 0 || !!sig.test_script,
       test_files: code.test_files,
@@ -293,6 +328,7 @@ function collectProduct(p) {
       dep_count: sig.dep_count,
     },
     security: { secret_count: code.secrets.length, secrets: code.secrets },
+    disk,
     activity: {
       last_commit: g.last_commit_date ? g.last_commit_date.slice(0, 10) : null,
       days_since_commit: dscommit,

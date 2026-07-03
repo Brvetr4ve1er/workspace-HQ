@@ -9,6 +9,9 @@
 logs/
 *.log
 
+# --- local snapshots (Wave 2 safety net) ---
+backups/
+
 # --- generated scan outputs (rebuilt by the pipeline each run) ---
 data/latest.json
 data/raw-metrics.json
@@ -26,3 +29,6 @@ dashboard/_console.txt
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# capture inbox (transient)
+data/brain-dump.json

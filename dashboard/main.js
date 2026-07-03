@@ -7,9 +7,10 @@
 // Tauri alternative: dashboard/ is the distDir; a src-tauri wrapper would call the
 // same run-pipeline.ps1 and the same data/quest-overrides.json from a Rust command.
 
-const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const { spawnSync, spawn } = require('node:child_process');
 
 const DIR = __dirname;
@@ -23,8 +24,11 @@ const PROJECT_NOTES_DIR = path.join(VAULT, '30_Areas', 'Projects');
 const NOTIFY_STATE = path.join(DATA, '.notify-state.json');
 const HUD_STATE = path.join(DATA, '.hud-state.json');
 const QUEST_BOARD = path.join(VAULT, '30_Areas', 'Workspace Status', 'Quest Board.md');
+const DAILY_DIR = path.join(VAULT, '10_Daily');
+// Allow-list of regenerable dirs the reclaim action may delete (npm install / rebuild restores them).
+const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
-let win, tray, watcher, miniWin, qbWatcher;
+let win, tray, watcher, miniWin, qbWatcher, dailyWatcher;
 const activeDevServers = new Map();
 
 // Project paths in the data are already absolute (e.g. C:\Users\...\alliance travel);
@@ -63,6 +67,34 @@ function mirrorProjectNote(name, id, text, prod) {
     fs.writeFileSync(file, content);
   }
   return file;
+}
+
+// ---- snapshot safety net + bulk git/confirm helpers (Wave 2b) ----------------
+const BACKUPS = path.join(SCAN_DIR, 'backups');
+// Filtered working-tree copy via robocopy (built into Windows): keeps .git + source,
+// drops the heavy regenerable dirs. Non-disruptive, reversible. Returns dest or null.
+function snapshotProject(absPath, name) {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  const dest = path.join(BACKUPS, `${safeFile(name)}-${stamp}`);
+  try { fs.mkdirSync(dest, { recursive: true }); } catch { return null; }
+  const xd = [...RECLAIMABLE_DIRS].flatMap((d) => ['/XD', d]);
+  const r = spawnSync('robocopy', [absPath, dest, '/E', '/R:1', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', ...xd], { encoding: 'utf8', windowsHide: true });
+  // robocopy exit codes 0-7 = success; >=8 = real error
+  if ((r.status ?? 16) >= 8) { try { fs.rmSync(dest, { recursive: true, force: true }); } catch {} return null; }
+  return dest;
+}
+function gitEach(projects, args) {
+  let ok = 0;
+  for (const p of projects) {
+    const cwd = resolveProjectPath(p.path); if (!cwd) continue;
+    const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+    if (r.status === 0) ok++;
+  }
+  return ok;
+}
+async function confirmThen(message, detail, fn) {
+  const { response } = await dialog.showMessageBox(win || undefined, { type: 'warning', buttons: ['Cancel', 'Do it'], defaultId: 0, cancelId: 0, message, detail });
+  if (response === 1) await fn();
 }
 
 function rebuildData() {
@@ -113,6 +145,19 @@ function miniPayload() {
 }
 function pushMini() { if (miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('hq:mini-update', miniPayload()); }
 
+// ---- live machine HUD: CPU% (delta-sampled) + RAM% + orphaned dev-server count -----
+let lastCpu = null, machineTimer = null;
+function cpuTimes() { let idle = 0, total = 0; for (const c of os.cpus()) { for (const t of Object.values(c.times)) total += t; idle += c.times.idle; } return { idle, total }; }
+function machineSample() {
+  const cur = cpuTimes();
+  let cpu = 0;
+  if (lastCpu) { const dt = cur.total - lastCpu.total, di = cur.idle - lastCpu.idle; cpu = dt > 0 ? Math.round((1 - di / dt) * 100) : 0; }
+  lastCpu = cur;
+  return { cpu: Math.max(0, Math.min(100, cpu)), ram: Math.round((1 - os.freemem() / os.totalmem()) * 100), servers: activeDevServers.size };
+}
+function pushMachine() { if (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) miniWin.webContents.send('hq:machine', machineSample()); }
+function startMachineSampler() { if (machineTimer) return; lastCpu = cpuTimes(); machineTimer = setInterval(pushMachine, 2500); }
+
 function hudPrefVisible() {
   try { return JSON.parse(fs.readFileSync(HUD_STATE, 'utf8')).miniVisible !== false; } catch { return true; }
 }
@@ -122,7 +167,7 @@ function saveHudPref(v) {
 
 function createMiniWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
-  const W = 286, H = 134, margin = 16;
+  const W = 286, H = 164, margin = 16;
   miniWin = new BrowserWindow({
     width: W, height: H,
     x: wa.x + wa.width - W - margin,
@@ -149,20 +194,39 @@ function hideMini() {
 }
 function toggleMini() { (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) ? hideMini() : showMini(); }
 
+// Tray menu rebuilt from the latest scan: static items + dynamic power "quick actions"
+// (push all unpushed / snapshot all dirty / kill all dev servers / open most-urgent).
+function buildTrayMenu() {
+  const s = latest();
+  const items = [
+    { label: 'Show WorkspaceHQ', click: () => { if (!win) createWindow(); else win.show(); } },
+    { label: 'Toggle mini HUD', click: toggleMini },
+    { label: 'Quick capture (Ctrl+Alt+Space)', click: openCapture },
+    { label: 'Scan now', click: runScan },
+  ];
+  if (s) {
+    const unpushed = s.projects.filter((p) => p.metrics.git_safety.unpushed);
+    const dirty = s.projects.filter((p) => p.metrics.git_safety.dirty > 0);
+    const quick = [];
+    if (unpushed.length) quick.push({ label: `Push all unpushed (${unpushed.length})`, click: () => confirmThen(`Push ${unpushed.length} repo(s)?`, unpushed.map((p) => p.name).join(', '), () => { const ok = gitEach(unpushed, ['push']); if (Notification.isSupported()) new Notification({ title: '⬆ Pushed', body: `${ok}/${unpushed.length} repos`, icon: path.join(DIR, 'icon.png') }).show(); runScan(); }) });
+    if (dirty.length) quick.push({ label: `Snapshot all dirty (${dirty.length})`, click: () => confirmThen(`Snapshot ${dirty.length} dirty repo(s)?`, 'Filtered backup copy to backups/ — safe, non-disruptive.', () => { let ok = 0; for (const p of dirty) { const b = resolveProjectPath(p.path); if (b && snapshotProject(b, p.name)) ok++; } if (Notification.isSupported()) new Notification({ title: '📦 Snapshotted', body: `${ok}/${dirty.length} repos → backups/`, icon: path.join(DIR, 'icon.png') }).show(); }) });
+    if (activeDevServers.size) quick.push({ label: `Kill all dev servers (${activeDevServers.size})`, click: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); } activeDevServers.clear(); } });
+    const top = (s.account?.daily_top3 || [])[0];
+    if (top?.project_id) { const tp = s.projects.find((p) => p.id === top.project_id); if (tp) quick.push({ label: `Open most-urgent: ${tp.name}`, click: () => { const b = resolveProjectPath(tp.path); if (b) shell.openPath(b); } }); }
+    if (quick.length) items.push({ type: 'separator' }, { label: 'Quick actions', enabled: false }, ...quick);
+  }
+  items.push({ type: 'separator' }, { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } });
+  return Menu.buildFromTemplate(items);
+}
 function updateTray() {
   if (!tray) return;
   const s = latest();
   tray.setToolTip(s ? `WorkspaceHQ — L${s.account.level} ${s.account.title} · health ${s.account.health_index} · ${s.account.totals.open_quests} open` : 'WorkspaceHQ');
+  tray.setContextMenu(buildTrayMenu());   // refresh dynamic quick-actions on every scan
 }
 function createTray() {
   tray = new Tray(nativeImage.createFromPath(path.join(DIR, 'icon.png')));
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show WorkspaceHQ', click: () => { if (!win) createWindow(); else win.show(); } },
-    { label: 'Toggle mini HUD', click: toggleMini },
-    { label: 'Scan now', click: runScan },
-    { type: 'separator' },
-    { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
-  ]));
+  tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => { if (!win) createWindow(); else (win.isVisible() ? win.focus() : win.show()); });
   updateTray();
 }
@@ -210,6 +274,30 @@ function applyDone(ids) {
   if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
   rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini();
   return true;
+}
+
+// Two-way: ticking a `- [x] wq:<quest-id>` line in any daily note completes that quest.
+function watchDailyNotes() {
+  if (!fs.existsSync(DAILY_DIR)) return;
+  try {
+    let t = null;
+    dailyWatcher = fs.watch(DAILY_DIR, (_evt, file) => {
+      if (!file || !file.endsWith('.md')) return;
+      clearTimeout(t);
+      t = setTimeout(() => {
+        let text = '';
+        try { text = fs.readFileSync(path.join(DAILY_DIR, file), 'utf8'); } catch { return; }
+        const ov = readOverrides();
+        const ids = [];
+        for (const line of text.split(/\r?\n/)) {
+          if (!/^\s*[->]?\s*[-*]?\s*\[[xX]\]/.test(line)) continue;
+          const m = line.match(/wq:([A-Za-z0-9_-]+)/);
+          if (m && ov[m[1]]?.status !== 'done') ids.push(m[1]);
+        }
+        if (ids.length) { console.log(`[daily-note] vault→app completion (${file}):`, ids.join(', ')); applyDone(ids); }
+      }, 1200);
+    });
+  } catch (e) { console.error('watchDailyNotes failed:', e); }
 }
 
 // Quest/side-quest ids that sit on a CHECKED Tasks line carrying a 🆔 marker. The
@@ -261,6 +349,202 @@ ipcMain.handle('hq:open-repo', (_e, rel) => {
   const target = resolveProjectPath(rel);
   if (!target) { dialog.showErrorBox('Open folder', `Refused to open path outside Documents: ${rel}`); return false; }
   return shell.openPath(target);
+});
+// Open one specific file inside a project (re-entry ramp "last file" + clickable recents).
+ipcMain.handle('hq:open-file', (_e, projPath, fileRel) => {
+  const base = resolveProjectPath(projPath);
+  if (!base) return false;
+  const target = path.resolve(base, String(fileRel || '').replace(/\//g, path.sep));
+  if (target !== base && !target.startsWith(base + path.sep)) return false;   // stay inside the project
+  return shell.openPath(target);
+});
+// Reclaim disk: delete allow-listed regenerable dirs in a project, AFTER an explicit confirm.
+ipcMain.handle('hq:reclaim', async (_e, projPath, dirNames) => {
+  const base = resolveProjectPath(projPath);
+  if (!base) return false;
+  const names = (Array.isArray(dirNames) ? dirNames : []).filter((n) => RECLAIMABLE_DIRS.has(n));
+  if (!names.length) return false;
+  const { response } = await dialog.showMessageBox(win || undefined, {
+    type: 'warning', buttons: ['Cancel', 'Purge'], defaultId: 0, cancelId: 0,
+    message: 'Purge regenerable caches?',
+    detail: `Delete ${names.join(', ')} in:\n${base}\n\nReversible — npm install / a rebuild restores them.`,
+  });
+  if (response !== 1) return false;
+  let ok = 0;
+  for (const n of names) {
+    const target = path.join(base, n);
+    if (target !== base && target.startsWith(base + path.sep)) {
+      try { fs.rmSync(target, { recursive: true, force: true }); ok++; } catch (e) { console.error('reclaim failed', target, e); }
+    }
+  }
+  if (ok) runScan();   // refresh disk numbers
+  return ok;
+});
+// Snapshot one project (filtered backup copy) after an explicit confirm.
+ipcMain.handle('hq:snapshot', async (_e, projPath, name) => {
+  const base = resolveProjectPath(projPath);
+  if (!base) return false;
+  const { response } = await dialog.showMessageBox(win || undefined, {
+    type: 'question', buttons: ['Cancel', 'Snapshot'], defaultId: 1, cancelId: 0,
+    message: `Snapshot ${name || 'project'}?`, detail: 'Filtered copy (keeps .git + source, drops node_modules) → backups/. Safe, non-disruptive.',
+  });
+  if (response !== 1) return false;
+  const dest = snapshotProject(base, name || path.basename(base));
+  if (dest && Notification.isSupported()) new Notification({ title: '📦 Snapshot saved', body: dest, icon: path.join(DIR, 'icon.png') }).show();
+  return !!dest;
+});
+
+// ---- Quick-capture: global hotkey -> frameless box -> data/brain-dump.json (Wave 4) ----
+let captureWin = null;
+function openCapture() {
+  if (captureWin && !captureWin.isDestroyed()) { captureWin.show(); captureWin.focus(); return; }
+  const wa = screen.getPrimaryDisplay().workArea;
+  const W = 480, H = 96;
+  captureWin = new BrowserWindow({
+    width: W, height: H, x: Math.round(wa.x + (wa.width - W) / 2), y: Math.round(wa.y + wa.height * 0.26),
+    frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: true,
+    fullscreenable: false, minimizable: false, maximizable: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
+  });
+  captureWin.setAlwaysOnTop(true, 'screen-saver');
+  captureWin.loadFile(path.join(DIR, 'capture.html'));
+  captureWin.on('blur', () => { if (captureWin && !captureWin.isDestroyed()) captureWin.close(); });
+  captureWin.on('closed', () => { captureWin = null; });
+}
+ipcMain.handle('hq:capture-save', (_e, text) => {
+  const t = String(text || '').trim();
+  if (captureWin && !captureWin.isDestroyed()) captureWin.close();
+  if (!t) return false;
+  const f = path.join(DATA, 'brain-dump.json');
+  let arr = []; try { arr = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  arr.push({ id: `${Date.now().toString(36)}`, ts: new Date().toISOString(), text: t });
+  fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(arr, null, 2));
+  if (Notification.isSupported()) new Notification({ title: '🧠 Captured', body: t.slice(0, 90), icon: path.join(DIR, 'icon.png') }).show();
+  // re-assemble the current scan (fast — no collector) so the dump shows as a side-quest
+  const s = latest();
+  if (s) { spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }); rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); }
+  return true;
+});
+ipcMain.handle('hq:capture-cancel', () => { if (captureWin && !captureWin.isDestroyed()) captureWin.close(); return true; });
+
+// ---- Scoped Claude launcher: open an interactive Claude session cd'd to a project ----
+ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
+  const cwd = resolveProjectPath(projPath);
+  if (!cwd) return false;
+  const p = String(prompt || '').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').slice(0, 500);
+  // new terminal window, cd into the project, launch claude with the quest as the seed prompt
+  spawnSync('cmd.exe', ['/c', 'start', '', 'cmd', '/k', `cd /d "${cwd}" && claude "${p}"`], { windowsHide: false });
+  return true;
+});
+
+// ---- Commit drafter (Wave 4): claude -p over git diff -> conventional commit ----
+function findClaude() {
+  const cands = ['C:/Users/ROG STRIX/AppData/Roaming/npm/claude.cmd', 'claude'];
+  for (const c of cands) { try { spawnSync(c, ['--version'], { stdio: 'ignore' }); return c; } catch {} }
+  return null;
+}
+ipcMain.handle('hq:draft-commit', (_e, projPath) => {
+  const cwd = resolveProjectPath(projPath);
+  if (!cwd) return { error: 'bad path' };
+  const claude = findClaude();
+  if (!claude) return { error: 'claude CLI not found on PATH' };
+  // unstaged + staged diff; cap to avoid blowing token budget
+  const diff = (spawnSync('git', ['-C', cwd, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }).stdout || '').slice(0, 30000);
+  if (!diff.trim()) return { error: 'no diff to summarize' };
+  const prompt = `Write a single conventional-commit message for this diff. Format: "type(scope): summary" then blank line then 1-3 bullet points if useful. Reply with ONLY the message text, no fences.\n\n${diff}`;
+  const r = spawnSync(claude, ['-p'], { input: prompt, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 90000 });
+  if (r.status !== 0) return { error: (r.stderr || '').slice(0, 300) || 'claude failed' };
+  return { message: (r.stdout || '').trim() };
+});
+ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
+  const cwd = resolveProjectPath(projPath);
+  if (!cwd) return false;
+  const a = spawnSync('git', ['-C', cwd, 'add', '-A'], { encoding: 'utf8' });
+  if (a.status !== 0) return { error: 'add failed' };
+  const c = spawnSync('git', ['-C', cwd, 'commit', '-m', String(message || 'wip')], { encoding: 'utf8' });
+  if (c.status !== 0) return { error: (c.stderr || c.stdout || '').slice(0, 300) };
+  // refresh
+  const s = latest();
+  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'collector.mjs')], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini();
+  return { ok: true };
+});
+
+// ---- Decision log (Wave 5): append [!decision] callout to project vault note ----
+function ensureVaultNote(name, id, prod) {
+  fs.mkdirSync(PROJECT_NOTES_DIR, { recursive: true });
+  const file = path.join(PROJECT_NOTES_DIR, safeFile(name) + '.md');
+  if (!fs.existsSync(file)) {
+    const meta = prod ? `> [!info] ${prod.completion?.pct ?? '?'}% complete · ${(prod.stack || []).slice(0, 4).join(' · ')} · \`${prod.path || ''}\`` : '';
+    fs.writeFileSync(file, ['---', `title: ${name}`, 'type: project', 'tags: [workspace, project]', `workspacehq_id: ${id}`, 'generated_by: workspacehq', '---', '', `# ${name}`, '', meta, '', NOTE_HEAD, ''].join('\n'));
+  }
+  return file;
+}
+ipcMain.handle('hq:log-decision', (_e, projId, text) => {
+  const s = latest(); if (!s) return false;
+  const prod = (s.projects || []).find((p) => p.id === projId);
+  if (!prod) return false;
+  const file = ensureVaultNote(prod.name, projId, prod);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const block = `\n> [!decision] ${stamp}\n> ${String(text).replace(/\n/g, '\n> ')}\n`;
+  fs.appendFileSync(file, block);
+  return true;
+});
+
+// ---- Knowledge XP (Wave 5): "I learned X" capture -> learnings.json + vault append ----
+const LEARNINGS = path.join(DATA, 'learnings.json');
+ipcMain.handle('hq:learn', (_e, projId, text) => {
+  const t = String(text || '').trim(); if (!t) return false;
+  let arr = []; try { arr = JSON.parse(fs.readFileSync(LEARNINGS, 'utf8')); } catch {}
+  arr.push({ id: Date.now().toString(36), ts: new Date().toISOString(), project_id: projId || null, text: t });
+  fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(LEARNINGS, JSON.stringify(arr, null, 2));
+  // mirror to vault: a "What I Learned.md" log in 30_Areas
+  try {
+    const wif = path.join(VAULT, '30_Areas', 'What I Learned.md');
+    if (!fs.existsSync(wif)) fs.writeFileSync(wif, '---\ntitle: What I Learned\ntags: [learning, log]\ngenerated_by: workspacehq\n---\n\n# 📚 What I Learned\n\n');
+    const s = latest();
+    const projName = projId && s ? (s.projects || []).find((p) => p.id === projId)?.name : '';
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    fs.appendFileSync(wif, `- ${stamp}${projName ? ` · [[${projName}]]` : ''} — ${t}\n`);
+  } catch {}
+  // re-assemble so knowledge XP updates
+  const s = latest();
+  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  rebuildData(); if (win && !win.isDestroyed()) win.reload();
+  return true;
+});
+
+// ---- Graveyard verbs (Wave 5): Archive / Revive a project via overrides ----
+ipcMain.handle('hq:archive-project', (_e, projId) => {
+  const f = path.join(DATA, 'project-overrides.json');
+  let o = {}; try { o = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  o[projId] = { status: 'archived', archived: new Date().toISOString().slice(0, 10) };
+  fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2));
+  const s = latest();
+  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini();
+  return true;
+});
+ipcMain.handle('hq:revive-project', (_e, projId) => {
+  const f = path.join(DATA, 'project-overrides.json');
+  let o = {}; try { o = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  delete o[projId];
+  fs.writeFileSync(f, JSON.stringify(o, null, 2));
+  const s = latest();
+  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  rebuildData(); if (win && !win.isDestroyed()) win.reload();
+  return true;
+});
+
+// ---- Orphan triage (Wave 5): register / delete discovered folders ----
+ipcMain.handle('hq:orphan-archive', (_e, dirPath) => {
+  const src = resolveProjectPath(dirPath); if (!src) return false;
+  const archiveRoot = path.join(DOCS_ROOT, '_archive');
+  fs.mkdirSync(archiveRoot, { recursive: true });
+  const dest = path.join(archiveRoot, path.basename(src));
+  try { fs.renameSync(src, dest); } catch (e) { return { error: String(e.message) }; }
+  return { ok: true, dest };
 });
 // Works for both core quest ids (q-…) and side-quest ids (sq-…) — both live in the
 // same quest-overrides.json store that assemble.mjs reads.
@@ -334,6 +618,12 @@ ipcMain.handle('hq:note-save', (_e, id, note) => {
 ipcMain.handle('hq:mini-data', () => miniPayload());
 ipcMain.handle('hq:show-main', () => { if (!win) createWindow(true); else win.show(); if (win) win.focus(); return true; });
 ipcMain.handle('hq:mini-hide', () => { hideMini(); return true; });
+ipcMain.handle('hq:kill-servers', () => {
+  let n = 0;
+  for (const [, proc] of activeDevServers) { if (proc && proc.pid) { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); n++; } }
+  activeDevServers.clear(); pushMachine();
+  return n;
+});
 
 // Single-instance lock: a second launch (e.g. autostart + manual) just focuses the
 // running window instead of opening a duplicate tray / racing the pipeline writers.
@@ -369,6 +659,9 @@ if (!app.requestSingleInstanceLock()) {
     if (hudPrefVisible()) createMiniWindow();   // ambient HUD floats even when started to tray
     watchData();
     watchQuestBoard();   // two-way: ticking a quest in Obsidian completes it here
+    watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
+    startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
+    try { globalShortcut.register('CommandOrControl+Alt+Space', openCapture); } catch (e) { console.error('capture hotkey failed:', e); }
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: 'WorkspaceHQ', submenu: [
         { label: 'Scan now', accelerator: 'CmdOrCtrl+R', click: runScan },
@@ -382,5 +675,5 @@ if (!app.requestSingleInstanceLock()) {
 
   // Keep the tray alive on Windows/Linux when all windows close (close-to-tray).
   app.on('window-all-closed', () => { if (process.platform === 'darwin') return; /* stay resident in tray */ });
-  app.on('before-quit', () => { app.isQuitting = true; for (const w of [watcher, qbWatcher]) if (w) try { w.close(); } catch {} });
+  app.on('before-quit', () => { app.isQuitting = true; if (machineTimer) clearInterval(machineTimer); try { globalShortcut.unregisterAll(); } catch {} for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {} });
 }

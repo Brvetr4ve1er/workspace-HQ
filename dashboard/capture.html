@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Capture</title>
+<style>
+  :root { --bg0:#0c0a1e; --bg1:#14102e; --line:#2a2350; --cyan:#00f0ff; --pink:#ff2bd6; --gold:#ffd23f; --txt:#e7e3ff; --faint:#5e588a;
+          --mono: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background:transparent; overflow:hidden; }
+  #cap { height:100vh; padding:12px 14px; border:1px solid var(--line); border-radius:12px;
+         background: radial-gradient(120% 140% at 0% 0%, rgba(0,240,255,.14), transparent 60%), linear-gradient(160deg, var(--bg1), var(--bg0));
+         box-shadow:0 10px 30px rgba(0,0,0,.6); -webkit-app-region:drag; }
+  .lbl { font-family:var(--mono); font-size:9px; letter-spacing:.6px; color:var(--cyan); text-transform:uppercase; margin-bottom:7px; }
+  .lbl b { color:var(--faint); }
+  input { -webkit-app-region:no-drag; width:100%; background:#0a081c; border:1px solid var(--line); border-radius:7px;
+          color:var(--txt); font-family:var(--mono); font-size:15px; padding:10px 12px; outline:none; }
+  input:focus { border-color:var(--cyan); box-shadow:0 0 0 2px rgba(0,240,255,.18); }
+  input::placeholder { color:var(--faint); }
+</style>
+</head>
+<body>
+  <div id="cap">
+    <div class="lbl">🧠 brain dump · <b>Enter to file · Esc to cancel</b></div>
+    <input id="in" autofocus placeholder="dump the thought… (it gets routed to the right project)" />
+  </div>
+  <script>
+    const inp = document.getElementById('in');
+    inp.focus();
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { window.hq && window.hq.captureSave && window.hq.captureSave(inp.value); }
+      else if (e.key === 'Escape') { window.hq && window.hq.captureCancel && window.hq.captureCancel(); }
+    });
+    window.addEventListener('DOMContentLoaded', () => inp.focus());
+  </script>
+</body>
+</html>

@@ -599,3 +599,60 @@ h2.sec .sec-n { font-family: var(--term); font-size: .64em; color: var(--red); m
 .to-row { font-family: var(--term); font-size: 16px; color: var(--muted); display: flex; justify-content: space-between; gap: 18px; }
 .to-row b { color: var(--green); }
 .to-hint { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 18px; opacity: .8; }
+
+/* ===========================================================================
+   Wave 1: Daily Top-3 picker + "Where was I?" re-entry ramp
+   =========================================================================== */
+.daily3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 6px 0 18px; }
+.d3card { --d3c: var(--gold); background: linear-gradient(180deg, var(--card-hi), var(--card)); border: 1px solid var(--frame);
+  border-top: 3px solid var(--d3c); border-radius: 5px; padding: 12px 14px; cursor: pointer; transition: transform .1s, border-color .1s; }
+.d3card:hover { transform: translateY(-2px); border-color: var(--d3c); }
+.d3k { font-family: var(--px); font-size: 8px; color: var(--d3c); letter-spacing: .5px; }
+.d3l { font-family: var(--term); font-size: 18px; color: var(--text); margin: 6px 0 3px; line-height: 1.15; }
+.d3r { font-family: var(--term); font-size: 13px; color: var(--muted); }
+
+.reentry { background: linear-gradient(180deg, #161133, var(--card)); border: 1px solid var(--frame-hi) !important; }
+.reentry h4 { color: var(--cyan); }
+.re-line { font-family: var(--term); font-size: 15.5px; color: var(--text); margin: 4px 0; }
+.re-line b { display: inline-block; min-width: 38px; font-family: var(--px); font-size: 8px; color: var(--faint); text-transform: uppercase; vertical-align: middle; }
+.re-files { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.re-file { background: var(--ink); border: 1px solid var(--frame); color: var(--muted); font-family: var(--mono, var(--term)); font-size: 12.5px;
+  padding: 3px 8px; border-radius: 3px; cursor: pointer; }
+.re-file:hover { border-color: var(--cyan); color: var(--cyan); }
+.re-resume { width: 100%; margin-top: 10px; background: var(--cyan); color: var(--ink); border: 0; border-radius: 4px;
+  font-family: var(--px); font-size: 9px; padding: 11px; cursor: pointer; box-shadow: 0 3px 0 #0a8a96; }
+.re-resume:hover { filter: brightness(1.1); }
+.re-resume:active { transform: translateY(2px); box-shadow: 0 1px 0 #0a8a96; }
+
+/* Wave 2: reclaim PURGE button */
+.qbtn.purge { background: var(--red); color: #fff; border-color: var(--red); margin-right: 6px; }
+.qbtn.purge:hover { filter: brightness(1.12); }
+.dwr-open-btn.snap { background: var(--frame); color: var(--cyan); margin-top: 8px; }
+/* Wave 4: ⚡ send-to-Claude button */
+.qbtn.claude { background: linear-gradient(135deg, var(--purple), var(--magenta)); color: #fff; border-color: var(--purple); padding: 4px 8px; }
+.qbtn.claude:hover { filter: brightness(1.15); }
+/* Wave 5: drawer secondary action row */
+.dwr-open-btn.commit { background: linear-gradient(135deg, var(--purple), var(--magenta)); color: #fff; margin-top: 8px; }
+.dwr-action-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.dwr-mini-btn { flex: 1; min-width: 110px; background: var(--card-hi); border: 1px solid var(--frame); color: var(--text); padding: 7px 10px; font-family: var(--term); font-size: 13px; cursor: pointer; border-radius: 4px; }
+.dwr-mini-btn:hover { background: var(--frame); }
+.dwr-mini-btn.danger { color: var(--red); }
+.dwr-mini-btn.danger:hover { background: rgba(255, 71, 87, 0.18); }
+
+/* Wave 3: One-Thing Mode focus overlay */
+body.focus-mode main, body.focus-mode #tabs, body.focus-mode .timemachine, body.focus-mode header .player {
+  filter: grayscale(1) brightness(.38); pointer-events: none; transition: filter .3s; }
+#onething { position: fixed; inset: 0; z-index: 95; display: none; align-items: center; justify-content: center;
+  background: rgba(4, 3, 12, .7); backdrop-filter: blur(3px); }
+#onething.show { display: flex; animation: tofade .25s ease-out; }
+.ot-card { text-align: center; padding: 34px 48px; max-width: 92vw; background: linear-gradient(180deg, #141033, #0c0a1e);
+  border: 3px solid var(--cyan); border-radius: 12px; box-shadow: 0 0 0 4px var(--ink), 0 0 50px rgba(0, 240, 255, .3); }
+.ot-eyebrow { font-family: var(--px); font-size: 9px; color: var(--cyan); letter-spacing: 1px; }
+.ot-quest { font-family: var(--term); font-size: 30px; color: var(--text); margin: 16px 0 4px; line-height: 1.2; }
+.ot-proj { font-family: var(--term); font-size: 16px; color: var(--muted); }
+.ot-timer { font-family: var(--px); font-size: 34px; color: var(--gold); margin: 18px 0; letter-spacing: 2px; text-shadow: 0 0 16px rgba(255, 210, 63, .5); }
+.ot-exit { background: var(--green); color: var(--ink); border: 0; border-radius: 5px; font-family: var(--px); font-size: 10px; padding: 13px 20px; cursor: pointer; box-shadow: 0 3px 0 #1f9e4b; }
+.ot-exit:hover { filter: brightness(1.1); }
+.ot-exit:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f9e4b; }
+.ot-hint { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 16px; }
+.ot-hint b { color: var(--cyan); }

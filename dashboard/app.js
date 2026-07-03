@@ -221,9 +221,10 @@
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) { window.hqDemo('level'); return; }
+    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { $('onething').classList.contains('show') ? exitOneThing(false) : enterOneThing(); return; }
     if (e.key === 'ArrowLeft') select(cur - 1);
     else if (e.key === 'ArrowRight') select(cur + 1);
-    else if (e.key === 'Escape') { closeDrawer(); const to = $('takeover'); if (to) to.classList.remove('show'); }
+    else if (e.key === 'Escape') { closeDrawer(); exitOneThing(false); const to = $('takeover'); if (to) to.classList.remove('show'); }
   });
 
   // =================================================================== tabs
@@ -281,6 +282,22 @@
   function renderOverview(S, prev, projById, prevProj) {
     const ov = $('overview'); ov.innerHTML = ''; const a = S.account;
     const t = a.totals, pt = prev?.account.totals;
+
+    // daily top-3: "what do I do today" — quick-win / momentum / rescue, click = re-enter
+    if (a.daily_top3 && a.daily_top3.length) {
+      ov.appendChild(el('h2', 'sec', 'Today — pick one'));
+      const d3 = el('div', 'daily3');
+      const km = { quick_win: { t: '5-MIN WIN', c: COL.green }, momentum: { t: 'MOMENTUM', c: COL.cyan }, rescue: { t: 'RESCUE', c: COL.orange } };
+      a.daily_top3.forEach((pick) => {
+        const m = km[pick.kind] || { t: 'DO', c: COL.gold };
+        const c = el('div', 'd3card'); c.style.setProperty('--d3c', m.c);
+        c.innerHTML = `<div class="d3k">${m.t}</div><div class="d3l">${esc(pick.label)}</div><div class="d3r">${esc(pick.reason || '')}</div>`;
+        c.onclick = () => { const p = projById[pick.project_id]; if (p) openDrawer(p, prevProj[pick.project_id]); else activateTab('quests'); };
+        d3.appendChild(c);
+      });
+      aosKids(d3, 'zoom-in', 60);
+      ov.appendChild(d3);
+    }
 
     // mission strip: the 3 most urgent open quests, one click from the board
     const tierRank = { red: 0, orange: 1, yellow: 2 };
@@ -354,6 +371,7 @@
         <button data-f="all" class="${projFilter === 'all' ? 'active' : ''}">All</button>
         <button data-f="risk" class="${projFilter === 'risk' ? 'active' : ''}">At risk</button>
         <button data-f="active" class="${projFilter === 'active' ? 'active' : ''}">Active</button>
+        <button data-f="cold" class="${projFilter === 'cold' ? 'active' : ''}">Cold cases</button>
       </div><span class="count" id="pcount"></span>`;
     ov.appendChild(tb);
     const grid = el('div', 'grid'); ov.appendChild(grid);
@@ -365,6 +383,7 @@
       if (q) list = list.filter((p) => p.name.toLowerCase().includes(q) || (p.stack || []).join(' ').toLowerCase().includes(q));
       if (projFilter === 'risk') list = list.filter((p) => p.metrics.git_safety.risk === 'high' || p.metrics.code_health.build === 'red' || p.metrics.risk_security.score === 'high');
       if (projFilter === 'active') list = list.filter((p) => p.activity.state === 'active');
+      if (projFilter === 'cold') list = list.filter((p) => p.activity.state === 'dormant').sort((x, y) => (y.activity.days_since_commit ?? 0) - (x.activity.days_since_commit ?? 0));
       $('pcount').textContent = `${list.length} / ${S.projects.length}`;
       list.forEach((p, i) => { const c = projectCard(p, prevProj[p.id]); if (animate) aos(c, 'fade-up', i, 45); grid.appendChild(c); });
       if (animate) aosRefresh();
@@ -442,9 +461,22 @@
       </div>
       <div class="sqact"></div>`;
     if (isElectron && cur === SCANS.length - 1) {
+      const act = row.querySelector('.sqact');
+      const proj = SCANS[cur].projects.find((p) => p.id === sq.project_id);
+      if (sq.fat_dirs && sq.fat_dirs.length && proj) {   // reclaim quest → real PURGE (guarded + confirm in main)
+        const pb = el('button', 'qbtn purge', '🗑 PURGE');
+        pb.onclick = (e) => { e.stopPropagation(); window.hq.reclaim(proj.path, sq.fat_dirs.map((d) => d.name)); };
+        act.appendChild(pb);
+      }
+      if (proj) {   // ⚡ open an interactive Claude session seeded with this proposition
+        const cb = el('button', 'qbtn claude', '⚡');
+        cb.title = 'Send to a Claude session';
+        cb.onclick = (e) => { e.stopPropagation(); window.hq.claudeQuest(proj.path, `${sq.title}${sq.detail ? ' — ' + sq.detail : ''}`); };
+        act.appendChild(cb);
+      }
       const b = el('button', 'qbtn', '✓ DID IT');
       b.onclick = (e) => { e.stopPropagation(); b.disabled = true; SFX.coin(); window.hq.markQuestDone(sq.id); };
-      row.querySelector('.sqact').appendChild(b);
+      act.appendChild(b);
     }
     return row;
   }
@@ -475,6 +507,7 @@
         if (isElectron && isLatest) {
           const acts = qd.querySelector('.qactions');
           if (proj) { const b = el('button', 'qbtn', '▸ OPEN'); b.onclick = (e) => { e.stopPropagation(); window.hq.openRepo(proj.path); }; acts.appendChild(b); }
+          if (proj) { const cb = el('button', 'qbtn claude', '⚡'); cb.title = 'Send to a Claude session'; cb.onclick = (e) => { e.stopPropagation(); window.hq.claudeQuest(proj.path, `${x.title} — ${x.insight || ''}`); }; acts.appendChild(cb); }
           const dn = el('button', 'qbtn', '✓ DONE'); dn.onclick = (e) => { e.stopPropagation(); dn.disabled = true; SFX.coin(); window.hq.markQuestDone(x.id); }; acts.appendChild(dn);
         }
         col.appendChild(qd);
@@ -613,10 +646,35 @@
       const c = card(`Anomalies · ${inv.anomalies.length}`);
       inv.anomalies.forEach((an) => c.appendChild(el('div', 'invrow', `<span class="nm">${esc(an.detail)}</span><span class="pill ${an.severity === 'danger' ? 'dang' : an.severity === 'warning' ? 'warn' : ''}">${esc(an.severity)}</span>`)));
     }
+    if (inv.duplicates?.length) {
+      const c = card(`Duplicates & twins · ${inv.duplicates.length}`);
+      inv.duplicates.forEach((dp) => c.appendChild(el('div', 'invrow', `<span class="nm">${esc(dp.detail)}</span><span class="pill warn">${esc(dp.type)}</span>`)));
+    }
     const misc = [];
     if (inv.empty?.length) misc.push(`<div class="invrow"><span class="nm">Empty folders</span><span class="meta">${inv.empty.map(esc).join(', ')}</span></div>`);
     if (inv.trivial?.length) inv.trivial.forEach((t) => misc.push(`<div class="invrow"><span class="nm">${esc(t.name)}</span><span class="meta">${esc(t.note)}</span></div>`));
     if (misc.length) { const c = card('Trivial / empty'); c.insertAdjacentHTML('beforeend', misc.join('')); }
+
+    // Graveyard (Wave 5) — archived projects with one-click revive
+    if (S.archived_projects?.length) {
+      const c = card(`Graveyard · ${S.archived_projects.length} archived`);
+      S.archived_projects.forEach((ap) => {
+        const row = el('div', 'invrow');
+        row.innerHTML = `<span class="nm">⚰ ${esc(ap.name)}</span><span class="meta">archived ${esc(ap.archived_on || '')}</span>`;
+        if (isElectron) {
+          const b = el('button', 'qbtn', '↺ Revive');
+          b.onclick = () => { window.hq.reviveProject(ap.id); };
+          row.appendChild(b);
+        }
+        c.appendChild(row);
+      });
+    }
+
+    // Recent learnings (Wave 5)
+    if (S.recent_learnings?.length) {
+      const c = card(`What I learned · ${S.account?.totals?.learnings || 0} total · +${S.account?.totals?.knowledge_xp || 0} KXP`);
+      S.recent_learnings.forEach((l) => c.appendChild(el('div', 'invrow', `<span class="nm">📚 ${esc(l.text)}</span><span class="meta">${esc((l.ts || '').slice(0, 10))}</span>`)));
+    }
     aosKids(wrap, 'fade-up', 60);
   }
 
@@ -626,6 +684,25 @@
     const d = $('drawer');
     const mt = (k, v) => `<div class="mtile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
     const dpc = prevP ? p.completion.pct - prevP.completion.pct : 0;
+
+    // --- "Where was I?" re-entry briefing (cold-start ramp) ---
+    const S = SCANS[cur];
+    const tRank = { red: 0, orange: 1, yellow: 2 };
+    const openQp = (S.quests || []).filter((q) => (q.status === 'open' || q.status === 'in_progress') && q.project_id === p.id)
+      .sort((x, y) => (tRank[x.tier] ?? 1) - (tRank[y.tier] ?? 1))[0];
+    const dsc = p.activity.days_since_commit;
+    const rfiles = ch.recent_files || [];
+    const nextAction = openQp ? openQp.title : (g.dirty > 0 ? `Commit ${g.dirty} dirty files` : 'Open it and look around');
+    const reentryHtml = `
+      <div class="dwr-sec reentry">
+        <h4>Where was I?</h4>
+        <div class="re-line"><b>is</b> ${esc((p.stack || []).slice(0, 3).join(' · ') || 'a project')} · ${p.completion.pct}% done</div>
+        ${g.last_commit_subject ? `<div class="re-line"><b>last</b> "${esc(g.last_commit_subject)}"${dsc != null ? ` <span class="muted">· ${dsc}d ago</span>` : ''}</div>` : ''}
+        ${g.dirty > 0 ? `<div class="re-line"><b>wip</b> ${g.dirty} uncommitted file${g.dirty > 1 ? 's' : ''}</div>` : ''}
+        <div class="re-line"><b>next</b> ${esc(nextAction)}</div>
+        ${rfiles.length ? `<div class="re-files">${rfiles.map((f) => `<button class="re-file" data-f="${esc(f)}" title="open ${esc(f)}">${esc(f.split('/').pop())}</button>`).join('')}</div>` : ''}
+        ${isElectron ? `<button class="re-resume" id="re-resume">▶ RESUME — open + launch${p.dev_cmd ? ' server' : ''} + last file</button>` : ''}
+      </div>`;
     let insHtml = (p.insights || []).map((i) =>
       `<div class="ins ${esc(i.severity)}">${esc(i.text)}${i.tags?.length ? `<div class="tags">${i.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}</div>`).join('') || '<div class="empty-note">No insights for this snapshot.</div>';
     let sugHtml = (p.suggestions || []).map((s) =>
@@ -662,6 +739,7 @@
         <div class="sub">${esc((p.stack || []).join(' · '))} · ${esc(p.path)}</div>
       </div>
       <div class="dwr-body">
+        ${reentryHtml}
         <div class="dwr-sec">
           <h4>Standing</h4>
           <div class="metricgrid">
@@ -701,12 +779,48 @@
         ${sugHtml ? `<div class="dwr-sec"><h4>Suggestions</h4>${sugHtml}</div>` : ''}
         ${roadHtml ? `<div class="dwr-sec"><h4>Roadmap</h4>${roadHtml}</div>` : ''}
         ${isElectron ? `<button class="dwr-open-btn" id="dwr-open">▸ OPEN PROJECT FOLDER</button>` : ''}
+        ${isElectron ? `<button class="dwr-open-btn snap" id="dwr-snap">📦 SNAPSHOT — safe backup</button>` : ''}
+        ${isElectron ? `<button class="dwr-open-btn commit" id="dwr-commit">✍️ DRAFT COMMIT (Claude reads git diff)</button>` : ''}
+        ${isElectron ? `<div class="dwr-action-row">
+          <button class="dwr-mini-btn" id="dwr-learn">📚 I learned…</button>
+          <button class="dwr-mini-btn" id="dwr-decide">📝 Log decision</button>
+          <button class="dwr-mini-btn danger" id="dwr-archive">⚰ Archive project</button>
+        </div>` : ''}
         ${devDwrHtml}
       </div>`;
     $('dwr-x').onclick = closeDrawer;
+    // re-entry RESUME + clickable recent files
+    const resumeBtn = $('re-resume');
+    if (resumeBtn) resumeBtn.onclick = () => {
+      window.hq.openRepo(p.path);
+      if (p.dev_cmd) window.hq.devStart(p.id);
+      if (rfiles[0] && window.hq.openFile) window.hq.openFile(p.path, rfiles[0]);
+      SFX.coin();
+    };
+    d.querySelectorAll('.re-file').forEach((b) => b.onclick = () => { if (window.hq && window.hq.openFile) window.hq.openFile(p.path, b.getAttribute('data-f')); });
     const sqWrap = $('dwr-sq');
     if (sqWrap) (p.side_quests || []).forEach((sq) => sqWrap.appendChild(sideQuestRow(sq, false)));
     if (isElectron) { const ob = $('dwr-open'); if (ob) ob.onclick = () => window.hq.openRepo(p.path); }
+    if (isElectron) { const sb = $('dwr-snap'); if (sb) sb.onclick = () => window.hq.snapshot(p.path, p.name); }
+    if (isElectron) {
+      const cm = $('dwr-commit');
+      if (cm) cm.onclick = async () => {
+        cm.disabled = true; cm.textContent = '✍️ Drafting…';
+        const r = await window.hq.draftCommit(p.path);
+        cm.disabled = false; cm.textContent = '✍️ DRAFT COMMIT (Claude reads git diff)';
+        if (r?.error) { alert('Draft failed: ' + r.error); return; }
+        const final = prompt('Claude wrote this commit message — edit & OK to commit:', r.message || '');
+        if (final == null || !final.trim()) return;
+        const c = await window.hq.doCommit(p.path, final.trim());
+        if (c?.error) alert('Commit failed: ' + c.error); else SFX.coin();
+      };
+      const lb = $('dwr-learn');
+      if (lb) lb.onclick = () => { const t = prompt(`I learned… (about ${p.name})`); if (t && t.trim()) { window.hq.learn(p.id, t.trim()); SFX.coin(); } };
+      const db = $('dwr-decide');
+      if (db) db.onclick = () => { const t = prompt(`Log a decision about ${p.name}:`); if (t && t.trim()) { window.hq.logDecision(p.id, t.trim()); SFX.coin(); } };
+      const ab = $('dwr-archive');
+      if (ab) ab.onclick = () => { if (confirm(`Archive ${p.name}? It drops out of active counts (you can revive anytime).`)) { window.hq.archiveProject(p.id); closeDrawer(); } };
+    }
     
     if (p.dev_cmd) {
       const db = $('dwr-devbtn-' + p.id);
@@ -755,7 +869,11 @@
     const comp = p.completion?.pct ?? 0, h = 16 + comp * 0.85;
     const g = p.metrics.git_safety, ch = p.metrics.code_health, rs = p.metrics.risk_security;
     const riskHigh = g.risk === 'high' || ch.build === 'red';
-    const base = riskHigh ? COL.red : comp < 40 ? COL.orange : comp < 75 ? COL.yellow : COL.green;
+    let base = riskHigh ? COL.red : comp < 40 ? COL.orange : comp < 75 ? COL.yellow : COL.green;
+    // Decay tint: fade toward grey as days_since_commit grows. 0d full color, 90d+ ~grey.
+    const dsc = p.activity?.days_since_commit ?? 0;
+    const decayK = Math.min(1, dsc / 90) * 0.65;
+    if (decayK > 0) base = shade(base, -decayK * 0.5);
     const top = base, left = shade(base, -0.40), right = shade(base, -0.20);
     const N = [cx, cy - fy - h], E = [cx + fx, cy - h], Sp = [cx, cy + fy - h], W = [cx - fx, cy - h];
     const Sg = [cx, cy + fy], Eg = [cx + fx, cy], Wg = [cx - fx, cy];
@@ -774,6 +892,9 @@
     s += poly([N, E, Sp, W], top, 'stroke="#0c0a1e" stroke-width="0.7"');
     if (openQ) s += `<g transform="translate(${f1(cx)},${f1(cy - fy - h - 7)})"><line x1="0" y1="-7" x2="0" y2="6" stroke="#d9d6ff" stroke-width="1"/><polygon points="0,-7 12,-4 0,-1" fill="${COL.red}"/><text x="3.5" y="-2.6" font-size="6" fill="#fff" font-family="monospace">${openQ}</text></g>`;
     if ((rs.secrets_found || 0) > 0) s += `<text x="${f1(cx + fx - 6)}" y="${f1(cy - h + 2)}" font-size="10" fill="${COL.gold}">⚠</text>`;
+    // Time-blindness: ghost glyph on dormant (60d+), days-since chip on stale (30-60d)
+    if (dsc >= 60) s += `<text x="${f1(cx - fx + 4)}" y="${f1(cy - h + 4)}" font-size="9" fill="#7a7099" opacity="0.85">👻</text>`;
+    else if (dsc >= 14) s += `<text x="${f1(cx - fx + 2)}" y="${f1(cy - h + 4)}" font-size="6" fill="#7a7099" font-family="monospace">${dsc}d</text>`;
     const nm = p.name.length > 14 ? p.name.slice(0, 13) + '…' : p.name;
     s += `<text class="bpct" x="${f1(cx)}" y="${f1(cy - fy - h - 1.5)}" text-anchor="middle" font-size="7" fill="${base}" font-family="monospace">${comp}%</text>`;
     s += `<text class="blab" x="${f1(cx)}" y="${f1(cy + fy + 13)}" text-anchor="middle" font-size="6.5" fill="#cfcaf5">${esc(nm)}</text>`;
@@ -782,7 +903,8 @@
   function mapLegend() {
     const it = (c, l) => `<span><i style="background:${c}"></i>${l}</span>`;
     return it(COL.green, 'healthy') + it(COL.yellow, 'mid') + it(COL.orange, 'low') + it(COL.red, 'at risk')
-      + `<span><i class="penn" style="background:${COL.red}"></i>open quests</span><span><i style="background:${COL.gold}"></i>⚠ secrets</span>`;
+      + `<span><i class="penn" style="background:${COL.red}"></i>open quests</span><span><i style="background:${COL.gold}"></i>⚠ secrets</span>`
+      + `<span>👻 dormant 60d+</span>`;
   }
   function renderBaseMap(S, prevProj) {
     const bm = $('basemap'); bm.innerHTML = '';
@@ -926,6 +1048,34 @@
     SFX.coin();
   }
   { const sc = $('share-card'); if (sc) sc.onclick = exportStatCard; }
+
+  // ============================================================ One-Thing Mode
+  let otTimer = null, otStart = 0, otQid = null;
+  function enterOneThing(quest) {
+    const S = SCANS[cur], tRank = { red: 0, orange: 1, yellow: 2 };
+    const q = quest || (S.quests || []).filter((x) => x.status === 'open' || x.status === 'in_progress')
+      .sort((x, y) => (tRank[x.tier] - tRank[y.tier]) || (y.xp - x.xp))[0];
+    if (!q) return;
+    const proj = (S.projects || []).find((p) => p.id === q.project_id);
+    $('ot-quest').textContent = q.title;
+    $('ot-proj').textContent = proj ? '↳ ' + proj.name : '';
+    otQid = q.id; otStart = performance.now();
+    const tick = () => { const s = Math.floor((performance.now() - otStart) / 1000); $('ot-timer').textContent = String((s / 60) | 0).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+    tick(); clearInterval(otTimer); otTimer = setInterval(tick, 1000);
+    document.body.classList.add('focus-mode');
+    const ot = $('onething'); ot.classList.add('show'); ot.setAttribute('aria-hidden', 'false');
+    SFX.blip();
+  }
+  function exitOneThing(done) {
+    const ot = $('onething'); if (!ot.classList.contains('show')) return;
+    const mins = Math.round((performance.now() - otStart) / 60000);
+    clearInterval(otTimer); otTimer = null;
+    document.body.classList.remove('focus-mode'); ot.classList.remove('show'); ot.setAttribute('aria-hidden', 'true');
+    console.log(`[one-thing] ${mins}m focused on ${otQid}`);
+    if (done && isElectron && otQid) { SFX.coin(); window.hq.markQuestDone(otQid); }
+    otQid = null;
+  }
+  { const ox = $('ot-exit'); if (ox) ox.onclick = () => exitOneThing(true); }
 
   // =================================================================== boot
   buildTimeMachine();
