@@ -35,7 +35,21 @@ try {
   // narrator hasn't run yet — Weekly Saga card stays hidden
 }
 
-const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, built_at: new Date().toISOString() };
+let spellbook = null;
+try {
+  spellbook = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/spellbook.json'), 'utf8'));
+} catch (e) {
+  // scanner hasn't run yet — Spellbook tab shows its empty state
+}
+
+let telemetry = null;
+try {
+  telemetry = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/spell-telemetry.json'), 'utf8'));
+} catch (e) {
+  // nothing cast yet
+}
+
+const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, built_at: new Date().toISOString() };
 const out = path.join(__dirname, 'data.js');
 fs.writeFileSync(out, 'window.DATA = ' + JSON.stringify(data) + ';\n');
 console.log(`[build-data] ${scans.length} scan(s) -> ${out} (latest: ${data.latest?.scan.id || 'none'})`);

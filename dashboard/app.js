@@ -275,9 +275,12 @@
     $('quest-count').textContent = a.totals.open_quests;
     $('ach-count').textContent = (S.achievements || []).filter((x) => x.unlocked).length;
 
+    $('spell-count').textContent = D.spellbook ? D.spellbook.counts.total : '';
+
     paintTimeMachine();
     renderOverview(S, prev, projById, prevProj);
     renderQuests(S, projById);
+    renderSpellbook();
     renderTrends(S);
     renderAchievements(S);
     renderBaseMap(S, prevProj);
@@ -288,6 +291,197 @@
 
     aosRefresh();   // rediscover the freshly-built nodes for scroll-reveal
     maybeCelebrate(S);   // fire the takeover if this live scan brought a level-up / unlock / completion
+  }
+
+  // --------------------------------------------------------------- spellbook
+  // The arsenal: every automation catalogued by collector/spellbook.mjs as a
+  // castable RPG spell. Casting itself is wired via window.hq (Electron only).
+  const SCHOOL = {
+    divination:    { c: COL.cyan,    label: 'DIVINATION' },
+    conjuration:   { c: COL.gold,    label: 'CONJURATION' },
+    transmutation: { c: COL.orange,  label: 'TRANSMUTATION' },
+    abjuration:    { c: COL.blue,    label: 'ABJURATION' },
+    evocation:     { c: COL.red,     label: 'EVOCATION' },
+    illusion:      { c: '#ff2bd6',   label: 'ILLUSION' },
+    enchantment:   { c: COL.purple,  label: 'ENCHANTMENT' },
+    restoration:   { c: COL.green,   label: 'RESTORATION' },
+  };
+  const MASTERY_TIERS = [
+    { rank: 'Novice', days: 1 }, { rank: 'Adept', days: 5 }, { rank: 'Expert', days: 15 },
+    { rank: 'Master', days: 40 }, { rank: 'Grandmaster', days: 100 },
+  ];
+  let spellSchool = 'all', spellSource = 'all', spellSearch = '', spellMax = 90;
+
+  const masteryOf = (id) => {
+    const days = (D.telemetry?.rollup?.[id]?.distinct_days || []).length;
+    let pips = 0;
+    for (const t of MASTERY_TIERS) if (days >= t.days) pips++;
+    return { days, pips, rank: pips ? MASTERY_TIERS[pips - 1].rank : null };
+  };
+  const pipsHtml = (n) => `<span class="pips" title="mastery">${'●'.repeat(n)}${'○'.repeat(5 - n)}</span>`;
+
+  // Cooldown ticker: only the countdown text nodes update, never a re-render.
+  function fmtCd(ms) {
+    if (ms <= 0) return 'ready';
+    const h = Math.floor(ms / 3.6e6), m = Math.floor((ms % 3.6e6) / 6e4);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  }
+  setInterval(() => {
+    document.querySelectorAll('[data-cd]').forEach((n) => {
+      const t = Number(n.dataset.cd);
+      n.textContent = `⏳ ${fmtCd(t - Date.now())}`;
+    });
+  }, 30000);
+
+  function spellCard(s) {
+    const sch = SCHOOL[s.school] || SCHOOL.evocation;
+    const card = el('div', `spellcard r-${s.rarity}`);
+    card.style.setProperty('--sch', sch.c);
+    const m = masteryOf(s.id);
+    const castable = s.kind === 'castable' || s.kind === 'chain';
+    const cd = s.schedule?.next_run ? new Date(s.schedule.next_run).getTime() : null;
+    card.innerHTML = `
+      <div class="sp-top">
+        <span class="sp-icon">${esc(s.icon || '✴️')}</span>
+        <span class="sp-name">${esc(s.name)}</span>
+        ${m.pips ? pipsHtml(m.pips) : ''}
+      </div>
+      <div class="sp-meta">
+        <span class="sp-school">${sch.label}</span>
+        <span class="sp-src">${esc(s.source)}</span>
+        <span class="sp-rarity">${esc(s.rarity)}</span>
+      </div>
+      <div class="sp-desc">${esc(s.tooltip || s.description || '—')}</div>
+      <div class="sp-foot">
+        ${cd && !isNaN(cd) ? `<span class="sp-cd" data-cd="${cd}">⏳ ${fmtCd(cd - Date.now())}</span>` : ''}
+        ${s.kind === 'channeled' ? '<span class="sp-kind">⚡ channeled</span>' : ''}
+        ${s.kind === 'tome' ? '<span class="sp-kind">📦 tome</span>' : ''}
+        ${s.kind === 'chain' ? '<span class="sp-kind">⛓️ chain</span>' : ''}
+        ${castable || s.kind === 'channeled' ? `<button class="sp-cast" ${s.invalid ? 'disabled' : ''}>CAST</button>` : ''}
+      </div>`;
+    card.onclick = () => openSpellDrawer(s);
+    const btn = card.querySelector('.sp-cast');
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); castSpell(s); };
+    return card;
+  }
+
+  // Casting stub: Phase 4 replaces the body with the real IPC flow. Keeping the
+  // entry point here means cards/drawer don't change when the engine lands.
+  function castSpell(s) {
+    if (window.hq?.castSpell) window.hq.castSpell(s.id);
+    else { SFX.blip(); alert('Casting engine needs the Electron app (launch WorkspaceHQ, not the browser).'); }
+  }
+
+  function openSpellDrawer(s) {
+    const sch = SCHOOL[s.school] || SCHOOL.evocation;
+    const m = masteryOf(s.id);
+    const roll = D.telemetry?.rollup?.[s.id];
+    const d = $('drawer');
+    d.innerHTML = `
+      <div class="spdrawer" style="--sch:${sch.c}">
+        <div class="spd-head r-${esc(s.rarity)}">
+          <span class="spd-icon">${esc(s.icon || '✴️')}</span>
+          <div>
+            <div class="spd-name">${esc(s.name)}</div>
+            <div class="spd-sub">${sch.label} · ${esc(s.rarity)} · ${esc(s.source)}${m.rank ? ` · ${m.rank} (${m.days}d)` : ''}</div>
+          </div>
+          <button class="spd-close" title="close">✕</button>
+        </div>
+        <div class="spd-tip">${esc(s.tooltip || s.description || 'An unidentified incantation.')}</div>
+        ${s.body ? `<div class="spd-body">${esc(s.body).slice(0, 1200)}</div>` : ''}
+        <div class="spd-sec">INCANTATION (exact command)</div>
+        <div class="spd-cmd">${s.kind === 'chain'
+          ? esc('chain: ' + (s.chain || []).join(' → '))
+          : esc([s.command, ...(s.args || [])].filter(Boolean).join(' '))}</div>
+        ${s.cwd ? `<div class="spd-kv">cwd: ${esc(s.cwd)}</div>` : ''}
+        ${s.origin_path ? `<div class="spd-kv">origin: ${esc(s.origin_path)}</div>` : ''}
+        ${s.schedule ? `<div class="spd-kv">next: ${esc(s.schedule.next_run || '—')} · last: ${esc(s.schedule.last_run || '—')} (result ${esc(String(s.schedule.last_result ?? '—'))})</div>` : ''}
+        ${roll ? `<div class="spd-kv">casts: ${roll.lifetime_casts} · last: ${esc((roll.last_cast || '').slice(0, 16).replace('T', ' '))}</div>` : ''}
+        <div class="spd-actions">
+          ${s.kind === 'castable' || s.kind === 'chain' || s.kind === 'channeled' ? `<button class="spd-cast" ${s.invalid ? 'disabled' : ''}>⚡ CAST</button>` : ''}
+          ${s.origin_path && isElectron ? `<button class="spd-open">📂 origin</button>` : ''}
+        </div>
+      </div>`;
+    d.querySelector('.spd-close').onclick = closeDrawer;
+    const cb = d.querySelector('.spd-cast');
+    if (cb) cb.onclick = () => castSpell(s);
+    const ob = d.querySelector('.spd-open');
+    if (ob) ob.onclick = () => window.hq?.openFile?.(s.origin_path);
+    d.classList.add('open'); $('scrim').classList.add('open');
+    SFX.open();
+  }
+
+  function renderSpellbook() {
+    const sb = $('spellbook'); sb.innerHTML = '';
+    const B = D.spellbook;
+    if (!B || !B.spells?.length) {
+      sb.appendChild(el('div', 'empty-note', 'No spellbook yet — run <b>node collector/spellbook.mjs</b> (or the full pipeline) to divine your arsenal.'));
+      return;
+    }
+
+    // Header: school chips (click = filter) + collection meter slot (economy fills it in Phase 6)
+    sb.appendChild(el('h2', 'sec', `📖 Arsenal · ${B.counts.total} spells known`));
+    const chips = el('div', 'sch-chips');
+    const chip = (key, label, color, count) => {
+      const c = el('button', 'sch-chip' + (spellSchool === key ? ' active' : ''), `${label} <b>${count}</b>`);
+      c.style.setProperty('--sch', color);
+      c.onclick = () => { spellSchool = spellSchool === key ? 'all' : key; spellMax = 90; renderSpellbook(); };
+      return c;
+    };
+    for (const [k, v] of Object.entries(SCHOOL)) chips.appendChild(chip(k, v.label, v.c, B.counts.by_school[k] || 0));
+    sb.appendChild(chips);
+
+    // Toolbar: search + source filter
+    const tb = el('div', 'toolbar');
+    const sources = ['all', 'grimoire', 'skill', 'command', 'script', 'npm', 'task', 'plugin'];
+    tb.innerHTML = `<input id="spsearch" placeholder="Search spells…" value="${esc(spellSearch)}" />
+      <div class="seg" id="spseg">${sources.map((s) => `<button data-f="${s}" class="${spellSource === s ? 'active' : ''}">${s === 'plugin' ? 'tomes' : s}</button>`).join('')}</div>
+      <span class="count" id="spcount"></span>`;
+    sb.appendChild(tb);
+
+    const grid = el('div', 'spellgrid'); sb.appendChild(grid);
+    const more = el('div', 'sp-more'); sb.appendChild(more);
+
+    const draw = () => {
+      grid.innerHTML = ''; more.innerHTML = '';
+      const q = spellSearch.toLowerCase();
+      const hits = B.spells.filter((s) =>
+        (spellSchool === 'all' || s.school === spellSchool) &&
+        (spellSource === 'all' || s.source === spellSource || (spellSource === 'plugin' && s.kind === 'tome')) &&
+        (!q || `${s.name} ${s.description} ${s.id}`.toLowerCase().includes(q)));
+      $('spcount').textContent = `${hits.length} match${hits.length === 1 ? '' : 'es'}`;
+      hits.slice(0, spellMax).forEach((s) => grid.appendChild(spellCard(s)));
+      if (hits.length > spellMax) {
+        const b = el('button', 'sp-morebtn', `SHOW MORE (${hits.length - spellMax} hidden)`);
+        b.onclick = () => { spellMax += 120; draw(); };
+        more.appendChild(b);
+      }
+    };
+    draw();
+
+    tb.querySelector('#spsearch').oninput = (e) => { spellSearch = e.target.value; spellMax = 90; draw(); };
+    tb.querySelectorAll('#spseg button').forEach((b) => b.onclick = () => {
+      spellSource = b.dataset.f; spellMax = 90;
+      tb.querySelectorAll('#spseg button').forEach((x) => x.classList.toggle('active', x === b));
+      draw();
+    });
+
+    // Familiars shelf: summoned MCP allies — perched, not castable
+    if (B.familiars?.length) {
+      sb.appendChild(el('h2', 'sec', `🐦‍⬛ Familiars · ${B.familiars.length} bound`));
+      const shelf = el('div', 'famshelf');
+      B.familiars.forEach((f) => {
+        const sch = SCHOOL[f.school] || SCHOOL.divination;
+        const fc = el('div', 'familiar');
+        fc.style.setProperty('--sch', sch.c);
+        fc.innerHTML = `<span class="fam-eye">◉</span><div><div class="fam-name">${esc(f.name)}</div>
+          <div class="fam-sub">${esc(f.transport)} · ${esc(f.scope)}</div></div>`;
+        fc.title = f.detail || '';
+        shelf.appendChild(fc);
+      });
+      aosKids(shelf, 'fade-up', 40);
+      sb.appendChild(shelf);
+    }
   }
 
   // ---------------------------------------------------------------- overview
