@@ -10,6 +10,18 @@
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // Minimal markdown for LLM-written text (Weekly Saga). Escapes EVERYTHING first,
+  // then rebuilds only headings/bold/bullets from the escaped text — raw HTML in the
+  // input can never reach the DOM as markup.
+  const mdLite = (md) => esc(md)
+    .split('\n')
+    .map((l) => {
+      if (/^###?\s+/.test(l)) return `<div class="md-h">${l.replace(/^###?\s+/, '')}</div>`;
+      if (/^[-*]\s+/.test(l)) return `<div class="md-li">▸ ${l.replace(/^[-*]\s+/, '')}</div>`;
+      return l ? `<div class="md-p">${l}</div>` : '';
+    })
+    .join('')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
   const COL = { red: '#ff4757', orange: '#ffa502', yellow: '#ffe14d', green: '#3aff6e', blue: '#4d9fff', purple: '#b14aff', cyan: '#00f0ff', pink: '#ff6bcb', gold: '#ffd23f', low: '#3aff6e', medium: '#ffa502', high: '#ff4757' };
   const isElectron = !!window.hq;
   const devState = {};
@@ -350,6 +362,30 @@
       ov.appendChild(cf);
     } else {
       ov.appendChild(el('div', 'empty-note', 'Nothing moved since the previous scan — metrics held steady.'));
+    }
+
+    // Weekly Saga: narrator recap (only meaningful "now", so latest snapshot only)
+    const wr = D.weeklyRecap;
+    if (wr && wr.narrative_md && cur === SCANS.length - 1) {
+      ov.appendChild(el('h2', 'sec', `📜 Weekly Saga · ${esc(wr.week_start)} → ${esc(wr.week_end)}`));
+      const saga = el('div', 'saga');
+      const st = wr.stats || {};
+      const oneliner = (wr.narrative_md.split('\n').find((l) => l.trim() && !l.startsWith('#')) || '').trim();
+      saga.innerHTML = `<div class="saga-head">
+          <span class="saga-line">${esc(oneliner).slice(0, 160)}</span>
+          <span class="saga-stats">+${st.xp_gain ?? 0} XP · ${st.quests_completed ?? 0} quests · ${st.achievements_unlocked ?? 0} 🏆</span>
+          <button class="saga-toggle">READ</button>
+        </div>
+        <div class="saga-body" style="display:none">${mdLite(wr.narrative_md)}</div>`;
+      saga.querySelector('.saga-toggle').onclick = (e) => {
+        const b = saga.querySelector('.saga-body');
+        const open = b.style.display !== 'none';
+        b.style.display = open ? 'none' : 'block';
+        e.target.textContent = open ? 'READ' : 'CLOSE';
+        SFX.blip();
+      };
+      aos(saga, 'fade-up');
+      ov.appendChild(saga);
     }
 
     // smart propositions: per-project side-quests (urgent/risk + ideas), globally ranked

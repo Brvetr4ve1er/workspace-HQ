@@ -10,7 +10,8 @@
 param(
   [string]$Date = (Get-Date -Format 'yyyy-MM-dd'),
   [string]$ReportsDir = 'C:\Users\ROG STRIX\Documents\VEEMO CORTEX\30_Areas\Workspace Status',
-  [switch]$NoEnrich  # skip the LLM enrichment step (stay fully offline/deterministic)
+  [switch]$NoEnrich,  # skip the LLM enrichment step (stay fully offline/deterministic)
+  [switch]$Weekly     # force the weekly narrator (otherwise it only runs on Sundays)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,6 +36,11 @@ $steps = @( @{ name = 'collector'; args = @((Join-Path $collector 'collector.mjs
 if (-not $NoEnrich) { $steps += @{ name = 'enrich'; args = @((Join-Path $collector 'enrich.mjs'), '--reports-dir', $ReportsDir); optional = $true } }
 $steps += @{ name = 'assemble'; args = @((Join-Path $collector 'assemble.mjs'), '--date', $Date, '--reports-dir', $ReportsDir) }
 $steps += @{ name = 'render';   args = @((Join-Path $collector 'render.mjs'), '--in', $latest, '--out', $mdOut) }
+# Weekly Saga: Sundays (or forced via -Weekly, e.g. cast from the dashboard). Optional —
+# a narrator hiccup must never block the scan; it degrades to a static recap without claude.
+if ($Weekly -or (Get-Date).DayOfWeek -eq 'Sunday') {
+  $steps += @{ name = 'weekly-narrator'; args = @((Join-Path $collector 'weekly-narrator.mjs'), '--reports-dir', $ReportsDir); optional = $true }
+}
 
 foreach ($s in $steps) {
   Log "-> $($s.name)"

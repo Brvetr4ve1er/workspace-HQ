@@ -88,11 +88,27 @@ body {
 }
 
 /* NES window frame: inner bg, black gap, colored frame, faint glow */
-.frame, .kpi, .card, .qcol, .chart, .ach, .invcard, .mission, .mtile, .ins, .flag, .road, .chg, .empty-note {
+.frame, .kpi, .card, .qcol, .chart, .ach, .invcard, .mission, .mtile, .ins, .flag, .road, .chg, .empty-note, .saga {
   border: 2px solid var(--ink);
   box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90,78,168,.55);
   border-radius: 0;
 }
+
+/* --------------------------------------------------------- weekly saga card */
+.saga { background: var(--card); padding: 12px 14px; margin-bottom: 14px; }
+.saga-head { display: flex; align-items: center; gap: 12px; }
+.saga-line { flex: 1; font-family: var(--term); font-size: 19px; color: var(--fg); opacity: .92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saga-stats { font-family: var(--px); font-size: 9px; color: var(--gold, #ffd23f); white-space: nowrap; }
+.saga-toggle {
+  font-family: var(--px); font-size: 9px; padding: 6px 10px; cursor: pointer;
+  background: transparent; color: var(--cyan, #00f0ff); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 1px rgba(0,240,255,.35);
+}
+.saga-toggle:hover { background: rgba(0,240,255,.12); }
+.saga-body { margin-top: 12px; border-top: 1px dashed rgba(255,255,255,.15); padding-top: 10px; font-family: var(--term); font-size: 19px; line-height: 1.35; }
+.saga-body .md-h { font-family: var(--px); font-size: 10px; color: var(--gold, #ffd23f); margin: 10px 0 6px; }
+.saga-body .md-li { margin: 2px 0 2px 8px; }
+.saga-body .md-p { margin: 6px 0; }
 
 /* pixel text helpers */
 .px { font-family: var(--px); }
