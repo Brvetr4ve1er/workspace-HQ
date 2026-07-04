@@ -20,6 +20,7 @@
         "mode": { "enum": ["manual", "nightly", "on-demand", "git-hook"] },
         "duration_ms": { "type": "integer", "minimum": 0 },
         "previous_scan": { "type": ["string", "null"], "description": "id of the scan this one diffs against." },
+        "enriched": { "type": "boolean", "description": "True when the LLM enrichment pass contributed to this scan (gates '~est.' UI hints)." },
         "engine": {
           "type": "object",
           "additionalProperties": false,
@@ -56,7 +57,27 @@
             "open_quests": { "type": "integer" },
             "red_quests": { "type": "integer" },
             "quests_done_total": { "type": "integer" },
-            "achievements_unlocked": { "type": "integer" }
+            "achievements_unlocked": { "type": "integer" },
+            "open_side_quests": { "type": "integer" },
+            "archived": { "type": "integer" },
+            "learnings": { "type": "integer", "description": "Entries captured in the What I Learned log." },
+            "knowledge_xp": { "type": "integer", "description": "Separate knowledge track: learnings * per-lesson XP." }
+          }
+        },
+        "daily_top3": {
+          "type": "array",
+          "description": "Deterministic daily focus picks (quick_win / momentum / rescue).",
+          "items": {
+            "type": "object",
+            "required": ["kind", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "type": "string", "description": "quick_win | momentum | rescue." },
+              "label": { "type": "string" },
+              "project_id": { "type": ["string", "null"] },
+              "quest_id": { "type": ["string", "null"] },
+              "reason": { "type": "string" }
+            }
           }
         }
       }
@@ -72,6 +93,24 @@
       "type": "array",
       "description": "One entry per ORIGINAL PRODUCT (user code). Clones/vaults/trivial live in 'inventory' instead.",
       "items": { "$ref": "#/$defs/project" }
+    },
+
+    "archived_projects": {
+      "type": "array",
+      "description": "Products the user shelved via project-overrides.json; kept out of scoring but listed in the Graveyard.",
+      "items": { "type": "object" }
+    },
+
+    "recent_learnings": {
+      "type": "array",
+      "description": "Last ~10 entries from the What I Learned log (newest first).",
+      "items": { "type": "object" }
+    },
+
+    "side_quests": {
+      "type": "array",
+      "description": "Flattened global side-quest feed (risk/urgent/idea propositions + brain-dump captures), capped ~40.",
+      "items": { "$ref": "#/$defs/side_quest" }
     },
 
     "quests": {
@@ -115,7 +154,8 @@
             }
           }
         },
-        "xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative account XP over time (the 'are I leveling up' line)." }
+        "xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative account XP over time (the 'are I leveling up' line)." },
+        "knowledge_xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative knowledge-track XP (learnings) over time." }
       }
     },
 
@@ -136,7 +176,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "name": { "type": "string" }, "notes": { "type": "integer" }, "role": { "type": "string" }
+              "name": { "type": "string" }, "notes": { "type": "integer" }, "role": { "type": "string" },
+              "recent7": { "type": "integer", "description": "Notes touched in the last 7 days." },
+              "stale90": { "type": "integer", "description": "Notes untouched for 90+ days." },
+              "kb": { "type": "integer", "description": "Vault size in KB." }
             }
           }
         },
@@ -163,6 +206,19 @@
         "anomalies": {
           "type": "array",
           "description": "Things that need a human eyeball (e.g. a referenced prototype that vanished).",
+          "items": {
+            "type": "object",
+            "required": ["type", "detail", "severity"],
+            "properties": {
+              "type": { "type": "string" },
+              "detail": { "type": "string" },
+              "severity": { "enum": ["info", "warning", "danger"] }
+            }
+          }
+        },
+        "duplicates": {
+          "type": "array",
+          "description": "Detected twin/duplicate project folders.",
           "items": {
             "type": "object",
             "required": ["type", "detail", "severity"],
@@ -208,6 +264,35 @@
         "kind": { "const": "product" },
         "path": { "type": "string" },
         "stack": { "type": "array", "items": { "type": "string" } },
+        "dev_cmd": { "type": ["string", "null"], "description": "Command the dashboard uses to launch this project's dev server." },
+        "canonical_branch": { "type": ["string", "null"] },
+        "signals": {
+          "type": "object",
+          "description": "Cheap deterministic presence checks (no builds are actually run).",
+          "additionalProperties": false,
+          "properties": {
+            "has_tests": { "type": "boolean" },
+            "test_files": { "type": "integer" },
+            "has_build_config": { "type": "boolean" },
+            "build_script": { "type": ["string", "null"] },
+            "test_script": { "type": ["string", "null"] },
+            "has_readme": { "type": "boolean" },
+            "has_license": { "type": "boolean" },
+            "has_ci": { "type": "boolean" },
+            "has_dockerfile": { "type": "boolean" },
+            "has_package_json": { "type": "boolean" },
+            "dep_count": { "type": ["integer", "null"] }
+          }
+        },
+        "disk": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "reclaimable_bytes": { "type": "integer" },
+            "fat_dirs": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "side_quests": { "type": "array", "items": { "$ref": "#/$defs/side_quest" } },
 
         "completion": {
           "type": "object",
@@ -266,7 +351,8 @@
                 "todo_fixme": { "type": "integer", "minimum": 0 },
                 "files": { "type": ["integer", "null"] },
                 "loc": { "type": ["integer", "null"] },
-                "loc_delta": { "type": ["integer", "null"] }
+                "loc_delta": { "type": ["integer", "null"] },
+                "recent_files": { "type": "array", "items": { "type": "string" }, "description": "Most recently modified source files (re-entry aid)." }
               }
             },
             "git_safety": {
@@ -283,7 +369,8 @@
                 "behind": { "type": "integer" },
                 "unpushed": { "type": "boolean" },
                 "risk": { "enum": ["low", "medium", "high"] },
-                "flags": { "type": "array", "items": { "type": "string" }, "description": "e.g. no-commits, no-remote, many-dirty, detached-head." }
+                "flags": { "type": "array", "items": { "type": "string" }, "description": "e.g. no-commits, no-remote, many-dirty, detached-head." },
+                "last_commit_subject": { "type": ["string", "null"] }
               }
             },
             "activity": {
@@ -347,6 +434,7 @@
       "additionalProperties": false,
       "properties": {
         "text": { "type": "string" },
+        "kind": { "type": "string", "description": "Suggestion category (e.g. quick_win, hygiene, growth)." },
         "effort": { "enum": ["S", "M", "L"] },
         "impact": { "enum": ["low", "medium", "high"] },
         "linked_quest_id": { "type": ["string", "null"] }
@@ -398,6 +486,28 @@
         "detail": { "type": "string" },
         "impact": { "enum": ["positive", "negative", "neutral"] },
         "notify": { "type": "boolean", "description": "Whether the desktop app should fire a tray notification." }
+      }
+    },
+
+    "side_quest": {
+      "type": "object",
+      "required": ["id", "title", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "project_id": { "type": ["string", "null"] },
+        "project_name": { "type": "string" },
+        "kind": { "type": "string", "description": "risk | urgent | idea | capture." },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "source": { "type": "string", "description": "deterministic | llm | capture." },
+        "effort": { "enum": ["S", "M", "L"] },
+        "impact": { "enum": ["low", "medium", "high"] },
+        "severity": { "enum": ["info", "warning", "danger", "low", "medium", "high"] },
+        "done": { "type": "boolean" },
+        "completed": { "type": ["string", "null"], "format": "date" },
+        "reclaim_bytes": { "type": "integer", "description": "Disk-reclaim side-quests: bytes freeable." },
+        "fat_dirs": { "type": "array", "items": { "type": "object" }, "description": "Disk-reclaim side-quests: the regenerable dirs." }
       }
     },
 
