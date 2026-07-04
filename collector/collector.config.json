@@ -28,6 +28,22 @@
     { "name": "VEEMO_CORTEX_REPOS/*", "path": "VEEMO_CORTEX_REPOS/*" }
   ],
   "activity_thresholds_days": { "active_within": 14, "stale_within": 60 },
+  "spellbook": {
+    "_note": "Discovery config for collector/spellbook.mjs. school_keywords maps regex -> school (first match wins, tested against name+description+path, case-insensitive). Order matters.",
+    "claude_dir": "C:/Users/ROG STRIX/.claude",
+    "ignore_skill_dirs": ["learned"],
+    "channeled_npm_scripts": ["dev", "start", "serve", "watch", "preview"],
+    "school_keywords": [
+      { "re": "scan|search|research|audit|recon|pulse|intel|analy|inspect|monitor|read|review", "school": "divination" },
+      { "re": "gen|create|scaffold|new|init|build[- ]?data|writer|author|compose|landing|artifact", "school": "conjuration" },
+      { "re": "refactor|build|convert|migrat|transform|compile|bundle|assemble|upgrade", "school": "transmutation" },
+      { "re": "secur|secret|backup|clean|snapshot|guard|protect|audit[- ]?sec|permission|vault", "school": "abjuration" },
+      { "re": "deploy|release|publish|run|start|launch|exec|pipeline|ship|task", "school": "evocation" },
+      { "re": "design|ui|ux|icon|figma|css|style|theme|visual|canva|image|photo|art", "school": "illusion" },
+      { "re": "slack|mail|post|notify|sync|social|comms|share|telegram|discord|publish", "school": "enchantment" },
+      { "re": "test|fix|debug|lint|repair|heal|doctor|diagnos|patch|verify", "school": "restoration" }
+    ]
+  },
   "secret_patterns": [
     { "name": "aws_access_key", "re": "AKIA[0-9A-Z]{16}" },
     { "name": "openai_key", "re": "sk-[A-Za-z0-9]{20,}" },

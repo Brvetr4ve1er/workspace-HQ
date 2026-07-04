@@ -33,6 +33,9 @@ Log "WorkspaceHQ pipeline start (date=$Date)"
 $latest = Join-Path $scanDir 'data\latest.json'
 $mdOut  = Join-Path $ReportsDir "Workspace Status $Date.md"
 $steps = @( @{ name = 'collector'; args = @((Join-Path $collector 'collector.mjs')) } )
+# Spellbook catalog refresh: read-only discovery of skills/scripts/tasks/MCP into
+# data/spellbook.json. Optional — a broken schtasks query must never block the scan.
+$steps += @{ name = 'spellbook'; args = @((Join-Path $collector 'spellbook.mjs')); optional = $true }
 if (-not $NoEnrich) { $steps += @{ name = 'enrich'; args = @((Join-Path $collector 'enrich.mjs'), '--reports-dir', $ReportsDir); optional = $true } }
 $steps += @{ name = 'assemble'; args = @((Join-Path $collector 'assemble.mjs'), '--date', $Date, '--reports-dir', $ReportsDir) }
 $steps += @{ name = 'render';   args = @((Join-Path $collector 'render.mjs'), '--in', $latest, '--out', $mdOut) }
