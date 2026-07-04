@@ -19,6 +19,10 @@ data/enrichment.json
 data/.hud-state.json
 data/.notify-state.json
 dashboard/data.js
+data/spellbook.json
+data/weekly-recap.json
+data/spellbook-enrichment.json
+data/spell-telemetry.json
 
 # --- dev / preview artifacts ---
 dashboard/_*.png
