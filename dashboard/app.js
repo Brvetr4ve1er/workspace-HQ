@@ -72,6 +72,7 @@
       // rising arpeggio fanfare for level-ups / new achievements
       levelup: () => beep([[523, 0.09, 0], [659, 0.09, 0.09], [784, 0.09, 0.18], [1047, 0.28, 0.27], [1319, 0.34, 0.4]]),
       badge: () => beep([[784, 0.08, 0], [1047, 0.08, 0.08], [1319, 0.22, 0.16]]),  // achievement pop
+      fizzle: () => beep([[220, 0.14, 0], [164, 0.26, 0.12]]),                       // failed cast (descending groan)
     };
   })();
 
@@ -365,11 +366,84 @@
     return card;
   }
 
-  // Casting stub: Phase 4 replaces the body with the real IPC flow. Keeping the
-  // entry point here means cards/drawer don't change when the engine lands.
-  function castSpell(s) {
-    if (window.hq?.castSpell) window.hq.castSpell(s.id);
-    else { SFX.blip(); alert('Casting engine needs the Electron app (launch WorkspaceHQ, not the browser).'); }
+  // ---- casting flow: id -> main-process whitelist -> dry-run confirm -> stream ----
+  async function castSpell(s, confirmedHash) {
+    if (!window.hq?.castSpell) { SFX.blip(); alert('Casting engine needs the Electron app (launch WorkspaceHQ, not the browser).'); return; }
+    let res;
+    try { res = await window.hq.castSpell(s.id, confirmedHash); } catch (e) { res = { error: String(e) }; }
+    if (!res) return;
+    if (res.error) { castlogLine(null, 'err', `✖ ${s.name}: ${res.error}`); showCastlog(); SFX.fizzle(); return; }
+    if (res.confirm_required) { showCastConfirm(s, res.preview); return; }
+    if (res.channeled) { castlogLine(null, 'sys', `⚡ ${s.name} channeled into a terminal window`); showCastlog(); SFX.open(); return; }
+    showCastlog();
+  }
+
+  // Dry-run confirm: the user sees the EXACT command line before it ever runs.
+  function showCastConfirm(s, p) {
+    const m = $('castconfirm');
+    const why = p.always_confirm ? 'This spell always asks.' : p.changed ? '⚠ The spell CHANGED since you last approved it.' : 'First time casting this spell.';
+    m.innerHTML = `<div class="cc-card">
+        <div class="cc-head">${esc(p.icon || '✴️')} CAST ${esc(p.name)}?</div>
+        <div class="cc-why">${esc(why)}</div>
+        <div class="cc-sec">it will run exactly:</div>
+        <div class="cc-cmd">${esc([p.command, ...(p.args || [])].filter(Boolean).join(' '))}</div>
+        ${p.cwd ? `<div class="cc-kv">in: ${esc(p.cwd)}</div>` : ''}
+        <div class="cc-actions"><button class="cc-cancel">CANCEL</button><button class="cc-go">⚡ CAST IT</button></div>
+      </div>`;
+    m.classList.add('open');
+    m.querySelector('.cc-cancel').onclick = () => m.classList.remove('open');
+    m.onclick = (e) => { if (e.target === m) m.classList.remove('open'); };
+    m.querySelector('.cc-go').onclick = () => { m.classList.remove('open'); castSpell(s, p.content_hash); };
+  }
+
+  // ---- casting log: slide-up console, one block per cast, capped buffer ----
+  const castBlocks = new Map();   // castId -> output <pre>
+  function showCastlog() { $('castlog').classList.remove('hidden'); }
+  function castlogLine(castId, stream, text) {
+    const log = $('castlog');
+    if (!log.querySelector('.cl-head')) {
+      log.innerHTML = `<div class="cl-head"><span>📡 CASTING LOG</span><button class="cl-clear">CLEAR</button><button class="cl-x">▾ HIDE</button></div><div class="cl-body"></div>`;
+      log.querySelector('.cl-x').onclick = () => log.classList.add('hidden');
+      log.querySelector('.cl-clear').onclick = () => { log.querySelector('.cl-body').innerHTML = ''; castBlocks.clear(); };
+    }
+    const body = log.querySelector('.cl-body');
+    let pre = castId && castBlocks.get(castId);
+    if (!pre) {
+      const block = el('div', 'cl-block');
+      pre = el('pre', 'cl-pre');
+      block.appendChild(pre);
+      body.appendChild(block);
+      if (castId) castBlocks.set(castId, pre);
+    }
+    const line = el('div', 'cl-' + stream);
+    line.textContent = text;
+    pre.appendChild(line);
+    while (pre.childNodes.length > 400) pre.removeChild(pre.firstChild);   // bounded buffer
+    body.scrollTop = body.scrollHeight;
+  }
+
+  if (isElectron && window.hq.onCastOutput) {
+    window.hq.onCastOutput((d) => {
+      showCastlog();
+      const pre = castBlocks.get(d.castId);
+      if (!pre && d.stream === 'sys') castlogLine(d.castId, 'sys', d.chunk);
+      else d.chunk.split(/\r?\n/).forEach((l) => { if (l.trim()) castlogLine(d.castId, d.stream, l); });
+      // attach a cancel button to the block header once
+      if (d.castId && !castBlocks.get(d.castId)?.parentNode.querySelector('.cl-cancel')) {
+        const b = el('button', 'cl-cancel', '✕ cancel');
+        b.onclick = () => window.hq.cancelCast(d.spellId);
+        castBlocks.get(d.castId)?.parentNode.prepend(b);
+      }
+    });
+    window.hq.onCastDone((d) => {
+      const ok = d.outcome === 'resolved';
+      castlogLine(d.castId, ok ? 'ok' : 'err',
+        ok ? `✨ ${d.name} RESOLVED · ${(d.duration_ms / 1000).toFixed(1)}s`
+           : `💥 ${d.name} FIZZLED${d.timed_out ? ' (timeout)' : ` (exit ${d.exit_code})`} · ${(d.duration_ms / 1000).toFixed(1)}s`);
+      const blk = castBlocks.get(d.castId)?.parentNode;
+      if (blk) { blk.classList.add(ok ? 'done-ok' : 'done-err'); blk.querySelector('.cl-cancel')?.remove(); }
+      ok ? SFX.coin() : SFX.fizzle();
+    });
   }
 
   function openSpellDrawer(s) {
@@ -420,7 +494,19 @@
     }
 
     // Header: school chips (click = filter) + collection meter slot (economy fills it in Phase 6)
-    sb.appendChild(el('h2', 'sec', `📖 Arsenal · ${B.counts.total} spells known`));
+    const head = el('h2', 'sec', `📖 Arsenal · ${B.counts.total} spells known`);
+    if (isElectron) {
+      const acts = el('span', 'sec-acts');
+      const deep = el('button', 'sec-btn', '🔮 DEEP SCAN');
+      deep.title = 'Cast the full pipeline (collector → enrich → assemble → render)';
+      deep.onclick = (e) => { e.stopPropagation(); const ds = B.spells.find((x) => x.id === 'grimoire:deep-scan'); if (ds) castSpell(ds); };
+      const relearn = el('button', 'sec-btn', '✨ RELEARN');
+      relearn.title = 'Rescan skills/scripts/tasks only (fast, no pipeline)';
+      relearn.onclick = async (e) => { e.stopPropagation(); relearn.textContent = '…'; await window.hq.rescanSpellbook(); };
+      acts.append(deep, relearn);
+      head.appendChild(acts);
+    }
+    sb.appendChild(head);
     const chips = el('div', 'sch-chips');
     const chip = (key, label, color, count) => {
       const c = el('button', 'sch-chip' + (spellSchool === key ? ' active' : ''), `${label} <b>${count}</b>`);

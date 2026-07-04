@@ -27,6 +27,22 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:dev-status', handler);
     return () => ipcRenderer.removeListener('hq:dev-status', handler);
   },
+  // casting engine bridge (Spellbook)
+  castSpell: (id, confirmedHash, opts) => ipcRenderer.invoke('hq:spell-cast', id, confirmedHash, opts),
+  cancelCast: (id) => ipcRenderer.invoke('hq:spell-cancel', id),
+  getSpellbook: () => ipcRenderer.invoke('hq:spellbook-get'),
+  favoriteSpell: (id) => ipcRenderer.invoke('hq:spell-favorite', id),
+  rescanSpellbook: () => ipcRenderer.invoke('hq:spellbook-rescan'),
+  onCastOutput: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:cast-output', handler);
+    return () => ipcRenderer.removeListener('hq:cast-output', handler);
+  },
+  onCastDone: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:cast-done', handler);
+    return () => ipcRenderer.removeListener('hq:cast-done', handler);
+  },
   // mini HUD bridge
   getMiniData: () => ipcRenderer.invoke('hq:mini-data'),
   showMain: () => ipcRenderer.invoke('hq:show-main'),

@@ -28,7 +28,7 @@ const DAILY_DIR = path.join(VAULT, '10_Daily');
 // Allow-list of regenerable dirs the reclaim action may delete (npm install / rebuild restores them).
 const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
-let win, tray, watcher, miniWin, qbWatcher, dailyWatcher;
+let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null;
 const activeDevServers = new Map();
 
 // Project paths in the data are already absolute (e.g. C:\Users\...\alliance travel);
@@ -550,6 +550,165 @@ ipcMain.handle('hq:orphan-archive', (_e, dirPath) => {
 // same quest-overrides.json store that assemble.mjs reads.
 ipcMain.handle('hq:quest-done', (_e, id) => { if (!id) return false; applyDone(id); return true; });
 
+// ==== Casting engine (Spellbook) =============================================
+// Executes ONLY spells present in data/spellbook.json (the scanner's catalog is
+// the whitelist — the renderer can never pass a command, only a spell id).
+// shell:false everywhere; args stay arrays end-to-end. First cast of a spell
+// (and any cast after its content_hash changes) requires the dry-run confirm
+// in the renderer; always-confirm spells re-prompt every time.
+const SPELLBOOK_FILE = path.join(DATA, 'spellbook.json');
+const TELEMETRY_FILE = path.join(DATA, 'spell-telemetry.json');
+const castRegistry = new Map();   // spellId -> { proc, castId, startedAt, timer }
+
+function readSpellbook() {
+  try { return JSON.parse(fs.readFileSync(SPELLBOOK_FILE, 'utf8')); } catch { return null; }
+}
+function readTelemetry() {
+  try { return JSON.parse(fs.readFileSync(TELEMETRY_FILE, 'utf8')); }
+  catch { return { version: 1, confirmed_hashes: {}, favorites: [], casts: [], rollup: {} }; }
+}
+function writeTelemetry(t) {   // atomic: survive a crash mid-cast
+  fs.mkdirSync(DATA, { recursive: true });
+  const tmp = TELEMETRY_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(t, null, 1));
+  fs.renameSync(tmp, TELEMETRY_FILE);
+}
+function recordCast(entry) {
+  const t = readTelemetry();
+  t.casts.push(entry);
+  if (t.casts.length > 500) t.casts = t.casts.slice(-500);   // rolling window; rollup keeps totals
+  const r = t.rollup[entry.spell_id] ?? (t.rollup[entry.spell_id] = { lifetime_casts: 0, distinct_days: [], last_cast: null, avg_duration_ms: null });
+  r.lifetime_casts++;
+  const day = entry.started_at.slice(0, 10);
+  if (!r.distinct_days.includes(day)) r.distinct_days.push(day);
+  r.last_cast = entry.started_at;
+  if (entry.duration_ms != null) r.avg_duration_ms = r.avg_duration_ms == null ? entry.duration_ms : Math.round(r.avg_duration_ms * 0.7 + entry.duration_ms * 0.3);
+  writeTelemetry(t);
+}
+
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
+function castSend(channel, payload) {
+  for (const w of [win, miniWin, castWin]) {
+    if (w && !w.isDestroyed()) try { w.webContents.send(channel, payload); } catch {}
+  }
+}
+
+// Channeled spells (Claude skills, dev-ish scripts) open a real terminal:
+// Windows Terminal when present, classic cmd window otherwise.
+function openChanneled(spell) {
+  const cwd = spell.cwd || SCAN_DIR;
+  const quote = (a) => (/[\s"&|<>^]/.test(a) ? `"${String(a).replace(/"/g, '\\"')}"` : a);
+  const cmdline = [spell.command, ...(spell.args || [])].map(quote).join(' ');
+  const wt = spawnSync('where', ['wt'], { encoding: 'utf8', windowsHide: true }).status === 0;
+  if (wt) spawn('wt', ['-w', '0', 'nt', '-d', cwd, 'cmd', '/k', cmdline], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+  else spawn('cmd.exe', ['/c', 'start', '', 'cmd', '/k', `cd /d "${cwd}" && ${cmdline}`], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+  recordCast({ cast_id: 'c-' + Date.now().toString(36), spell_id: spell.id, started_at: new Date().toISOString(), duration_ms: null, outcome: 'channeled', exit_code: null, chain_id: null });
+}
+
+function doCast(spell, { notifyOutcome = false, chainId = null } = {}) {
+  if (castRegistry.has(spell.id)) return { error: 'already casting' };
+  const castId = 'c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const startedAt = new Date().toISOString();
+  const t0 = Date.now();
+  let proc;
+  try {
+    proc = spawn(spell.command, spell.args || [], { cwd: spell.cwd || SCAN_DIR, shell: false, windowsHide: true });
+  } catch (e) {
+    return { error: 'spawn failed: ' + (e.message || e) };
+  }
+  const entry = { proc, castId, startedAt, timer: null };
+  castRegistry.set(spell.id, entry);
+  castSend('hq:cast-output', { castId, spellId: spell.id, name: spell.name, icon: spell.icon, stream: 'sys', chunk: `✨ casting ${spell.name}…`, chainId });
+
+  const pipe = (streamName) => (buf) => {
+    const chunk = String(buf).replace(ANSI_RE, '').slice(0, 8192);
+    if (chunk) castSend('hq:cast-output', { castId, spellId: spell.id, stream: streamName, chunk, chainId });
+  };
+  proc.stdout?.on('data', pipe('out'));
+  proc.stderr?.on('data', pipe('err'));
+
+  const finish = (code, timedOut) => {
+    if (entry.timer) clearTimeout(entry.timer);
+    if (!castRegistry.has(spell.id)) return;   // already finished/cancelled
+    castRegistry.delete(spell.id);
+    const outcome = timedOut ? 'fizzled' : code === 0 ? 'resolved' : 'fizzled';
+    const duration = Date.now() - t0;
+    recordCast({ cast_id: castId, spell_id: spell.id, started_at: startedAt, duration_ms: duration, outcome, exit_code: timedOut ? null : code, chain_id: chainId });
+    castSend('hq:cast-done', { castId, spellId: spell.id, name: spell.name, icon: spell.icon, outcome, exit_code: code, duration_ms: duration, timed_out: !!timedOut, chainId });
+    if (notifyOutcome && Notification.isSupported()) {
+      const secs = Math.round(duration / 1000);
+      new Notification({
+        title: outcome === 'resolved' ? `✨ ${spell.name} resolved · ${secs}s` : `💥 ${spell.name} fizzled${timedOut ? ' (timeout)' : ` (exit ${code})`}`,
+        body: outcome === 'resolved' ? 'The spell took hold.' : 'Open WorkspaceHQ → Spellbook for the casting log.',
+        icon: path.join(DIR, 'icon.png'),
+      }).show();
+    }
+  };
+  proc.on('close', (code) => finish(code, false));
+  proc.on('error', (err) => {
+    castSend('hq:cast-output', { castId, spellId: spell.id, stream: 'err', chunk: String(err.message || err), chainId });
+    finish(-1, false);
+  });
+  const mins = Math.max(1, Number(spell.timeout_min) || 10);
+  entry.timer = setTimeout(() => {
+    if (proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { windowsHide: true });
+    finish(null, true);
+  }, mins * 60000);
+  return { castId };
+}
+
+// confirmedHash: the content_hash the user saw in the dry-run modal this round.
+// Required on first cast, after any hash change, and every time for confirm:true spells.
+ipcMain.handle('hq:spell-cast', (_e, spellId, confirmedHash, opts) => {
+  const book = readSpellbook();
+  if (!book) return { error: 'no spellbook — run the scanner first' };
+  const spell = book.spells.find((s) => s.id === String(spellId));
+  if (!spell) return { error: 'unknown spell' };
+  if (spell.invalid) return { error: 'spell is invalid (broken chain refs?)' };
+  if (spell.kind === 'tome') return { error: 'tomes are lore, not incantations' };
+  if (spell.kind === 'chain') return { error: 'spell chains arrive in a later phase' };
+
+  const t = readTelemetry();
+  const known = t.confirmed_hashes[spell.id] === spell.content_hash;
+  if ((spell.confirm || !known) && confirmedHash !== spell.content_hash) {
+    return {
+      confirm_required: true,
+      preview: {
+        id: spell.id, name: spell.name, icon: spell.icon, content_hash: spell.content_hash,
+        command: spell.command, args: spell.args, cwd: spell.cwd, kind: spell.kind,
+        always_confirm: !!spell.confirm, changed: !known && !!t.confirmed_hashes[spell.id],
+      },
+    };
+  }
+  if (!known && !spell.confirm) { t.confirmed_hashes[spell.id] = spell.content_hash; writeTelemetry(t); }
+
+  if (spell.kind === 'channeled') { openChanneled(spell); return { channeled: true }; }
+  return doCast(spell, { notifyOutcome: !!opts?.notify || !win || !win.isVisible() });
+});
+ipcMain.handle('hq:spell-cancel', (_e, spellId) => {
+  const entry = castRegistry.get(String(spellId));
+  if (!entry) return false;
+  if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
+  return true;   // the close handler records the fizzle
+});
+ipcMain.handle('hq:spellbook-get', () => readSpellbook());
+ipcMain.handle('hq:spell-favorite', (_e, spellId) => {
+  const t = readTelemetry();
+  const id = String(spellId);
+  const i = t.favorites.indexOf(id);
+  if (i > -1) t.favorites.splice(i, 1); else t.favorites.push(id);
+  writeTelemetry(t);
+  return t.favorites;
+});
+// Fast relearn: rescan the arsenal only (no pipeline), rebuild the bundle, reload.
+ipcMain.handle('hq:spellbook-rescan', async () => {
+  const r = spawnSync(process.execPath, [path.join(COLLECTOR, 'spellbook.mjs')], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  if (r.status !== 0) return { error: (r.stderr || '').slice(0, 300) || 'scanner failed' };
+  rebuildData();
+  if (win && !win.isDestroyed()) win.reload();
+  return { ok: true };
+});
+
 function sendDevStatus(payload) {
   if (win && !win.isDestroyed()) win.webContents.send('hq:dev-status', payload);
 }
@@ -675,5 +834,16 @@ if (!app.requestSingleInstanceLock()) {
 
   // Keep the tray alive on Windows/Linux when all windows close (close-to-tray).
   app.on('window-all-closed', () => { if (process.platform === 'darwin') return; /* stay resident in tray */ });
-  app.on('before-quit', () => { app.isQuitting = true; if (machineTimer) clearInterval(machineTimer); try { globalShortcut.unregisterAll(); } catch {} for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {} });
+  app.on('before-quit', () => {
+    app.isQuitting = true;
+    if (machineTimer) clearInterval(machineTimer);
+    try { globalShortcut.unregisterAll(); } catch {}
+    for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}
+    // no orphaned incantations: kill any live cast trees on the way out
+    for (const [, entry] of castRegistry) {
+      if (entry.timer) clearTimeout(entry.timer);
+      if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
+    }
+    castRegistry.clear();
+  });
 }
