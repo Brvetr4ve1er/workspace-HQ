@@ -141,6 +141,7 @@ function miniPayload() {
     hp: a.health_index, streak: a.streak?.scan_days ?? 0,
     openQuests: a.totals.open_quests, redQuests: a.totals.red_quests,
     topQuest: top ? { title: top.title, tier: top.tier, xp: top.xp } : null,
+    spells: topSpells(3),   // one-click cast buttons on the HUD
   };
 }
 function pushMini() { if (miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('hq:mini-update', miniPayload()); }
@@ -167,7 +168,7 @@ function saveHudPref(v) {
 
 function createMiniWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
-  const W = 286, H = 164, margin = 16;
+  const W = 286, H = 196, margin = 16;   // +32px for the spell-shortcut row
   miniWin = new BrowserWindow({
     width: W, height: H,
     x: wa.x + wa.width - W - margin,
@@ -202,8 +203,20 @@ function buildTrayMenu() {
     { label: 'Show WorkspaceHQ', click: () => { if (!win) createWindow(); else win.show(); } },
     { label: 'Toggle mini HUD', click: toggleMini },
     { label: 'Quick capture (Ctrl+Alt+Space)', click: openCapture },
+    { label: 'Cast a spell… (Ctrl+Alt+X)', click: openCastPalette },
     { label: 'Scan now', click: runScan },
   ];
+  const favs = topSpells(3);
+  if (favs.length) {
+    items.push({
+      label: 'Cast',
+      submenu: [
+        ...favs.map((sp) => ({ label: `${sp.icon || '✴️'} ${sp.name}`, click: () => castFromShell(sp.id) })),
+        { type: 'separator' },
+        { label: 'Open Spellbook', click: () => { if (!win) createWindow(); else win.show(); } },
+      ],
+    });
+  }
   if (s) {
     const unpushed = s.projects.filter((p) => p.metrics.git_safety.unpushed);
     const dirty = s.projects.filter((p) => p.metrics.git_safety.dirty > 0);
@@ -708,6 +721,61 @@ ipcMain.handle('hq:spellbook-rescan', async () => {
   if (win && !win.isDestroyed()) win.reload();
   return { ok: true };
 });
+// Lightweight telemetry view for the palette / mini HUD (favorites + recency).
+ipcMain.handle('hq:spell-telemetry', () => {
+  const t = readTelemetry();
+  const rollup = {};
+  for (const [id, r] of Object.entries(t.rollup)) rollup[id] = { last_cast: r.last_cast, lifetime_casts: r.lifetime_casts, distinct_days: r.distinct_days.length };
+  return { favorites: t.favorites, rollup, confirmed: Object.keys(t.confirmed_hashes) };
+});
+
+// Top castable spells for mini HUD buttons + tray submenu: favorites first, then
+// most-recently-cast. Tomes and invalid spells never surface here.
+function topSpells(n = 3) {
+  const book = readSpellbook(); if (!book) return [];
+  const t = readTelemetry();
+  const castable = book.spells.filter((s) => !s.invalid && (s.kind === 'castable' || s.kind === 'channeled'));
+  const byId = new Map(castable.map((s) => [s.id, s]));
+  const out = [];
+  for (const id of t.favorites) { const s = byId.get(id); if (s && !out.includes(s)) out.push(s); }
+  const recent = castable
+    .filter((s) => t.rollup[s.id]?.last_cast)
+    .sort((a, b) => t.rollup[b.id].last_cast.localeCompare(t.rollup[a.id].last_cast));
+  for (const s of recent) { if (out.length >= n) break; if (!out.includes(s)) out.push(s); }
+  for (const s of castable) { if (out.length >= n) break; if (s.source === 'grimoire' && !out.includes(s)) out.push(s); }
+  return out.slice(0, n).map((s) => ({ id: s.id, name: s.name, icon: s.icon, school: s.school, kind: s.kind }));
+}
+
+// Cast without a renderer confirm hop (tray / mini HUD): already-approved spells
+// fire straight away; anything needing the dry-run opens the main window instead.
+function castFromShell(spellId) {
+  const book = readSpellbook(); if (!book) return;
+  const spell = book.spells.find((s) => s.id === spellId);
+  if (!spell || spell.invalid || spell.kind === 'tome' || spell.kind === 'chain') return;
+  const t = readTelemetry();
+  const known = !spell.confirm && t.confirmed_hashes[spell.id] === spell.content_hash;
+  if (!known) { if (!win) createWindow(true); else win.show(); return; }   // confirm belongs in the UI
+  if (spell.kind === 'channeled') { openChanneled(spell); return; }
+  doCast(spell, { notifyOutcome: true });
+}
+
+// ---- Quick-cast palette: Ctrl+Alt+X -> frameless spell launcher --------------
+function openCastPalette() {
+  if (castWin && !castWin.isDestroyed()) { castWin.show(); castWin.focus(); return; }
+  const wa = screen.getPrimaryDisplay().workArea;
+  const W = 580, H = 442;
+  castWin = new BrowserWindow({
+    width: W, height: H, x: Math.round(wa.x + (wa.width - W) / 2), y: Math.round(wa.y + wa.height * 0.18),
+    frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: true,
+    fullscreenable: false, minimizable: false, maximizable: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
+  });
+  castWin.setAlwaysOnTop(true, 'screen-saver');
+  castWin.loadFile(path.join(DIR, 'cast.html'));
+  castWin.on('blur', () => { if (castWin && !castWin.isDestroyed()) castWin.close(); });
+  castWin.on('closed', () => { castWin = null; });
+}
+ipcMain.handle('hq:cast-palette-hide', () => { if (castWin && !castWin.isDestroyed()) castWin.close(); return true; });
 
 function sendDevStatus(payload) {
   if (win && !win.isDestroyed()) win.webContents.send('hq:dev-status', payload);
@@ -821,6 +889,9 @@ if (!app.requestSingleInstanceLock()) {
     watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
     startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
     try { globalShortcut.register('CommandOrControl+Alt+Space', openCapture); } catch (e) { console.error('capture hotkey failed:', e); }
+    // Quick-cast palette: the spellbook must be reachable faster than a terminal.
+    const CAST_HOTKEY = 'CommandOrControl+Alt+X';
+    try { globalShortcut.register(CAST_HOTKEY, openCastPalette); } catch (e) { console.error('cast hotkey failed:', e); }
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: 'WorkspaceHQ', submenu: [
         { label: 'Scan now', accelerator: 'CmdOrCtrl+R', click: runScan },

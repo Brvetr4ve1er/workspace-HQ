@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('hq', {
   getSpellbook: () => ipcRenderer.invoke('hq:spellbook-get'),
   favoriteSpell: (id) => ipcRenderer.invoke('hq:spell-favorite', id),
   rescanSpellbook: () => ipcRenderer.invoke('hq:spellbook-rescan'),
+  getSpellTelemetry: () => ipcRenderer.invoke('hq:spell-telemetry'),
+  hideCastPalette: () => ipcRenderer.invoke('hq:cast-palette-hide'),
   onCastOutput: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('hq:cast-output', handler);

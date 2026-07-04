@@ -87,6 +87,16 @@
   .srv { -webkit-app-region: no-drag; cursor: pointer; color: var(--red); font-size: 11px; display: flex; align-items: center; gap: 2px; }
   .srv:hover { background: rgba(255,71,87,.14); }
   .srv b { color: var(--red); font-size: 9px; }
+
+  .spells { margin-top: 6px; gap: 4px; }
+  .spell { -webkit-app-region: no-drag; cursor: pointer; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px;
+           padding: 4px 6px; border-radius: 6px; background: rgba(255,255,255,.03);
+           box-shadow: inset 0 0 0 1px var(--line); font-size: 9px; }
+  .spell:hover { background: rgba(255,210,63,.10); box-shadow: inset 0 0 0 1px rgba(255,210,63,.4); }
+  .spell .si { font-size: 11px; }
+  .spell .sn { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .spell.busy .si { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -108,6 +118,7 @@
       <span class="qtitle" id="qtitle">Loading…</span>
       <span class="qxp" id="qxp"></span>
     </div>
+    <div class="row spells" id="spells" hidden></div>
     <div class="row mac">
       <span class="mack">CPU</span><div class="macbar"><i id="cpufill"></i></div><b id="cpu">–</b>
       <span class="mack">RAM</span><div class="macbar"><i id="ramfill"></i></div><b id="ram">–</b>
@@ -138,9 +149,43 @@
         $('qtitle').textContent = 'All quests clear ✓';
         $('qxp').textContent = '';
       }
+      paintSpells(d.spells);
     }
     const open = () => window.hq && window.hq.showMain && window.hq.showMain();
     $('quest').onclick = open;
+
+    // top-3 spell shortcuts: one click casts; confirm-needed spells open the main UI
+    function paintSpells(list) {
+      const box = $('spells');
+      box.innerHTML = '';
+      if (!list || !list.length) { box.hidden = true; return; }
+      box.hidden = false;
+      for (const sp of list) {
+        const b = document.createElement('div');
+        b.className = 'spell'; b.dataset.id = sp.id; b.title = 'Cast ' + sp.name;
+        const si = document.createElement('span'); si.className = 'si'; si.textContent = sp.icon || '✴️';
+        const sn = document.createElement('span'); sn.className = 'sn'; sn.textContent = sp.name;
+        b.append(si, sn);
+        b.onclick = async (e) => {
+          e.stopPropagation();
+          b.classList.add('busy');
+          const res = await window.hq.castSpell(sp.id, undefined, { notify: true });
+          if (res && res.confirm_required) { b.classList.remove('busy'); open(); }
+          if (res && (res.channeled || res.error)) b.classList.remove('busy');
+        };
+        box.appendChild(b);
+      }
+    }
+    if (window.hq && window.hq.onCastDone) window.hq.onCastDone((d) => {
+      document.querySelectorAll('.spell').forEach((b) => {
+        if (b.dataset.id === d.spellId) {
+          b.classList.remove('busy');
+          const si = b.querySelector('.si'); const old = si.textContent;
+          si.textContent = d.outcome === 'resolved' ? '✨' : '💥';
+          setTimeout(() => { si.textContent = old; }, 4000);
+        }
+      });
+    });
     $('close').onclick = (e) => { e.stopPropagation(); window.hq && window.hq.miniHide && window.hq.miniHide(); };
     if (window.hq && window.hq.onMiniUpdate) window.hq.onMiniUpdate(paint);
     function paintMac(m) {
