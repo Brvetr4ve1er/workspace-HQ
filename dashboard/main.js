@@ -590,12 +590,18 @@ function recordCast(entry) {
   const t = readTelemetry();
   t.casts.push(entry);
   if (t.casts.length > 500) t.casts = t.casts.slice(-500);   // rolling window; rollup keeps totals
-  const r = t.rollup[entry.spell_id] ?? (t.rollup[entry.spell_id] = { lifetime_casts: 0, distinct_days: [], last_cast: null, avg_duration_ms: null });
-  r.lifetime_casts++;
-  const day = entry.started_at.slice(0, 10);
-  if (!r.distinct_days.includes(day)) r.distinct_days.push(day);
-  r.last_cast = entry.started_at;
-  if (entry.duration_ms != null) r.avg_duration_ms = r.avg_duration_ms == null ? entry.duration_ms : Math.round(r.avg_duration_ms * 0.7 + entry.duration_ms * 0.3);
+  // The economy rewards SUCCESS, not attempts: only non-fizzled casts (resolved or
+  // channeled) feed the rollup that drives mastery distinct-days + lifetime_casts.
+  // Fizzles stay in casts[] so the casting log still shows failures — they just never
+  // earn XP or mastery. You master a spell by landing it, not by failing it.
+  if (entry.outcome !== 'fizzled') {
+    const r = t.rollup[entry.spell_id] ?? (t.rollup[entry.spell_id] = { lifetime_casts: 0, distinct_days: [], last_cast: null, avg_duration_ms: null });
+    r.lifetime_casts++;
+    const day = entry.started_at.slice(0, 10);
+    if (!r.distinct_days.includes(day)) r.distinct_days.push(day);
+    r.last_cast = entry.started_at;
+    if (entry.duration_ms != null) r.avg_duration_ms = r.avg_duration_ms == null ? entry.duration_ms : Math.round(r.avg_duration_ms * 0.7 + entry.duration_ms * 0.3);
+  }
   writeTelemetry(t);
 }
 

@@ -4,8 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WorkspaceHQ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Anton&family=Bebas+Neue&family=Ephesis&family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="vendor/aos.css" />
   <link rel="stylesheet" href="styles.css" />
+  <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('hq-theme') || 'arcade'); } catch (e) {}</script>
 </head>
 <body>
   <!-- CRT atmosphere: scanlines + vignette + faint phosphor flicker (pure CSS, pointer-events none) -->
@@ -49,35 +53,51 @@
         </div>
         <label>STREAK</label>
       </div>
-      <button id="share-card" class="sfx" title="Export a shareable stat card (PNG)">◈ CARD</button>
-      <button id="sfx-toggle" class="sfx" title="Toggle sound effects">♪ OFF</button>
+      <!-- One SYS menu instead of three sibling utility buttons: status stays glanceable,
+           config lives one click away (accent-budget + declutter rule). -->
+      <div class="theme-wrap">
+        <button id="theme-btn" class="sfx theme-btn" title="Themes · card export · sound">◈ SYS</button>
+        <div id="theme-menu" class="theme-menu" role="menu">
+          <div class="th-group">THEME</div>
+          <button data-theme="arcade" class="theme-opt"><span class="th-name">ARCADE</span><span class="th-hint">CRT · pixel · phosphor</span></button>
+          <button data-theme="okami" class="theme-opt"><span class="th-name">OKAMI</span><span class="th-hint">streetwear · void purple</span></button>
+          <button data-theme="numidea" class="theme-opt"><span class="th-name">NUMIDEA</span><span class="th-hint">editorial · mesh · glitch</span></button>
+          <button data-theme="ops" class="theme-opt"><span class="th-name">OPS DESK</span><span class="th-hint">cream · utility · quiet</span></button>
+          <div class="th-group">TOOLS</div>
+          <button id="share-card" class="theme-opt"><span class="th-name">◈ EXPORT CARD</span><span class="th-hint">shareable stat PNG</span></button>
+          <button id="sfx-toggle" class="theme-opt"><span class="th-name">♪ OFF</span><span class="th-hint">chiptune sound effects</span></button>
+        </div>
+      </div>
     </div>
   </header>
 
-  <!-- ====== STAGE SELECT: snapshot time machine — preview any daily snapshot live ====== -->
-  <div class="timemachine">
+  <!-- ====== STAGE SELECT: one-line scrubber by default; the dot rail is a power
+       feature that unfolds on demand (and auto-unfolds when viewing the past). ====== -->
+  <div class="timemachine collapsed" id="timemachine">
     <div class="tm-head">
-      <span class="lbl">STAGE SELECT</span>
+      <button class="lbl" id="tm-toggle" title="Expand the snapshot rail">▸ STAGE SELECT</button>
+      <button class="tm-nav sm" id="tm-prev" title="Older (←)">◀</button>
       <span class="date" id="tm-date">—</span>
+      <button class="tm-nav sm" id="tm-next" title="Newer (→)">▶</button>
       <span class="live" id="tm-badge">live</span>
+      <button class="tm-live" id="tm-live" title="Jump back to the latest scan">⏎ BACK TO LIVE</button>
       <span class="spacer"></span>
       <span class="delta" id="tm-delta"></span>
     </div>
     <div class="tm-track">
-      <button class="tm-nav" id="tm-prev" title="Older (←)">◀</button>
       <div class="tm-rail"><svg id="tm-spark"></svg><div class="tm-dots" id="tm-dots"></div></div>
-      <button class="tm-nav" id="tm-next" title="Newer (→)">▶</button>
     </div>
   </div>
 
+  <!-- 5 tabs, one verb each: act (BASE) · clear (QUESTS) · cast (SPELLBOOK) ·
+       review (STATS incl. trophies) · roam (MAP incl. warehouse). FOCUS = One-Thing mode. -->
   <nav id="tabs">
     <button data-tab="overview" class="active">BASE</button>
     <button data-tab="quests">QUESTS <span class="badge" id="quest-count"></span></button>
     <button data-tab="spellbook">SPELLBOOK <span class="badge" id="spell-count"></span></button>
-    <button data-tab="trends">STATS</button>
-    <button data-tab="achievements">TROPHIES <span class="badge" id="ach-count"></span></button>
+    <button data-tab="trends">STATS <span class="badge" id="ach-count"></span></button>
     <button data-tab="basemap">MAP</button>
-    <button data-tab="inventory">ITEMS</button>
+    <button class="tab-focus" id="tab-focus" title="One-Thing focus mode (F)">◎ FOCUS</button>
   </nav>
 
   <main>
@@ -85,9 +105,7 @@
     <section id="quests" class="tab"></section>
     <section id="spellbook" class="tab"></section>
     <section id="trends" class="tab"></section>
-    <section id="achievements" class="tab"></section>
     <section id="basemap" class="tab"></section>
-    <section id="inventory" class="tab"></section>
   </main>
 
   <!-- celebration takeover: scrim + confetti canvas + center card, shown on level-up /

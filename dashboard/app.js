@@ -8,6 +8,37 @@
   const D = window.DATA || { scans: [], latest: null, built_at: null };
   const SCANS = D.scans || [];
   const $ = (id) => document.getElementById(id);
+
+  // ---- theme system: arcade/okami/numidea/ops — persist, swap live, no reload -----
+  const THEMES = {
+    arcade:  { label: 'ARCADE' },
+    okami:   { label: 'OKAMI' },
+    numidea: { label: 'NUMIDEA' },
+    ops:     { label: 'OPS DESK' },
+  };
+  function applyTheme(id) {
+    if (!THEMES[id]) id = 'arcade';
+    document.documentElement.setAttribute('data-theme', id);
+    try { localStorage.setItem('hq-theme', id); } catch {}
+    // the trigger is a stable SYS menu now; the active theme shows inside the menu
+    document.querySelectorAll('.theme-opt[data-theme]').forEach((o) => o.classList.toggle('active', o.dataset.theme === id));
+  }
+  {
+    const saved = (() => { try { return localStorage.getItem('hq-theme') || 'arcade'; } catch { return 'arcade'; } })();
+    applyTheme(saved);
+    const btn = document.getElementById('theme-btn');
+    const menu = document.getElementById('theme-menu');
+    if (btn && menu) {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
+      document.addEventListener('click', (e) => { if (!menu.contains(e.target) && e.target !== btn) menu.classList.remove('open'); });
+      document.querySelectorAll('.theme-opt').forEach((o) => o.addEventListener('click', (e) => {
+        e.stopPropagation();
+        applyTheme(o.dataset.theme);
+        menu.classList.remove('open');
+      }));
+    }
+  }
+
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // Minimal markdown for LLM-written text (Weekly Saga). Escapes EVERYTHING first,
@@ -150,6 +181,17 @@
     declutter:      { name: 'Marie Kondo',        icon: PX.broom,   desc: 'Remove all stray empty folders.' },
     secret_free:    { name: 'No Loose Keys',      icon: PX.key,     desc: 'No exposed secrets across any product.' },
     documented:     { name: 'Well Documented',    icon: PX.book,    desc: 'Every product has a README.' },
+    scribe:         { name: 'Scribe',             icon: '✍️',       desc: 'Capture 30 lessons in your What I Learned log.' },
+    cartographer:   { name: 'Cartographer',       icon: '🗺️',       desc: 'Every product has a vault note.' },
+    // spellcraft achievements (Spellbook economy)
+    first_cast:      { name: 'Apprentice',        icon: '🪄',       desc: 'Cast your first spell from the Spellbook.' },
+    arcanist_50:     { name: 'Arcanist',          icon: '📖',       desc: 'Amass an arsenal of 50 known spells.' },
+    battle_mage_100: { name: 'Battle Mage',       icon: '⚔️',       desc: 'Resolve 100 lifetime casts.' },
+    polymath:        { name: 'Polymath',          icon: '🌈',       desc: 'Cast a spell from every school of magic.' },
+    familiar_bond:   { name: 'Familiar Bond',     icon: '🐦‍⬛',      desc: 'Bind 5 MCP familiars to your headquarters.' },
+    spell_master:    { name: 'Spell Master',      icon: '🏅',       desc: 'Reach Master mastery (40 distinct days) on one spell.' },
+    daily_ritualist: { name: 'Daily Ritualist',   icon: '🕯️',       desc: 'Cast the Spell of the Day 7 times.' },
+    chain_caster:    { name: 'Chain Caster',      icon: '⛓️',       desc: 'Resolve a spell chain without a fizzle.' },
   };
 
   if (!SCANS.length) { $('status').textContent = 'No scans found. Run the pipeline, then `node build-data.mjs`.'; return; }
@@ -198,16 +240,31 @@
     $('tm-spark').setAttribute('preserveAspectRatio', 'none');
     $('tm-spark').innerHTML =
       `<polyline points="${pts}" fill="none" stroke="#322a5e" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+    // Sparse labels: with 30+ snapshots the dates collide — label only every Nth dot
+    // (plus the newest); every dot still carries a hover title and stays clickable.
+    const labelEvery = Math.max(1, Math.ceil(n / 10));
     SCANS.forEach((s, i) => {
       const dot = el('div', 'tm-dot');
       dot.style.left = xAt(i) + '%';
-      dot.innerHTML = `<i></i><span>${s.scan.id.slice(5)}</span>`;
+      const showLbl = i === n - 1 || i % labelEvery === 0;
+      dot.innerHTML = `<i></i>${showLbl ? `<span>${s.scan.id.slice(5)}</span>` : ''}`;
       dot.onclick = () => select(i);
       dot.title = `${s.scan.id} · health ${s.account.health_index} · L${s.account.level} · ${s.account.totals.open_quests} open`;
       dots.appendChild(dot);
     });
     $('tm-prev').onclick = () => select(cur - 1);
     $('tm-next').onclick = () => select(cur + 1);
+    // rail fold: persisted, and paintTimeMachine force-opens it while off-live
+    const tm = $('timemachine');
+    tm.classList.toggle('collapsed', localStorage.getItem('hq-tm-open') !== '1');
+    $('tm-toggle').onclick = () => {
+      const open = tm.classList.toggle('collapsed') === false;
+      localStorage.setItem('hq-tm-open', open ? '1' : '0');
+      $('tm-toggle').textContent = (open ? '▾' : '▸') + ' STAGE SELECT';
+      SFX.blip();
+    };
+    $('tm-toggle').textContent = (tm.classList.contains('collapsed') ? '▸' : '▾') + ' STAGE SELECT';
+    $('tm-live').onclick = () => select(SCANS.length - 1);
   }
   function paintTimeMachine() {
     [...$('tm-dots').children].forEach((d, i) => d.classList.toggle('active', i === cur));
@@ -218,6 +275,10 @@
     const live = $('tm-badge'), isLatest = cur === SCANS.length - 1;
     live.textContent = isLatest ? 'latest' : 'past snapshot';
     live.classList.toggle('past', !isLatest);
+    // Off-live is a MODE, not a detail: rail unfolds + BACK TO LIVE appears so
+    // "why are all my buttons gone" can never be a mystery again.
+    $('tm-live').style.display = isLatest ? 'none' : '';
+    if (!isLatest) { $('timemachine').classList.remove('collapsed'); $('tm-toggle').textContent = '▾ STAGE SELECT'; }
     if (prev) {
       const dh = S.account.health_index - prev.account.health_index;
       const dx = S.account.xp - prev.account.xp;
@@ -235,20 +296,31 @@
     if (e.target.tagName === 'INPUT') return;
     if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) { window.hqDemo('level'); return; }
     if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { $('onething').classList.contains('show') ? exitOneThing(false) : enterOneThing(); return; }
-    if (e.key === 'ArrowLeft') select(cur - 1);
-    else if (e.key === 'ArrowRight') select(cur + 1);
+    // number keys jump tabs; '/' focuses the visible search box
+    if (/^[1-5]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { activateTab(TAB_ORDER[+e.key - 1]); return; }
+    if (e.key === '/') { const s = document.querySelector('.tab.active input[id$="search"]'); if (s) { e.preventDefault(); s.focus(); } return; }
+    // ←/→ scrub only when the STAGE SELECT rail is open (or already off-live) —
+    // browsing must never silently time-travel into a read-only snapshot.
+    const tmOpen = !$('timemachine').classList.contains('collapsed') || cur !== SCANS.length - 1;
+    if (e.key === 'ArrowLeft' && tmOpen) select(cur - 1);
+    else if (e.key === 'ArrowRight' && tmOpen) select(cur + 1);
     else if (e.key === 'Escape') { closeDrawer(); exitOneThing(false); const to = $('takeover'); if (to) to.classList.remove('show'); }
   });
 
   // =================================================================== tabs
+  const TAB_ORDER = ['overview', 'quests', 'spellbook', 'trends', 'basemap'];
   function activateTab(name) {
-    document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('active', x.dataset.tab === name));
+    const tab = $(name); if (!tab) return;
+    document.querySelectorAll('#tabs button[data-tab]').forEach((x) => x.classList.toggle('active', x.dataset.tab === name));
     document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
-    const tab = $(name); tab.classList.add('active');
+    tab.classList.add('active');
+    window.scrollTo({ top: 0 });   // never land mid-page on a fresh tab
     SFX.blip();
     revealTab(tab);
   }
-  document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => activateTab(b.dataset.tab));
+  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.onclick = () => activateTab(b.dataset.tab));
+  // FOCUS chip: the always-visible door into One-Thing mode (was keyboard-only)
+  { const tf = $('tab-focus'); if (tf) tf.onclick = () => { $('onething').classList.contains('show') ? exitOneThing(false) : enterOneThing(); }; }
 
   // =============================================================== main render
   function render() {
@@ -288,7 +360,7 @@
     renderInventory(S);
 
     const built = D.built_at ? D.built_at.slice(0, 16).replace('T', ' ') : '—';
-    $('status').innerHTML = `<b>${esc(S.scan.id)}</b> · ${a.totals.products} products · ${a.totals.open_quests} open (${a.totals.red_quests} red) · health ${a.health_index} · ${SCANS.length} snapshots on record · data built ${built}${isElectron ? ' · electron' : ' · ←/→ to scrub'}`;
+    $('status').innerHTML = `<b>${esc(S.scan.id)}</b> · ${a.totals.products} products · ${a.totals.open_quests} open (${a.totals.red_quests} red) · health ${a.health_index} · data built ${built} · <span class="keys">1-5 tabs · F focus · / search</span>`;
 
     aosRefresh();   // rediscover the freshly-built nodes for scroll-reveal
     maybeCelebrate(S);   // fire the takeover if this live scan brought a level-up / unlock / completion
@@ -311,7 +383,7 @@
     { rank: 'Novice', days: 1 }, { rank: 'Adept', days: 5 }, { rank: 'Expert', days: 15 },
     { rank: 'Master', days: 40 }, { rank: 'Grandmaster', days: 100 },
   ];
-  let spellSchool = 'all', spellSource = 'all', spellSearch = '', spellMax = 90;
+  let spellSchool = 'all', spellSource = 'all', spellSearch = '', spellMax = 24;
 
   const masteryOf = (id) => {
     const days = (D.telemetry?.rollup?.[id]?.distinct_days || []).length;
@@ -442,6 +514,8 @@
            : `💥 ${d.name} FIZZLED${d.timed_out ? ' (timeout)' : ` (exit ${d.exit_code})`} · ${(d.duration_ms / 1000).toFixed(1)}s`);
       const blk = castBlocks.get(d.castId)?.parentNode;
       if (blk) { blk.classList.add(ok ? 'done-ok' : 'done-err'); blk.querySelector('.cl-cancel')?.remove(); }
+      // optimistic XP hint: the ledger truth lands at the next assemble
+      if (ok) castlogLine(d.castId, 'sys', '   +XP queued (settles on next scan — cast Deep Scan to bank it now)');
       ok ? SFX.coin() : SFX.fizzle();
     });
   }
@@ -511,11 +585,29 @@
     const chip = (key, label, color, count) => {
       const c = el('button', 'sch-chip' + (spellSchool === key ? ' active' : ''), `${label} <b>${count}</b>`);
       c.style.setProperty('--sch', color);
-      c.onclick = () => { spellSchool = spellSchool === key ? 'all' : key; spellMax = 90; renderSpellbook(); };
+      c.onclick = () => { spellSchool = spellSchool === key ? 'all' : key; spellMax = 24; renderSpellbook(); };
       return c;
     };
     for (const [k, v] of Object.entries(SCHOOL)) chips.appendChild(chip(k, v.label, v.c, B.counts.by_school[k] || 0));
     sb.appendChild(chips);
+
+    // Collection meter: how much of the arsenal you've actually wielded
+    const sc = D.latest?.account?.spellcraft;
+    if (sc) {
+      const cm = el('div', 'collmeter');
+      const schoolBars = Object.entries(sc.per_school || {})
+        .filter(([k]) => SCHOOL[k])
+        .map(([k, v]) => `<div class="cm-school" title="${SCHOOL[k].label}: ${v.cast}/${v.known} cast">
+            <span class="cm-dot" style="--sch:${SCHOOL[k].c}"></span>
+            <div class="cm-mini"><i style="width:${v.pct}%; --sch:${SCHOOL[k].c}"></i></div>
+          </div>`).join('');
+      cm.innerHTML = `<div class="cm-main">
+          <span class="cm-lbl">COLLECTION</span>
+          <div class="cm-bar"><i style="width:${sc.ever_cast_pct}%"></i></div>
+          <span class="cm-num">${sc.ever_cast}/${sc.spells_known} wielded (${sc.ever_cast_pct}%) · ${sc.lifetime_casts} lifetime casts</span>
+        </div><div class="cm-schools">${schoolBars}</div>`;
+      sb.appendChild(cm);
+    }
 
     // Toolbar: search + source filter
     const tb = el('div', 'toolbar');
@@ -535,6 +627,10 @@
         (spellSchool === 'all' || s.school === spellSchool) &&
         (spellSource === 'all' || s.source === spellSource || (spellSource === 'plugin' && s.kind === 'tome')) &&
         (!q || `${s.name} ${s.description} ${s.id}`.toLowerCase().includes(q)));
+      // "my spells" first: mastery desc, then most-recently-cast — the first screen
+      // is the arsenal you actually wield, not an alphabet of 957 strangers.
+      const lastCast = (id) => Date.parse(D.telemetry?.rollup?.[id]?.last_cast || 0) || 0;
+      hits.sort((x, y) => (masteryOf(y.id).pips - masteryOf(x.id).pips) || (lastCast(y.id) - lastCast(x.id)));
       $('spcount').textContent = `${hits.length} match${hits.length === 1 ? '' : 'es'}`;
       hits.slice(0, spellMax).forEach((s) => grid.appendChild(spellCard(s)));
       if (hits.length > spellMax) {
@@ -545,9 +641,9 @@
     };
     draw();
 
-    tb.querySelector('#spsearch').oninput = (e) => { spellSearch = e.target.value; spellMax = 90; draw(); };
+    tb.querySelector('#spsearch').oninput = (e) => { spellSearch = e.target.value; spellMax = 24; draw(); };
     tb.querySelectorAll('#spseg button').forEach((b) => b.onclick = () => {
-      spellSource = b.dataset.f; spellMax = 90;
+      spellSource = b.dataset.f; spellMax = 24;
       tb.querySelectorAll('#spseg button').forEach((x) => x.classList.toggle('active', x === b));
       draw();
     });
@@ -570,79 +666,133 @@
     }
   }
 
+  // ---- progressive-disclosure fold: h2 header + persisted open state ---------
+  // Detail is never deleted, it collapses behind one click. Collapsed headers show
+  // a one-line summary so nothing is invisible, just quiet. (UX contract: BASE
+  // presents ONE decision; everything else folds.)
+  function foldSec(parent, key, title, summary, build, defaultOpen = false) {
+    let open = localStorage.getItem('hq-sec-' + key);
+    open = open == null ? defaultOpen : open === '1';
+    const h = el('h2', 'sec sec-fold');
+    const body = el('div', 'fold-body');
+    const paint = () => {
+      h.innerHTML = `<span class="fold-chev">${open ? '▾' : '▸'}</span> ${title}${!open && summary ? `<span class="fold-sum">${summary}</span>` : ''}`;
+      body.innerHTML = '';
+      if (open) build(body);
+    };
+    h.onclick = () => { open = !open; localStorage.setItem('hq-sec-' + key, open ? '1' : '0'); paint(); SFX.blip(); };
+    parent.appendChild(h); parent.appendChild(body);
+    paint();
+  }
+
   // ---------------------------------------------------------------- overview
   function renderOverview(S, prev, projById, prevProj) {
     const ov = $('overview'); ov.innerHTML = ''; const a = S.account;
     const t = a.totals, pt = prev?.account.totals;
+    const isLatest = cur === SCANS.length - 1;
 
-    // daily top-3: "what do I do today" — quick-win / momentum / rescue, click = re-enter
-    if (a.daily_top3 && a.daily_top3.length) {
-      ov.appendChild(el('h2', 'sec', 'Today — pick one'));
+    // ---- TODAY'S RUN: the ONE decision surface on BASE --------------------
+    // daily_top3 (quick-win / momentum / rescue) deduped against the top red
+    // quest; each card carries its own FOCUS + DONE verbs so pick→act is one
+    // motion. Everything else on this tab is folded context.
+    const tierRank = { red: 0, orange: 1, yellow: 2 };
+    const topQ = (S.quests || [])
+      .filter((q) => q.status === 'open' || q.status === 'in_progress')
+      .sort((x, y) => (tierRank[x.tier] - tierRank[y.tier]) || (y.xp - x.xp) || (y.age_days - x.age_days));
+    const picks = (a.daily_top3 || []).slice(0, 3);
+    const questOf = (pick) => (S.quests || []).find((q) => q.id === pick.quest_id) ||
+      topQ.find((q) => q.title === pick.label || (pick.project_id && q.project_id === pick.project_id));
+    // dedupe: if the single most urgent quest isn't already a pick, it replaces the last card
+    const covered = new Set(picks.map((p) => questOf(p)?.id).filter(Boolean));
+    if (topQ[0] && !covered.has(topQ[0].id)) {
+      const rq = { kind: 'red_quest', label: topQ[0].title, reason: topQ[0].insight || `+${topQ[0].xp} XP`, project_id: topQ[0].project_id, quest_id: topQ[0].id };
+      picks.length >= 3 ? picks.splice(2, 1, rq) : picks.push(rq);
+    }
+    // header + the QUESTS gateway chip (the ideas feed moved there)
+    const feed = (S.side_quests || []);
+    const urgentN = feed.filter((s) => s.kind === 'risk' || s.kind === 'urgent').length;
+    const head = el('h2', 'sec', 'Today — pick one');
+    if (feed.length) {
+      const chip = el('button', 'sec-chip', `${urgentN ? `⚠ ${urgentN} urgent · ` : ''}${feed.length - urgentN} ideas ▸`);
+      chip.title = 'Side-quests moved to the QUESTS board';
+      chip.onclick = () => activateTab('quests');
+      head.appendChild(chip);
+    }
+    ov.appendChild(head);
+    if (picks.length) {
       const d3 = el('div', 'daily3');
-      const km = { quick_win: { t: '5-MIN WIN', c: COL.green }, momentum: { t: 'MOMENTUM', c: COL.cyan }, rescue: { t: 'RESCUE', c: COL.orange } };
-      a.daily_top3.forEach((pick) => {
+      const km = { quick_win: { t: '5-MIN WIN', c: COL.green }, momentum: { t: 'MOMENTUM', c: COL.cyan }, rescue: { t: 'RESCUE', c: COL.orange }, red_quest: { t: 'RED QUEST', c: COL.red } };
+      picks.forEach((pick) => {
         const m = km[pick.kind] || { t: 'DO', c: COL.gold };
+        const q = questOf(pick);
         const c = el('div', 'd3card'); c.style.setProperty('--d3c', m.c);
-        c.innerHTML = `<div class="d3k">${m.t}</div><div class="d3l">${esc(pick.label)}</div><div class="d3r">${esc(pick.reason || '')}</div>`;
+        c.innerHTML = `<div class="d3k">${m.t}</div><div class="d3l">${esc(pick.label)}</div><div class="d3r">${esc(pick.reason || '')}</div><div class="d3act"></div>`;
         c.onclick = () => { const p = projById[pick.project_id]; if (p) openDrawer(p, prevProj[pick.project_id]); else activateTab('quests'); };
+        const act = c.querySelector('.d3act');
+        const fb = el('button', 'qbtn focus', '◎ FOCUS');
+        fb.onclick = (e) => { e.stopPropagation(); enterOneThing(q || undefined); };
+        act.appendChild(fb);
+        if (q && isElectron && isLatest) {
+          const dn = el('button', 'qbtn', '✓ DONE');
+          dn.onclick = (e) => { e.stopPropagation(); dn.disabled = true; SFX.coin(); window.hq.markQuestDone(q.id); };
+          act.appendChild(dn);
+        }
         d3.appendChild(c);
       });
       aosKids(d3, 'zoom-in', 60);
       ov.appendChild(d3);
     }
 
-    // mission strip: the 3 most urgent open quests, one click from the board
-    const tierRank = { red: 0, orange: 1, yellow: 2 };
-    const topQ = (S.quests || [])
-      .filter((q) => q.status === 'open' || q.status === 'in_progress')
-      .sort((x, y) => (tierRank[x.tier] - tierRank[y.tier]) || (y.xp - x.xp) || (y.age_days - x.age_days))
-      .slice(0, 3);
-    if (topQ.length) {
-      ov.appendChild(el('h2', 'sec', 'Next best actions'));
-      const ms = el('div', 'missions');
-      topQ.forEach((q) => {
-        const m = el('div', 'mission ' + q.tier);
-        m.innerHTML = `<div class="mtier">${esc(q.tier.toUpperCase())} QUEST</div><div class="mt">${esc(q.title)}</div><div class="mxp">+${q.xp} XP</div>`;
-        m.onclick = () => activateTab('quests');
-        ms.appendChild(m);
-      });
-      aosKids(ms, 'zoom-in', 70);
-      ov.appendChild(ms);
+    // Spell of the Day rides inside the TODAY module as a slim bonus ribbon
+    const sotd = a.spellcraft?.spell_of_day;
+    if (sotd && isLatest) {
+      const sch = SCHOOL[sotd.school] || SCHOOL.evocation;
+      const sc = el('div', 'sotd slim');
+      sc.style.setProperty('--sch', sch.c);
+      sc.innerHTML = `<span class="sotd-k">🃏 BONUS</span>
+        <span class="sotd-icon">${esc(sotd.icon || '✴️')}</span>
+        <span class="sotd-name">${esc(sotd.name)}</span>
+        <span class="sotd-meta">${sch.label} · +${sotd.bonus_xp} XP</span>
+        <button class="sotd-cast">⚡ CAST</button>`;
+      sc.querySelector('.sotd-cast').onclick = () => {
+        const sp = D.spellbook?.spells.find((x) => x.id === sotd.id);
+        if (sp) castSpell(sp); else activateTab('spellbook');
+      };
+      ov.appendChild(sc);
     }
 
-    // KPI row
-    const kpis = el('div', 'kpis');
-    const kpi = (v, l, color, d) => {
-      const c = el('div', 'kpi'); c.style.setProperty('--kc', color);
-      c.innerHTML = `<div class="v">${v}</div><div class="l">${l}</div>${d != null ? `<div class="d">${d}</div>` : ''}`;
-      return c;
-    };
-    const dq = pt ? deltaSpan(t.open_quests - pt.open_quests, true) : '';
-    const dr = pt ? deltaSpan(t.red_quests - pt.red_quests, true) : '';
+    // ---- folded context: pulse (KPIs) + changes — quiet until asked -------
     const avg = Math.round(S.projects.reduce((s, p) => s + p.completion.pct, 0) / S.projects.length);
-    const pavg = prev ? Math.round(prev.projects.reduce((s, p) => s + p.completion.pct, 0) / prev.projects.length) : null;
-    // Completion is a carried stub until the LLM enricher runs — mark it estimated
-    // so the flat value isn't read as a measured number.
     const enriched = S.scan && S.scan.enriched === true;
-    kpis.appendChild(kpi((enriched ? '' : '~') + avg + '%', enriched ? 'Avg completion' : 'Avg completion (est.)', COL.gold || '#f5b73d', pavg != null ? deltaSpan(avg - pavg) : ''));
-    kpis.appendChild(kpi(t.products, 'Products', COL.blue));
-    kpis.appendChild(kpi(t.open_quests, 'Open quests', COL.orange, dq));
-    kpis.appendChild(kpi(t.red_quests, 'Red quests', COL.red, dr));
-    kpis.appendChild(kpi(t.vaults, 'Vaults', COL.purple));
-    kpis.appendChild(kpi(t.clones, 'Clones', COL.cyan));
-    aosKids(kpis, 'fade-up', 50);
-    ov.appendChild(kpis);
+    foldSec(ov, 'kpis', 'Pulse', `${enriched ? '' : '~'}${avg}% avg · ${t.open_quests} open (${t.red_quests} red)`, (body) => {
+      const kpis = el('div', 'kpis');
+      const kpi = (v, l, color, d) => {
+        const c = el('div', 'kpi'); c.style.setProperty('--kc', color);
+        c.innerHTML = `<div class="v">${v}</div><div class="l">${l}</div>${d != null ? `<div class="d">${d}</div>` : ''}`;
+        return c;
+      };
+      const dq = pt ? deltaSpan(t.open_quests - pt.open_quests, true) : '';
+      const dr = pt ? deltaSpan(t.red_quests - pt.red_quests, true) : '';
+      const pavg = prev ? Math.round(prev.projects.reduce((s, p) => s + p.completion.pct, 0) / prev.projects.length) : null;
+      kpis.appendChild(kpi((enriched ? '' : '~') + avg + '%', enriched ? 'Avg completion' : 'Avg completion (est.)', COL.gold || '#f5b73d', pavg != null ? deltaSpan(avg - pavg) : ''));
+      kpis.appendChild(kpi(t.open_quests, 'Open quests', COL.orange, dq));
+      kpis.appendChild(kpi(t.red_quests, 'Red quests', COL.red, dr));
+      kpis.appendChild(kpi(t.knowledge_xp ?? 0, 'Knowledge XP', COL.purple));
+      body.appendChild(kpis);
+    });
 
-    // changes since prev
-    ov.appendChild(el('h2', 'sec', `Changes since ${esc(S.scan.previous_scan || 'baseline')}`));
-    if (S.changes_since_prev && S.changes_since_prev.length) {
-      const cf = el('div', 'changes');
-      S.changes_since_prev.forEach((c) => cf.appendChild(el('div', 'chg ' + (c.impact || 'neutral'), esc(c.detail))));
-      aosKids(cf, 'fade-right', 40);
-      ov.appendChild(cf);
-    } else {
-      ov.appendChild(el('div', 'empty-note', 'Nothing moved since the previous scan — metrics held steady.'));
-    }
+    const changes = S.changes_since_prev || [];
+    foldSec(ov, 'changes', `Changes since ${esc(S.scan.previous_scan || 'baseline')}`,
+      changes.length ? `${changes.length} · ${esc((changes[0]?.detail || '').slice(0, 60))}` : 'nothing moved',
+      (body) => {
+        if (changes.length) {
+          const cf = el('div', 'changes');
+          changes.forEach((c) => cf.appendChild(el('div', 'chg ' + (c.impact || 'neutral'), esc(c.detail))));
+          body.appendChild(cf);
+        } else {
+          body.appendChild(el('div', 'empty-note', 'Nothing moved since the previous scan — metrics held steady.'));
+        }
+      });
 
     // Weekly Saga: narrator recap (only meaningful "now", so latest snapshot only)
     const wr = D.weeklyRecap;
@@ -668,16 +818,8 @@
       ov.appendChild(saga);
     }
 
-    // smart propositions: per-project side-quests (urgent/risk + ideas), globally ranked
-    const feed = (S.side_quests || []);
-    if (feed.length) {
-      const urgent = feed.filter((s) => s.kind === 'risk' || s.kind === 'urgent').length;
-      ov.appendChild(el('h2', 'sec', `Ideas &amp; risks · smart propositions${urgent ? ` <span class="sec-n">${urgent} urgent</span>` : ''}`));
-      const sf = el('div', 'sqfeed');
-      feed.slice(0, 10).forEach((sq) => sf.appendChild(sideQuestRow(sq, true)));
-      aosKids(sf, 'fade-right', 35);
-      ov.appendChild(sf);
-    }
+    // (the Ideas & risks feed now lives on the QUESTS board as its own column —
+    //  BASE keeps only the gateway chip in the TODAY header)
 
     // products
     ov.appendChild(el('h2', 'sec', 'Products'));
@@ -830,11 +972,24 @@
       });
       board.appendChild(col);
     });
-    if (done.length) {
-      const col = el('div', 'qcol done');
-      col.appendChild(el('h3', null, `<span class="dot"></span>Completed this scan<span class="n">${done.length}</span>`));
-      done.forEach((x) => col.appendChild(el('div', 'quest done', `<div class="coin">+${x.xp}</div><div class="body"><div class="t">${esc(x.title)} ★</div></div>`)));
+    // SIDE-QUESTS column: the ideas & risks feed relocated from BASE — same board,
+    // one click from home, so browsing propositions is a choice, not ambient noise.
+    const feed = (S.side_quests || []);
+    if (feed.length) {
+      const urgent = feed.filter((s) => s.kind === 'risk' || s.kind === 'urgent').length;
+      const col = el('div', 'qcol side');
+      col.appendChild(el('h3', null, `<span class="dot"></span>Side-quests — ideas &amp; risks<span class="n">${feed.length}</span>`));
+      feed.slice(0, 12).forEach((sq) => col.appendChild(sideQuestRow(sq, true)));
+      if (urgent) col.firstChild.insertAdjacentHTML('beforeend', ` <span class="sec-n">${urgent} urgent</span>`);
       board.appendChild(col);
+    }
+    // Completed: celebration lives in the takeover + changes feed; here it's a slim
+    // receipt strip, not a fourth column stealing board width.
+    if (done.length) {
+      const strip = el('div', 'qdone-strip');
+      strip.innerHTML = `<span class="qds-lbl">✔ ${done.length} completed this scan</span>` +
+        done.map((x) => `<span class="qds-item">${esc(x.title)} <b>+${x.xp}</b></span>`).join('');
+      q.appendChild(strip);
     }
   }
 
@@ -899,6 +1054,8 @@
       lineChart([{ color: COL.green, area: true, points: tr.health_index }], cd)));
     if (tr.xp) charts.appendChild(chartCard('Account XP', last(tr.xp),
       lineChart([{ color: COL.purple, area: true, points: tr.xp }], cd)));
+    if (tr.casts_per_day && tr.casts_per_day.length) charts.appendChild(chartCard('Spells cast / day', last(tr.casts_per_day),
+      lineChart([{ color: COL.gold, area: true, points: tr.casts_per_day }], cd)));
     if (tr.completion_by_project) {
       const palette = [COL.blue, COL.purple, COL.green, COL.orange, COL.red, COL.cyan, COL.pink, '#a5d6ff', '#ffa657'];
       const ids = Object.keys(tr.completion_by_project);
@@ -922,8 +1079,11 @@
   }
 
   // ------------------------------------------------------------ achievements
+  // Trophies live inside STATS now ("HIGH SCORES") — one review tab, not two.
+  // Must run AFTER renderTrends (which clears #trends).
   function renderAchievements(S) {
-    const ac = $('achievements'); ac.innerHTML = '';
+    const ac = $('trends');
+    ac.appendChild(el('h2', 'sec', `🏆 High scores · ${(S.achievements || []).filter((x) => x.unlocked).length} unlocked`));
     const grid = el('div', 'ach-grid'); ac.appendChild(grid);
     (S.achievements || []).forEach((x) => {
       const meta = ACH[x.id] || { name: x.id, icon: PX.trophy, desc: '' };
@@ -941,9 +1101,12 @@
   }
 
   // -------------------------------------------------------------- inventory
+  // The warehouse lives inside MAP now — vaults/clones/graveyard ARE the base's
+  // inventory. Must run AFTER renderBaseMap (which clears #basemap).
   function renderInventory(S) {
-    const iv = $('inventory'); iv.innerHTML = '';
+    const iv = $('basemap');
     const inv = S.inventory || {};
+    iv.appendChild(el('h2', 'sec', '📦 Warehouse'));
     const wrap = el('div', 'invwrap'); iv.appendChild(wrap);
     const card = (title) => { const c = el('div', 'invcard'); c.appendChild(el('h3', null, title)); wrap.appendChild(c); return c; };
 
@@ -1009,6 +1172,7 @@
     const dsc = p.activity.days_since_commit;
     const rfiles = ch.recent_files || [];
     const nextAction = openQp ? openQp.title : (g.dirty > 0 ? `Commit ${g.dirty} dirty files` : 'Open it and look around');
+    // RESUME moved to the sticky action bar — the briefing stays pure context.
     const reentryHtml = `
       <div class="dwr-sec reentry">
         <h4>Where was I?</h4>
@@ -1017,7 +1181,6 @@
         ${g.dirty > 0 ? `<div class="re-line"><b>wip</b> ${g.dirty} uncommitted file${g.dirty > 1 ? 's' : ''}</div>` : ''}
         <div class="re-line"><b>next</b> ${esc(nextAction)}</div>
         ${rfiles.length ? `<div class="re-files">${rfiles.map((f) => `<button class="re-file" data-f="${esc(f)}" title="open ${esc(f)}">${esc(f.split('/').pop())}</button>`).join('')}</div>` : ''}
-        ${isElectron ? `<button class="re-resume" id="re-resume">▶ RESUME — open + launch${p.dev_cmd ? ' server' : ''} + last file</button>` : ''}
       </div>`;
     let insHtml = (p.insights || []).map((i) =>
       `<div class="ins ${esc(i.severity)}">${esc(i.text)}${i.tags?.length ? `<div class="tags">${i.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}</div>`).join('') || '<div class="empty-note">No insights for this snapshot.</div>';
@@ -1043,10 +1206,39 @@
     }
 
     const isRunning = devState[p.id];
-    let devDwrHtml = '';
-    if (isElectron && p.dev_cmd) {
-      devDwrHtml = `<button class="dwr-dev-btn ${isRunning ? 'running' : ''}" id="dwr-devbtn-${p.id}"><b>${isRunning ? '■ STOP SERVER' : '▶ LAUNCH DEV SERVER'}</b><br><small style="color:var(--faint)">${esc(p.dev_cmd)}</small></button>`;
-    }
+    // Compact dev toggle for the action bar. Keeps id + inner <b> so the existing
+    // onDevStatus handler keeps updating it live.
+    const devBarHtml = (isElectron && p.dev_cmd)
+      ? `<button class="ab-btn dwr-dev-btn ${isRunning ? 'running' : ''}" id="dwr-devbtn-${p.id}" title="${esc(p.dev_cmd)}"><b>${isRunning ? '■ STOP' : '▶ DEV'}</b></button>`
+      : '';
+
+    // fold(): diagnostics collapse behind native <details>. Verbs first, audit second —
+    // re-entering a messy project must never read as an indictment.
+    const fold = (title, inner, open) => inner
+      ? `<details class="dwr-fold"${open ? ' open' : ''}><summary>${title}</summary><div class="df-body">${inner}</div></details>`
+      : '';
+
+    const standingInner = `
+      <div class="metricgrid">
+        ${mt('Completion', `${p.completion.pct}% ${dpc ? deltaSpan(dpc) : ''}`)}
+        ${mt('Project level', `L${p.level} · ${p.xp} xp`)}
+        ${mt('Build', esc(ch.build))}
+        ${mt('Tests', ch.tests?.passing ? `${ch.tests.passing}/${ch.tests.count ?? '?'}` : ch.tests?.present ? 'present' : 'none')}
+        ${mt('Activity', esc(p.activity.state))}
+        ${mt('Files · LOC', `${ch.files} · ${(ch.loc || 0).toLocaleString()}`)}
+      </div>
+      <div style="margin-top:10px;font-size:12.5px;color:var(--muted)">${esc(p.completion.basis || '')}</div>`;
+    const gitInner = `
+      <div class="metricgrid">
+        ${mt('Repo', g.has_git ? 'yes' : 'none')}
+        ${mt('Remote', g.has_remote ? 'yes' : 'no')}
+        ${mt('Commits', g.commits)}
+        ${mt('Dirty', g.dirty)}
+        ${mt('Ahead / behind', `${g.ahead} / ${g.behind}`)}
+        ${mt('Secrets seen', rs.secrets_found)}
+      </div>
+      ${g.remote ? `<div style="margin-top:10px;font-size:11.5px;color:var(--faint);font-family:var(--mono)">${esc(g.branch || '')} → ${esc(g.remote)}</div>` : ''}
+      ${branchWarn}`;
 
     d.innerHTML = `
       <div class="dwr-head">
@@ -1054,33 +1246,23 @@
         <h2>${esc(p.name)}</h2>
         <div class="sub">${esc((p.stack || []).join(' · '))} · ${esc(p.path)}</div>
       </div>
+      ${isElectron ? `<div class="dwr-actionbar">
+        <button class="ab-primary" id="re-resume">▶ RESUME</button>
+        <button class="ab-btn" id="dwr-open" title="Open project folder">📂 OPEN</button>
+        <button class="ab-btn" id="dwr-snap" title="Safe filtered backup to backups/">📦 SNAP</button>
+        <button class="ab-btn" id="dwr-commit" title="Claude drafts a commit from the git diff">✍️ COMMIT</button>
+        ${devBarHtml}
+        <div class="ab-more-wrap">
+          <button class="ab-btn" id="dwr-more" title="More actions">⋯</button>
+          <div class="ab-menu" id="dwr-menu">
+            <button id="dwr-learn">📚 I learned…</button>
+            <button id="dwr-decide">📝 Log decision</button>
+            <button id="dwr-archive" class="danger">⚰ Archive project</button>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="dwr-body">
         ${reentryHtml}
-        <div class="dwr-sec">
-          <h4>Standing</h4>
-          <div class="metricgrid">
-            ${mt('Completion', `${p.completion.pct}% ${dpc ? deltaSpan(dpc) : ''}`)}
-            ${mt('Project level', `L${p.level} · ${p.xp} xp`)}
-            ${mt('Build', esc(ch.build))}
-            ${mt('Tests', ch.tests?.passing ? `${ch.tests.passing}/${ch.tests.count ?? '?'}` : ch.tests?.present ? 'present' : 'none')}
-            ${mt('Activity', esc(p.activity.state))}
-            ${mt('Files · LOC', `${ch.files} · ${(ch.loc || 0).toLocaleString()}`)}
-          </div>
-          <div style="margin-top:10px;font-size:12.5px;color:var(--muted)">${esc(p.completion.basis || '')}</div>
-        </div>
-        <div class="dwr-sec">
-          <h4>Git safety — ${esc(g.risk)} risk</h4>
-          <div class="metricgrid">
-            ${mt('Repo', g.has_git ? 'yes' : 'none')}
-            ${mt('Remote', g.has_remote ? 'yes' : 'no')}
-            ${mt('Commits', g.commits)}
-            ${mt('Dirty', g.dirty)}
-            ${mt('Ahead / behind', `${g.ahead} / ${g.behind}`)}
-            ${mt('Secrets seen', rs.secrets_found)}
-          </div>
-          ${g.remote ? `<div style="margin-top:10px;font-size:11.5px;color:var(--faint);font-family:var(--mono)">${esc(g.branch || '')} → ${esc(g.remote)}</div>` : ''}
-          ${branchWarn}
-        </div>
         <div class="dwr-sec">
           <h4>Tasks & Mistakes</h4>
           <div class="notes-input-group">
@@ -1089,20 +1271,13 @@
           </div>
           <div id="dwr-notes-list">${notesHtml}</div>
         </div>
-        ${flagHtml ? `<div class="dwr-sec"><h4>Security flags</h4>${flagHtml}</div>` : ''}
-        <div class="dwr-sec"><h4>Insights</h4>${insHtml}</div>
         ${(p.side_quests && p.side_quests.length) ? `<div class="dwr-sec"><h4>Side-quests · smart propositions</h4><div id="dwr-sq"></div></div>` : ''}
-        ${sugHtml ? `<div class="dwr-sec"><h4>Suggestions</h4>${sugHtml}</div>` : ''}
-        ${roadHtml ? `<div class="dwr-sec"><h4>Roadmap</h4>${roadHtml}</div>` : ''}
-        ${isElectron ? `<button class="dwr-open-btn" id="dwr-open">▸ OPEN PROJECT FOLDER</button>` : ''}
-        ${isElectron ? `<button class="dwr-open-btn snap" id="dwr-snap">📦 SNAPSHOT — safe backup</button>` : ''}
-        ${isElectron ? `<button class="dwr-open-btn commit" id="dwr-commit">✍️ DRAFT COMMIT (Claude reads git diff)</button>` : ''}
-        ${isElectron ? `<div class="dwr-action-row">
-          <button class="dwr-mini-btn" id="dwr-learn">📚 I learned…</button>
-          <button class="dwr-mini-btn" id="dwr-decide">📝 Log decision</button>
-          <button class="dwr-mini-btn danger" id="dwr-archive">⚰ Archive project</button>
-        </div>` : ''}
-        ${devDwrHtml}
+        ${fold(`Git safety — ${esc(g.risk)} risk`, gitInner, g.risk === 'high')}
+        ${fold('Security flags', flagHtml, true)}
+        ${fold('Standing', standingInner, false)}
+        ${fold('Insights', insHtml, false)}
+        ${fold('Suggestions', sugHtml, false)}
+        ${fold('Roadmap', roadHtml, false)}
       </div>`;
     $('dwr-x').onclick = closeDrawer;
     // re-entry RESUME + clickable recent files
@@ -1119,11 +1294,17 @@
     if (isElectron) { const ob = $('dwr-open'); if (ob) ob.onclick = () => window.hq.openRepo(p.path); }
     if (isElectron) { const sb = $('dwr-snap'); if (sb) sb.onclick = () => window.hq.snapshot(p.path, p.name); }
     if (isElectron) {
+      // ⋯ overflow menu (log/learn/archive live one click deeper, not in the bar)
+      const moreBtn = $('dwr-more'), moreMenu = $('dwr-menu');
+      if (moreBtn && moreMenu) {
+        moreBtn.onclick = (e) => { e.stopPropagation(); moreMenu.classList.toggle('open'); };
+        d.addEventListener('click', (e) => { if (!moreMenu.contains(e.target) && e.target !== moreBtn) moreMenu.classList.remove('open'); });
+      }
       const cm = $('dwr-commit');
       if (cm) cm.onclick = async () => {
         cm.disabled = true; cm.textContent = '✍️ Drafting…';
         const r = await window.hq.draftCommit(p.path);
-        cm.disabled = false; cm.textContent = '✍️ DRAFT COMMIT (Claude reads git diff)';
+        cm.disabled = false; cm.textContent = '✍️ COMMIT';
         if (r?.error) { alert('Draft failed: ' + r.error); return; }
         const final = prompt('Claude wrote this commit message — edit & OK to commit:', r.message || '');
         if (final == null || !final.trim()) return;
@@ -1409,8 +1590,8 @@
       }
       const dbtn = $('dwr-devbtn-' + data.id);
       if (dbtn) {
-        dbtn.className = 'dwr-dev-btn ' + (data.running ? 'running' : '');
-        dbtn.querySelector('b').textContent = data.running ? '■ STOP SERVER' : '▶ LAUNCH DEV SERVER';
+        dbtn.className = 'ab-btn dwr-dev-btn ' + (data.running ? 'running' : '');
+        dbtn.querySelector('b').textContent = data.running ? '■ STOP' : '▶ DEV';
         dbtn.onclick = () => window.hq[data.running ? 'devStop' : 'devStart'](data.id);
       }
     });

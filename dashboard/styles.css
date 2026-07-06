@@ -46,6 +46,12 @@
   /* type */
   --px:   "Press Start 2P", "Courier New", monospace;   /* display / labels */
   --term: "VT323", "Cascadia Code", Consolas, monospace; /* body / numbers  */
+  --mono: "VT323", "Cascadia Code", Consolas, monospace; /* mono-critical: timeline dates, tables — theme MUST override with a real monospace face */
+  /* Semantic role tokens — decoupled from raw palette so themes can rebind colours
+     without collapsing meaning. Themes MUST remap these three, not just --gold/--frame. */
+  --active:       var(--gold);         /* active-tab colour, KPI accent, unlocked-glow */
+  --active-arrow: var(--gold);         /* the ▶ selection arrow on active tab */
+  --divider:      var(--frame);        /* KPI dividers, section separators (needs ≥25% alpha) */
 }
 
 * { box-sizing: border-box; }
@@ -109,7 +115,8 @@ body {
 .r-uncommon  { box-shadow: 0 0 0 2px #1f7a3d; }
 .r-rare      { box-shadow: 0 0 0 2px #2c5aa8, 0 0 12px -5px var(--blue); }
 .r-epic      { box-shadow: 0 0 0 2px #6b2ca8, 0 0 16px -5px var(--purple); }
-.r-legendary { box-shadow: 0 0 0 2px #a8862c, 0 0 20px -4px var(--gold, #ffd23f); animation: leg-shimmer 2.6s ease-in-out infinite; }
+.r-legendary { box-shadow: 0 0 0 2px #a8862c, 0 0 20px -4px var(--gold, #ffd23f); }
+.r-legendary:hover { animation: leg-shimmer 2.6s ease-in-out infinite; }   /* shimmer is earned on hover, not ambient */
 @keyframes leg-shimmer {
   0%, 100% { box-shadow: 0 0 0 2px #a8862c, 0 0 20px -4px rgba(255,210,63,.9); }
   50%      { box-shadow: 0 0 0 2px #d4b23c, 0 0 30px -2px rgba(255,210,63,.55); }
@@ -224,6 +231,34 @@ body {
 .sec-btn { font-family: var(--px); font-size: 7px; padding: 6px 10px; cursor: pointer;
   background: transparent; color: var(--cyan); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--frame); }
 .sec-btn:hover { color: var(--gold, #ffd23f); }
+
+/* --------------------------------------------------- spell of the day card */
+.sotd {
+  display: flex; align-items: center; gap: 12px; padding: 11px 14px; margin-bottom: 16px;
+  background: linear-gradient(90deg, rgba(255,210,63,.08), transparent 60%), var(--card);
+  border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--sch, var(--frame)), 0 0 16px -6px var(--sch, transparent);
+}
+.sotd-k { font-family: var(--px); font-size: 8px; letter-spacing: 1px; color: var(--gold, #ffd23f); white-space: nowrap; }
+.sotd-icon { font-size: 22px; }
+.sotd-name { font-family: var(--px); font-size: 10px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sotd-meta { flex: 1; font-family: var(--term); font-size: 15px; color: var(--sch, var(--muted)); white-space: nowrap; overflow: hidden; }
+.sotd-cast { font-family: var(--px); font-size: 8px; padding: 7px 12px; cursor: pointer;
+  background: rgba(255,210,63,.10); color: var(--gold, #ffd23f); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--gold, #ffd23f); }
+.sotd-cast:hover { background: rgba(255,210,63,.22); }
+
+/* ---------------------------------------------------- collection meter */
+.collmeter { display: flex; align-items: center; gap: 16px; padding: 9px 12px; margin-bottom: 14px;
+  background: var(--card); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--frame); }
+.cm-main { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cm-lbl { font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--gold, #ffd23f); }
+.cm-bar { width: 130px; height: 9px; background: var(--ink); border: 1px solid var(--frame); }
+.cm-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--purple), var(--gold, #ffd23f)); }
+.cm-num { font-family: var(--term); font-size: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-schools { display: flex; gap: 7px; }
+.cm-school { display: flex; align-items: center; gap: 3px; }
+.cm-dot { width: 6px; height: 6px; background: var(--sch); box-shadow: 0 0 5px var(--sch); }
+.cm-mini { width: 26px; height: 5px; background: var(--ink); border: 1px solid var(--frame); }
+.cm-mini i { display: block; height: 100%; background: var(--sch); }
 
 /* --------------------------------------------------------- weekly saga card */
 .saga { background: var(--card); padding: 12px 14px; margin-bottom: 14px; }
@@ -364,7 +399,7 @@ body {
   display: inline-flex; align-items: center; gap: 6px; background: rgba(58,255,110,.07);
   box-shadow: 0 0 10px -3px rgba(58,255,110,.7);
 }
-.tm-head .live::before { content: ""; width: 6px; height: 6px; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 1.4s steps(1) infinite; }
+.tm-head .live::before { content: ""; width: 6px; height: 6px; background: var(--green); box-shadow: 0 0 8px var(--green); }
 .tm-head .live.past { color: var(--faint); border-color: var(--frame); background: transparent; box-shadow: none; }
 .tm-head .live.past::before { background: var(--faint); box-shadow: none; animation: none; }
 .tm-head .spacer { flex: 1; }
@@ -387,11 +422,11 @@ body {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 .tm-dot i { width: 10px; height: 10px; background: var(--frame); border: 2px solid var(--frame-hi); transition: .15s; display: block; }
-.tm-dot span { font-family: var(--term); font-size: 14px; color: var(--faint); transition: .15s; white-space: nowrap; }
+.tm-dot span { font-family: var(--mono); font-size: 14px; color: var(--faint); transition: .15s; white-space: nowrap; }
 .tm-dot:hover i { transform: scale(1.3) rotate(45deg); border-color: var(--gold); }
 .tm-dot:hover span { color: var(--muted); }
-.tm-dot.active i { background: var(--gold); border-color: var(--gold-2); transform: scale(1.35) rotate(45deg); box-shadow: 0 0 0 3px rgba(255,210,63,.25), 0 0 14px rgba(255,210,63,.8); }
-.tm-dot.active span { color: var(--gold-2); }
+.tm-dot.active i { background: var(--active); border-color: var(--active-arrow); transform: scale(1.35) rotate(45deg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--active) 25%, transparent), 0 0 14px color-mix(in srgb, var(--active) 80%, transparent); }
+.tm-dot.active span { color: var(--active-arrow); }
 
 /* ------------------------------------------------------------------- tabs */
 #tabs { display: flex; gap: 6px; padding: 14px 26px 0; position: sticky; top: 156px; z-index: 30;
@@ -405,14 +440,14 @@ body {
 #tabs button::before { content: "▶"; font-size: 8px; color: transparent; transition: color .15s; }
 #tabs button:hover { color: var(--muted); }
 #tabs button:hover::before { color: var(--frame-hi); }
-#tabs button.active { color: var(--gold-2); text-shadow: 0 0 8px rgba(255,210,63,.55); }
-#tabs button.active::before { color: var(--gold); animation: blink 1.1s steps(1) infinite; }
+#tabs button.active { color: var(--active); text-shadow: 0 0 8px color-mix(in srgb, var(--active) 55%, transparent); }
+#tabs button.active::before { color: var(--active-arrow); animation: blink 1.1s steps(1) infinite; }
 #tabs .badge {
   font-family: var(--term); font-size: 14px; min-width: 21px; height: 19px; padding: 0 5px;
   background: var(--card); border: 2px solid var(--frame); color: var(--muted);
   display: inline-grid; place-items: center; line-height: 1;
 }
-#tabs button.active .badge { border-color: var(--gold); color: var(--gold-2); }
+#tabs button.active .badge { border-color: var(--active); color: var(--active-arrow); }
 
 main { padding: 22px 26px 64px; max-width: 1280px; margin: 0 auto; }
 .tab { display: none; animation: fadein .3s ease; }
@@ -421,7 +456,7 @@ main { padding: 22px 26px 64px; max-width: 1280px; margin: 0 auto; }
 
 h2.sec { font-family: var(--px); font-size: 10px; letter-spacing: 2px; color: var(--cyan);
   text-shadow: 0 0 9px rgba(0,240,255,.5); margin: 30px 0 14px; }
-h2.sec::before { content: "■ "; color: var(--magenta); text-shadow: 0 0 8px rgba(255,43,214,.6); }
+h2.sec::before { content: "■ "; color: var(--faint); }
 h2.sec:first-child { margin-top: 4px; }
 
 /* ------------------------------------------------------ mission strip */
@@ -442,7 +477,7 @@ h2.sec:first-child { margin-top: 4px; }
 /* --------------------------------------------------------------- KPI row */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 14px; }
 .kpi { background: linear-gradient(160deg, var(--card-hi), var(--card)); padding: 13px 14px; position: relative; }
-.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--kc, var(--blue)); box-shadow: 0 0 10px var(--kc, var(--blue)); }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--kc, var(--blue)); }
 .kpi .v { font-family: var(--term); font-size: 34px; line-height: .9; color: var(--text); }
 .kpi .l { font-family: var(--px); font-size: 6.5px; letter-spacing: 1px; color: var(--muted); margin-top: 9px; text-transform: uppercase; }
 .kpi .d { position: absolute; top: 11px; right: 12px; font-family: var(--term); font-size: 15px; }
@@ -522,8 +557,8 @@ h2.sec:first-child { margin-top: 4px; }
   font-family: var(--px); font-size: 7.5px; color: #3a2a00;
   background: radial-gradient(circle at 35% 30%, var(--gold-2), var(--gold) 65%, #c98f1b);
   border: 2px solid #8a6200; box-shadow: 0 0 12px -2px rgba(255,210,63,.75);
-  animation: coin-spin 3.2s steps(8) infinite;
 }
+.quest:hover .coin { animation: coin-spin 3.2s steps(8) infinite; }   /* spin on attention, not ambiently */
 @keyframes coin-spin {
   0%, 60%, 100% { transform: scaleX(1); }
   65% { transform: scaleX(.55); } 70% { transform: scaleX(.12); }
@@ -629,7 +664,7 @@ h2.sec:first-child { margin-top: 4px; }
   box-shadow: 0 -2px 0 var(--frame); font-family: var(--term); font-size: 15px; color: var(--faint);
   display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
 #statusbar b { color: var(--muted); font-weight: 400; }
-.coin-blink { font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--gold-2); animation: blink 1.3s steps(1) infinite; flex: 0 0 auto; }
+.coin-blink { font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--gold-2); flex: 0 0 auto; }
 
 /* ------------------------------------------------------- responsiveness */
 @media (max-width: 760px) {
@@ -803,3 +838,394 @@ body.focus-mode main, body.focus-mode #tabs, body.focus-mode .timemachine, body.
 .ot-exit:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f9e4b; }
 .ot-hint { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 16px; }
 .ot-hint b { color: var(--cyan); }
+
+/* ===========================================================================
+   THEME SYSTEM — Arcade (default) + OKAMI + Numidea + Ops Desk
+   Rule: alternate themes ENHANCE, don't force. Layout untouched. Only palette,
+   fonts, radii, atmosphere, and button shape change per theme.
+   =========================================================================== */
+
+/* --- Theme picker chrome (lives across all themes) --- */
+.theme-wrap { position: relative; display: inline-block; }
+.theme-btn { min-width: 96px; }
+.theme-menu {
+  display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 30;
+  min-width: 220px; background: var(--card); border: 1px solid var(--frame);
+  border-radius: 6px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55); padding: 5px;
+}
+.theme-menu.open { display: block; }
+.theme-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: 100%; padding: 9px 12px; background: transparent; border: 0; cursor: pointer;
+  color: var(--text); font-family: var(--term); text-align: left; border-radius: 4px;
+}
+.theme-opt:hover { background: var(--card-hi); }
+.theme-opt.active { background: var(--frame); border-left: 3px solid var(--active); padding-left: 9px; font-weight: 700; }
+.th-name { font-family: var(--px); font-size: 11px; letter-spacing: 0.4px; color: var(--gold); }
+.th-hint { font-family: var(--term); font-size: 11.5px; color: var(--muted); }
+
+/* Smoothen bg/font swap for the switch itself (not the crt overlay). */
+body { transition: background-color 0.35s ease, color 0.25s ease; }
+#crt { transition: opacity 0.35s ease; }
+
+/* Cross-theme .tm-dot span metric compensation — Space Mono is wider than VT323 at the
+   same px; drop 3px and tighten letter-spacing so the 29 date labels fit the timeline. */
+:root[data-theme="okami"] .tm-dot span,
+:root[data-theme="numidea"] .tm-dot span,
+:root[data-theme="ops"] .tm-dot span { font-size: 11px; letter-spacing: -0.02em; }
+
+/* Reduced-motion respect: Numidea's drift mesh + glitch shimmer disabled. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="numidea"] body::before { animation: none; }
+  :root[data-theme="numidea"] .title .hq { animation: none; }
+}
+
+/* ============================================================
+   OKAMI — streetwear void. Purple-black, editorial, museum-like.
+   ============================================================ */
+:root[data-theme="okami"] {
+  --bg: #1E1623; --bg2: #0A050D; --panel: #1a1520; --card: #251f2b; --card-hi: #2a2533;
+  --ink: #0A050D; --frame: rgba(255, 255, 255, 0.10); --frame-hi: rgba(255, 255, 255, 0.20);
+  --text: #ffffff; --muted: rgba(255, 255, 255, 0.55); --faint: rgba(255, 255, 255, 0.30);
+  /* Semantic roles — remap so active/divider survive the palette rebind */
+  --active: #FFD23F; --active-arrow: #FFFFFF; --divider: rgba(255, 255, 255, 0.25);
+  /* Palette (decorative). Note: --cyan retained near-white for OKAMI's monochrome ethos, but --active handles hierarchy */
+  --cyan: #C4E9FF; --magenta: #AC4BFF; --gold: #F59E0B; --gold-2: #FFD23F;
+  --green: #00C758; --red: #FB2C36; --orange: #FE6E00; --yellow: #F59E0B;
+  --blue: #3080FF; --purple: #AC4BFF; --pink: #FB2C36;
+  --px: "Anton", "Bebas Neue", Impact, sans-serif;
+  --term: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --mono: "Space Mono", "Courier New", monospace;
+}
+/* kill the CRT overlay — museum, not arcade */
+:root[data-theme="okami"] #crt { opacity: 0; pointer-events: none; }
+/* aurora orbs behind everything (blur-60px purple/green/orange radials) */
+:root[data-theme="okami"] body { background: var(--bg); }
+:root[data-theme="okami"] body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(500px 500px at 12% 18%, rgba(172, 75, 255, 0.22), transparent 60%),
+    radial-gradient(400px 400px at 88% 55%, rgba(0, 199, 88, 0.14), transparent 60%),
+    radial-gradient(350px 350px at 50% 105%, rgba(254, 110, 0, 0.10), transparent 60%);
+  filter: blur(50px);
+}
+/* grain overlay (mix-blend for texture) */
+:root[data-theme="okami"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 99; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: 0.35;
+}
+/* CRITICAL: DO NOT override position on #tabs / .timemachine — they are baseline
+   position: sticky. Overriding to relative destroys the pinning and the visual
+   nav breaks completely. Only lift non-sticky containers above the orb layer. */
+:root[data-theme="okami"] main,
+:root[data-theme="okami"] #statusbar,
+:root[data-theme="okami"] #drawer,
+:root[data-theme="okami"] #scrim { position: relative; z-index: 1; }
+/* Preserve sticky but bump z-index above body::before (z:0) */
+:root[data-theme="okami"] #topbar { z-index: 41; }
+:root[data-theme="okami"] .timemachine { z-index: 36; }
+:root[data-theme="okami"] #tabs { z-index: 31; }
+/* softer radii + opaque containment (blocks the aurora bleed through cards) */
+:root[data-theme="okami"] .card,
+:root[data-theme="okami"] .kpi,
+:root[data-theme="okami"] .quest,
+:root[data-theme="okami"] .sq,
+:root[data-theme="okami"] .invcard,
+:root[data-theme="okami"] .chart,
+:root[data-theme="okami"] .mission,
+:root[data-theme="okami"] .invrow,
+:root[data-theme="okami"] .chg { border-radius: 16px; background: linear-gradient(165deg, var(--card-hi), var(--card)); border: 1px solid var(--divider); }
+:root[data-theme="okami"] .title,
+:root[data-theme="okami"] h2.sec,
+:root[data-theme="okami"] .toolbar-title,
+:root[data-theme="okami"] #level { letter-spacing: 0.15em; text-transform: uppercase; }
+/* pill white primary buttons — the OKAMI signature */
+:root[data-theme="okami"] .dwr-open-btn,
+:root[data-theme="okami"] .qbtn,
+:root[data-theme="okami"] .btn-primary,
+:root[data-theme="okami"] .run-all-btn {
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.30);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+:root[data-theme="okami"] .dwr-open-btn:not(.snap):not(.commit) {
+  background: #fff; color: #000; border-color: #fff;
+}
+:root[data-theme="okami"] .dwr-open-btn:not(.snap):not(.commit):hover {
+  box-shadow: 0 0 28px rgba(255, 255, 255, 0.35); transform: scale(1.02);
+}
+/* card hover: white glow, not neon */
+:root[data-theme="okami"] .card { transition: border-color 0.35s ease, box-shadow 0.35s ease; }
+:root[data-theme="okami"] .card:hover { border-color: rgba(255, 255, 255, 0.40); box-shadow: 0 0 30px rgba(255, 255, 255, 0.15); }
+/* tab label metrics compensation — Anton has ~2× the visual mass of Press Start 2P */
+:root[data-theme="okami"] #tabs button { font-size: 12px; letter-spacing: 0.10em; }
+/* section headings: preserve arcade rhythm — Anton is display-only, use smaller size */
+:root[data-theme="okami"] h2.sec { font-size: 11px; letter-spacing: 0.12em; }
+:root[data-theme="okami"] .title { font-size: 18px; letter-spacing: 0.12em; }
+/* topbar surface — occlude aurora directly (topbar is sticky, background inherits from body which is transparent to orbs) */
+:root[data-theme="okami"] #topbar { background: linear-gradient(180deg, #1E1623 0%, rgba(30, 22, 35, 0.92) 100%); }
+:root[data-theme="okami"] .timemachine,
+:root[data-theme="okami"] #tabs { background: rgba(30, 22, 35, 0.88); backdrop-filter: blur(10px); }
+/* boot splash out (museum doesn't boot) */
+:root[data-theme="okami"] #boot { display: none !important; }
+
+/* ============================================================
+   NUMIDEA — editorial glitch. Void navy, animated mesh, serif/script hybrid.
+   ============================================================ */
+:root[data-theme="numidea"] {
+  --bg: #0D1A2F; --bg2: #0A1626; --panel: #17364F; --card: #17364F; --card-hi: #1E4260;
+  --ink: #0D1A2F; --frame: #243B52; --frame-hi: #33506C;
+  --text: #EAF2F4; --muted: #8FA1AE; --faint: #5A6B79;
+  /* Semantic roles */
+  --active: #09D8C7; --active-arrow: #EAF2F4; --divider: #33506C;
+  /* Palette */
+  --cyan: #09D8C7; --magenta: #BD0927; --gold: #F5B73D; --gold-2: #09D8C7;
+  --green: #09D8C7; --red: #BD0927; --orange: #F5B73D; --yellow: #EAF2F4;
+  --blue: #09D8C7; --purple: #411E3A; --pink: #BD0927;
+  --px: "Abril Fatface", Georgia, serif;
+  --term: "Space Grotesk", system-ui, sans-serif;
+  --mono: "Space Mono", "Courier New", monospace;
+}
+:root[data-theme="numidea"] #crt { opacity: 0; pointer-events: none; }
+:root[data-theme="numidea"] body { background: var(--bg); }
+/* drifting radial mesh — the numidea atmosphere */
+:root[data-theme="numidea"] body::before {
+  content: ""; position: fixed; inset: -20%; z-index: 0; pointer-events: none; filter: blur(8px);
+  background:
+    radial-gradient(38% 38% at 78% 12%, rgba(189, 9, 39, 0.38), transparent 60%),
+    radial-gradient(34% 34% at 12% 30%, rgba(9, 216, 199, 0.22), transparent 60%),
+    radial-gradient(46% 46% at 60% 100%, rgba(65, 30, 58, 0.65), transparent 60%),
+    radial-gradient(30% 30% at 95% 75%, rgba(80, 10, 31, 0.45), transparent 60%);
+  animation: hqmesh 22s ease-in-out infinite alternate;
+}
+/* subtle teal grid over the mesh */
+:root[data-theme="numidea"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.06;
+  background-image: linear-gradient(#09D8C7 1px, transparent 1px), linear-gradient(90deg, #09D8C7 1px, transparent 1px);
+  background-size: 84px 84px;
+}
+@keyframes hqmesh {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3%, 2%) scale(1.08); }
+  100% { transform: translate(2%, -2%) scale(1.04); }
+}
+/* CRITICAL: do NOT override position on #tabs / .timemachine (baseline sticky). */
+:root[data-theme="numidea"] main,
+:root[data-theme="numidea"] #statusbar,
+:root[data-theme="numidea"] #drawer,
+:root[data-theme="numidea"] #scrim { position: relative; z-index: 1; }
+:root[data-theme="numidea"] #topbar { z-index: 41; background: linear-gradient(180deg, #0D1A2F 0%, rgba(13, 26, 47, 0.92) 100%); }
+:root[data-theme="numidea"] .timemachine { z-index: 36; background: rgba(13, 26, 47, 0.88); backdrop-filter: blur(10px); }
+:root[data-theme="numidea"] #tabs { z-index: 31; background: rgba(13, 26, 47, 0.88); backdrop-filter: blur(10px); }
+/* thin gradient hairline (the "burn") beneath section headings — via ::after, not padding
+   so the h2 box stays the same height and downstream sections don't shift. */
+:root[data-theme="numidea"] h2.sec {
+  font-size: 14px; line-height: 1; letter-spacing: 0.12em; position: relative; padding-bottom: 8px;
+}
+:root[data-theme="numidea"] h2.sec::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--red), var(--cyan), transparent);
+}
+/* opaque glass cards — enough alpha to occlude the drift mesh, isolation to guarantee stacking */
+:root[data-theme="numidea"] .card,
+:root[data-theme="numidea"] .kpi,
+:root[data-theme="numidea"] .quest,
+:root[data-theme="numidea"] .sq,
+:root[data-theme="numidea"] .invcard,
+:root[data-theme="numidea"] .chart,
+:root[data-theme="numidea"] .mission,
+:root[data-theme="numidea"] .invrow,
+:root[data-theme="numidea"] .chg {
+  border-radius: 14px; border: 1px solid var(--divider);
+  background: rgba(23, 54, 79, 0.85); backdrop-filter: blur(6px); isolation: isolate;
+}
+:root[data-theme="numidea"] .card:hover { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 24px rgba(9, 216, 199, 0.25); }
+/* tab label metric compensation — Abril Fatface has huge em-box */
+:root[data-theme="numidea"] #tabs button { font-size: 11px; letter-spacing: 0.10em; }
+:root[data-theme="numidea"] .title { font-size: 20px; letter-spacing: 0.06em; }
+/* buttons: mono labels, blood-gradient primary, teal outline */
+:root[data-theme="numidea"] .qbtn,
+:root[data-theme="numidea"] .dwr-open-btn {
+  font-family: var(--mono); letter-spacing: 0.05em; border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+:root[data-theme="numidea"] .dwr-open-btn:not(.snap):not(.commit) {
+  background: linear-gradient(135deg, #BD0927, #500A1F 55%, #411E3A); color: #EAF2F4; border: 1px solid var(--red);
+}
+:root[data-theme="numidea"] .dwr-open-btn:not(.snap):not(.commit):hover {
+  box-shadow: 0 0 0 1px var(--red), 0 0 40px rgba(189, 9, 39, 0.35); transform: translateY(-2px);
+}
+/* subtle glitch shimmer on the WORKSPACEHQ title */
+:root[data-theme="numidea"] .title { position: relative; }
+:root[data-theme="numidea"] .title .hq { animation: hqGlitch 4s infinite steps(1); }
+@keyframes hqGlitch {
+  0%, 92%, 100% { text-shadow: none; transform: translate(0, 0); }
+  93% { text-shadow: 2px 0 var(--red), -2px 0 var(--cyan); transform: translate(-1px, 0); }
+  96% { text-shadow: -1px 0 var(--red), 1px 0 var(--cyan); transform: translate(1px, 0); }
+}
+:root[data-theme="numidea"] #boot { display: none !important; }
+
+/* ============================================================
+   OPS DESK — cream on warm dark, quiet utility, orange accent.
+   The "get work done" theme. Zero atmosphere layer.
+   ============================================================ */
+:root[data-theme="ops"] {
+  --bg: #0e0e0c; --bg2: #161614; --panel: #161614; --card: #1e1e1b; --card-hi: #26251f;
+  --ink: #0e0e0c; --frame: rgba(242, 234, 216, 0.10); --frame-hi: rgba(242, 234, 216, 0.20);
+  --text: #f2ead8; --muted: rgba(242, 234, 216, 0.60); --faint: rgba(242, 234, 216, 0.30);
+  /* Semantic roles */
+  --active: #e8a41a; --active-arrow: #f2ead8; --divider: rgba(242, 234, 216, 0.30);
+  /* Palette */
+  --cyan: #4a9eff; --magenta: #e8521a; --gold: #e8a41a; --gold-2: #e8521a;
+  --green: #4caf7d; --red: #e05555; --orange: #e8521a; --yellow: #e8a41a;
+  --blue: #4a9eff; --purple: #e8521a; --pink: #e05555;
+  --px: "Bebas Neue", "Anton", Impact, sans-serif;
+  --term: "Syne", system-ui, sans-serif;
+  --mono: "Space Mono", "Courier New", monospace;
+}
+:root[data-theme="ops"] #crt { opacity: 0; pointer-events: none; }
+:root[data-theme="ops"] body { background: var(--bg); }
+:root[data-theme="ops"] .card,
+:root[data-theme="ops"] .kpi,
+:root[data-theme="ops"] .quest,
+:root[data-theme="ops"] .sq,
+:root[data-theme="ops"] .invcard,
+:root[data-theme="ops"] .chart,
+:root[data-theme="ops"] .mission,
+:root[data-theme="ops"] .invrow,
+:root[data-theme="ops"] .chg { border-radius: 6px; border: 1px solid var(--divider); background: var(--card); }
+:root[data-theme="ops"] .card:hover { background: var(--card-hi); border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange), 0 0 18px rgba(232, 82, 26, 0.20); }
+/* tab label metrics — Bebas at Press Start 2P size is fine but a hair of tracking helps */
+:root[data-theme="ops"] #tabs button { font-size: 13px; letter-spacing: 0.08em; }
+:root[data-theme="ops"] .title { font-size: 24px; letter-spacing: 0.06em; }
+:root[data-theme="ops"] h2.sec { font-size: 12px; letter-spacing: 0.14em; }
+/* labels in mono, wider tracking — inbox-zero utility feel */
+:root[data-theme="ops"] .kpi .l,
+:root[data-theme="ops"] .mtile .k,
+:root[data-theme="ops"] .tag { font-family: var(--mono); letter-spacing: 0.05em; font-size: 10.5px; }
+:root[data-theme="ops"] .qbtn,
+:root[data-theme="ops"] .dwr-open-btn,
+:root[data-theme="ops"] .run-all-btn { font-family: var(--mono); letter-spacing: 0.04em; border-radius: 6px; }
+:root[data-theme="ops"] .dwr-open-btn:not(.snap):not(.commit) {
+  background: rgba(232, 82, 26, 0.15); border: 1px solid var(--orange); color: var(--orange);
+}
+:root[data-theme="ops"] .dwr-open-btn:not(.snap):not(.commit):hover { background: var(--orange); color: #fff; }
+:root[data-theme="ops"] #boot { display: none !important; }
+
+/* ===========================================================================
+   UX DECLUTTER PASS — components for the one-decision BASE, folded sections,
+   collapsed STAGE SELECT, quest side-column, drawer action bar, SYS menu.
+   Rule (accent budget): max ONE glowing frame + ONE blinking element per
+   viewport; glow/motion is feedback for something that just happened.
+   =========================================================================== */
+
+/* --- STAGE SELECT: one-line scrubber, rail folds --- */
+.timemachine.collapsed .tm-track { display: none; }
+.timemachine.collapsed { padding-bottom: 10px; }
+#tm-toggle {
+  font-family: var(--px); font-size: 8px; letter-spacing: 2px; color: var(--magenta);
+  background: transparent; border: 0; cursor: pointer; padding: 4px 2px;
+}
+#tm-toggle:hover { color: var(--text); }
+.tm-nav.sm { width: 24px; height: 24px; font-size: 10px; }
+.tm-live {
+  font-family: var(--px); font-size: 7px; letter-spacing: 1px; cursor: pointer;
+  color: var(--ink); background: var(--gold); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--gold-2); padding: 5px 9px;
+}
+.tm-live:hover { filter: brightness(1.12); }
+
+/* --- FOCUS chip in the tab bar --- */
+.tab-focus {
+  margin-left: auto; font-family: var(--px); font-size: 9px; letter-spacing: 1px;
+  color: var(--green); background: transparent; border: 2px solid var(--frame);
+  padding: 8px 12px; cursor: pointer; transition: .15s;
+}
+.tab-focus:hover { border-color: var(--green); background: rgba(58, 255, 110, 0.08); }
+
+/* --- TODAY header gateway chip (ideas moved to QUESTS) --- */
+.sec-chip {
+  margin-left: 12px; font-family: var(--term); font-size: 13px; cursor: pointer;
+  color: var(--muted); background: var(--card); border: 1px solid var(--frame);
+  padding: 3px 10px; border-radius: 999px; vertical-align: middle;
+}
+.sec-chip:hover { color: var(--text); border-color: var(--frame-hi); }
+
+/* --- daily card verbs --- */
+.d3act { margin-top: 9px; display: flex; gap: 7px; }
+.qbtn.focus { border-color: var(--green); color: var(--green); }
+.qbtn.focus:hover { background: rgba(58, 255, 110, 0.12); }
+
+/* --- Spell of the Day: slim bonus ribbon inside the TODAY module --- */
+.sotd.slim { padding: 7px 13px; margin-top: 8px; }
+.sotd.slim .sotd-icon { font-size: 16px; }
+
+/* --- progressive-disclosure section folds --- */
+h2.sec.sec-fold { cursor: pointer; user-select: none; }
+h2.sec.sec-fold:hover { color: var(--text); }
+.fold-chev { color: var(--faint); }
+.fold-sum { margin-left: 10px; font-family: var(--term); font-size: 14px; letter-spacing: 0; color: var(--faint); text-transform: none; }
+.fold-body:not(:empty) { margin-bottom: 6px; }
+
+/* --- QUESTS: side-quest column + completed receipt strip --- */
+.qcol.side > h3 .dot { background: var(--cyan); }
+.qcol.side .sq { margin-bottom: 8px; }
+.qdone-strip {
+  margin-top: 14px; padding: 9px 14px; display: flex; gap: 16px; align-items: center;
+  overflow-x: auto; white-space: nowrap; background: var(--panel); border-left: 4px solid var(--green);
+}
+.qds-lbl { font-family: var(--px); font-size: 7.5px; letter-spacing: 1px; color: var(--green); flex: 0 0 auto; }
+.qds-item { font-family: var(--term); font-size: 15px; color: var(--muted); flex: 0 0 auto; }
+.qds-item b { color: var(--gold-2); }
+
+/* --- drawer: sticky action bar (verbs first) --- */
+.dwr-actionbar {
+  position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center;
+  padding: 10px 22px; background: var(--panel); border-bottom: 2px solid var(--ink);
+  box-shadow: 0 2px 0 var(--frame);
+}
+.ab-primary {
+  font-family: var(--px); font-size: 9px; letter-spacing: 1px; cursor: pointer;
+  color: var(--ink); background: var(--green); border: 2px solid var(--ink);
+  box-shadow: 0 3px 0 #1f9e4b; padding: 10px 16px;
+}
+.ab-primary:hover { filter: brightness(1.1); }
+.ab-primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f9e4b; }
+.ab-btn {
+  font-family: var(--px); font-size: 7.5px; letter-spacing: 0.5px; cursor: pointer;
+  color: var(--muted); background: var(--card); border: 2px solid var(--frame);
+  padding: 9px 11px; transition: .12s;
+}
+.ab-btn:hover { color: var(--text); border-color: var(--frame-hi); }
+.ab-btn.running b { color: var(--red); }
+.ab-more-wrap { position: relative; margin-left: auto; }
+.ab-menu {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  min-width: 180px; background: var(--card); border: 1px solid var(--frame-hi);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5); padding: 5px;
+}
+.ab-menu.open { display: block; }
+.ab-menu button {
+  display: block; width: 100%; text-align: left; padding: 9px 12px; cursor: pointer;
+  background: transparent; border: 0; color: var(--text); font-family: var(--term); font-size: 15px;
+}
+.ab-menu button:hover { background: var(--card-hi); }
+.ab-menu button.danger { color: var(--red); }
+
+/* --- drawer: folded diagnostic sections --- */
+.dwr-fold { margin: 0 22px 10px; border: 1px solid var(--frame); background: var(--card); }
+.dwr-fold summary {
+  cursor: pointer; list-style: none; padding: 10px 14px;
+  font-family: var(--px); font-size: 8px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase;
+}
+.dwr-fold summary::before { content: "▸ "; color: var(--faint); }
+.dwr-fold[open] summary::before { content: "▾ "; }
+.dwr-fold summary::-webkit-details-marker { display: none; }
+.dwr-fold summary:hover { color: var(--text); }
+.dwr-fold .df-body { padding: 4px 14px 14px; }
+
+/* --- SYS menu group labels --- */
+.th-group { font-family: var(--px); font-size: 6.5px; letter-spacing: 1.5px; color: var(--faint); padding: 8px 12px 3px; }
+
+/* --- statusbar keyboard advert --- */
+#status .keys { color: var(--faint); }
