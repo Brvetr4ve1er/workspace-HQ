@@ -42,6 +42,24 @@
 
   "quest_xp_by_tier": { "red": 100, "orange": 60, "yellow": 30 },
 
+  "spellcraft": {
+    "description": "Spellbook economy. Cast XP is flavor income — deliberately small and capped so quests stay the primary economy; casting one spell 50x/day earns the same as casting it once. Mastery counts DISTINCT DAYS used, never raw casts (grind-proof). Settlement happens in assemble.mjs only, from spell-telemetry.json, watermarked so each cast is counted once.",
+    "cast_xp": 5,
+    "cast_xp_once_per_spell_per_day": true,
+    "cast_xp_daily_cap_total": 25,
+    "first_cast_bonus": 15,
+    "spell_of_day_bonus": 10,
+    "mastery_rank_up_xp": 20,
+    "mastery_tiers": [
+      { "rank": "novice", "days": 1 },
+      { "rank": "adept", "days": 5 },
+      { "rank": "expert", "days": 15 },
+      { "rank": "master", "days": 40 },
+      { "rank": "grandmaster", "days": 100 }
+    ],
+    "rarity_order": ["common", "uncommon", "rare", "epic", "legendary"]
+  },
+
   "streak": {
     "description": "Scan streak = consecutive calendar days with at least one scan. Resets if a day is missed. Bonus XP per maintained day via xp_awards.streak_day.",
     "grace_hours": 30
@@ -79,6 +97,14 @@
     { "id": "secret_free",    "name": "No Loose Keys",    "icon": "🔑", "desc": "No exposed secrets detected across any product.",      "xp": 60,  "type": "workspace" },
     { "id": "documented",     "name": "Well Documented",  "icon": "📚", "desc": "Every product has a README.",                         "xp": 50,  "type": "workspace" },
     { "id": "scribe",         "name": "Scribe",           "icon": "✍️", "desc": "Capture 30 lessons in your What I Learned log.",       "xp": 70,  "type": "counter", "need": 30 },
-    { "id": "cartographer",   "name": "Cartographer",     "icon": "🗺️", "desc": "Every product has a vault note.",                    "xp": 90,  "type": "workspace" }
+    { "id": "cartographer",   "name": "Cartographer",     "icon": "🗺️", "desc": "Every product has a vault note.",                    "xp": 90,  "type": "workspace" },
+    { "id": "first_cast",      "name": "Apprentice",       "icon": "🪄", "desc": "Cast your first spell from the Spellbook.",           "xp": 25,  "type": "milestone" },
+    { "id": "arcanist_50",     "name": "Arcanist",         "icon": "📖", "desc": "Amass an arsenal of 50 known spells.",                "xp": 80,  "type": "counter", "need": 50 },
+    { "id": "battle_mage_100", "name": "Battle Mage",      "icon": "⚔️", "desc": "Resolve 100 lifetime casts.",                          "xp": 100, "type": "counter", "need": 100 },
+    { "id": "polymath",        "name": "Polymath",         "icon": "🌈", "desc": "Cast at least one spell from every school of magic.", "xp": 120, "type": "workspace" },
+    { "id": "familiar_bond",   "name": "Familiar Bond",    "icon": "🐦‍⬛", "desc": "Bind 5 MCP familiars to your headquarters.",          "xp": 40,  "type": "counter", "need": 5 },
+    { "id": "spell_master",    "name": "Spell Master",     "icon": "🏅", "desc": "Reach Master mastery (40 distinct days) on one spell.","xp": 90,  "type": "milestone" },
+    { "id": "daily_ritualist", "name": "Daily Ritualist",  "icon": "🕯️", "desc": "Cast the Spell of the Day 7 times.",                  "xp": 50,  "type": "counter", "need": 7 },
+    { "id": "chain_caster",    "name": "Chain Caster",     "icon": "⛓️", "desc": "Resolve a spell chain end-to-end without a fizzle.",  "xp": 60,  "type": "milestone" }
   ]
 }

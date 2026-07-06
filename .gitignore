@@ -26,7 +26,9 @@ data/spell-telemetry.json
 
 # --- dev / preview artifacts ---
 dashboard/_*.png
+dashboard/_*.js
 dashboard/_console.txt
+fix_*.png
 .playwright-mcp/
 
 # --- OS noise ---

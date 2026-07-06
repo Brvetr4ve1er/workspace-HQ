@@ -79,6 +79,45 @@
               "reason": { "type": "string" }
             }
           }
+        },
+        "spellcraft": {
+          "type": "object",
+          "description": "Spellbook economy rollup: collection meters, mastery (distinct-days), settlement watermark. Absent until the spellbook scanner has run.",
+          "additionalProperties": false,
+          "properties": {
+            "spells_known": { "type": "integer" },
+            "familiars_bound": { "type": "integer" },
+            "ever_cast": { "type": "integer" },
+            "ever_cast_pct": { "type": "integer" },
+            "per_school": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": { "known": { "type": "integer" }, "cast": { "type": "integer" }, "pct": { "type": "integer" } }
+              }
+            },
+            "lifetime_casts": { "type": "integer" },
+            "mastery": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": { "rank": { "type": "string" }, "distinct_days": { "type": "integer" } }
+              }
+            },
+            "sotd_casts": { "type": "integer", "description": "Lifetime count of Spell-of-the-Day bonus casts." },
+            "spell_of_day": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" }, "name": { "type": "string" }, "icon": { "type": ["string", "null"] },
+                "school": { "type": "string" }, "rarity": { "type": "string" }, "bonus_xp": { "type": "integer" }
+              }
+            },
+            "last_processed_at": { "type": "string", "description": "Settlement watermark — casts at or before this are already counted." },
+            "xp_settled_this_scan": { "type": "integer" }
+          }
         }
       }
     },
@@ -155,7 +194,8 @@
           }
         },
         "xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative account XP over time (the 'are I leveling up' line)." },
-        "knowledge_xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative knowledge-track XP (learnings) over time." }
+        "knowledge_xp": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Cumulative knowledge-track XP (learnings) over time." },
+        "casts_per_day": { "type": "array", "items": { "$ref": "#/$defs/trend_point" }, "description": "Spells cast per day (raw count from telemetry, incl. fizzles)." }
       }
     },
 
@@ -480,12 +520,18 @@
       "required": ["type", "detail", "impact"],
       "additionalProperties": false,
       "properties": {
-        "type": { "type": "string", "description": "e.g. git_pushed, repo_initialized, build_flip, quest_completed, quest_unresolved, new_project, project_removed, anomaly." },
+        "type": { "type": "string", "description": "e.g. git_pushed, repo_initialized, build_flip, quest_completed, quest_unresolved, new_project, project_removed, anomaly, level_up, new_achievement, spell_learned, spell_mastery_up, spell_of_day_cast, spellcraft_xp." },
         "project_id": { "type": ["string", "null"] },
         "quest_id": { "type": ["string", "null"] },
         "detail": { "type": "string" },
         "impact": { "enum": ["positive", "negative", "neutral"] },
-        "notify": { "type": "boolean", "description": "Whether the desktop app should fire a tray notification." }
+        "notify": { "type": "boolean", "description": "Whether the desktop app should fire a tray notification." },
+        "achievement_id": { "type": "string" },
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "xp": { "type": "integer" },
+        "level": { "type": "integer" },
+        "title": { "type": "string" }
       }
     },
 

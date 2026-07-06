@@ -33,9 +33,23 @@ const week = {
   achievements: scans[scans.length - 1].achievements.filter((a) => a.unlocked && (!scans[0].achievements.find((x) => x.id === a.id)?.unlocked)),
 };
 
-// Spellcraft weekly stats slot: filled once the Spellbook economy lands (Phase 6);
-// null keeps the JSON shape stable for the dashboard in the meantime.
+// Spellcraft weekly stats: casts + distinct spells this week from telemetry, and
+// arsenal growth start->end from the scans. Null when the Spellbook hasn't run.
 week.spellcraft = null;
+try {
+  const tele = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'spell-telemetry.json'), 'utf8'));
+  const weekCasts = (tele.casts || []).filter((c) => c.started_at.slice(0, 10) >= week.start && c.started_at.slice(0, 10) <= week.end);
+  const firstSC = scans.find((s) => s.account?.spellcraft)?.account.spellcraft;
+  const lastSC = scans[scans.length - 1].account?.spellcraft;
+  week.spellcraft = {
+    casts: weekCasts.length,
+    resolved: weekCasts.filter((c) => c.outcome === 'resolved').length,
+    fizzled: weekCasts.filter((c) => c.outcome === 'fizzled').length,
+    distinct_spells: new Set(weekCasts.map((c) => c.spell_id)).size,
+    spells_known_start: firstSC?.spells_known ?? null,
+    spells_known_end: lastSC?.spells_known ?? null,
+  };
+} catch { /* no telemetry yet */ }
 
 const staticRecap = `## Week recap — ${week.start} → ${week.end}\n\n- Level: ${week.level_start} → ${week.level_end} (+${week.xp_gain} XP)\n- Health Δ: ${week.health_delta >= 0 ? '+' : ''}${week.health_delta}\n- Quests completed: ${week.completed_quests.length}\n- New achievements: ${week.achievements.length}\n\n_(No claude CLI — install for an AI-written narrative.)_`;
 
