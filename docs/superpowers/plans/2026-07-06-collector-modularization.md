@@ -16,7 +16,24 @@
 - **Do not touch** `dashboard/app.js`, `dashboard/styles.css`, `dashboard/main.js` (Phase B/C).
 - **No bug fixes** — deferred per spec §4 (daily-cap gap, polymath magic-8, first-scan events, shape fragility). Tests lock *current* behavior, bugs included.
 - **Do not change** the CLI contract (`--date`, `--reports-dir`), input/output file paths, or output filenames.
-- Fixed test date for golden runs: **`2026-07-06`** (real prev scan on disk is `2026-07-04`).
+- Fixed test date for golden runs: **`2026-07-06`**.
+- **Test command (Node 25):** `node --test collector/lib/*.test.mjs` (shell-glob form — `node --test collector/lib/*.test.mjs` tries to *run* the directory as a module and fails; do NOT use it).
+
+---
+
+## Verification Harness (built in Task 1; used by every task)
+
+Two artifacts under `collector/lib/__fixtures__/`, created in Task 1:
+
+- **`normalize.mjs`** — reads a scan JSON path, sets `scan.date` to `"NORMALIZED"`, prints canonical JSON. Neutralizes the one volatile output field (`assemble.mjs:662` stamps `new Date().toISOString()`).
+- **`golden.sh {baseline|verify}`** — the behavior-preservation harness. `baseline` runs the CURRENT code and snapshots normalized output; `verify` re-runs and diffs against the snapshot (nonzero exit + `GOLDEN FAIL` on any change). It is **ephemeral** (baseline+verify run minutes apart on identical inputs, so a nightly scan / calendar advance cannot cause spurious diffs) and **side-effect free**: reports go to a temp dir, and both `data/latest.json` and the hardcoded vault daily note (`10_Daily/2026-07-06.md`) that `assemble.mjs` writes are backed up and restored. `prev` is seeded from `data/latest.json` so the real non-null-prev code path runs.
+
+**Per-task protocol (MANDATORY for every task that edits `assemble.mjs`):**
+1. **Before any edit:** `bash collector/lib/__fixtures__/golden.sh baseline` → expect `baseline captured`.
+2. Do the extraction + unit tests.
+3. **Before commit:** `node --test collector/lib/*.test.mjs` (all green) AND `bash collector/lib/__fixtures__/golden.sh verify` → expect `GOLDEN OK: no behavior change`.
+
+If `verify` prints `GOLDEN FAIL`, the extraction changed behavior — fix before committing. This is the hard gate; a green unit test alone does NOT prove behavior preservation.
 
 ---
 
@@ -25,41 +42,41 @@
 **Files:**
 - Create: `collector/lib/util.mjs`
 - Create: `collector/lib/util.test.mjs`
-- Create: `collector/lib/__fixtures__/.gitkeep`
-- Create: `collector/lib/__fixtures__/golden-2026-07-06.json` (captured, git-ignored is fine — but commit it so CI/reviewers can diff)
-- Modify: `collector/assemble.mjs:54-55` (replace inline `clamp`/`round` with an import)
+- Create: `collector/lib/__fixtures__/normalize.mjs` (strips the one volatile output field)
+- Create: `collector/lib/__fixtures__/golden.sh` (ephemeral baseline/verify harness — see Verification Harness section)
+- Modify: `collector/assemble.mjs` (add `import { clamp, round } from './lib/util.mjs'`; delete the inline `clamp`/`round` at the `// ---- helpers ----` block)
+
+**Nondeterminism note (critical):** `assemble.mjs:662` writes `scan.date: new Date().toISOString()` — a wall-clock timestamp that changes every run. It is the ONLY volatile field in the output (everything else derives from `--date` or stable input files). The golden mechanism MUST normalize it, or every diff fails spuriously. `normalize.mjs` handles this; use it on both the baseline and every comparison.
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces: `export const clamp = (n, lo, hi) => ...`, `export const round = (n) => Math.round(n)` — imported by `spellcraft.mjs`, `projects.mjs`, `gamification.mjs` in later tasks.
 
-- [ ] **Step 1: Capture the golden baseline** (must happen before any code moves)
+- [ ] **Step 1: Create the normalizer**
 
-Run (Git Bash):
+Create `collector/lib/__fixtures__/normalize.mjs` (canonicalizes the volatile `scan.date` so diffs reflect only logic changes):
+```js
+// Normalize the one volatile output field (scan.date wall-clock) so golden
+// diffs reflect logic changes only. Reads a file path, prints normalized JSON.
+import { readFileSync } from 'node:fs';
+const doc = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+if (doc.scan) doc.scan.date = 'NORMALIZED';
+process.stdout.write(JSON.stringify(doc, null, 2) + '\n');
+```
+
+- [ ] **Step 2: Create the ephemeral golden runner** — see the **Verification Harness** section above for the full `golden.sh` script. Create `collector/lib/__fixtures__/golden.sh` exactly as specified there and `chmod +x` it.
+
+- [ ] **Step 3: Prove the harness on unchanged code**
+
+Run:
 ```bash
 cd "C:/Users/ROG STRIX/Documents/workspace hq"
-REPORTS="C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Workspace Status"
-node collector/assemble.mjs --date 2026-07-06 --reports-dir "$REPORTS"
-cp "$REPORTS/Workspace Status 2026-07-06.json" collector/lib/__fixtures__/golden-2026-07-06.json
+bash collector/lib/__fixtures__/golden.sh baseline   # captures current (pre-change) output
+bash collector/lib/__fixtures__/golden.sh verify      # must pass with zero changes
 ```
-Expected: exits 0; golden file created (non-empty JSON).
+Expected: `baseline captured` then `GOLDEN OK: no behavior change`. (Confirms the harness is stable before we rely on it.)
 
-- [ ] **Step 2: Add a reusable golden-diff check**
-
-Create `collector/lib/__fixtures__/verify-golden.sh`:
-```bash
-#!/usr/bin/env bash
-# Re-run the pipeline for the fixed date and diff against the captured golden.
-set -euo pipefail
-cd "$(dirname "$0")/../../.."
-REPORTS="C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Workspace Status"
-node collector/assemble.mjs --date 2026-07-06 --reports-dir "$REPORTS"
-diff "$REPORTS/Workspace Status 2026-07-06.json" collector/lib/__fixtures__/golden-2026-07-06.json \
-  && echo "GOLDEN OK: output byte-identical" \
-  || { echo "GOLDEN FAIL: output changed"; exit 1; }
-```
-
-- [ ] **Step 3: Write the failing unit test for util**
+- [ ] **Step 4: Write the failing unit test for util**
 
 Create `collector/lib/util.test.mjs`:
 ```js
@@ -79,12 +96,12 @@ test('round is integer rounding', () => {
 });
 ```
 
-- [ ] **Step 4: Run the test to verify it fails**
+- [ ] **Step 5: Run the test to verify it fails**
 
-Run: `node --test collector/`
+Run: `node --test collector/lib/*.test.mjs`
 Expected: FAIL — `Cannot find module './util.mjs'`.
 
-- [ ] **Step 5: Create the util module**
+- [ ] **Step 6: Create the util module**
 
 Create `collector/lib/util.mjs`:
 ```js
@@ -93,7 +110,7 @@ export const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 export const round = (n) => Math.round(n);
 ```
 
-- [ ] **Step 6: Wire it into assemble.mjs**
+- [ ] **Step 7: Wire it into assemble.mjs**
 
 In `collector/assemble.mjs`, add near the other imports (after line 16):
 ```js
@@ -105,14 +122,14 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const round = (n) => Math.round(n);
 ```
 
-- [ ] **Step 7: Run unit tests + golden diff**
+- [ ] **Step 8: Run unit tests + golden diff**
 
-Run: `node --test collector/`
+Run: `node --test collector/lib/*.test.mjs`
 Expected: PASS (2 tests).
-Run: `bash collector/lib/__fixtures__/verify-golden.sh`
-Expected: `GOLDEN OK: output byte-identical`.
+Run: `bash collector/lib/__fixtures__/golden.sh verify`
+Expected: `GOLDEN OK: output identical (modulo scan.date)`.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add collector/lib/ collector/assemble.mjs
@@ -250,9 +267,9 @@ Leave the downstream consumers (`xpGain += spellXp`, `changes.push(...spellcraft
 
 - [ ] **Step 6: Run unit tests + golden diff**
 
-Run: `node --test collector/`
+Run: `node --test collector/lib/*.test.mjs`
 Expected: PASS (util + spellcraft tests).
-Run: `bash collector/lib/__fixtures__/verify-golden.sh`
+Run: `bash collector/lib/__fixtures__/golden.sh verify`
 Expected: `GOLDEN OK: output byte-identical`.
 
 - [ ] **Step 7: Commit**
@@ -318,8 +335,8 @@ Delete `assemble.mjs:57-68` (the local `gitRisk`).
 
 - [ ] **Step 5: Run tests + golden diff**
 
-Run: `node --test collector/` → PASS.
-Run: `bash collector/lib/__fixtures__/verify-golden.sh` → `GOLDEN OK`.
+Run: `node --test collector/lib/*.test.mjs` → PASS.
+Run: `bash collector/lib/__fixtures__/golden.sh verify` → `GOLDEN OK`.
 
 - [ ] **Step 6: Commit**
 
@@ -424,8 +441,8 @@ Keep 269-270 (projOverrides read) and 272-275 as-is.
 
 - [ ] **Step 6: Run tests + golden diff**
 
-Run: `node --test collector/` → PASS.
-Run: `bash collector/lib/__fixtures__/verify-golden.sh` → `GOLDEN OK`.
+Run: `node --test collector/lib/*.test.mjs` → PASS.
+Run: `bash collector/lib/__fixtures__/golden.sh verify` → `GOLDEN OK`.
 
 - [ ] **Step 7: Commit**
 
@@ -504,8 +521,8 @@ Keep the override block 329-345 (it reads `data/quest-overrides.json`) and 347-3
 
 - [ ] **Step 5: Run tests + golden diff**
 
-Run: `node --test collector/` → PASS.
-Run: `bash collector/lib/__fixtures__/verify-golden.sh` → `GOLDEN OK`.
+Run: `node --test collector/lib/*.test.mjs` → PASS.
+Run: `bash collector/lib/__fixtures__/golden.sh verify` → `GOLDEN OK`.
 
 - [ ] **Step 6: Commit**
 
@@ -594,8 +611,8 @@ const { avgCompletion, buildScore, testCovScore, riskScore, gitSafetyScore, heal
 
 - [ ] **Step 5: Run tests + golden diff**
 
-Run: `node --test collector/` → PASS.
-Run: `bash collector/lib/__fixtures__/verify-golden.sh` → `GOLDEN OK`.
+Run: `node --test collector/lib/*.test.mjs` → PASS.
+Run: `bash collector/lib/__fixtures__/golden.sh verify` → `GOLDEN OK`.
 
 - [ ] **Step 6: Commit**
 
@@ -660,8 +677,8 @@ Delete 545-549. Update every `appendTrend(...)` call in the `trends` object (≈
 
 - [ ] **Step 5: Run tests + golden diff**
 
-Run: `node --test collector/` → PASS (all modules).
-Run: `bash collector/lib/__fixtures__/verify-golden.sh` → `GOLDEN OK`.
+Run: `node --test collector/lib/*.test.mjs` → PASS (all modules).
+Run: `bash collector/lib/__fixtures__/golden.sh verify` → `GOLDEN OK`.
 
 - [ ] **Step 6: Final verification + commit**
 
@@ -675,7 +692,7 @@ git commit -m "refactor(collector): extract appendTrend into lib/trends.mjs; ass
 
 ## Post-plan verification (run once, after Task 7)
 
-- [ ] `node --test collector/` — all module tests green.
-- [ ] `bash collector/lib/__fixtures__/verify-golden.sh` — byte-identical.
+- [ ] `node --test collector/lib/*.test.mjs` — all module tests green.
+- [ ] `bash collector/lib/__fixtures__/golden.sh verify` — byte-identical.
 - [ ] `grep -nE "^(function|const [a-z]+ = \()" collector/assemble.mjs` — only orchestration/I/O helpers remain (`arg`, `loadPrevious`); no `gitRisk`/`levelFor`/`buildProject`/`autoSatisfied`/`appendTrend`/settlement logic.
 - [ ] Deferred bugs from spec §4 are still present and now pinned by characterization tests (do NOT fix here).

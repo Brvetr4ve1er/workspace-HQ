@@ -4,6 +4,7 @@
 # --- editor / tool state ---
 .obsidian/
 .claude/
+.superpowers/
 
 # --- logs ---
 logs/

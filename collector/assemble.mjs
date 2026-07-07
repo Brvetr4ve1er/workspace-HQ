@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { clamp, round } from './lib/util.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
@@ -51,8 +52,6 @@ const enriched = !!enrichDoc && Object.keys(enrichProj).length > 0;
 const enricherModel = enriched ? (enrichDoc.model || enrichDoc.engine || 'llm') : null;
 
 // ---- helpers ----
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
-const round = (n) => Math.round(n);
 
 function gitRisk(g) {
   const flags = [];
