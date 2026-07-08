@@ -45,6 +45,16 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:cast-done', handler);
     return () => ipcRenderer.removeListener('hq:cast-done', handler);
   },
+  // organic UI (shards): summon palette + shard self-service
+  shardSummon: (text) => ipcRenderer.invoke('hq:shard-summon', text),
+  shardSummonCancel: () => ipcRenderer.invoke('hq:shard-summon-cancel'),
+  shardClose: () => ipcRenderer.invoke('hq:shard-close'),
+  shardSave: (patch) => ipcRenderer.invoke('hq:shard-save', patch),
+  onShardInit: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('shard:init', handler);
+    return () => ipcRenderer.removeListener('shard:init', handler);
+  },
   // mini HUD bridge
   getMiniData: () => ipcRenderer.invoke('hq:mini-data'),
   showMain: () => ipcRenderer.invoke('hq:show-main'),

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<!-- Conjured widgets run inline-only: no remote scripts, styles, images, or network. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;" />
+<title>HQ Shard</title>
+<style>
+  :root { --bg:#0c0a1e; --card:#14102b; --line:#322a5e; --cyan:#00f0ff; --magenta:#ff2bd6; --gold:#ffd23f;
+          --green:#3aff6e; --red:#ff4757; --orange:#ffa502; --txt:#e8e6ff; --muted:#9a93c9; --faint:#5e588a;
+          --mono: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background:transparent; overflow:hidden; height:100%; }
+  #shard { height:100%; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:10px;
+           background: linear-gradient(165deg, rgba(26,21,56,.96), rgba(12,10,30,.94));
+           box-shadow: 0 8px 26px rgba(0,0,0,.55); font-family:var(--mono); color:var(--txt);
+           animation: sprout .28s cubic-bezier(.18,1.4,.4,1); }
+  @keyframes sprout { 0% { transform:scale(.7); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+  /* header: drag region + close */
+  .hd { display:flex; align-items:center; gap:8px; padding:7px 10px; -webkit-app-region:drag;
+        border-bottom:1px solid rgba(50,42,94,.6); font-size:10px; letter-spacing:.6px; color:var(--faint);
+        text-transform:uppercase; }
+  .hd .k { color:var(--shc, var(--cyan)); }
+  .hd .x { -webkit-app-region:no-drag; margin-left:auto; background:transparent; border:0; color:var(--faint);
+           cursor:pointer; font-size:13px; padding:0 3px; }
+  .hd .x:hover { color:var(--red); }
+  .bd { flex:1; padding:10px 12px; overflow:auto; }
+  button { font-family:var(--mono); cursor:pointer; }
+
+  /* note */
+  .note-ta { width:100%; height:100%; background:transparent; border:0; outline:none; resize:none;
+             color:var(--txt); font-family:var(--mono); font-size:14px; line-height:1.45; }
+  /* timer */
+  .t-time { font-size:40px; text-align:center; letter-spacing:2px; color:var(--cyan); line-height:1.1; }
+  .t-time.done { color:var(--green); animation: flash .5s steps(1) 6; }
+  @keyframes flash { 50% { color:var(--gold); } }
+  .t-row { display:flex; gap:8px; justify-content:center; margin-top:8px; }
+  .t-row button { background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:11px; padding:4px 12px; border-radius:5px; }
+  .t-row button:hover { color:var(--txt); border-color:var(--cyan); }
+  /* quest */
+  .q-title { font-size:15px; line-height:1.3; }
+  .q-meta { margin-top:5px; font-size:12px; color:var(--muted); }
+  .q-meta b { color:var(--gold); }
+  .q-row { display:flex; gap:8px; margin-top:10px; }
+  .q-row button { border:1px solid var(--line); background:var(--card); color:var(--muted); font-size:11px; padding:6px 12px; border-radius:5px; }
+  .q-row .done { border-color:var(--green); color:var(--green); }
+  .q-row .done:hover { background:rgba(58,255,110,.12); }
+  /* hp */
+  .hp-line { display:flex; align-items:center; gap:9px; margin-top:6px; font-size:11px; color:var(--muted); }
+  .hp-bar { flex:1; height:9px; background:#0a081c; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .hp-bar i { display:block; height:100%; }
+  /* xp drip */
+  .drip { display:flex; align-items:center; justify-content:center; height:100%; font-size:17px; color:var(--gold);
+          text-shadow:0 0 14px rgba(255,210,63,.6); animation: rise 5.6s ease-out forwards; }
+  @keyframes rise { 0% { transform:translateY(8px); opacity:0; } 12% { opacity:1; transform:none; } 80% { opacity:1; } 100% { opacity:0; transform:translateY(-10px); } }
+  /* conjuring */
+  .conj { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:10px; color:var(--muted); font-size:12.5px; text-align:center; padding:0 14px; }
+  .orb { width:26px; height:26px; border-radius:50%; border:2px solid var(--magenta); border-top-color:var(--cyan); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .err { color:var(--red); font-size:12.5px; }
+  #custom-host { height:100%; overflow:auto; }
+</style>
+</head>
+<body>
+  <div id="shard">
+    <div class="hd"><span class="k" id="hd-k">SHARD</span><span id="hd-t"></span><button class="x" id="x" title="dismiss">✕</button></div>
+    <div class="bd" id="bd"></div>
+  </div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let CFG = null, saveT = null;
+  $('x').onclick = () => window.hq.shardClose();
+
+  function render(cfg) {
+    CFG = cfg;
+    const p = cfg.payload || {};
+    const bd = $('bd');
+    const kinds = { note: ['NOTE', '#ffd23f'], timer: ['TIMER', '#00f0ff'], quest: ['QUEST', '#ff4757'], hp: ['VITALS', '#3aff6e'], 'xp-drip': ['', ''], custom: ['CONJURED', '#ff2bd6'] };
+    const [label, color] = kinds[cfg.widget] || ['SHARD', '#00f0ff'];
+    $('hd-k').textContent = label;
+    document.getElementById('shard').style.setProperty('--shc', color || '#00f0ff');
+
+    if (cfg.widget === 'note') {
+      bd.innerHTML = '<textarea class="note-ta" spellcheck="false"></textarea>';
+      const ta = bd.querySelector('textarea');
+      ta.value = p.text || '';
+      ta.oninput = () => { clearTimeout(saveT); saveT = setTimeout(() => window.hq.shardSave({ text: ta.value }), 500); };
+
+    } else if (cfg.widget === 'timer') {
+      let left = (p.minutes || 25) * 60, run = true;
+      bd.innerHTML = '<div class="t-time" id="tt"></div><div class="t-row"><button id="tp">PAUSE</button><button id="tr">RESET</button></div>';
+      const paint = () => { $('tt').textContent = String((left / 60) | 0).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0'); };
+      paint();
+      const iv = setInterval(() => {
+        if (!run) return;
+        if (--left <= 0) { left = 0; run = false; $('tt').classList.add('done'); beep(); }
+        paint();
+      }, 1000);
+      $('tp').onclick = () => { run = !run; $('tp').textContent = run ? 'PAUSE' : 'GO'; };
+      $('tr').onclick = () => { left = (p.minutes || 25) * 60; run = true; $('tt').classList.remove('done'); $('tp').textContent = 'PAUSE'; paint(); };
+
+    } else if (cfg.widget === 'quest') {
+      bd.innerHTML = `<div class="q-title">${esc(p.title || 'All clear ✓')}</div>
+        <div class="q-meta">${p.project ? '↳ ' + esc(p.project) + ' · ' : ''}<b>+${p.xp || 0} XP</b> · ${esc(p.tier || '')}</div>
+        <div class="q-row"><button class="done" id="qd">✓ DONE</button><button id="qo">OPEN HQ</button></div>`;
+      $('qd').onclick = () => { window.hq.markQuestDone(p.id); window.hq.shardClose(); };
+      $('qo').onclick = () => window.hq.showMain();
+
+    } else if (cfg.widget === 'hp') {
+      const xpP = Math.max(0, Math.min(100, p.xpPct || 0)), hpP = Math.max(0, Math.min(100, p.hp || 0));
+      const hpC = hpP < 40 ? 'var(--red)' : hpP < 70 ? 'var(--orange)' : 'var(--green)';
+      bd.innerHTML = `<div class="hp-line"><span>LV ${p.level || '?'}</span>
+          <div class="hp-bar"><i style="width:${xpP}%;background:var(--gold)"></i></div><span>${xpP}%</span></div>
+        <div class="hp-line"><span>HP ${hpP}</span>
+          <div class="hp-bar"><i style="width:${hpP}%;background:${hpC}"></i></div><span>🔥${p.streak ?? 0}</span></div>`;
+
+    } else if (cfg.widget === 'xp-drip') {
+      document.querySelector('.hd').style.display = 'none';
+      document.getElementById('shard').style.background = 'transparent';
+      document.getElementById('shard').style.border = '0';
+      document.getElementById('shard').style.boxShadow = 'none';
+      bd.innerHTML = `<div class="drip">✨ ${esc(p.text || '+XP')}</div>`;
+
+    } else if (cfg.widget === 'custom') {
+      $('hd-t').textContent = (p.prompt || '').slice(0, 34);
+      if (p.status === 'conjuring') {
+        bd.innerHTML = '<div class="conj"><div class="orb"></div><div>conjuring widget…<br><span style="color:var(--faint)">Claude is writing it for you</span></div></div>';
+      } else if (p.status === 'error') {
+        bd.innerHTML = `<div class="conj err">✖ ${esc(p.error || 'failed')}</div>`;
+      } else if (p.status === 'ready' && p.html) {
+        bd.innerHTML = '<div id="custom-host"></div>';
+        mountCustom(bd.querySelector('#custom-host'), p.html);
+      }
+    }
+  }
+
+  // innerHTML never executes <script> tags — re-create them so conjured widgets
+  // are actually interactive (CSP still confines everything to inline/local).
+  function mountCustom(host, html) {
+    host.innerHTML = html;
+    host.querySelectorAll('script').forEach((old) => {
+      const s = document.createElement('script');
+      s.textContent = old.textContent;
+      old.replaceWith(s);
+    });
+  }
+
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function beep() {
+    try {
+      const ctx = new AudioContext(); const t0 = ctx.currentTime;
+      [[880, 0], [1175, .14], [1568, .28]].forEach(([f, at]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'square'; o.frequency.value = f;
+        g.gain.setValueAtTime(.04, t0 + at); g.gain.exponentialRampToValueAtTime(.0001, t0 + at + .25);
+        o.connect(g); g.connect(ctx.destination); o.start(t0 + at); o.stop(t0 + at + .3);
+      });
+    } catch {}
+  }
+
+  window.hq.onShardInit(render);
+</script>
+</body>
+</html>

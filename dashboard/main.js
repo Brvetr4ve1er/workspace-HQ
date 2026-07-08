@@ -203,6 +203,7 @@ function buildTrayMenu() {
     { label: 'Show WorkspaceHQ', click: () => { if (!win) createWindow(); else win.show(); } },
     { label: 'Toggle mini HUD', click: toggleMini },
     { label: 'Quick capture (Ctrl+Alt+Space)', click: openCapture },
+    { label: 'Summon widget (Ctrl+Alt+G)', click: openSummon },
     { label: 'Cast a spell… (Ctrl+Alt+X)', click: openCastPalette },
     { label: 'Scan now', click: runScan },
   ];
@@ -286,6 +287,12 @@ function applyDone(ids) {
   const s = latest();
   if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
   rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini();
+  // organic feedback: an XP drip sprouts on the desktop even when the app is hidden
+  try {
+    const xp = list.length * 60;   // rough until the ledger settles on next scan
+    const wa = screen.getPrimaryDisplay().workArea;
+    spawnShard({ widget: 'xp-drip', payload: { text: `+~${xp} XP · ${list.length} quest${list.length > 1 ? 's' : ''} cleared` }, x: wa.x + wa.width - 270, y: wa.y + wa.height - 100, ttl: 6000, clickThrough: true });
+  } catch { /* shards are garnish, never block the core loop */ }
   return true;
 }
 
@@ -439,6 +446,176 @@ ipcMain.handle('hq:capture-save', (_e, text) => {
   return true;
 });
 ipcMain.handle('hq:capture-cancel', () => { if (captureWin && !captureWin.isDestroyed()) captureWin.close(); return true; });
+
+// ============================================================================
+// ORGANIC UI — shards. WorkspaceHQ grows interface anywhere on the desktop.
+// A shard is a small frameless always-on-top window materialized at any screen
+// position, floating over every app (incl. fullscreen). Built-in widgets
+// (note / timer / quest / hp / xp-drip) render instantly; any other summon text
+// is CONJURED: Claude generates a self-contained HTML widget on the fly.
+// Notes + conjured widgets persist across restarts via data/shards.json.
+// ============================================================================
+const SHARDS_FILE = path.join(DATA, 'shards.json');
+const shards = new Map();   // id -> { win, cfg }
+let summonWin = null, summonAt = null;
+
+function readShardsFile() { try { return JSON.parse(fs.readFileSync(SHARDS_FILE, 'utf8')); } catch { return []; } }
+function persistShards() {
+  const keep = [...shards.values()].map(({ cfg, win }) => {
+    if (!cfg.persist || !win || win.isDestroyed()) return null;
+    const [x, y] = win.getPosition(); const [w, h] = win.getSize();
+    return { id: cfg.id, widget: cfg.widget, payload: cfg.payload, persist: true, x, y, w, h };
+  }).filter(Boolean);
+  try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(SHARDS_FILE, JSON.stringify(keep, null, 2)); } catch {}
+}
+
+const SHARD_SIZES = { note: [260, 200], timer: [220, 130], quest: [340, 158], hp: [260, 104], 'xp-drip': [250, 80], custom: [360, 300] };
+
+function spawnShard(cfg) {
+  const id = cfg.id || ('sh_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+  const [dw, dh] = SHARD_SIZES[cfg.widget] || [320, 220];
+  const w = cfg.w || dw, h = cfg.h || dh;
+  let x = cfg.x, y = cfg.y;
+  if (x == null || y == null) {
+    const pt = screen.getCursorScreenPoint();
+    x = pt.x - Math.round(w / 2); y = pt.y + 12;
+  }
+  // clamp to the work area of whichever display the shard lands on
+  const wa = screen.getDisplayNearestPoint({ x, y }).workArea;
+  x = Math.max(wa.x, Math.min(x, wa.x + wa.width - w));
+  y = Math.max(wa.y, Math.min(y, wa.y + wa.height - h));
+  const sw = new BrowserWindow({
+    width: w, height: h, x, y,
+    frame: false, transparent: true, resizable: false, movable: true,
+    alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
+    fullscreenable: false, maximizable: false, minimizable: false,
+    backgroundColor: '#00000000', title: 'HQ Shard',
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'preload.js') },
+  });
+  sw.setAlwaysOnTop(true, 'screen-saver');                       // float over fullscreen apps
+  sw.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // conjured HTML stays LOCAL: no navigation, no popups, ever
+  sw.webContents.on('will-navigate', (e) => e.preventDefault());
+  sw.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  sw.loadFile(path.join(DIR, 'shard.html'));
+  const full = { ...cfg, id, w, h };
+  sw.webContents.once('did-finish-load', () => { if (!sw.isDestroyed()) sw.webContents.send('shard:init', full); });
+  if (cfg.clickThrough) sw.setIgnoreMouseEvents(true);
+  sw.on('moved', () => { if (full.persist) persistShards(); });
+  sw.on('closed', () => { shards.delete(id); persistShards(); });
+  shards.set(id, { win: sw, cfg: full });
+  if (cfg.persist) persistShards();
+  if (cfg.ttl) setTimeout(() => { if (!sw.isDestroyed()) sw.close(); }, cfg.ttl);
+  console.log(`[shard] spawned ${cfg.widget} ${id} @ ${x},${y}`);
+  return id;
+}
+
+function updateShard(id, payloadPatch) {
+  const s = shards.get(id); if (!s || s.win.isDestroyed()) return;
+  s.cfg.payload = { ...s.cfg.payload, ...payloadPatch };
+  s.win.webContents.send('shard:init', s.cfg);
+  if (s.cfg.persist) persistShards();
+}
+
+function topQuestPayload() {
+  const s = latest(); if (!s) return null;
+  const rank = { red: 0, orange: 1, yellow: 2 };
+  const top = (s.quests || [])
+    .filter((q) => q.status === 'open' || q.status === 'in_progress')
+    .sort((x, y) => (rank[x.tier] - rank[y.tier]) || (y.xp - x.xp) || (y.age_days - x.age_days))[0];
+  if (!top) return null;
+  const proj = (s.projects || []).find((p) => p.id === top.project_id);
+  return { id: top.id, title: top.title, tier: top.tier, xp: top.xp, project: proj ? proj.name : '' };
+}
+
+// Conjuring: Claude writes a bespoke self-contained widget for whatever was asked.
+// A placeholder shard appears instantly (organic feedback), then morphs when ready.
+function conjureShard(prompt, at) {
+  const id = spawnShard({ widget: 'custom', payload: { status: 'conjuring', prompt }, persist: true, ...at });
+  const claude = findClaude();
+  if (!claude) { updateShard(id, { status: 'error', error: 'claude CLI not found on PATH' }); return id; }
+  const gen = `Generate a tiny self-contained desktop widget for: "${prompt.replace(/"/g, "'")}"
+
+HARD RULES:
+- Reply with ONLY an HTML fragment (no \`\`\` fences, no <html>/<head>/<body>).
+- Everything inline: <style scoped to your own class names> + optional inline <script>.
+- NO external resources of any kind (no URLs, no fonts, no images, no fetch/XHR/WebSocket).
+- Dark translucent card look: background rgba(12,10,30,.92); 1px border #322a5e; border-radius 10px; neon accents (#00f0ff cyan, #ff2bd6 magenta, #ffd23f gold); monospace font.
+- Max footprint ~340x260px. It must be immediately useful and interactive if the request implies it (buttons, counters, inputs all work via inline JS).
+- If the request implies live time, use setInterval. State can live in JS variables only.`;
+  const child = spawn(claude, ['-p'], { windowsHide: true });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.on('close', () => {
+    let html = out.trim().replace(/^```(html)?\s*/i, '').replace(/```\s*$/, '').trim();
+    if (!html || !/</.test(html)) { updateShard(id, { status: 'error', error: 'generation returned nothing usable' }); return; }
+    updateShard(id, { status: 'ready', html });
+    console.log(`[shard] conjured "${prompt.slice(0, 40)}" (${html.length}b)`);
+  });
+  child.on('error', () => updateShard(id, { status: 'error', error: 'claude failed to start' }));
+  try { child.stdin.write(gen); child.stdin.end(); } catch {}
+  setTimeout(() => { try { child.kill(); } catch {} }, 120000);
+  return id;
+}
+
+// Summon router: known words materialize built-ins; everything else is conjured.
+function summonWidget(text, at = {}) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  let m;
+  if ((m = t.match(/^n(?:ote)?[:\s]+(.+)/i))) return spawnShard({ widget: 'note', payload: { text: m[1] }, persist: true, ...at });
+  if ((m = t.match(/^timer\s+(\d+)\s*m?(?:in)?s?$/i)) || (m = t.match(/^(\d+)\s*m(?:in)?s?$/i)))
+    return spawnShard({ widget: 'timer', payload: { minutes: Math.max(1, Math.min(180, +m[1])) }, ...at });
+  if (/^quests?$/i.test(t)) { const q = topQuestPayload(); return q ? spawnShard({ widget: 'quest', payload: q, ...at }) : false; }
+  if (/^(hp|stats?|hud)$/i.test(t)) { const p = miniPayload(); return p ? spawnShard({ widget: 'hp', payload: p, ...at }) : false; }
+  return conjureShard(t, at);
+}
+
+// Summon palette: Ctrl+Alt+G anywhere in Windows -> tiny prompt at the cursor.
+function openSummon() {
+  if (summonWin && !summonWin.isDestroyed()) { summonWin.focus(); return; }
+  const pt = screen.getCursorScreenPoint();
+  summonAt = { x: pt.x - 30, y: pt.y + 10 };   // shards materialize where summoned
+  const W = 470, H = 104;
+  const wa = screen.getDisplayNearestPoint(pt).workArea;
+  summonWin = new BrowserWindow({
+    width: W, height: H,
+    x: Math.max(wa.x, Math.min(pt.x - Math.round(W / 2), wa.x + wa.width - W)),
+    y: Math.max(wa.y, Math.min(pt.y + 16, wa.y + wa.height - H)),
+    frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: true,
+    fullscreenable: false, minimizable: false, maximizable: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'preload.js') },
+  });
+  summonWin.setAlwaysOnTop(true, 'screen-saver');
+  summonWin.loadFile(path.join(DIR, 'summon.html'));
+  summonWin.on('blur', () => { if (summonWin && !summonWin.isDestroyed()) summonWin.close(); });
+  summonWin.on('closed', () => { summonWin = null; });
+}
+
+ipcMain.handle('hq:shard-summon', (_e, text) => {
+  const at = summonAt || {};
+  if (summonWin && !summonWin.isDestroyed()) summonWin.close();
+  return summonWidget(text, at);
+});
+ipcMain.handle('hq:shard-summon-cancel', () => { if (summonWin && !summonWin.isDestroyed()) summonWin.close(); return true; });
+// shard self-service: resolve the calling shard by its webContents
+function shardOfSender(e) { return [...shards.values()].find((v) => !v.win.isDestroyed() && v.win.webContents === e.sender); }
+ipcMain.handle('hq:shard-close', (e) => { const s = shardOfSender(e); if (s) s.win.close(); return true; });
+ipcMain.handle('hq:shard-save', (e, patch) => {
+  const s = shardOfSender(e); if (!s) return false;
+  s.cfg.payload = { ...s.cfg.payload, ...patch };
+  if (s.cfg.persist) persistShards();
+  return true;
+});
+
+function respawnShards() {
+  for (const cfg of readShardsFile()) {
+    if (!cfg || !cfg.widget) continue;
+    // conjured shards revive in their ready state; skip ones that never finished
+    if (cfg.widget === 'custom' && cfg.payload?.status !== 'ready') continue;
+    try { spawnShard(cfg); } catch (err) { console.error('[shard] respawn failed:', err); }
+  }
+}
 
 // ---- Scoped Claude launcher: open an interactive Claude session cd'd to a project ----
 ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
@@ -895,6 +1072,11 @@ if (!app.requestSingleInstanceLock()) {
     watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
     startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
     try { globalShortcut.register('CommandOrControl+Alt+Space', openCapture); } catch (e) { console.error('capture hotkey failed:', e); }
+    try { globalShortcut.register('CommandOrControl+Alt+G', openSummon); } catch (e) { console.error('summon hotkey failed:', e); }
+    respawnShards();   // sticky notes + conjured widgets grow back where you left them
+    // dev/test hook: `electron . --summon="timer 5"` materializes a shard on launch
+    const sArg = process.argv.find((a) => a.startsWith('--summon='));
+    if (sArg) setTimeout(() => summonWidget(sArg.slice(9).replace(/^["']|["']$/g, '')), 1200);
     // Quick-cast palette: the spellbook must be reachable faster than a terminal.
     const CAST_HOTKEY = 'CommandOrControl+Alt+X';
     try { globalShortcut.register(CAST_HOTKEY, openCastPalette); } catch (e) { console.error('cast hotkey failed:', e); }
@@ -913,6 +1095,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => { if (process.platform === 'darwin') return; /* stay resident in tray */ });
   app.on('before-quit', () => {
     app.isQuitting = true;
+    try { persistShards(); } catch {}   // sticky shards remember their spots
     if (machineTimer) clearInterval(machineTimer);
     try { globalShortcut.unregisterAll(); } catch {}
     for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}

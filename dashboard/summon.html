@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Summon</title>
+<style>
+  :root { --bg0:#0c0a1e; --bg1:#171233; --line:#322a5e; --cyan:#00f0ff; --magenta:#ff2bd6; --txt:#e8e6ff; --faint:#5e588a;
+          --mono: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background:transparent; overflow:hidden; }
+  #cap { height:100vh; padding:12px 14px; border:1px solid var(--line); border-radius:12px;
+         background: radial-gradient(120% 140% at 100% 0%, rgba(255,43,214,.13), transparent 60%), linear-gradient(160deg, var(--bg1), var(--bg0));
+         box-shadow: 0 10px 30px rgba(0,0,0,.6); -webkit-app-region:drag; }
+  .lbl { font-family:var(--mono); font-size:9px; letter-spacing:.6px; color:var(--magenta); text-transform:uppercase; margin-bottom:7px; }
+  .lbl b { color:var(--faint); font-weight:400; }
+  input { -webkit-app-region:no-drag; width:100%; background:#0a081c; border:1px solid var(--line); border-radius:7px;
+          color:var(--txt); font-family:var(--mono); font-size:15px; padding:10px 12px; outline:none; }
+  input:focus { border-color:var(--magenta); box-shadow:0 0 0 2px rgba(255,43,214,.16); }
+  input::placeholder { color:var(--faint); }
+</style>
+</head>
+<body>
+  <div id="cap">
+    <div class="lbl">✨ summon UI here · <b>note … / timer 25 / quest / hp — or describe ANY widget and Claude conjures it</b></div>
+    <input id="in" autofocus placeholder="e.g.  water tracker with a +1 glass button" />
+  </div>
+  <script>
+    const inp = document.getElementById('in');
+    inp.focus();
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && inp.value.trim()) { window.hq.shardSummon(inp.value); }
+      else if (e.key === 'Escape') { window.hq.shardSummonCancel(); }
+    });
+    window.addEventListener('DOMContentLoaded', () => inp.focus());
+  </script>
+</body>
+</html>
