@@ -1,0 +1,891 @@
+{
+  "collected_at": "2026-07-09T06:46:14.887Z",
+  "collector_version": "1.0.0",
+  "root": "C:/Users/ROG STRIX/Documents",
+  "products": [
+    {
+      "id": "alliance-travel",
+      "name": "alliance travel",
+      "path": "alliance travel",
+      "stack": [
+        "HTML",
+        "CSS",
+        "JavaScript",
+        "Cloudflare Pages"
+      ],
+      "dev_cmd": "python -m http.server 5500 --directory site",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": true,
+        "remote": "github.com/Brvetr4ve1er/alliancetravel34",
+        "branch": "integrate/unified-admin",
+        "commits": 199,
+        "dirty": 29,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-07-06T13:53:34+01:00",
+        "last_commit_subject": "docs(spec): Sub-project 2 dashboard design (Option A: JSON-in-git + gated commit function)"
+      },
+      "code": {
+        "files": 110,
+        "loc": 55256,
+        "todo_fixme": 3,
+        "recent_files": [
+          "site/voyages/index.html",
+          "site/assets/css/styles.css",
+          "site/vietnam/index.html"
+        ]
+      },
+      "signals": {
+        "has_tests": false,
+        "test_files": 0,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": true,
+        "has_license": false,
+        "has_ci": true,
+        "has_dockerfile": false,
+        "has_package_json": false,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 2,
+        "secrets": [
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "alliance travel/tools/parse-source.mjs"
+          },
+          {
+            "pattern": "aws_access_key",
+            "file": "alliance travel/.obsidian/plugins/extended-file-support/main.js"
+          }
+        ]
+      },
+      "disk": {
+        "reclaimable_bytes": 0,
+        "fat_dirs": []
+      },
+      "activity": {
+        "last_commit": "2026-07-06",
+        "days_since_commit": 2,
+        "last_modified": "2026-07-08",
+        "days_since_modified": 0,
+        "state": "active"
+      }
+    },
+    {
+      "id": "crucix",
+      "name": "Crucix",
+      "path": "Crucix",
+      "stack": [
+        "Node",
+        "Express",
+        "OSINT"
+      ],
+      "dev_cmd": "npm run dev",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": true,
+        "remote": "github.com/calesthio/Crucix",
+        "branch": "master",
+        "commits": 111,
+        "dirty": 1,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-03-28T23:14:48-07:00",
+        "last_commit_subject": "Merge pull request #85 from calesthio/codex/gold-silver-macro"
+      },
+      "code": {
+        "files": 67,
+        "loc": 11974,
+        "todo_fixme": 0,
+        "recent_files": [
+          "test/llm-openrouter.test.mjs",
+          "test/llm-openrouter-integration.test.mjs",
+          "test/llm-ollama.test.mjs"
+        ]
+      },
+      "signals": {
+        "has_tests": true,
+        "test_files": 9,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": true,
+        "has_license": true,
+        "has_ci": true,
+        "has_dockerfile": true,
+        "has_package_json": true,
+        "dep_count": 1
+      },
+      "security": {
+        "secret_count": 4,
+        "secrets": [
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "Crucix/test/llm-grok.test.mjs"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "Crucix/test/llm-minimax.test.mjs"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "Crucix/test/llm-mistral.test.mjs"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "Crucix/test/llm-openrouter.test.mjs"
+          }
+        ]
+      },
+      "disk": {
+        "reclaimable_bytes": 20052640,
+        "fat_dirs": [
+          {
+            "name": "node_modules",
+            "bytes": 20052640
+          }
+        ]
+      },
+      "activity": {
+        "last_commit": "2026-03-28",
+        "days_since_commit": 102,
+        "last_modified": "2026-04-01",
+        "days_since_modified": 98,
+        "state": "dormant"
+      }
+    },
+    {
+      "id": "almaflowclim",
+      "name": "almaflowclim.fr",
+      "path": "almaflowclim.fr",
+      "stack": [
+        "HTML",
+        "CSS",
+        "Static"
+      ],
+      "dev_cmd": "python -m http.server 8080",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": false,
+        "remote": null,
+        "branch": "master",
+        "commits": 1,
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-06-10T20:54:51+01:00",
+        "last_commit_subject": "Initial commit — bring project under version control"
+      },
+      "code": {
+        "files": 10,
+        "loc": 3266,
+        "todo_fixme": 0,
+        "recent_files": [
+          "assets/css/styles.css",
+          "assets/js/main.js",
+          "mentions-legales.html"
+        ]
+      },
+      "signals": {
+        "has_tests": false,
+        "test_files": 0,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": true,
+        "has_license": false,
+        "has_ci": false,
+        "has_dockerfile": false,
+        "has_package_json": false,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 0,
+        "secrets": []
+      },
+      "disk": {
+        "reclaimable_bytes": 0,
+        "fat_dirs": []
+      },
+      "activity": {
+        "last_commit": "2026-06-10",
+        "days_since_commit": 28,
+        "last_modified": "2026-06-10",
+        "days_since_modified": 28,
+        "state": "stale"
+      }
+    },
+    {
+      "id": "doctor-cherfia-clinic",
+      "name": "DOCTOR CHERFIA CLINIC",
+      "path": "DOCTOR CHERFIA CLINIC/clinic-ui-",
+      "stack": [
+        "Next.js",
+        "TypeScript",
+        "Tailwind",
+        "shadcn"
+      ],
+      "dev_cmd": "npm run dev",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": true,
+        "remote": "github.com/Nisslass/clinic-ui-",
+        "branch": "main",
+        "commits": 6,
+        "dirty": 0,
+        "ahead": 5,
+        "behind": 0,
+        "unpushed": true,
+        "last_commit_date": "2026-07-05T16:14:16+01:00",
+        "last_commit_subject": "ci: GitHub Pages static export deploy"
+      },
+      "code": {
+        "files": 155,
+        "loc": 16503,
+        "todo_fixme": 0,
+        "recent_files": [
+          "next-sitemap.config.js",
+          "components/blog/PostCard.tsx",
+          "lib/utils.ts"
+        ]
+      },
+      "signals": {
+        "has_tests": false,
+        "test_files": 0,
+        "has_build_config": true,
+        "build_script": "next build",
+        "has_readme": true,
+        "has_license": true,
+        "has_ci": true,
+        "has_dockerfile": false,
+        "has_package_json": true,
+        "dep_count": 39
+      },
+      "security": {
+        "secret_count": 0,
+        "secrets": []
+      },
+      "disk": {
+        "reclaimable_bytes": 919201606,
+        "fat_dirs": [
+          {
+            "name": ".next",
+            "bytes": 476806336
+          },
+          {
+            "name": "node_modules",
+            "bytes": 431615618
+          },
+          {
+            "name": "out",
+            "bytes": 10779652
+          }
+        ]
+      },
+      "activity": {
+        "last_commit": "2026-07-05",
+        "days_since_commit": 4,
+        "last_modified": "2026-07-05",
+        "days_since_modified": 4,
+        "state": "active"
+      }
+    },
+    {
+      "id": "bruns-logistics",
+      "name": "BRUNs logistics data scraper",
+      "path": "BRUNs logistics data scraper",
+      "stack": [
+        "Python",
+        "Flask",
+        "HTMX",
+        "SQLite",
+        "ChromaDB"
+      ],
+      "dev_cmd": "flask run",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": true,
+        "remote": "github.com/Brvetr4ve1er/bruns-document-sorter",
+        "branch": "main",
+        "commits": 21,
+        "dirty": 26,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-05-03T01:32:16+01:00",
+        "last_commit_subject": "Healthcheck fixes: diagnostics, launcher poll, pipeline routing, LLM client"
+      },
+      "code": {
+        "files": 144,
+        "loc": 31641,
+        "todo_fixme": 1,
+        "recent_files": [
+          "core/api/server.py",
+          "tests/test_pipeline_quality.py",
+          "core/audit/logger.py"
+        ]
+      },
+      "signals": {
+        "has_tests": true,
+        "test_files": 10,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": true,
+        "has_license": false,
+        "has_ci": false,
+        "has_dockerfile": false,
+        "has_package_json": false,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 0,
+        "secrets": []
+      },
+      "disk": {
+        "reclaimable_bytes": 968832769,
+        "fat_dirs": [
+          {
+            "name": ".venv",
+            "bytes": 968832769
+          }
+        ]
+      },
+      "activity": {
+        "last_commit": "2026-05-03",
+        "days_since_commit": 67,
+        "last_modified": "2026-05-05",
+        "days_since_modified": 65,
+        "state": "dormant"
+      }
+    },
+    {
+      "id": "hamma-sat",
+      "name": "HAMMA SAT IPTV",
+      "path": "HAMMA SAT",
+      "stack": [
+        "Node",
+        "Static",
+        "WhatsApp checkout"
+      ],
+      "dev_cmd": "npm run dev",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": false,
+        "remote": null,
+        "branch": "master",
+        "commits": 1,
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-06-10T20:54:51+01:00",
+        "last_commit_subject": "Initial commit — bring project under version control"
+      },
+      "code": {
+        "files": 8,
+        "loc": 4287,
+        "todo_fixme": 0,
+        "recent_files": [
+          "public/admin.html",
+          "public/index.html",
+          "public/css/styles.css"
+        ]
+      },
+      "signals": {
+        "has_tests": false,
+        "test_files": 0,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": true,
+        "has_license": false,
+        "has_ci": false,
+        "has_dockerfile": false,
+        "has_package_json": true,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 0,
+        "secrets": []
+      },
+      "disk": {
+        "reclaimable_bytes": 0,
+        "fat_dirs": []
+      },
+      "activity": {
+        "last_commit": "2026-06-10",
+        "days_since_commit": 28,
+        "last_modified": "2026-06-10",
+        "days_since_modified": 28,
+        "state": "stale"
+      }
+    },
+    {
+      "id": "etoile-de-lest",
+      "name": "etoile de lest",
+      "path": "etoile de lest",
+      "stack": [
+        "Next.js",
+        "PWA",
+        "Supabase"
+      ],
+      "dev_cmd": "npm run dev",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": false,
+        "remote": null,
+        "branch": null,
+        "commits": 0,
+        "dirty": 1,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": null,
+        "last_commit_subject": null
+      },
+      "code": {
+        "files": 131,
+        "loc": 11098,
+        "todo_fixme": 0,
+        "recent_files": [
+          "etoile-de-l-st-PWA/public/workbox-c18c662b.js",
+          "etoile-de-l-st-PWA/public/sw.js",
+          "etoile-de-l-st-PWA/public/swe-worker-5c72df51bb1f6ee0.js"
+        ]
+      },
+      "signals": {
+        "has_tests": false,
+        "test_files": 0,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": false,
+        "has_license": false,
+        "has_ci": false,
+        "has_dockerfile": false,
+        "has_package_json": false,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 1,
+        "secrets": [
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "etoile de lest/etoile-de-l-st-PWA/lib/data/mock.ts"
+          }
+        ]
+      },
+      "disk": {
+        "reclaimable_bytes": 0,
+        "fat_dirs": []
+      },
+      "activity": {
+        "last_commit": null,
+        "days_since_commit": null,
+        "last_modified": "2026-06-05",
+        "days_since_modified": 34,
+        "state": "stale"
+      }
+    },
+    {
+      "id": "intel-scraper",
+      "name": "INTEL SCRAPER (A.G.E.S.)",
+      "path": "INTEL SCRAPER",
+      "stack": [
+        "Python",
+        "FastAPI",
+        "Playwright",
+        "React"
+      ],
+      "dev_cmd": "npm start",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": false,
+        "remote": null,
+        "branch": "master",
+        "commits": 1,
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-06-10T20:55:56+01:00",
+        "last_commit_subject": "Initial commit - bring project under version control"
+      },
+      "code": {
+        "files": 39,
+        "loc": 6120,
+        "todo_fixme": 0,
+        "recent_files": [
+          "_smoke_pr34.py",
+          "main.py",
+          "agent_logic/__init__.py"
+        ]
+      },
+      "signals": {
+        "has_tests": false,
+        "test_files": 0,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": false,
+        "has_license": false,
+        "has_ci": false,
+        "has_dockerfile": false,
+        "has_package_json": false,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 0,
+        "secrets": []
+      },
+      "disk": {
+        "reclaimable_bytes": 11844478,
+        "fat_dirs": [
+          {
+            "name": ".venv",
+            "bytes": 11844478
+          }
+        ]
+      },
+      "activity": {
+        "last_commit": "2026-06-10",
+        "days_since_commit": 28,
+        "last_modified": "2026-06-10",
+        "days_since_modified": 28,
+        "state": "stale"
+      }
+    },
+    {
+      "id": "product-intel-wizard",
+      "name": "product-intel-wizard",
+      "path": "ALLIANCE PWA PROTOTYPE/product-intel-wizard",
+      "stack": [
+        "React",
+        "Vite",
+        "tambo"
+      ],
+      "dev_cmd": "npm run dev",
+      "canonical_branch": "main",
+      "git": {
+        "has_git": true,
+        "has_remote": true,
+        "remote": "github.com/Brvetr4ve1er/product-intel-wizard",
+        "branch": "main",
+        "commits": 6,
+        "dirty": 2,
+        "ahead": 0,
+        "behind": 0,
+        "unpushed": false,
+        "last_commit_date": "2026-02-16T16:36:26+01:00",
+        "last_commit_subject": "chore: add pull request template"
+      },
+      "code": {
+        "files": 1267,
+        "loc": 217361,
+        "todo_fixme": 41,
+        "recent_files": [
+          "dashboard/src/App.tsx",
+          "dashboard/src/main.tsx",
+          "dashboard/index.html"
+        ]
+      },
+      "signals": {
+        "has_tests": true,
+        "test_files": 225,
+        "has_build_config": false,
+        "build_script": null,
+        "has_readme": true,
+        "has_license": true,
+        "has_ci": false,
+        "has_dockerfile": false,
+        "has_package_json": false,
+        "dep_count": 0
+      },
+      "security": {
+        "secret_count": 24,
+        "secrets": [
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/react-sdk/src/v1/providers/tambo-v1-provider.test.tsx"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/react-sdk/src/v1/hooks/use-tambo-v1-auth-state.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/react-sdk/src/providers/tambo-client-provider.test.tsx"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/react-sdk/src/providers/hooks/use-tambo-session-token.test.tsx"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/packages/core/src/attachment.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/packages/core/src/composio-utils.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/packages/core/src/encrypt.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/packages/client/src/tambo-client.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/packages/client/src/tambo-client.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/cli/src/lib/telemetry.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/cli/src/commands/auth.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/cli/src/commands/init.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/web/lib/slack.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/web/components/auth/nextauth-layout-wrapper.test.tsx"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/generate-config.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/threads/threads.service.initial-messages.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/threads/threads.service.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/threads/util/attachment-fetcher.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/storage/storage.controller.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/storage/__tests__/storage.controller.integration.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/common/systemTools.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/common/utils/generate-context-key.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/common/utils/oauth.test.ts"
+          },
+          {
+            "pattern": "generic_secret_assignment",
+            "file": "ALLIANCE PWA PROTOTYPE/product-intel-wizard/tambo/apps/api/src/common/services/storage-config.service.test.ts"
+          }
+        ]
+      },
+      "disk": {
+        "reclaimable_bytes": 0,
+        "fat_dirs": []
+      },
+      "activity": {
+        "last_commit": "2026-02-16",
+        "days_since_commit": 143,
+        "last_modified": "2026-03-29",
+        "days_since_modified": 102,
+        "state": "dormant"
+      }
+    }
+  ],
+  "vaults": [
+    {
+      "name": "VEEMO CORTEX",
+      "role": "primary",
+      "notes": 227,
+      "recent7": 8,
+      "stale90": 0,
+      "kb": 1182
+    },
+    {
+      "name": "HEETCH",
+      "role": "brand/market-intel",
+      "notes": 66,
+      "recent7": 0,
+      "stale90": 0,
+      "kb": 525
+    },
+    {
+      "name": "BRAIN-OS-v2",
+      "role": "PARA business",
+      "notes": 46,
+      "recent7": 0,
+      "stale90": 0,
+      "kb": 12
+    }
+  ],
+  "clones": [
+    {
+      "name": "playwright",
+      "origin": "github.com/microsoft/playwright",
+      "dirty": 0,
+      "diverged": false,
+      "has_git": true
+    },
+    {
+      "name": "superset",
+      "origin": "github.com/apache/superset",
+      "dirty": 2,
+      "diverged": true,
+      "has_git": true
+    },
+    {
+      "name": "gallery",
+      "origin": null,
+      "dirty": 0,
+      "diverged": false,
+      "has_git": false
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/agent-orchestrator",
+      "origin": "github.com/ComposioHQ/agent-orchestrator",
+      "dirty": 0,
+      "diverged": false,
+      "has_git": true
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/AiCMO-Marketing-Prompt-Collection",
+      "origin": "github.com/AICMO/AiCMO-Marketing-Prompt-Collection",
+      "dirty": 8,
+      "diverged": true,
+      "has_git": true
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/claude-code",
+      "origin": "github.com/anthropics/claude-code",
+      "dirty": 0,
+      "diverged": false,
+      "has_git": true
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/everything-claude-code",
+      "origin": "github.com/affaan-m/everything-claude-code",
+      "dirty": 7,
+      "diverged": true,
+      "has_git": true
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/openskills",
+      "origin": "github.com/numman-ali/openskills",
+      "dirty": 1,
+      "diverged": true,
+      "has_git": true
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/ui-ux-pro-max-skill",
+      "origin": "github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "dirty": 1,
+      "diverged": true,
+      "has_git": true
+    },
+    {
+      "name": "VEEMO_CORTEX_REPOS/visual-explainer",
+      "origin": "github.com/nicobailon/visual-explainer",
+      "dirty": 0,
+      "diverged": false,
+      "has_git": true
+    }
+  ],
+  "discovered": [
+    {
+      "name": "at_hero_backup",
+      "classification": "empty"
+    },
+    {
+      "name": "BORDJ STEEL B2B",
+      "classification": "unclassified"
+    },
+    {
+      "name": "chouchou voyages",
+      "classification": "unclassified"
+    },
+    {
+      "name": "Codex",
+      "classification": "unclassified"
+    },
+    {
+      "name": "docs",
+      "classification": "unclassified"
+    },
+    {
+      "name": "etoile-de-lest",
+      "classification": "unclassified"
+    },
+    {
+      "name": "facebook-scraper",
+      "classification": "unclassified"
+    },
+    {
+      "name": "gmaps-scanner",
+      "classification": "unclassified"
+    },
+    {
+      "name": "HERMES",
+      "classification": "vault?"
+    },
+    {
+      "name": "ilyes",
+      "classification": "unclassified"
+    },
+    {
+      "name": "nomara voyage",
+      "classification": "unclassified"
+    },
+    {
+      "name": "odysseus",
+      "classification": "unclassified"
+    },
+    {
+      "name": "orange hat boy",
+      "classification": "unclassified"
+    },
+    {
+      "name": "playground",
+      "classification": "empty"
+    },
+    {
+      "name": "retro",
+      "classification": "unclassified"
+    },
+    {
+      "name": "retrogallery",
+      "classification": "unclassified"
+    }
+  ],
+  "duration_ms": 46019163
+}
