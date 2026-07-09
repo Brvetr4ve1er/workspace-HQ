@@ -1,0 +1,82 @@
+{
+ "version": 1,
+ "confirmed_hashes": {
+  "grimoire:rebuild-dashboard-data": "d8da168d7d912b2890e677fb357765aa9dfebdea",
+  "grimoire:fail-test": "9326ba203f1624bb899e637754c0c214b940ca16",
+  "grimoire:deep-scan": "b4ac2f1a683ed2bd59765ce1ffb96c1a84c79ccb"
+ },
+ "favorites": [],
+ "casts": [
+  {
+   "cast_id": "c-mr6cucuzxlx",
+   "spell_id": "grimoire:rebuild-dashboard-data",
+   "started_at": "2026-07-04T12:45:01.979Z",
+   "duration_ms": 184,
+   "outcome": "resolved",
+   "exit_code": 0,
+   "chain_id": null
+  },
+  {
+   "cast_id": "c-mr6cuju1elm",
+   "spell_id": "grimoire:rebuild-dashboard-data",
+   "started_at": "2026-07-04T12:45:11.017Z",
+   "duration_ms": 162,
+   "outcome": "resolved",
+   "exit_code": 0,
+   "chain_id": null
+  },
+  {
+   "cast_id": "c-mr6cuqstdrr",
+   "spell_id": "grimoire:fail-test",
+   "started_at": "2026-07-04T12:45:20.045Z",
+   "duration_ms": 104,
+   "outcome": "fizzled",
+   "exit_code": 1,
+   "chain_id": null
+  },
+  {
+   "cast_id": "c-mr6kctqzs2s",
+   "spell_id": "grimoire:deep-scan",
+   "started_at": "2026-07-04T16:15:20.987Z",
+   "duration_ms": 22421,
+   "outcome": "fizzled",
+   "exit_code": 1,
+   "chain_id": null
+  },
+  {
+   "cast_id": "c-mr6kllvhess",
+   "spell_id": "grimoire:deep-scan",
+   "started_at": "2026-07-04T16:22:10.685Z",
+   "duration_ms": 20775,
+   "outcome": "fizzled",
+   "exit_code": 1,
+   "chain_id": null
+  }
+ ],
+ "rollup": {
+  "grimoire:rebuild-dashboard-data": {
+   "lifetime_casts": 2,
+   "distinct_days": [
+    "2026-07-04"
+   ],
+   "last_cast": "2026-07-04T12:45:11.017Z",
+   "avg_duration_ms": 177
+  },
+  "grimoire:fail-test": {
+   "lifetime_casts": 1,
+   "distinct_days": [
+    "2026-07-04"
+   ],
+   "last_cast": "2026-07-04T12:45:20.045Z",
+   "avg_duration_ms": 104
+  },
+  "grimoire:deep-scan": {
+   "lifetime_casts": 2,
+   "distinct_days": [
+    "2026-07-04"
+   ],
+   "last_cast": "2026-07-04T16:22:10.685Z",
+   "avg_duration_ms": 21927
+  }
+ }
+}
