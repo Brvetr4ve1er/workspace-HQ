@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clamp, round } from './lib/util.mjs';
 import { settle as settleSpellcraft } from './lib/spellcraft.mjs';
+import { gitRisk } from './lib/git-risk.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
@@ -54,18 +55,6 @@ const enricherModel = enriched ? (enrichDoc.model || enrichDoc.engine || 'llm') 
 
 // ---- helpers ----
 
-function gitRisk(g) {
-  const flags = [];
-  if (!g.has_git) { flags.push('no-git'); return { risk: 'high', flags }; }
-  if (g.commits === 0) flags.push('no-commits');
-  if (!g.has_remote) flags.push('no-remote');
-  if (g.dirty > 20) flags.push('many-dirty');
-  if (g.unpushed) flags.push('unpushed');
-  let risk = 'low';
-  if (g.commits === 0 || !g.has_remote || g.dirty > 20) risk = 'high';
-  else if (g.unpushed || (g.dirty >= 6 && g.dirty <= 20) || g.behind > 0) risk = 'medium';
-  return { risk, flags };
-}
 
 // Tiny safe evaluator for auto_complete_when expressions over a fact context.
 function autoSatisfied(expr, ctx) {
