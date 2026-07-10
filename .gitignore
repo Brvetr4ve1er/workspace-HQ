@@ -39,3 +39,6 @@ desktop.ini
 
 # capture inbox (transient)
 data/brain-dump.json
+
+# organic-UI runtime state (positions of live desktop shards)
+data/shards.json
