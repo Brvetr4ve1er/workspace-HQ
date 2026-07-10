@@ -20,6 +20,7 @@ import { gitRisk } from './lib/git-risk.mjs';
 import { buildProject, deterministicCompletion, buildSideQuests } from './lib/projects.mjs';
 import { deriveQuests } from './lib/quests.mjs';
 import { levelFor, rollup as gamificationRollup } from './lib/gamification.mjs';
+import { appendTrend } from './lib/trends.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
@@ -182,23 +183,18 @@ const achievements = GCFG.achievements.map((a) => {
 });
 
 // ---- trends (append today to previous) ----
-function appendTrend(arr, point, key = 'd') {
-  const a = (arr || []).filter((x) => x[key] !== TODAY);
-  a.push(point);
-  return a;
-}
 const castsToday = (spellTele?.casts || []).filter((c) => c.started_at.slice(0, 10) === TODAY).length;
 const trends = {
-  health_index: appendTrend(prev?.trends?.health_index, { d: TODAY, v: healthIndex }),
-  xp: appendTrend(prev?.trends?.xp, { d: TODAY, v: accountXp }),
-  knowledge_xp: appendTrend(prev?.trends?.knowledge_xp, { d: TODAY, v: knowledgeXp }),
-  casts_per_day: spellbookCat ? appendTrend(prev?.trends?.casts_per_day, { d: TODAY, v: castsToday }) : (prev?.trends?.casts_per_day || []),
+  health_index: appendTrend(prev?.trends?.health_index, { d: TODAY, v: healthIndex }, TODAY),
+  xp: appendTrend(prev?.trends?.xp, { d: TODAY, v: accountXp }, TODAY),
+  knowledge_xp: appendTrend(prev?.trends?.knowledge_xp, { d: TODAY, v: knowledgeXp }, TODAY),
+  casts_per_day: spellbookCat ? appendTrend(prev?.trends?.casts_per_day, { d: TODAY, v: castsToday }, TODAY) : (prev?.trends?.casts_per_day || []),
   completion_by_project: { ...(prev?.trends?.completion_by_project || {}) },
-  open_quests_by_tier: appendTrend(prev?.trends?.open_quests_by_tier, { d: TODAY, red: tierCount('red'), orange: tierCount('orange'), yellow: tierCount('yellow') }),
-  git_risk: appendTrend(prev?.trends?.git_risk, { d: TODAY, high: riskCounts.high, medium: riskCounts.medium, low: riskCounts.low }),
+  open_quests_by_tier: appendTrend(prev?.trends?.open_quests_by_tier, { d: TODAY, red: tierCount('red'), orange: tierCount('orange'), yellow: tierCount('yellow') }, TODAY),
+  git_risk: appendTrend(prev?.trends?.git_risk, { d: TODAY, high: riskCounts.high, medium: riskCounts.medium, low: riskCounts.low }, TODAY),
 };
 for (const p of projects) {
-  trends.completion_by_project[p.id] = appendTrend(trends.completion_by_project[p.id], { d: TODAY, v: p.completion.pct });
+  trends.completion_by_project[p.id] = appendTrend(trends.completion_by_project[p.id], { d: TODAY, v: p.completion.pct }, TODAY);
 }
 
 // ---- changes since prev ----
