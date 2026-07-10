@@ -59,26 +59,39 @@
   @keyframes spin { to { transform:rotate(360deg); } }
   .err { color:var(--red); font-size:12.5px; }
   #custom-host { height:100%; overflow:auto; }
+  /* library browser */
+  .lib-row { display:flex; align-items:center; gap:8px; padding:7px 8px; border-bottom:1px solid rgba(50,42,94,.45); }
+  .lib-row:hover { background:rgba(50,42,94,.25); }
+  .lib-p { flex:1; font-size:12.5px; color:var(--txt); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lib-d { font-size:10px; color:var(--faint); }
+  .lib-row button { background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:10px; padding:3px 8px; border-radius:4px; }
+  .lib-row .go { border-color:var(--cyan); color:var(--cyan); }
+  .lib-row .go:hover { background:rgba(0,240,255,.12); }
+  .lib-row .del:hover { border-color:var(--red); color:var(--red); }
+  .lib-empty { padding:18px 10px; text-align:center; color:var(--faint); font-size:12px; line-height:1.6; }
 </style>
 </head>
 <body>
   <div id="shard">
-    <div class="hd"><span class="k" id="hd-k">SHARD</span><span id="hd-t"></span><button class="x" id="x" title="dismiss">✕</button></div>
+    <div class="hd"><span class="k" id="hd-k">SHARD</span><span id="hd-t"></span><button class="x" id="rg" title="regenerate (Claude rewrites this widget)" style="display:none">↻</button><button class="x" id="x" title="dismiss">✕</button></div>
     <div class="bd" id="bd"></div>
   </div>
 <script>
   const $ = (id) => document.getElementById(id);
   let CFG = null, saveT = null;
   $('x').onclick = () => window.hq.shardClose();
+  $('rg').onclick = () => window.hq.shardRegen();
 
   function render(cfg) {
     CFG = cfg;
     const p = cfg.payload || {};
     const bd = $('bd');
-    const kinds = { note: ['NOTE', '#ffd23f'], timer: ['TIMER', '#00f0ff'], quest: ['QUEST', '#ff4757'], hp: ['VITALS', '#3aff6e'], 'xp-drip': ['', ''], custom: ['CONJURED', '#ff2bd6'] };
+    const kinds = { note: ['NOTE', '#ffd23f'], timer: ['TIMER', '#00f0ff'], quest: ['QUEST', '#ff4757'], hp: ['VITALS', '#3aff6e'], 'xp-drip': ['', ''], custom: ['CONJURED', '#ff2bd6'], library: ['LIBRARY', '#b14aff'] };
     const [label, color] = kinds[cfg.widget] || ['SHARD', '#00f0ff'];
     $('hd-k').textContent = label;
     document.getElementById('shard').style.setProperty('--shc', color || '#00f0ff');
+    // ↻ only makes sense on a finished conjure — it asks Claude to rewrite in place
+    $('rg').style.display = (cfg.widget === 'custom' && p.status === 'ready' && p.prompt) ? '' : 'none';
 
     if (cfg.widget === 'note') {
       bd.innerHTML = '<textarea class="note-ta" spellcheck="false"></textarea>';
@@ -130,6 +143,24 @@
       } else if (p.status === 'ready' && p.html) {
         bd.innerHTML = '<div id="custom-host"></div>';
         mountCustom(bd.querySelector('#custom-host'), p.html);
+      }
+
+    } else if (cfg.widget === 'library') {
+      const items = p.items || [];
+      if (!items.length) {
+        bd.innerHTML = '<div class="lib-empty">No creations yet.<br>Summon anything (<b>Ctrl+Alt+G</b>) and it lands here —<br>then re-summon it instantly by typing its name.</div>';
+      } else {
+        bd.innerHTML = '';
+        items.slice().reverse().forEach((it) => {
+          const row = document.createElement('div');
+          row.className = 'lib-row';
+          row.innerHTML = `<div class="lib-p" title="${esc(it.prompt)}">${esc(it.prompt)}</div>
+            <span class="lib-d">${esc((it.updated_at || '').slice(0, 10))}</span>
+            <button class="go">▶</button><button class="del">✕</button>`;
+          row.querySelector('.go').onclick = () => window.hq.shardLibSpawn(it.key);
+          row.querySelector('.del').onclick = () => window.hq.shardLibDelete(it.key);
+          bd.appendChild(row);
+        });
       }
     }
   }

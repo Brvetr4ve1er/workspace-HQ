@@ -497,7 +497,7 @@ function spawnShard(cfg) {
   // conjured HTML stays LOCAL: no navigation, no popups, ever
   sw.webContents.on('will-navigate', (e) => e.preventDefault());
   sw.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  sw.loadFile(path.join(DIR, 'shard.html'));
+  sw.loadFile(path.join(DIR, 'organic', 'shard.html'));
   const full = { ...cfg, id, w, h };
   sw.webContents.once('did-finish-load', () => { if (!sw.isDestroyed()) sw.webContents.send('shard:init', full); });
   if (cfg.clickThrough) sw.setIgnoreMouseEvents(true);
@@ -528,12 +528,46 @@ function topQuestPayload() {
   return { id: top.id, title: top.title, tier: top.tier, xp: top.xp, project: proj ? proj.name : '' };
 }
 
+// ---- widget library (Organic UI v2 · P1): conjures become durable creations ----
+// Every successful generation is saved keyed by normalized prompt; summoning a
+// matching prompt re-spawns instantly from cache instead of re-generating.
+const LIB_FILE = path.join(DATA, 'shard-library.json');
+const normPrompt = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+function readLibrary() { try { return JSON.parse(fs.readFileSync(LIB_FILE, 'utf8')); } catch { return []; } }
+function saveLibrary(items) { try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(LIB_FILE, JSON.stringify(items, null, 2)); } catch {} }
+function libUpsert(prompt, html) {
+  const items = readLibrary();
+  const key = normPrompt(prompt);
+  const now = new Date().toISOString();
+  const i = items.findIndex((x) => x.key === key);
+  if (i >= 0) items[i] = { ...items[i], html, updated_at: now };
+  else items.push({ key, prompt, html, created_at: now, updated_at: now });
+  saveLibrary(items);
+}
+function libFind(text) {
+  const q = normPrompt(text);
+  if (!q) return null;
+  const items = readLibrary();
+  const exact = items.find((x) => x.key === q);
+  if (exact) return exact;
+  const prefix = items.filter((x) => x.key.startsWith(q));
+  return prefix.length === 1 ? prefix[0] : null;   // only unambiguous prefixes
+}
+function libraryPayload() {
+  return { items: readLibrary().map(({ key, prompt, updated_at }) => ({ key, prompt, updated_at })) };
+}
+
 // Conjuring: Claude writes a bespoke self-contained widget for whatever was asked.
 // A placeholder shard appears instantly (organic feedback), then morphs when ready.
+// generateInto is shared by fresh conjures AND the ↻ regen button on existing shards.
 function conjureShard(prompt, at) {
   const id = spawnShard({ widget: 'custom', payload: { status: 'conjuring', prompt }, persist: true, ...at });
+  generateInto(id, prompt);
+  return id;
+}
+function generateInto(id, prompt) {
   const claude = findClaude();
-  if (!claude) { updateShard(id, { status: 'error', error: 'claude CLI not found on PATH' }); return id; }
+  if (!claude) { updateShard(id, { status: 'error', error: 'claude CLI not found on PATH' }); return; }
   const gen = `Generate a tiny self-contained desktop widget for: "${prompt.replace(/"/g, "'")}"
 
 HARD RULES:
@@ -550,12 +584,12 @@ HARD RULES:
     let html = out.trim().replace(/^```(html)?\s*/i, '').replace(/```\s*$/, '').trim();
     if (!html || !/</.test(html)) { updateShard(id, { status: 'error', error: 'generation returned nothing usable' }); return; }
     updateShard(id, { status: 'ready', html });
-    console.log(`[shard] conjured "${prompt.slice(0, 40)}" (${html.length}b)`);
+    libUpsert(prompt, html);   // durable: joins the widget library for instant re-summon
+    console.log(`[shard] conjured "${prompt.slice(0, 40)}" (${html.length}b) -> library`);
   });
   child.on('error', () => updateShard(id, { status: 'error', error: 'claude failed to start' }));
   try { child.stdin.write(gen); child.stdin.end(); } catch {}
   setTimeout(() => { try { child.kill(); } catch {} }, 120000);
-  return id;
 }
 
 // Summon router: known words materialize built-ins; everything else is conjured.
@@ -568,6 +602,10 @@ function summonWidget(text, at = {}) {
     return spawnShard({ widget: 'timer', payload: { minutes: Math.max(1, Math.min(180, +m[1])) }, ...at });
   if (/^quests?$/i.test(t)) { const q = topQuestPayload(); return q ? spawnShard({ widget: 'quest', payload: q, ...at }) : false; }
   if (/^(hp|stats?|hud)$/i.test(t)) { const p = miniPayload(); return p ? spawnShard({ widget: 'hp', payload: p, ...at }) : false; }
+  if (/^lib(rary)?$/i.test(t)) return spawnShard({ widget: 'library', payload: libraryPayload(), w: 380, h: 300, ...at });
+  // library hit: a past creation matching this prompt re-materializes instantly
+  const hit = libFind(t);
+  if (hit) return spawnShard({ widget: 'custom', payload: { status: 'ready', prompt: hit.prompt, html: hit.html }, persist: true, ...at });
   return conjureShard(t, at);
 }
 
@@ -587,7 +625,7 @@ function openSummon() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'preload.js') },
   });
   summonWin.setAlwaysOnTop(true, 'screen-saver');
-  summonWin.loadFile(path.join(DIR, 'summon.html'));
+  summonWin.loadFile(path.join(DIR, 'organic', 'summon.html'));
   summonWin.on('blur', () => { if (summonWin && !summonWin.isDestroyed()) summonWin.close(); });
   summonWin.on('closed', () => { summonWin = null; });
 }
@@ -605,6 +643,27 @@ ipcMain.handle('hq:shard-save', (e, patch) => {
   const s = shardOfSender(e); if (!s) return false;
   s.cfg.payload = { ...s.cfg.payload, ...patch };
   if (s.cfg.persist) persistShards();
+  return true;
+});
+// widget library: spawn / delete from the library browser shard
+ipcMain.handle('hq:shard-lib-spawn', (e, key) => {
+  const item = readLibrary().find((x) => x.key === key); if (!item) return false;
+  const s = shardOfSender(e);
+  const at = {};
+  if (s && !s.win.isDestroyed()) { const [x, y] = s.win.getPosition(); at.x = x + 40; at.y = y + 40; }
+  return spawnShard({ widget: 'custom', payload: { status: 'ready', prompt: item.prompt, html: item.html }, persist: true, ...at });
+});
+ipcMain.handle('hq:shard-lib-delete', (e, key) => {
+  saveLibrary(readLibrary().filter((x) => x.key !== key));
+  const s = shardOfSender(e);
+  if (s && s.cfg.widget === 'library') updateShard(s.cfg.id, libraryPayload());
+  return true;
+});
+// ↻ regen: a conjured shard rewrites itself in place (fresh generation, same spot)
+ipcMain.handle('hq:shard-regen', (e) => {
+  const s = shardOfSender(e); if (!s || s.cfg.widget !== 'custom' || !s.cfg.payload?.prompt) return false;
+  updateShard(s.cfg.id, { status: 'conjuring', html: null });
+  generateInto(s.cfg.id, s.cfg.payload.prompt);
   return true;
 });
 

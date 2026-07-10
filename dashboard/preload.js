@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('hq', {
   shardSummonCancel: () => ipcRenderer.invoke('hq:shard-summon-cancel'),
   shardClose: () => ipcRenderer.invoke('hq:shard-close'),
   shardSave: (patch) => ipcRenderer.invoke('hq:shard-save', patch),
+  shardLibSpawn: (key) => ipcRenderer.invoke('hq:shard-lib-spawn', key),
+  shardLibDelete: (key) => ipcRenderer.invoke('hq:shard-lib-delete', key),
+  shardRegen: () => ipcRenderer.invoke('hq:shard-regen'),
   onShardInit: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('shard:init', handler);

@@ -42,3 +42,4 @@ data/brain-dump.json
 
 # organic-UI runtime state (positions of live desktop shards)
 data/shards.json
+data/shard-library.json

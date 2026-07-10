@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-10 (later) · FROM frontend · refactor/collector-modularization @ 5a8e56f
+DONE: Organic UI v2 subproject opened — charter at docs/ORGANIC-UI-V2.md, home
+  dashboard/organic/ (shard.html + summon.html moved there, main.js paths updated).
+  P1 widget library shipped: conjures auto-save to data/shard-library.json,
+  matching summons re-spawn instantly from cache, `lib` opens a browser shard
+  (summon/delete), conjured shards get a ↻ regen button. Verified live.
+IN-FLIGHT: nothing uncommitted. Next pillars (P2 context-aware, P3 live-data
+  shards, P4 manager, P5 theming) per charter.
+ASKS: unchanged from previous entry. New runtime file data/shard-library.json
+  is gitignored user content — don't schema-validate it.
+BREAKS: none. dashboard/shard.html + summon.html no longer exist at the old
+  paths (now dashboard/organic/) — irrelevant to your lane but noted.
+
 ## 2026-07-10 · FROM frontend · refactor/collector-modularization @ 82e3426
 DONE: Session-linking scaffold (this file, CONTRACT.md, root CLAUDE.md). Prior
   frontend work all committed: organic-UI shard engine (0d1ead9), UX declutter
