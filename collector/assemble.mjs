@@ -19,6 +19,7 @@ import { settle as settleSpellcraft } from './lib/spellcraft.mjs';
 import { gitRisk } from './lib/git-risk.mjs';
 import { buildProject, deterministicCompletion, buildSideQuests } from './lib/projects.mjs';
 import { deriveQuests } from './lib/quests.mjs';
+import { levelFor, rollup as gamificationRollup } from './lib/gamification.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
@@ -59,18 +60,6 @@ const enricherModel = enriched ? (enrichDoc.model || enrichDoc.engine || 'llm') 
 
 
 // Tiny safe evaluator for auto_complete_when expressions over a fact context.
-function levelFor(xp) {
-  const tiers = GCFG.level_curve.tiers;
-  let cur = tiers[0];
-  for (const t of tiers) if (xp >= t.min_xp) cur = t;
-  const next = tiers.find((t) => t.min_xp > cur.min_xp) || null;
-  return {
-    level: cur.level, title: cur.title,
-    xp_into_level: xp - cur.min_xp,
-    xp_to_next: next ? next.min_xp - xp : 0,
-  };
-}
-
 // ---- build projects (facts + carried soft fields) ----
 // project-overrides: archived projects drop out of active counts but stay carried for history
 let projOverrides = {};
@@ -111,30 +100,10 @@ const openQ = quests.filter((q) => q.status === 'open' || q.status === 'in_progr
 const tierCount = (t) => openQ.filter((q) => q.tier === t).length;
 
 // ---- gamification rollup ----
-const avgCompletion = projects.reduce((a, p) => a + p.completion.pct, 0) / (projects.length || 1);
 const riskCounts = { high: 0, medium: 0, low: 0 };
 for (const p of projects) riskCounts[p.metrics.git_safety.risk]++;
-const buildOk = projects.filter((p) => ['green', 'runs'].includes(p.metrics.code_health.build)).length;
-const buildScore = (buildOk / (projects.length || 1)) * 100;
-const testCovScore = (projects.filter((p) => p.metrics.code_health.tests?.passing).length / (projects.length || 1)) * 100;
-// risk_security.flags are objects {type,severity,...} only when the LLM enricher ran;
-// guard against the carried string entries. Crucially, fold in raw DETECTED secrets so
-// ~30 found credentials stop scoring 0 risk (the long-standing "frozen health" bug).
-const secHigh = projects.reduce((a, p) => a + (p.metrics.risk_security.flags || []).filter((f) => f && f.severity === 'high').length, 0);
-const secMed = projects.reduce((a, p) => a + (p.metrics.risk_security.flags || []).filter((f) => f && f.severity === 'medium').length, 0);
-const secretsFound = projects.reduce((a, p) => a + (p.metrics.risk_security.secrets_found || 0), 0);
-const riskScore = clamp(secHigh * 20 + secMed * 8 + Math.min(secretsFound * 4, 60), 0, 100);
-const gitSafetyScore = clamp(100 - (riskCounts.high * 25 + riskCounts.medium * 10), 0, 100);
-const healthIndex = round(0.30 * avgCompletion + 0.25 * gitSafetyScore + 0.20 * buildScore + 0.15 * (100 - riskScore) + 0.10 * testCovScore);
-
-// streak
-let scanDays = 1, longest = 1;
-if (prev?.account?.streak) {
-  const prevDate = prev.account.streak.last_scan;
-  const gap = (Date.parse(TODAY) - Date.parse(prevDate)) / 86400000;
-  if (gap <= 1.5) { scanDays = (prev.account.streak.scan_days || 1) + 1; }
-  longest = Math.max(prev.account.streak.longest_scan_days || 1, scanDays);
-}
+const { avgCompletion, buildOk, buildScore, testCovScore, riskScore, gitSafetyScore, healthIndex, scanDays, longest } =
+  gamificationRollup({ projects, quests, riskCounts, prev, today: TODAY });
 
 // ---- spellcraft: settle Spellbook cast telemetry into the single XP ledger ----
 // Both inputs are OPTIONAL — without spellbook.json / spell-telemetry.json this
@@ -154,7 +123,7 @@ let xpGain = quests.filter((q) => q.completed === TODAY).reduce((a, q) => a + (q
 xpGain += GCFG.xp_awards.streak_day;
 xpGain += spellXp;
 const accountXp = prevXp + (prev ? xpGain : 0);
-const lv = levelFor(accountXp);
+const lv = levelFor(accountXp, GCFG.level_curve.tiers);
 
 // achievements
 // ---- learnings (Wave 5): Knowledge XP track + projects-with-vault-note count ----

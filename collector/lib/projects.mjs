@@ -1,20 +1,6 @@
 import { clamp, round } from './util.mjs';
 import { gitRisk } from './git-risk.mjs';
-
-// Local level lookup for project scores. Task 4 coupling note: this takes `tiers`
-// explicitly to avoid a forward dependency on gamification.mjs. Task 6 will extract
-// the canonical levelFor into gamification.mjs and switch this import over.
-// Moved from assemble.mjs (GCFG.level_curve.tiers -> tiers param).
-function levelFor(xp, tiers) {
-  let cur = tiers[0];
-  for (const t of tiers) if (xp >= t.min_xp) cur = t;
-  const next = tiers.find((t) => t.min_xp > cur.min_xp) || null;
-  return {
-    level: cur.level, title: cur.title,
-    xp_into_level: xp - cur.min_xp,
-    xp_to_next: next ? next.min_xp - xp : 0,
-  };
-}
+import { levelFor } from './gamification.mjs';
 
 // Deterministic completion estimate (0-100) from hard signals only — a "maturity"
 // proxy used when no LLM enrichment is available, so completion stops being a flat 50.
