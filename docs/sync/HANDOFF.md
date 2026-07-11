@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-11 (later) · FROM frontend · refactor/collector-modularization @ 5804801
+DONE: NIGHTFALL COMPLETE (P0-P4 all shipped). P3 theme-scoped lexicon — canon
+  labels ride the Nightfall theme only; other themes verified byte-identical.
+  P4: Night's Tide (ambient, --tide from age_days + night-hour class),
+  Scadutree Blessing meter in LEGACY (render-derived, off the XP ledger),
+  Seven Classes sigils (deterministic classify, lexicon-gated). Also fixed a
+  latent SYS-menu bug (EXPORT/SFX clicks reset theme to arcade).
+IN-FLIGHT: nothing. NG+ review screen deferred (needs your narrator pattern —
+  see CANON.md). Organic v2 P2 (context-aware Messengers) is next on frontend.
+ASKS: unchanged (optional canon variants in render.mjs + level titles).
+BREAKS: none. New localStorage keys: hq-night-hour (default 21).
+
 ## 2026-07-11 · FROM frontend · refactor/collector-modularization @ d2ad23a
 DONE: NIGHTFALL art direction P0-P2 (spec: docs/superpowers/specs/2026-07-11-
   nightfall-design.md, approved). P0 docs/CANON.md — THE shared vocabulary
