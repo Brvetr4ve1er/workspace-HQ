@@ -1229,3 +1229,92 @@ h2.sec.sec-fold:hover { color: var(--text); }
 
 /* --- statusbar keyboard advert --- */
 #status .keys { color: var(--faint); }
+
+/* ============================================================
+   NIGHTFALL — Yharnam gothic × Lands Between ethereal (THE CANON).
+   Rails honored: no position overrides on #tabs/.timemachine; opaque
+   card fills over the atmosphere; --active/--active-arrow/--divider/
+   --mono remapped; Cinzel metric compensation; ONE glow (the lantern).
+   Palette tokens mirror docs/CANON.md — keep the vault snippet in sync.
+   ============================================================ */
+:root[data-theme="nightfall"] {
+  --bg: #0e0b09; --bg2: #0a0806; --panel: #171210; --card: #1e1814; --card-hi: #262019;
+  --ink: #0a0806; --frame: rgba(216, 207, 186, 0.10); --frame-hi: rgba(216, 207, 186, 0.22);
+  --text: #d8cfba; --muted: #8f8577; --faint: #5d564b;
+  /* Semantic roles — the lantern is the one glow */
+  --active: #c78b3c; --active-arrow: #d8cfba; --divider: rgba(216, 207, 186, 0.26);
+  /* Palette: blood / grace / spectral / moon (see CANON) */
+  --cyan: #7c93a8; --magenta: #a62c2b; --gold: #c78b3c; --gold-2: #d4af6a;
+  --green: #d4af6a; --red: #a62c2b; --orange: #c78b3c; --yellow: #b7c4b0;
+  --blue: #7c93a8; --purple: #6e5a7a; --pink: #a62c2b;
+  --px: "Cinzel", "Georgia", serif;
+  --term: "IM Fell English", "Georgia", serif;
+  --mono: "Space Mono", "Courier New", monospace;
+}
+:root[data-theme="nightfall"] #crt { opacity: 0; pointer-events: none; }
+:root[data-theme="nightfall"] body { background: var(--bg); }
+/* atmosphere: slow fog drift + vignette — ethereal, never busy */
+:root[data-theme="nightfall"] body::before {
+  content: ""; position: fixed; inset: -15%; z-index: 0; pointer-events: none; filter: blur(30px);
+  background:
+    radial-gradient(42% 34% at 22% 18%, rgba(124, 147, 168, 0.10), transparent 65%),
+    radial-gradient(38% 30% at 80% 70%, rgba(199, 139, 60, 0.07), transparent 60%),
+    radial-gradient(50% 44% at 55% 105%, rgba(166, 44, 43, 0.08), transparent 65%);
+  animation: nffog 36s ease-in-out infinite alternate;
+}
+@keyframes nffog {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-2.5%, 1.8%) scale(1.06); }
+}
+:root[data-theme="nightfall"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 99; pointer-events: none;
+  background:
+    radial-gradient(120% 100% at 50% 45%, transparent 62%, rgba(6, 4, 3, 0.55) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="nightfall"] body::before { animation: none; }
+}
+/* CRITICAL: do NOT override position on #tabs / .timemachine (baseline sticky). */
+:root[data-theme="nightfall"] main,
+:root[data-theme="nightfall"] #statusbar,
+:root[data-theme="nightfall"] #drawer,
+:root[data-theme="nightfall"] #scrim { position: relative; z-index: 1; }
+:root[data-theme="nightfall"] #topbar { z-index: 41; background: linear-gradient(180deg, #0e0b09 0%, rgba(14, 11, 9, 0.93) 100%); }
+:root[data-theme="nightfall"] .timemachine { z-index: 36; background: rgba(14, 11, 9, 0.90); backdrop-filter: blur(9px); }
+:root[data-theme="nightfall"] #tabs { z-index: 31; background: rgba(14, 11, 9, 0.90); backdrop-filter: blur(9px); }
+/* opaque parchment-edged cards over the fog */
+:root[data-theme="nightfall"] .card,
+:root[data-theme="nightfall"] .kpi,
+:root[data-theme="nightfall"] .quest,
+:root[data-theme="nightfall"] .sq,
+:root[data-theme="nightfall"] .invcard,
+:root[data-theme="nightfall"] .chart,
+:root[data-theme="nightfall"] .mission,
+:root[data-theme="nightfall"] .invrow,
+:root[data-theme="nightfall"] .chg,
+:root[data-theme="nightfall"] .d3card,
+:root[data-theme="nightfall"] .spellcard {
+  border-radius: 3px; background: linear-gradient(170deg, var(--card-hi), var(--card));
+  border: 1px solid var(--divider);
+}
+:root[data-theme="nightfall"] .card:hover {
+  border-color: var(--active);
+  box-shadow: 0 0 0 1px var(--active), 0 0 22px rgba(199, 139, 60, 0.22);   /* the lantern */
+}
+/* Cinzel metric compensation (rail): larger em-box than Press Start 2P */
+:root[data-theme="nightfall"] #tabs button { font-size: 11px; letter-spacing: 0.14em; }
+:root[data-theme="nightfall"] .title { font-size: 19px; letter-spacing: 0.10em; }
+:root[data-theme="nightfall"] h2.sec { font-size: 13px; letter-spacing: 0.16em; }
+:root[data-theme="nightfall"] .tm-dot span { font-size: 11px; letter-spacing: -0.02em; }
+/* gold-leaf section markers; grace-gold primary action */
+:root[data-theme="nightfall"] h2.sec::before { content: "✦ "; color: var(--active); }
+:root[data-theme="nightfall"] .qbtn,
+:root[data-theme="nightfall"] .dwr-open-btn,
+:root[data-theme="nightfall"] .ab-btn { border-radius: 2px; }
+:root[data-theme="nightfall"] .ab-primary {
+  background: linear-gradient(180deg, #d4af6a, #c78b3c); color: #171210;
+  border: 1px solid #8a5f22; box-shadow: 0 2px 0 #6e4b1a; border-radius: 2px;
+}
+:root[data-theme="nightfall"] #boot { display: none !important; }

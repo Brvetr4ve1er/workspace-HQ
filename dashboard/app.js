@@ -11,10 +11,11 @@
 
   // ---- theme system: arcade/okami/numidea/ops — persist, swap live, no reload -----
   const THEMES = {
-    arcade:  { label: 'ARCADE' },
-    okami:   { label: 'OKAMI' },
-    numidea: { label: 'NUMIDEA' },
-    ops:     { label: 'OPS DESK' },
+    arcade:    { label: 'ARCADE' },
+    okami:     { label: 'OKAMI' },
+    numidea:   { label: 'NUMIDEA' },
+    ops:       { label: 'OPS DESK' },
+    nightfall: { label: 'NIGHTFALL' },
   };
   function applyTheme(id) {
     if (!THEMES[id]) id = 'arcade';
