@@ -17,12 +17,57 @@
     ops:       { label: 'OPS DESK' },
     nightfall: { label: 'NIGHTFALL' },
   };
-  function applyTheme(id) {
+
+  // ---- lexicon: canon terms ride the theme (docs/CANON.md) -------------------
+  // Display-level only — the data contract never changes. Default = current
+  // labels (arcade/okami/numidea/ops render byte-identical); Nightfall speaks
+  // full canon. LX(key) resolves against the active theme with fallback.
+  const LEXICONS = {
+    default: {
+      tab_overview: 'BASE', tab_quests: 'QUESTS', tab_spellbook: 'SPELLBOOK', tab_trends: 'STATS', tab_basemap: 'MAP',
+      focus: '◎ FOCUS', stage: 'STAGE SELECT', hp_word: 'HP', streak_word: 'STREAK', xp_unit: 'XP',
+      today: 'Today — pick one', pulse: 'Pulse', changes: 'Changes since', saga: '📜 Weekly Saga',
+      products: 'Products', arsenal: '📖 Arsenal', spells_known: 'spells known',
+      familiars: '🐦‍⬛ Familiars', familiars_bound: 'bound',
+      tier_red: 'Red — loss & breakage', tier_orange: 'Orange — before production', tier_yellow: 'Yellow — housekeeping',
+      side_col: 'Side-quests — ideas &amp; risks', done_strip: 'completed this scan',
+      memorials: '🏆 High scores', warehouse: '📦 Warehouse', basemap_head: 'Base map', buildings: 'buildings',
+      blessing_head: '🌳 Completion grove', fragment_word: 'day-fragments', classes: false,
+    },
+    nightfall: {
+      tab_overview: 'ROUNDTABLE', tab_quests: 'HUNTS', tab_spellbook: 'GRIMOIRE', tab_trends: 'LEGACY', tab_basemap: 'LANDS BETWEEN',
+      focus: '◎ THE HUNT', stage: 'MEMORY OF GRACE', hp_word: 'VIT', streak_word: 'EMBER', xp_unit: 'RUNES',
+      today: 'Tonight&#8217;s Hunt — choose one', pulse: 'Vitality', changes: 'Since last grace', saga: '📜 The Saga',
+      products: 'Legacy Dungeons', arsenal: '📖 Grimoire', spells_known: 'incantations known',
+      familiars: '👻 Spirit Summons', familiars_bound: 'bound',
+      tier_red: 'Night Hunts — loss & breakage', tier_orange: 'Blood Hunts — before production', tier_yellow: 'Ember Hunts — housekeeping',
+      side_col: 'Whispers — ideas &amp; risks', done_strip: 'hunts completed this scan',
+      memorials: '🏆 Memorials', warehouse: '📦 The Warehouse', basemap_head: 'The Lands Between', buildings: 'holdings',
+      blessing_head: '🌳 Scadutree Blessing', fragment_word: 'fragments', classes: true,
+    },
+  };
+  let LEX = LEXICONS.default;
+  const LX = (k) => (LEX[k] !== undefined ? LEX[k] : LEXICONS.default[k] ?? k);
+  function relabelChrome() {
+    // tab buttons keep their badge spans; only the leading text node changes
+    document.querySelectorAll('#tabs button[data-tab]').forEach((b) => {
+      const key = 'tab_' + b.dataset.tab;
+      if (b.firstChild && b.firstChild.nodeType === 3) b.firstChild.textContent = LX(key) + ' ';
+    });
+    const tf = document.getElementById('tab-focus'); if (tf) tf.textContent = LX('focus');
+    const hw = document.getElementById('hp-word'); if (hw) hw.textContent = LX('hp_word');
+    const sw = document.getElementById('streak-word'); if (sw) sw.textContent = LX('streak_word');
+  }
+  function applyTheme(id, opts = {}) {
     if (!THEMES[id]) id = 'arcade';
     document.documentElement.setAttribute('data-theme', id);
     try { localStorage.setItem('hq-theme', id); } catch {}
     // the trigger is a stable SYS menu now; the active theme shows inside the menu
     document.querySelectorAll('.theme-opt[data-theme]').forEach((o) => o.classList.toggle('active', o.dataset.theme === id));
+    // canon lexicon rides the theme (docs/CANON.md)
+    LEX = { ...LEXICONS.default, ...(LEXICONS[id] || {}) };
+    relabelChrome();
+    if (opts.rerender) render();   // live-swap all section labels on user switch
   }
   {
     const saved = (() => { try { return localStorage.getItem('hq-theme') || 'arcade'; } catch { return 'arcade'; } })();
@@ -32,9 +77,11 @@
     if (btn && menu) {
       btn.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
       document.addEventListener('click', (e) => { if (!menu.contains(e.target) && e.target !== btn) menu.classList.remove('open'); });
-      document.querySelectorAll('.theme-opt').forEach((o) => o.addEventListener('click', (e) => {
+      // [data-theme] only — the EXPORT CARD / SFX rows share the class but are
+      // NOT themes (clicking them used to silently reset the theme to arcade)
+      document.querySelectorAll('.theme-opt[data-theme]').forEach((o) => o.addEventListener('click', (e) => {
         e.stopPropagation();
-        applyTheme(o.dataset.theme);
+        applyTheme(o.dataset.theme, { rerender: true });
         menu.classList.remove('open');
       }));
     }
@@ -261,10 +308,10 @@
     $('tm-toggle').onclick = () => {
       const open = tm.classList.toggle('collapsed') === false;
       localStorage.setItem('hq-tm-open', open ? '1' : '0');
-      $('tm-toggle').textContent = (open ? '▾' : '▸') + ' STAGE SELECT';
+      $('tm-toggle').textContent = (open ? '▾' : '▸') + ' ' + LX('stage');
       SFX.blip();
     };
-    $('tm-toggle').textContent = (tm.classList.contains('collapsed') ? '▸' : '▾') + ' STAGE SELECT';
+    $('tm-toggle').textContent = (tm.classList.contains('collapsed') ? '▸' : '▾') + ' ' + LX('stage');
     $('tm-live').onclick = () => select(SCANS.length - 1);
   }
   function paintTimeMachine() {
@@ -279,7 +326,7 @@
     // Off-live is a MODE, not a detail: rail unfolds + BACK TO LIVE appears so
     // "why are all my buttons gone" can never be a mystery again.
     $('tm-live').style.display = isLatest ? 'none' : '';
-    if (!isLatest) { $('timemachine').classList.remove('collapsed'); $('tm-toggle').textContent = '▾ STAGE SELECT'; }
+    if (!isLatest) { $('timemachine').classList.remove('collapsed'); $('tm-toggle').textContent = '▾ ' + LX('stage'); }
     if (prev) {
       const dh = S.account.health_index - prev.account.health_index;
       const dx = S.account.xp - prev.account.xp;
@@ -333,7 +380,7 @@
     $('scan-date').textContent = `${S.projects.length} products · ${S.inventory?.vaults?.length || 0} vaults · viewing ${S.scan.id}`;
     $('level').textContent = a.level;
     $('title-rank').textContent = a.title || '';
-    countUp($('xp-label'), a.xp, (v) => `${v.toLocaleString()} XP`);
+    countUp($('xp-label'), a.xp, (v) => `${v.toLocaleString()} ${LX('xp_unit')}`);
     $('xp-next').textContent = a.xp_to_next ? `${a.xp_to_next} to L${a.level + 1}` : 'max';
     const xpPct = a.xp_to_next ? (a.xp_into_level / (a.xp_into_level + a.xp_to_next)) * 100 : 100;
     $('xp-fill').style.width = xpPct.toFixed(1) + '%';
@@ -569,7 +616,7 @@
     }
 
     // Header: school chips (click = filter) + collection meter slot (economy fills it in Phase 6)
-    const head = el('h2', 'sec', `📖 Arsenal · ${B.counts.total} spells known`);
+    const head = el('h2', 'sec', `${LX('arsenal')} · ${B.counts.total} ${LX('spells_known')}`);
     if (isElectron) {
       const acts = el('span', 'sec-acts');
       const deep = el('button', 'sec-btn', '🔮 DEEP SCAN');
@@ -651,7 +698,7 @@
 
     // Familiars shelf: summoned MCP allies — perched, not castable
     if (B.familiars?.length) {
-      sb.appendChild(el('h2', 'sec', `🐦‍⬛ Familiars · ${B.familiars.length} bound`));
+      sb.appendChild(el('h2', 'sec', `${LX('familiars')} · ${B.familiars.length} ${LX('familiars_bound')}`));
       const shelf = el('div', 'famshelf');
       B.familiars.forEach((f) => {
         const sch = SCHOOL[f.school] || SCHOOL.divination;
@@ -712,7 +759,7 @@
     // header + the QUESTS gateway chip (the ideas feed moved there)
     const feed = (S.side_quests || []);
     const urgentN = feed.filter((s) => s.kind === 'risk' || s.kind === 'urgent').length;
-    const head = el('h2', 'sec', 'Today — pick one');
+    const head = el('h2', 'sec', LX('today'));
     if (feed.length) {
       const chip = el('button', 'sec-chip', `${urgentN ? `⚠ ${urgentN} urgent · ` : ''}${feed.length - urgentN} ideas ▸`);
       chip.title = 'Side-quests moved to the QUESTS board';
@@ -765,7 +812,7 @@
     // ---- folded context: pulse (KPIs) + changes — quiet until asked -------
     const avg = Math.round(S.projects.reduce((s, p) => s + p.completion.pct, 0) / S.projects.length);
     const enriched = S.scan && S.scan.enriched === true;
-    foldSec(ov, 'kpis', 'Pulse', `${enriched ? '' : '~'}${avg}% avg · ${t.open_quests} open (${t.red_quests} red)`, (body) => {
+    foldSec(ov, 'kpis', LX('pulse'), `${enriched ? '' : '~'}${avg}% avg · ${t.open_quests} open (${t.red_quests} red)`, (body) => {
       const kpis = el('div', 'kpis');
       const kpi = (v, l, color, d) => {
         const c = el('div', 'kpi'); c.style.setProperty('--kc', color);
@@ -783,7 +830,7 @@
     });
 
     const changes = S.changes_since_prev || [];
-    foldSec(ov, 'changes', `Changes since ${esc(S.scan.previous_scan || 'baseline')}`,
+    foldSec(ov, 'changes', `${LX('changes')} ${esc(S.scan.previous_scan || 'baseline')}`,
       changes.length ? `${changes.length} · ${esc((changes[0]?.detail || '').slice(0, 60))}` : 'nothing moved',
       (body) => {
         if (changes.length) {
@@ -798,7 +845,7 @@
     // Weekly Saga: narrator recap (only meaningful "now", so latest snapshot only)
     const wr = D.weeklyRecap;
     if (wr && wr.narrative_md && cur === SCANS.length - 1) {
-      ov.appendChild(el('h2', 'sec', `📜 Weekly Saga · ${esc(wr.week_start)} → ${esc(wr.week_end)}`));
+      ov.appendChild(el('h2', 'sec', `${LX('saga')} · ${esc(wr.week_start)} → ${esc(wr.week_end)}`));
       const saga = el('div', 'saga');
       const st = wr.stats || {};
       const oneliner = (wr.narrative_md.split('\n').find((l) => l.trim() && !l.startsWith('#')) || '').trim();
@@ -823,7 +870,7 @@
     //  BASE keeps only the gateway chip in the TODAY header)
 
     // products
-    ov.appendChild(el('h2', 'sec', 'Products'));
+    ov.appendChild(el('h2', 'sec', LX('products')));
     const tb = el('div', 'toolbar');
     tb.innerHTML = `<input id="psearch" placeholder="Filter products…" value="${esc(projSearch)}" />
       <div class="seg" id="pseg">
@@ -863,6 +910,23 @@
     return 'in sync';
   }
 
+  // The Seven Classes (docs/CANON.md): deterministic auto-classify, first match wins.
+  // Display-gated by the theme lexicon (LEX.classes) so arcade stays pristine.
+  const CLASS_SIGIL = {
+    guardian: '🛡️ Guardian', 'heavy-knight': '🏰 Heavy Knight', hunter: '⚔️ Hunter',
+    wylder: '🌀 Wylder', recluse: '📜 Recluse', 'knight-of-ides': '🗝️ Knight of Ides', duchess: '👑 Duchess',
+  };
+  function classifyProject(p) {
+    const s = p.signals || {}, ch = p.metrics.code_health, act = p.activity || {};
+    if (s.has_ci && s.has_tests) return 'guardian';
+    if ((ch.loc || 0) > 20000 || (ch.files || 0) > 400) return 'heavy-knight';
+    if (act.state === 'active') return 'hunter';
+    if (p.completion.pct < 40 && (act.days_since_commit ?? 99) < 30) return 'wylder';
+    if (act.state === 'dormant' && s.has_readme) return 'recluse';
+    if (/experiment|lab|poc|sandbox|test/i.test(p.name)) return 'knight-of-ides';
+    return 'duchess';
+  }
+
   function projectCard(p, prevP) {
     const g = p.metrics.git_safety, ch = p.metrics.code_health;
     const pc = p.completion.pct, barColor = pc < 50 ? COL.red : pc < 80 ? COL.orange : COL.green;
@@ -889,6 +953,7 @@
     badges.appendChild(el('span', 'tag ' + (g.risk === 'high' ? 'red' : g.risk === 'medium' ? 'orange' : 'green'), `git: ${esc(gitText(g))}`));
     const ts = ch.tests; badges.appendChild(el('span', 'tag', `tests: ${ts?.passing ? ts.passing + '/' + (ts.count ?? '?') : ts?.present ? 'present' : 'none'}`));
     badges.appendChild(el('span', 'tag blue', esc(p.activity.state)));
+    if (LX('classes')) badges.appendChild(el('span', 'tag class', CLASS_SIGIL[classifyProject(p)]));
     card.onclick = () => openDrawer(p, prevP);
     return card;
   }
@@ -946,7 +1011,7 @@
     const open = S.quests.filter((x) => x.status === 'open' || x.status === 'in_progress');
     const done = S.quests.filter((x) => x.completed === S.scan.id || (x.status === 'done' && x.completed === S.scan.id));
     const board = el('div', 'qboard'); q.appendChild(board);
-    const tierName = { red: 'Red — loss & breakage', orange: 'Orange — before production', yellow: 'Yellow — housekeeping' };
+    const tierName = { red: LX('tier_red'), orange: LX('tier_orange'), yellow: LX('tier_yellow') };
     const isLatest = cur === SCANS.length - 1;
     ['red', 'orange', 'yellow'].forEach((tier) => {
       const qs = open.filter((x) => x.tier === tier);
@@ -957,6 +1022,9 @@
         const proj = x.project_id && projById[x.project_id] ? projById[x.project_id] : null;
         const ageCls = x.age_days >= 7 ? 'old' : '';
         const qd = aos(el('div', 'quest'), 'fade-up', i, 40);
+        // Night's Tide: aged hunts show a rising tide — ambient time-awareness,
+        // never pressure. 0 fresh → full at 30 days. Nightfall-only via CSS.
+        qd.style.setProperty('--tide', Math.min((x.age_days || 0) / 30, 1).toFixed(2));
         qd.innerHTML = `<div class="coin">+${x.xp}</div><div class="body">
           <div class="t">${esc(x.title)}${x.age_days > 0 ? `<span class="age ${ageCls}">${x.age_days}d</span>` : ''}</div>
           <div class="i">${esc(x.insight || '')}</div>
@@ -979,7 +1047,7 @@
     if (feed.length) {
       const urgent = feed.filter((s) => s.kind === 'risk' || s.kind === 'urgent').length;
       const col = el('div', 'qcol side');
-      col.appendChild(el('h3', null, `<span class="dot"></span>Side-quests — ideas &amp; risks<span class="n">${feed.length}</span>`));
+      col.appendChild(el('h3', null, `<span class="dot"></span>${LX('side_col')}<span class="n">${feed.length}</span>`));
       feed.slice(0, 12).forEach((sq) => col.appendChild(sideQuestRow(sq, true)));
       if (urgent) col.firstChild.insertAdjacentHTML('beforeend', ` <span class="sec-n">${urgent} urgent</span>`);
       board.appendChild(col);
@@ -988,7 +1056,7 @@
     // receipt strip, not a fourth column stealing board width.
     if (done.length) {
       const strip = el('div', 'qdone-strip');
-      strip.innerHTML = `<span class="qds-lbl">✔ ${done.length} completed this scan</span>` +
+      strip.innerHTML = `<span class="qds-lbl">✔ ${done.length} ${LX('done_strip')}</span>` +
         done.map((x) => `<span class="qds-item">${esc(x.title)} <b>+${x.xp}</b></span>`).join('');
       q.appendChild(strip);
     }
@@ -1080,11 +1148,36 @@
   }
 
   // ------------------------------------------------------------ achievements
+  // Scadutree Fragments (CANON P4): parallel COSMETIC progression, off the XP
+  // ledger. Derived at render — one fragment per calendar day with ≥1 completed
+  // hunt across all recorded scans. Thresholds grant Blessing levels (flavor).
+  const BLESSING_THRESHOLDS = [1, 3, 5, 8, 12, 17, 23, 30];
+  function renderBlessing(parent) {
+    const days = new Set();
+    SCANS.forEach((s) => { if ((s.quests || []).some((q) => q.completed === s.scan.id)) days.add(s.scan.id); });
+    const frags = days.size;
+    const level = BLESSING_THRESHOLDS.filter((t) => frags >= t).length;
+    const next = BLESSING_THRESHOLDS.find((t) => t > frags);
+    parent.appendChild(el('h2', 'sec', `${LX('blessing_head')} · level ${level}`));
+    const card = el('div', 'blessing');
+    const pct = next ? Math.round((frags / next) * 100) : 100;
+    card.innerHTML = `
+      <div class="bl-row">
+        <span class="bl-frags">${'✦'.repeat(Math.min(level, 8))}${'✧'.repeat(Math.max(0, 8 - level))}</span>
+        <span class="bl-num">${frags} ${LX('fragment_word')}</span>
+        <span class="bl-buff">+${level * 5}% vigor</span>
+      </div>
+      <div class="bl-bar"><i style="width:${pct}%"></i></div>
+      <div class="bl-next">${next ? `${next - frags} more day${next - frags > 1 ? 's' : ''} with a completed hunt until the next blessing` : 'the grove is full — every blessing earned'}</div>`;
+    parent.appendChild(card);
+  }
+
   // Trophies live inside STATS now ("HIGH SCORES") — one review tab, not two.
   // Must run AFTER renderTrends (which clears #trends).
   function renderAchievements(S) {
     const ac = $('trends');
-    ac.appendChild(el('h2', 'sec', `🏆 High scores · ${(S.achievements || []).filter((x) => x.unlocked).length} unlocked`));
+    renderBlessing(ac);
+    ac.appendChild(el('h2', 'sec', `${LX('memorials')} · ${(S.achievements || []).filter((x) => x.unlocked).length} unlocked`));
     const grid = el('div', 'ach-grid'); ac.appendChild(grid);
     (S.achievements || []).forEach((x) => {
       const meta = ACH[x.id] || { name: x.id, icon: PX.trophy, desc: '' };
@@ -1107,7 +1200,7 @@
   function renderInventory(S) {
     const iv = $('basemap');
     const inv = S.inventory || {};
-    iv.appendChild(el('h2', 'sec', '📦 Warehouse'));
+    iv.appendChild(el('h2', 'sec', LX('warehouse')));
     const wrap = el('div', 'invwrap'); iv.appendChild(wrap);
     const card = (title) => { const c = el('div', 'invcard'); c.appendChild(el('h3', null, title)); wrap.appendChild(c); return c; };
 
@@ -1425,7 +1518,7 @@
     cells.forEach((c) => { svg += isoBuilding(c.p, c.cx, c.cy, fx, fy, openByProj[c.p.id] || 0, sqByProj[c.p.id] || 0); });
     svg += '</svg>';
     const wrap = el('div', 'mapwrap');
-    wrap.appendChild(el('div', 'maphead', `<h2 class="sec">Base map · ${n} buildings</h2><div class="maplegend">${mapLegend()}</div>`));
+    wrap.appendChild(el('div', 'maphead', `<h2 class="sec">${LX('basemap_head')} · ${n} ${LX('buildings')}</h2><div class="maplegend">${mapLegend()}</div>`));
     const holder = el('div', 'mapholder'); holder.innerHTML = svg; wrap.appendChild(holder);
     bm.appendChild(wrap);
     holder.querySelectorAll('[data-pid]').forEach((grp) => {
@@ -1574,6 +1667,18 @@
     otQid = null;
   }
   { const ox = $('ot-exit'); if (ox) ox.onclick = () => exitOneThing(true); }
+
+  // ============================================================ Night's Tide
+  // Past the night hour (default 21:00, localStorage 'hq-night-hour') the html
+  // root gains .night-tide: the Nightfall palette deepens and tonight's first
+  // pick is lantern-lit. Ambient awareness only — no countdowns, no penalties.
+  function tideCheck() {
+    const hour = new Date().getHours();
+    const nightAt = parseInt(localStorage.getItem('hq-night-hour') || '21', 10);
+    document.documentElement.classList.toggle('night-tide', hour >= nightAt || hour < 5);
+  }
+  tideCheck();
+  setInterval(tideCheck, 60000);
 
   // =================================================================== boot
   buildTimeMachine();

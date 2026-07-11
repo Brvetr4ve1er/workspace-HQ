@@ -1318,3 +1318,39 @@ h2.sec.sec-fold:hover { color: var(--text); }
   border: 1px solid #8a5f22; box-shadow: 0 2px 0 #6e4b1a; border-radius: 2px;
 }
 :root[data-theme="nightfall"] #boot { display: none !important; }
+
+/* ============================================================
+   NIGHTFALL P4 — mechanics dress (tide, blessing, class sigils, night hour)
+   ============================================================ */
+/* Night's Tide: spectral water rises in aged hunt cards (--tide 0..1, set in JS).
+   Nightfall-only — other themes ignore the variable entirely. */
+:root[data-theme="nightfall"] .quest { position: relative; overflow: hidden; }
+:root[data-theme="nightfall"] .quest::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
+  height: calc(var(--tide, 0) * 100%);
+  background: linear-gradient(to top, rgba(124, 147, 168, 0.16), rgba(124, 147, 168, 0.02));
+  border-top: 1px solid rgba(124, 147, 168, 0.25);
+  transition: height 0.6s ease;
+}
+/* the night hour: void deepens, tonight's first pick is lantern-lit */
+:root[data-theme="nightfall"].night-tide body { background: #090705; }
+:root[data-theme="nightfall"].night-tide .daily3 .d3card:first-child {
+  border-color: var(--active);
+  box-shadow: 0 0 0 1px var(--active), 0 0 26px rgba(199, 139, 60, 0.30);
+}
+:root[data-theme="nightfall"].night-tide .tm-head .date::after {
+  content: " · the night deepens"; font-family: var(--term); font-size: 0.6em; color: var(--faint);
+}
+
+/* Scadutree Blessing meter (LEGACY tab) — cosmetic progression, all themes */
+.blessing { background: linear-gradient(165deg, var(--card-hi), var(--card)); border: 1px solid var(--divider); padding: 13px 16px; margin-bottom: 18px; }
+.bl-row { display: flex; align-items: center; gap: 14px; }
+.bl-frags { font-size: 15px; color: var(--gold-2); letter-spacing: 3px; }
+.bl-num { font-family: var(--term); font-size: 16px; color: var(--text); }
+.bl-buff { margin-left: auto; font-family: var(--px); font-size: 9px; color: var(--green); }
+.bl-bar { height: 7px; background: var(--ink); border: 1px solid var(--frame); border-radius: 4px; overflow: hidden; margin-top: 9px; }
+.bl-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-2)); }
+.bl-next { margin-top: 7px; font-family: var(--term); font-size: 13.5px; color: var(--faint); }
+
+/* class sigil tag (shown only when the theme lexicon enables classes) */
+.tag.class { border-color: var(--active); color: var(--active); }
