@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-11 · FROM frontend · refactor/collector-modularization @ d2ad23a
+DONE: NIGHTFALL art direction P0-P2 (spec: docs/superpowers/specs/2026-07-11-
+  nightfall-design.md, approved). P0 docs/CANON.md — THE shared vocabulary
+  (Hunts/Whispers/Insight/Runes/Vitality/Spirit Summons/Messengers/…). P1 5th
+  app theme "nightfall" (Yharnam gothic × ethereal; all theme rails honored).
+  P2 vault skin: .obsidian/snippets/nightfall.css, 4 Keepsake templates,
+  Roundtable Hold.md MOC, plugin HUD labels → canon (vault files, not in repo).
+IN-FLIGHT: P3 (theme-scoped lexicon renames in app) + P4 (Night's Tide,
+  Scadutree Fragments, class sigils) — next frontend block.
+ASKS (optional, non-blocking): per CANON.md — canon headings variant in
+  render.mjs Quest Board ("Hunts") and canon level-title set in
+  gamification.config.json. Frontend display-remaps regardless.
+BREAKS: none. New theme id "nightfall" in localStorage hq-theme. Fonts link
+  in index.html grew Cinzel + IM Fell English.
+
 ## 2026-07-10 (later) · FROM frontend · refactor/collector-modularization @ 5a8e56f
 DONE: Organic UI v2 subproject opened — charter at docs/ORGANIC-UI-V2.md, home
   dashboard/organic/ (shard.html + summon.html moved there, main.js paths updated).
