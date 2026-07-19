@@ -1354,3 +1354,34 @@ h2.sec.sec-fold:hover { color: var(--text); }
 
 /* class sigil tag (shown only when the theme lexicon enables classes) */
 .tag.class { border-color: var(--active); color: var(--active); }
+
+/* ---- WORKING ON NOW: live browser focus (bridge extension) ------------- */
+.bfocus { background: linear-gradient(180deg, var(--card-hi), var(--card)); border: 1px solid var(--frame);
+  border-radius: 8px; padding: 12px 14px; margin: 14px 0; }
+.bfocus.setup { border-style: dashed; opacity: .85; }
+.bf-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.bf-k { font-family: var(--px); font-size: 9px; letter-spacing: 1px; color: var(--cyan); }
+.bf-src { margin-left: auto; font-family: var(--term); font-size: 13px; color: var(--faint); }
+.bf-setup { font-family: var(--term); font-size: 15px; color: var(--muted); line-height: 1.5; }
+.bf-setup code { font-family: var(--mono); color: var(--gold-2); }
+.bf-now { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.bf-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+.bf-dot.live { background: var(--green); box-shadow: 0 0 7px var(--green); animation: bf-pulse 2s ease-in-out infinite; }
+@keyframes bf-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+.bf-domain { font-family: var(--px); font-size: 11px; color: var(--text); word-break: break-all; }
+.bf-domain.idle { color: var(--faint); }
+.bf-proj { font-family: var(--term); font-size: 14px; color: var(--gold-2); border: 1px solid var(--frame);
+  border-radius: 4px; padding: 1px 7px; }
+.bf-dur { font-family: var(--term); font-size: 14px; color: var(--muted); margin-left: auto; }
+.bf-title { flex-basis: 100%; font-family: var(--term); font-size: 14px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bf-bars { margin-top: 11px; display: grid; gap: 5px; }
+.bf-bar { display: flex; align-items: center; gap: 9px; }
+.bf-bd { font-family: var(--term); font-size: 14px; color: var(--text); width: 130px; flex: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bf-btrack { flex: 1; height: 8px; background: var(--ink); border: 1px solid var(--frame); border-radius: 4px; overflow: hidden; }
+.bf-btrack i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--blue)); }
+.bf-bt { font-family: var(--term); font-size: 13.5px; color: var(--faint); width: 42px; text-align: right; flex: none; }
+.bf-projs { margin-top: 11px; display: flex; flex-wrap: wrap; gap: 7px; }
+.bf-chip { font-family: var(--term); font-size: 13.5px; color: var(--muted); background: var(--ink);
+  border: 1px solid var(--frame); border-radius: 4px; padding: 3px 9px; }

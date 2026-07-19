@@ -27,6 +27,7 @@
       tab_overview: 'BASE', tab_quests: 'QUESTS', tab_spellbook: 'SPELLBOOK', tab_trends: 'STATS', tab_basemap: 'MAP',
       focus: '◎ FOCUS', stage: 'STAGE SELECT', hp_word: 'HP', streak_word: 'STREAK', xp_unit: 'XP',
       today: 'Today — pick one', pulse: 'Pulse', changes: 'Changes since', saga: '📜 Weekly Saga',
+      working_now: 'WORKING ON NOW',
       products: 'Products', arsenal: '📖 Arsenal', spells_known: 'spells known',
       familiars: '🐦‍⬛ Familiars', familiars_bound: 'bound',
       tier_red: 'Red — loss & breakage', tier_orange: 'Orange — before production', tier_yellow: 'Yellow — housekeeping',
@@ -38,6 +39,7 @@
       tab_overview: 'ROUNDTABLE', tab_quests: 'HUNTS', tab_spellbook: 'GRIMOIRE', tab_trends: 'LEGACY', tab_basemap: 'LANDS BETWEEN',
       focus: '◎ THE HUNT', stage: 'MEMORY OF GRACE', hp_word: 'VIT', streak_word: 'EMBER', xp_unit: 'RUNES',
       today: 'Tonight&#8217;s Hunt — choose one', pulse: 'Vitality', changes: 'Since last grace', saga: '📜 The Saga',
+      working_now: 'THE PURSUIT AT HAND',
       products: 'Legacy Dungeons', arsenal: '📖 Grimoire', spells_known: 'incantations known',
       familiars: '👻 Spirit Summons', familiars_bound: 'bound',
       tier_red: 'Night Hunts — loss & breakage', tier_orange: 'Blood Hunts — before production', tier_yellow: 'Ember Hunts — housekeeping',
@@ -809,6 +811,9 @@
       ov.appendChild(sc);
     }
 
+    // ---- WORKING ON NOW: live browser focus from the bridge extension ------
+    renderBrowserFocus(ov, S);
+
     // ---- folded context: pulse (KPIs) + changes — quiet until asked -------
     const avg = Math.round(S.projects.reduce((s, p) => s + p.completion.pct, 0) / S.projects.length);
     const enriched = S.scan && S.scan.enriched === true;
@@ -898,6 +903,81 @@
     // no reveal on live search redraw — cards swap instantly, no flicker
     $('psearch').oninput = (e) => { projSearch = e.target.value; drawCards(false); };
     tb.querySelectorAll('#pseg button').forEach((b) => b.onclick = () => { projFilter = b.dataset.f; renderOverview(S, prev, projById, prevProj); });
+  }
+
+  // --------------------------------------------------------- browser focus
+  // "Working On Now" — active-tab focus streamed by the WorkspaceHQ Bridge
+  // browser extension (data/browser-activity.json -> S.browser). The current
+  // line also updates in real time via the hq:browser-tab IPC ticker (Electron).
+  let liveBrowserTab = null;
+
+  function fmtDur(ms) {
+    const s = Math.round((ms || 0) / 1000);
+    if (s < 60) return s + 's';
+    const m = Math.round(s / 60);
+    if (m < 60) return m + 'm';
+    const h = m / 60;
+    return (h >= 10 ? Math.round(h) : h.toFixed(1)) + 'h';
+  }
+  function agoText(iso) {
+    if (!iso) return '';
+    const then = Date.parse(iso); if (!Number.isFinite(then)) return '';
+    const m = Math.round((Date.now() - then) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60); if (h < 24) return h + 'h ago';
+    return Math.round(h / 24) + 'd ago';
+  }
+  function bfNowHtml(cur) {
+    if (!cur) return `<span class="bf-dot"></span><span class="bf-domain idle">— idle —</span>`;
+    const proj = cur.project_name || cur.project_id || '';
+    return `<span class="bf-dot ${cur.live ? 'live' : ''}"></span>
+      <span class="bf-domain">${esc(cur.host || cur.domain || '')}</span>
+      ${proj ? `<span class="bf-proj">${esc(proj)}</span>` : ''}
+      ${cur.focus_ms ? `<span class="bf-dur">${fmtDur(cur.focus_ms)}</span>` : ''}
+      ${cur.title ? `<div class="bf-title">${esc(cur.title)}</div>` : ''}`;
+  }
+  function renderBrowserFocus(ov, S) {
+    const B = S.browser;
+    const isLatest = cur === SCANS.length - 1;
+    const now0 = (isLatest && liveBrowserTab) ? liveBrowserTab : (B && B.current);
+    if ((!B || !B.captured) && !now0) {
+      if (isLatest && isElectron) {   // one-time setup nudge, live app only
+        const hint = el('div', 'bfocus setup');
+        hint.innerHTML = `<div class="bf-head"><span class="bf-k">◉ ${LX('working_now')}</span></div>
+          <div class="bf-setup">Load the <b>WorkspaceHQ&nbsp;Bridge</b> Chrome extension (<code>browser-bridge/</code>) to see what you're building, live.</div>`;
+        ov.appendChild(hint);
+      }
+      return;
+    }
+    const card = el('div', 'bfocus');
+    card.innerHTML = `<div class="bf-head"><span class="bf-k">◉ ${LX('working_now')}</span>
+        <span class="bf-src">browser${B && B.updated ? ' · ' + agoText(B.updated) : ''}</span></div>
+      <div class="bf-now">${bfNowHtml(now0)}</div>`;
+    const doms = (B && B.by_domain) || [];
+    if (doms.length) {
+      const max = doms[0].focus_ms || 1;
+      const bars = el('div', 'bf-bars');
+      doms.slice(0, 6).forEach((d) => {
+        const row = el('div', 'bf-bar');
+        row.innerHTML = `<span class="bf-bd">${esc(d.domain)}</span>
+          <span class="bf-btrack"><i style="width:${Math.max(4, Math.round((d.focus_ms / max) * 100))}%"></i></span>
+          <span class="bf-bt">${fmtDur(d.focus_ms)}</span>`;
+        bars.appendChild(row);
+      });
+      card.appendChild(bars);
+    }
+    const projs = (B && B.by_project) || [];
+    if (projs.length) {
+      const row = el('div', 'bf-projs');
+      projs.slice(0, 5).forEach((p) => row.appendChild(el('span', 'bf-chip', `${esc(p.project_name)} · ${fmtDur(p.focus_ms)}`)));
+      card.appendChild(row);
+    }
+    ov.appendChild(card);
+  }
+  function paintBrowserLive() {
+    const node = document.querySelector('.bfocus .bf-now');
+    if (node) node.innerHTML = bfNowHtml(liveBrowserTab);
   }
 
   function gitText(g) {
@@ -1701,5 +1781,12 @@
         dbtn.onclick = () => window.hq[data.running ? 'devStop' : 'devStart'](data.id);
       }
     });
+  }
+
+  // Live browser focus ticker: seed the current tab on load, then update the
+  // "Working On Now" line on every bridge flush — no full scan required.
+  if (isElectron && window.hq.getBrowserLive) {
+    window.hq.getBrowserLive().then((l) => { liveBrowserTab = l; paintBrowserLive(); }).catch(() => {});
+    window.hq.onBrowserTab((l) => { liveBrowserTab = l; paintBrowserLive(); });
   }
 })();

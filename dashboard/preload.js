@@ -73,4 +73,11 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:machine', handler);
     return () => ipcRenderer.removeListener('hq:machine', handler);
   },
+  // browser bridge: live active-tab ticker from the WorkspaceHQ Bridge extension
+  getBrowserLive: () => ipcRenderer.invoke('hq:browser-live'),
+  onBrowserTab: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:browser-tab', handler);
+    return () => ipcRenderer.removeListener('hq:browser-tab', handler);
+  },
 });

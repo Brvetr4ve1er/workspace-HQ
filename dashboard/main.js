@@ -12,6 +12,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { spawnSync, spawn } = require('node:child_process');
+const { startBridge } = require('./browser-bridge');
 
 const DIR = __dirname;
 const SCAN_DIR = path.join(DIR, '..');
@@ -29,7 +30,19 @@ const DAILY_DIR = path.join(VAULT, '10_Daily');
 const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
 let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null;
+let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
 const activeDevServers = new Map();
+
+// Push the live browser tab (from the bridge extension) to any open windows so
+// the "Working On Now" card updates in real time, without waiting for a scan.
+function pushBrowserTab(live) {
+  for (const w of [win, miniWin]) {
+    if (w && !w.isDestroyed()) { try { w.webContents.send('hq:browser-tab', live); } catch { /* window closing */ } }
+  }
+}
+// The renderer asks for the current live tab on load (the window may open after
+// several bridge flushes have already landed).
+ipcMain.handle('hq:browser-live', () => (bridge ? bridge.readActivity()?.live || null : null));
 
 // Project paths in the data are already absolute (e.g. C:\Users\...\alliance travel);
 // only fall back to joining DOCS_ROOT for legacy relative paths. Reject anything that
@@ -1129,6 +1142,7 @@ if (!app.requestSingleInstanceLock()) {
     watchData();
     watchQuestBoard();   // two-way: ticking a quest in Obsidian completes it here
     watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
+    bridge = startBridge({ dataDir: DATA, onLive: pushBrowserTab });   // browser extension ingest
     startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
     try { globalShortcut.register('CommandOrControl+Alt+Space', openCapture); } catch (e) { console.error('capture hotkey failed:', e); }
     try { globalShortcut.register('CommandOrControl+Alt+G', openSummon); } catch (e) { console.error('summon hotkey failed:', e); }
@@ -1158,6 +1172,7 @@ if (!app.requestSingleInstanceLock()) {
     if (machineTimer) clearInterval(machineTimer);
     try { globalShortcut.unregisterAll(); } catch {}
     for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}
+    if (bridge) try { bridge.stop(); } catch {}
     // no orphaned incantations: kill any live cast trees on the way out
     for (const [, entry] of castRegistry) {
       if (entry.timer) clearTimeout(entry.timer);
