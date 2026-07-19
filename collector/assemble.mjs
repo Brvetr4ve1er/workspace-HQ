@@ -21,6 +21,7 @@ import { buildProject, deterministicCompletion, buildSideQuests } from './lib/pr
 import { deriveQuests } from './lib/quests.mjs';
 import { levelFor, rollup as gamificationRollup } from './lib/gamification.mjs';
 import { appendTrend } from './lib/trends.mjs';
+import { buildBrowser } from './lib/browser.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
@@ -249,6 +250,13 @@ const inventory = {
   duplicates,
 };
 
+// ---- browser activity (Working On Now) ----
+// data/browser-activity.json is runtime state from the WorkspaceHQ Bridge
+// extension (via the Electron ingest endpoint). Absent => an uncaptured block.
+let browserActivity = null;
+try { browserActivity = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'browser-activity.json'), 'utf8')); } catch { /* bridge not set up */ }
+const browser = buildBrowser(browserActivity, projects);
+
 // ---- side-quest feed (flattened + globally sorted for the Ideas & Risks surface) ----
 const sideQuestFeed = projects
   .flatMap((p) => (p.side_quests || []).map((sq) => ({ ...sq, project_name: p.name })))
@@ -313,6 +321,7 @@ const doc = {
   trends,
   changes_since_prev: changes,
   inventory,
+  browser,
 };
 
 const outPath = path.join(REPORTS_DIR, `Workspace Status ${TODAY}.json`);
