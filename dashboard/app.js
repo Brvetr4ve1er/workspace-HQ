@@ -793,6 +793,20 @@
       ov.appendChild(d3);
     }
 
+    // The One Thing: the single highest-leverage move, one click from focus.
+    const otAction = (typeof computeOneThing === 'function' && isLatest) ? computeOneThing(S) : null;
+    if (otAction) {
+      const otc = el('div', 'onething-card');
+      otc.innerHTML = `<div class="otc-eyebrow">◎ THE ONE THING · everything else can wait</div>
+        <div class="otc-title">${esc(otAction.title)}</div>
+        ${otAction.project_name ? `<div class="otc-proj">↳ ${esc(otAction.project_name)}</div>` : ''}
+        <div class="otc-reason">${esc(otAction.reason)}</div>
+        <div class="otc-actions"><button class="otc-focus">◎ FOCUS</button></div>`;
+      otc.querySelector('.otc-focus').onclick = () => enterOneThing(otAction);
+      aos(otc, 'fade-up');
+      ov.appendChild(otc);
+    }
+
     // Spell of the Day rides inside the TODAY module as a slim bonus ribbon
     const sotd = a.spellcraft?.spell_of_day;
     if (sotd && isLatest) {
@@ -1721,16 +1735,18 @@
   { const sc = $('share-card'); if (sc) sc.onclick = exportStatCard; }
 
   // ============================================================ One-Thing Mode
-  let otTimer = null, otStart = 0, otQid = null;
-  function enterOneThing(quest) {
-    const S = SCANS[cur], tRank = { red: 0, orange: 1, yellow: 2 };
-    const q = quest || (S.quests || []).filter((x) => x.status === 'open' || x.status === 'in_progress')
-      .sort((x, y) => (tRank[x.tier] - tRank[y.tier]) || (y.xp - x.xp))[0];
-    if (!q) return;
-    const proj = (S.projects || []).find((p) => p.id === q.project_id);
-    $('ot-quest').textContent = q.title;
-    $('ot-proj').textContent = proj ? '↳ ' + proj.name : '';
-    otQid = q.id; otStart = performance.now();
+  let otTimer = null, otStart = 0, otQid = null, otKind = null, otProj = null;
+  // Accept either an Action (from computeOneThing) or a raw quest object (legacy callers).
+  const toAction = (x) => !x ? null : (x.kind ? x
+    : { kind: 'quest', id: x.id, title: x.title, project_id: x.project_id || null, project_name: null, quest: x });
+  function enterOneThing(input) {
+    const S = SCANS[cur];
+    const act = toAction(input) || (typeof computeOneThing === 'function' ? computeOneThing(S) : null);
+    if (!act) return;
+    const projName = act.project_name || (S.projects || []).find((p) => p.id === act.project_id)?.name || '';
+    $('ot-quest').textContent = act.title;
+    $('ot-proj').textContent = projName ? '↳ ' + projName : '';
+    otQid = act.id; otKind = act.kind; otProj = act.project_id || null; otStart = performance.now();
     const tick = () => { const s = Math.floor((performance.now() - otStart) / 1000); $('ot-timer').textContent = String((s / 60) | 0).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
     tick(); clearInterval(otTimer); otTimer = setInterval(tick, 1000);
     document.body.classList.add('focus-mode');
@@ -1742,9 +1758,9 @@
     const mins = Math.round((performance.now() - otStart) / 60000);
     clearInterval(otTimer); otTimer = null;
     document.body.classList.remove('focus-mode'); ot.classList.remove('show'); ot.setAttribute('aria-hidden', 'true');
-    console.log(`[one-thing] ${mins}m focused on ${otQid}`);
-    if (done && isElectron && otQid) { SFX.coin(); window.hq.markQuestDone(otQid); }
-    otQid = null;
+    if (done && isElectron && otKind === 'quest' && otQid) { SFX.coin(); window.hq.markQuestDone(otQid); }
+    // [Task 3 inserts the acted-on ledger call here]
+    otQid = null; otKind = null; otProj = null;
   }
   { const ox = $('ot-exit'); if (ox) ox.onclick = () => exitOneThing(true); }
 
