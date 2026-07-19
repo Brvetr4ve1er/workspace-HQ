@@ -16,6 +16,7 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 | `data/quest-overrides.json` | written by `main.js` (quest-done, Obsidian sync), read by `assemble.mjs` | two-way |
 | `data/brain-dump.json` | written by capture window, read by `assemble.mjs` | routed to side-quests |
 | `data/shards.json` | runtime state of organic-UI shards — **main.js only**, not part of the scan | don't validate |
+| `data/browser-activity.json` | written by `main.js` bridge server (extension ingest), read by `assemble.mjs` → `latest.json.browser` | runtime state, **don't validate**; rolling 3-day window |
 
 ## Load-bearing fields in `latest.json` (renderer will crash/blank without these)
 
@@ -38,6 +39,10 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 - `changes_since_prev[] {type, detail, impact, notify, …}` — celebration takeover keys on
   types `level_up`, `new_achievement`, `quest_completed`
 - `inventory.{vaults, clones, anomalies, duplicates, empty, trivial}` + `archived_projects[]`, `recent_learnings[]`
+- `browser.{captured, updated, current, by_domain[], by_project[], totals}` — the "Working On Now"
+  insight from the WorkspaceHQ Bridge extension. **Additive & optional**: absent/`captured:false`
+  on scans taken before the bridge existed or when the extension isn't loaded; the renderer guards
+  for it (`renderBrowserFocus` shows a setup nudge instead of crashing). `current` may also be null.
 
 ## Pending changes
 

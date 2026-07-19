@@ -1,0 +1,32 @@
+* { box-sizing: border-box; }
+body {
+  width: 280px; margin: 0; padding: 12px 14px 14px;
+  font: 13px/1.4 system-ui, "Segoe UI", sans-serif;
+  background: #14161c; color: #e6e8ef;
+}
+header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.logo { color: #7cc7ff; font-size: 15px; }
+.name { font-weight: 600; letter-spacing: .02em; }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-left: auto; }
+.dot.on { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+.dot.off { background: #6b7280; }
+
+.now { background: #1c1f28; border: 1px solid #2a2e3a; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.now-k { font-size: 9px; letter-spacing: .12em; color: #8a90a2; }
+.now-domain { font-size: 15px; font-weight: 600; color: #7cc7ff; margin-top: 3px; word-break: break-all; }
+.now-title { font-size: 11px; color: #aab0c0; margin-top: 2px; max-height: 28px; overflow: hidden; }
+
+.stat { display: flex; gap: 8px; margin-bottom: 10px; }
+.stat > div { flex: 1; background: #1c1f28; border-radius: 6px; padding: 6px 8px; text-align: center; }
+.stat b { display: block; font-size: 15px; }
+.stat span { font-size: 9px; letter-spacing: .08em; color: #8a90a2; text-transform: uppercase; }
+
+.row { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px; }
+details { border-top: 1px solid #2a2e3a; padding-top: 8px; }
+summary { cursor: pointer; color: #aab0c0; font-size: 12px; }
+.field { display: block; font-size: 11px; color: #aab0c0; margin: 8px 0; }
+.field .hint { color: #6b7280; }
+.field input { width: 100%; margin-top: 3px; padding: 5px 7px; background: #0f1116; border: 1px solid #2a2e3a; border-radius: 5px; color: #e6e8ef; font: inherit; }
+#save { margin-top: 4px; padding: 5px 12px; background: #2563eb; border: 0; border-radius: 5px; color: #fff; cursor: pointer; }
+.saved { color: #4ade80; font-size: 11px; margin-top: 6px; min-height: 14px; }
+.err { color: #f87171; font-size: 11px; margin-top: 8px; min-height: 14px; word-break: break-all; }

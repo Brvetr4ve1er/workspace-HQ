@@ -43,3 +43,10 @@ data/brain-dump.json
 # organic-UI runtime state (positions of live desktop shards)
 data/shards.json
 data/shard-library.json
+
+# browser bridge runtime state (active-tab focus from the extension) + its token
+data/browser-activity.json
+data/.bridge-token
+
+# now-brief: regenerated each run by tools/now-brief.mjs (Claude-on-tap context)
+data/now-brief.md

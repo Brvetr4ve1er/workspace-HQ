@@ -12,6 +12,68 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-19 · FROM shared (landing) · refactor/collector-modularization @ 139db4b
+DONE: Landed the in-flight Browser Bridge / CLAUDE-ON-TAP work (previously
+  verified but sitting uncommitted in the shared tree — see the two 2026-07-16
+  entries below) as a clean 3-way split: struct (8159e5b: collector/lib/
+  browser.mjs +test, assemble.mjs), fe (139db4b: dashboard/browser-bridge.js,
+  app.js, main.js, preload.js, styles.css), meta (this commit: browser-bridge/
+  extension, tools/now-brief.mjs, CONTRACT.md, .gitignore, this handoff).
+  Re-verified before commit: collector lib suite 22/22, browser.test 5/5, diffs
+  reviewed (esc()-wrapped, latest.json.browser additive, no contract break).
+IN-FLIGHT: nothing uncommitted. Understand-Anything/ is an unrelated nested git
+  repo living in the folder — deliberately left untracked (not part of HQ).
+ASKS: unchanged — optional structure per-project browser_domains[] (below).
+BREAKS: none — all additive. Extension still needs a manual load-unpacked in
+  Chrome; running Electron app must be restarted for port 47821 to listen.
+
+## 2026-07-16 (later) · FROM shared · refactor/collector-modularization @ 663b66d
+DONE: CLAUDE-ON-TAP (browser-bridge follow-up). New `tools/now-brief.mjs` (tracked) —
+  fuses live browser focus (reuses collector/lib/browser.mjs) + per-project git (live
+  `git status` for active projects, falls back to latest.json git_safety) + open quests
+  into `data/now-brief.md`, ending with one next-action. `--json` flag for future app use.
+  New `.claude/commands/resume.md` (LOCAL — .claude/ is gitignored) = the `/resume`
+  slash command that runs the tool, reads the brief, answers what-to-resume. Verified:
+  real run picks 5 active projects w/ live git dirty counts + correct next-action;
+  browser-fed run correlates github repo path + localhost port → alliance travel.
+IN-FLIGHT: uncommitted. NOT YET DONE (queued behind this slice, user picked Claude-on-tap
+  first): (a) "Resume with Claude" dashboard button (reuse hq:claude-quest launch path,
+  frontend lane), (b) extension "ask Claude about this page" (Claude-in-Chrome + bridge
+  context). Also: the running Electron app predates the bridge server — it must be
+  RESTARTED for 47821 to listen and browser-activity.json to appear (until then now-brief
+  runs on git+quests only). Restart per CLAUDE.md.
+ASKS: none blocking. Same optional structure ask stands (per-project browser_domains[] —
+  now doubly useful: it'd let now-brief attribute tool dashboards like dash.cloudflare.com
+  to the right project instead of leaving them unmapped).
+BREAKS: none. New tracked file tools/now-brief.mjs. New gitignored runtime data/now-brief.md.
+  now-brief is READ-ONLY over latest.json + browser-activity.json — no contract change.
+
+## 2026-07-16 · FROM shared (both lanes) · refactor/collector-modularization @ 663b66d
+DONE: BROWSER BRIDGE — WorkspaceHQ now sticks to Chrome like it sticks to Obsidian.
+  New component `browser-bridge/` (MV3 Chrome extension: tracks active-tab focus,
+  batches, POSTs to a localhost endpoint). New `dashboard/browser-bridge.js` ingest
+  server on 127.0.0.1:47821 (CORS+custom-header gated, optional token), started from
+  main.js whenReady, writes `data/browser-activity.json` (rolling 3-day window) and
+  pushes a live-tab IPC ticker. Collector: `lib/browser.mjs` (+test, 4 cases green)
+  folds activity into `latest.json.browser` (current focus, by_domain, by_project via
+  dev_cmd ports + github repo slugs); wired in assemble.mjs. Frontend: "Working On Now"
+  card in app.js renderOverview (+ live ticker via new preload getBrowserLive/onBrowserTab),
+  styles.css, lexicon key working_now. Verified: bridge handshake via curl, browser.test
+  + full lib suite (21) green, assemble emits populated block, offscreen render shows the
+  card with no console errors.
+IN-FLIGHT: all uncommitted (one shared working tree). NOT yet committed — commit split
+  suggested: struct: (collector/lib/browser.mjs+test, assemble.mjs), fe: (dashboard/*),
+  meta: (browser-bridge/, docs, .gitignore). Touched BOTH lanes in one session per user
+  ask ("stick it to my browser like Obsidian"); flagging so the other session doesn't
+  collide. Extension not yet loaded in Chrome by the user (manual load-unpacked step).
+ASKS: none blocking. Optional (structure): add per-product `browser_domains[]` to
+  collector.config.json for domains that aren't a github slug or dev_cmd port (e.g.
+  almaflowclim.fr) — browser.mjs already matches host slugs, config would make it exact.
+BREAKS: none — `latest.json.browser` is ADDITIVE & optional (CONTRACT.md updated; renderer
+  guards absence). New runtime files data/browser-activity.json + data/.bridge-token
+  (gitignored, don't schema-validate). New localhost port 47821. New IPC hq:browser-live
+  / hq:browser-tab. Golden harness unaffected (additive, deterministic over file input).
+
 ## 2026-07-11 (later) · FROM frontend · refactor/collector-modularization @ 5804801
 DONE: NIGHTFALL COMPLETE (P0-P4 all shipped). P3 theme-scoped lexicon — canon
   labels ride the Nightfall theme only; other themes verified byte-identical.

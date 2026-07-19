@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <span class="logo">◆</span>
+    <span class="name">WorkspaceHQ Bridge</span>
+    <span id="dot" class="dot off" title="connection"></span>
+  </header>
+
+  <div class="now">
+    <div class="now-k">WORKING ON NOW</div>
+    <div id="now-domain" class="now-domain">—</div>
+    <div id="now-title" class="now-title"></div>
+  </div>
+
+  <div class="stat">
+    <div><b id="s-queued">0</b><span>queued</span></div>
+    <div><b id="s-conn">off</b><span>app link</span></div>
+  </div>
+
+  <label class="row">
+    <input type="checkbox" id="paused" />
+    <span>Pause capture</span>
+  </label>
+
+  <details>
+    <summary>Settings</summary>
+    <label class="field">App endpoint
+      <input type="text" id="endpoint" placeholder="http://127.0.0.1:47821" />
+    </label>
+    <label class="field">Token <span class="hint">(optional — only if you locked the app)</span>
+      <input type="text" id="token" placeholder="leave blank unless required" />
+    </label>
+    <button id="save">Save</button>
+    <div id="saved" class="saved"></div>
+  </details>
+
+  <div id="err" class="err"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
