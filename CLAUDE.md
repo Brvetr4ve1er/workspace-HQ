@@ -7,9 +7,14 @@ editing anything; append an entry there when you finish a work block.**
 
 | Lane | Owns | Commit prefix |
 |---|---|---|
-| **frontend** | `dashboard/` (all of it: app.js, main.js, *.html, styles) | `fe:` |
-| **structure** | `collector/`, `schema/`, `run-pipeline.ps1`, `scan-prompt.md` | `struct:` |
-| shared (either, announce in handoff first) | `data/` shapes, `docs/`, `.gitignore` | `meta:` |
+| **frontend** | `dashboard/` (all of it: app.js, main.js, *.html, styles), `dashboard-v3/` (NEXUS v3 parallel build), `browser-bridge/` (extension) | `fe:` |
+| **structure** | `collector/`, `schema/`, `run-pipeline.ps1`, `scan-prompt.md`, `spellbook/` (curated spell defs) | `struct:` |
+| shared (either, announce in handoff first) | `data/` shapes, `docs/`, `.gitignore`, `tools/`, `.mcp.json` | `meta:` |
+
+**NEXUS v3 program is active** — charter: `docs/superpowers/specs/2026-07-21-nexus-v3-program.md`.
+Program invariants: contract changes additive-only (v2 rollback stays one flip away);
+economy changes = struct-lane asks with CONTRACT entry + golden re-baseline; main-process
+edits gated on in-flight work landing (new main-side features go in NEW files).
 
 - Never edit the other lane's files. If you must, write the ask in HANDOFF.md instead.
 - The seam between lanes is the **data contract** — `docs/sync/CONTRACT.md`. Breaking
