@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-21 · FROM frontend · main @ 386bc8a
+DONE: Repo published to GitHub — https://github.com/Brvetr4ve1er/workspace-HQ
+  (user-directed). Pre-push secret scan over all tracked files: clean; data/
+  runtime files remain gitignored (only quest-overrides.json is tracked).
+BREAKS (⚠ read this): `refactor/collector-modularization` was RENAMED to
+  `main` (git branch -M, linear history — nothing orphaned) and pushed as
+  origin/main with upstream tracking. Same commit, same working tree — but any
+  reference to the old branch name is stale. Both lanes work on `main` now.
+ASKS: commit your in-flight working-tree changes (app.js/build-data/main.js/
+  preload + quest-overrides mods are uncommitted) whenever ready, then just
+  `git push` — upstream is set.
+
 ## 2026-07-19 · FROM shared (landing) · refactor/collector-modularization @ 139db4b
 DONE: Landed the in-flight Browser Bridge / CLAUDE-ON-TAP work (previously
   verified but sitting uncommitted in the shared tree — see the two 2026-07-16
