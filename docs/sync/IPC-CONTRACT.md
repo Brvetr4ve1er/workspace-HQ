@@ -1,0 +1,107 @@
+# IPC contract — `window.hq` bridge
+
+The single reference for every channel between the Electron main process and any
+renderer surface. **Names and argument shapes listed here are frozen for the
+whole NEXUS v3 program (additive-only).** New channels get a row here BEFORE the
+code lands, same rule as data shapes in `CONTRACT.md`.
+
+Normative sources: `dashboard/preload.js` (renderer-facing signatures) and
+`dashboard/main.js` (handlers + return shapes; line refs below drift with edits —
+grep the channel name).
+
+## The v3 swap story (why this doc exists)
+
+- **Pre-swap (M0):** `dashboard-v3/dev-main.js` registers **no** IPC handlers.
+  Ported realms must feature-detect (`window.hq?.markQuestDone`) and no-op
+  gracefully — this is what makes renderer-only screenshot parity possible.
+- **At swap:** the real `main.js` loads `dashboard-v3/index.html` with the
+  **existing** `dashboard/preload.js`. Every channel below is already
+  registered — the swap itself requires zero IPC changes.
+- `dashboard-v3/preload.js` exists only for the dev harness (`hqv3.dev = true`).
+
+## Invoke channels (renderer → main, `ipcRenderer.invoke`)
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| **Scan & project ops** | | | | |
+| `runScan()` | `hq:scan` | — | `true` (fire-and-forget; results arrive via rebuilt `data.js` + reload) | main |
+| `openRepo(relPath)` | `hq:open-repo` | project-relative path | — | main |
+| `openFile(projPath, fileRel)` | `hq:open-file` | abs project path, relative file | — | main |
+| `reclaim(projPath, dirNames)` | `hq:reclaim` | abs path, dir names[] | async result | main |
+| `snapshot(projPath, name)` | `hq:snapshot` | abs path, snapshot name | async result | main |
+| **Capture** | | | | |
+| `captureSave(text)` | `hq:capture-save` | brain-dump text | — | capture window |
+| `captureCancel()` | `hq:capture-cancel` | — | `true` (closes window) | capture window |
+| **Claude** | | | | |
+| `claudeQuest(projPath, prompt)` | `hq:claude-quest` | abs path, prompt | — (spawns terminal session) | main |
+| `draftCommit(projPath)` | `hq:draft-commit` | abs path | draft message (blocking spawnSync → MA converts) | main |
+| `doCommit(projPath, msg)` | `hq:do-commit` | abs path, message | commit result | main |
+| **Journal** | | | | |
+| `logDecision(projId, text)` | `hq:log-decision` | id, text | — | main |
+| `learn(projId, text)` | `hq:learn` | id, text | — | main |
+| **Project lifecycle** | | | | |
+| `archiveProject(id)` | `hq:archive-project` | project id | — | main |
+| `reviveProject(id)` | `hq:revive-project` | project id | — | main |
+| `orphanArchive(p)` | `hq:orphan-archive` | dir path | — | main |
+| **Quests** | | | | |
+| `markQuestDone(id)` | `hq:quest-done` | quest id | `true`/`false` | main |
+| `actedOn(entry)` | `hq:acted-on` | ledger entry object | — | main |
+| **Dev servers** | | | | |
+| `devStart(id)` | `hq:dev-start` | project id | — | main |
+| `devStop(id)` | `hq:dev-stop` | project id | — | main |
+| `killServers()` | `hq:kill-servers` | — | — | mini HUD |
+| **Notes** | | | | |
+| `saveNote(id, note)` | `hq:note-save` | project id, note text | — | main |
+| **Spellbook (casting engine)** | | | | |
+| `castSpell(id, confirmedHash, opts)` | `hq:spell-cast` | spell id, content hash (confirm gate), opts | cast start result | main + cast palette |
+| `cancelCast(id)` | `hq:spell-cancel` | spell id | — | main + cast palette |
+| `getSpellbook()` | `hq:spellbook-get` | — | spellbook object | main + cast palette |
+| `favoriteSpell(id)` | `hq:spell-favorite` | spell id | — | main |
+| `rescanSpellbook()` | `hq:spellbook-rescan` | — | async rescan result | main |
+| `getSpellTelemetry()` | `hq:spell-telemetry` | — | telemetry object | main |
+| `hideCastPalette()` | `hq:cast-palette-hide` | — | `true` (closes window) | cast palette |
+| **Organic UI (shards)** | | | | |
+| `shardSummon(text)` | `hq:shard-summon` | summon prompt | — | summon palette |
+| `shardSummonCancel()` | `hq:shard-summon-cancel` | — | `true` (closes window) | summon palette |
+| `shardClose()` | `hq:shard-close` | — (sender-scoped) | `true` | shard |
+| `shardSave(patch)` | `hq:shard-save` | patch object (sender-scoped) | — | shard |
+| `shardLibSpawn(key)` | `hq:shard-lib-spawn` | library key | — | main + shard |
+| `shardLibDelete(key)` | `hq:shard-lib-delete` | library key | — | main + shard |
+| `shardRegen()` | `hq:shard-regen` | — (sender-scoped) | — | shard |
+| **Mini HUD** | | | | |
+| `getMiniData()` | `hq:mini-data` | — | `miniPayload()` object | mini HUD |
+| `showMain()` | `hq:show-main` | — | `true` | mini HUD |
+| `miniHide()` | `hq:mini-hide` | — | `true` | mini HUD |
+| **Browser bridge** | | | | |
+| `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
+
+## Push channels (main → renderer, subscribe via `window.hq.on*`)
+
+Every subscription helper returns an **unsubscribe function** — v3 realm
+`unmount()` MUST call it (v2 never unmounts, v3 does; leaking listeners across
+realm switches is the #1 porting hazard).
+
+| Subscription | Channel | Payload | Fires when |
+|---|---|---|---|
+| `onDevStatus(cb)` | `hq:dev-status` | dev-server status | server start/stop/exit |
+| `onCastOutput(cb)` | `hq:cast-output` | stream chunk | spell process emits output |
+| `onCastDone(cb)` | `hq:cast-done` | settlement result | cast finishes |
+| `onShardInit(cb)` | `shard:init` | shard config/state | shard window boots |
+| `onMiniUpdate(cb)` | `hq:mini-update` | mini payload | mini HUD data refresh |
+| `onMachine(cb)` | `hq:machine` | machine vitals | vitals poll tick |
+| `onBrowserTab(cb)` | `hq:browser-tab` | active-tab event | bridge extension reports focus |
+
+## Rules
+
+1. **Additive-only** through the program: never rename a channel, change an arg
+   order, or repurpose a payload field. Deprecate by adding + leaving the old.
+2. **Announce first**: new channels get their row here before the handler lands.
+   Main-process handler additions are gated per program invariant 3 (new files,
+   one-line hooks) until in-flight work lands.
+3. **Feature-detect in v3**: all realm code guards `window.hq?.method` — the dev
+   harness has no handlers, and parity must hold data-only.
+4. **Unsubscribe on unmount**: any realm that subscribes stores the returned
+   disposer and calls it in `unmount()`.
+5. Planned M3+ additions (session registry, canvas, MCP-triggered scans) enter
+   this table as a `Pending` section before implementation, mirroring
+   CONTRACT.md's *Pending changes* convention.
