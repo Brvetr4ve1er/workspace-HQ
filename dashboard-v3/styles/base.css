@@ -1,0 +1,80 @@
+/* NEXUS base — shell layout + theme token contract.
+   Theme invariants (v3): themes remap the custom properties below; they NEVER
+   override positioning on #rail-left / #rail-right / #stage-wrap / #topstrip. */
+
+:root {
+  /* token contract every theme must remap (successor to v2's
+     --active/--active-arrow/--divider/--mono invariant) */
+  --bg: #07060f;
+  --bg-raised: #0d0b1a;
+  --ink: #d8d4e8;
+  --ink-dim: #7a7490;
+  --active: #ffb347;
+  --active-arrow: #ffd98a;
+  --divider: #2a2540;
+  --mono: "Cascadia Mono", "Consolas", monospace;
+  --rail-w: 64px;
+  --ambient-w: 240px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  overflow: hidden;
+}
+
+/* shell grid: sigil rail | stage | ambient rail */
+#nexus {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr var(--ambient-w);
+  height: 100vh;
+}
+
+#rail-left {
+  background: var(--bg-raised);
+  border-right: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 6px;
+}
+
+#stage-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* let the stage shrink instead of blowing out the grid */
+}
+
+#topstrip {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--divider);
+  padding: 6px 12px;
+}
+
+#stage {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+#rail-right {
+  background: var(--bg-raised);
+  border-left: 1px solid var(--divider);
+  padding: 8px;
+  overflow-y: auto;
+}
+
+/* overlay layer sits above everything; individual overlays opt into events */
+#overlays {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+#overlays > * { pointer-events: auto; }

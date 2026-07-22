@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="arcade">
+<head>
+  <meta charset="UTF-8" />
+  <!-- no eval, no remote origins; unsafe-inline styles allowed because realm
+       views set style attributes (same trade shard.html already makes) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>WorkspaceHQ — NEXUS</title>
+  <link rel="stylesheet" href="./styles/base.css" />
+</head>
+<body>
+  <div id="nexus">
+    <aside id="rail-left" aria-label="realms"></aside>
+    <div id="stage-wrap">
+      <header id="topstrip"></header>
+      <main id="stage"></main>
+    </div>
+    <aside id="rail-right" aria-label="ambient"></aside>
+  </div>
+  <div id="overlays"></div>
+
+  <!-- v2's data bundle, read-only — build-data.mjs is never touched pre-swap -->
+  <script src="../dashboard/data.js"></script>
+  <!-- ESM spike + boot: nested relative module imports over file:// -->
+  <script type="module" src="./src/core/boot.js"></script>
+</body>
+</html>
