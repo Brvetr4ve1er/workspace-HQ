@@ -1,0 +1,501 @@
+/* NEXUS chrome — v2 shell-chrome rules transcribed VERBATIM for the later
+   chrome port. None of these selectors exist in the v3 DOM yet; rules are
+   inert until chrome.js builds the nodes. v2 rule order preserved.
+   Tokens (:root + theme :root blocks) live in components.css, which loads
+   before this file. Where a v2 selector list mixed content and chrome, the
+   list was split — the split is noted at each rule. */
+
+/* ----------------------------------------------------- CRT atmosphere */
+#crt { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
+#crt::before {            /* scanlines */
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg,
+    rgba(0,0,0,.22) 0px, rgba(0,0,0,.22) 1px,
+    transparent 1px, transparent 3px);
+  mix-blend-mode: multiply;
+}
+#crt::after {             /* vignette + faint phosphor flicker */
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 58%, rgba(2,1,8,.55) 100%);
+  animation: flicker 4s infinite steps(60);
+}
+@keyframes flicker {
+  0%, 100% { opacity: 1; } 92% { opacity: 1; }
+  93% { opacity: .86; } 94% { opacity: 1; } 97% { opacity: .92; } 98% { opacity: 1; }
+}
+
+/* ----------------------------------------------------- casting log console */
+#castlog {
+  position: fixed; left: 16px; right: 16px; bottom: 34px; z-index: 70; max-height: 42vh;
+  background: rgba(2,1,8,.97); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--frame), 0 -10px 40px -18px #000;
+  display: flex; flex-direction: column;
+  transform: translateY(0); transition: transform .25s cubic-bezier(.22,1,.36,1), opacity .25s;
+}
+#castlog.hidden { transform: translateY(120%); opacity: 0; pointer-events: none; }
+.cl-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--frame);
+  font-family: var(--px); font-size: 8px; letter-spacing: 1px; color: var(--cyan); }
+.cl-head button { margin-left: auto; font-family: var(--px); font-size: 7px; padding: 4px 8px; cursor: pointer;
+  background: transparent; color: var(--muted); border: 1px solid var(--frame); }
+.cl-head .cl-clear { margin-left: auto; } .cl-head .cl-x { margin-left: 8px; }
+.cl-body { overflow-y: auto; padding: 8px 12px; }
+.cl-block { position: relative; margin-bottom: 10px; border-left: 3px solid var(--frame); padding-left: 10px; }
+.cl-block.done-ok { border-left-color: var(--green); animation: cast-ok .5s; }
+.cl-block.done-err { border-left-color: var(--red); animation: cast-err .4s; }
+@keyframes cast-ok  { 0% { background: rgba(58,255,110,.18); } 100% { background: transparent; } }
+@keyframes cast-err { 0%, 40%, 80% { transform: translateX(0); } 20% { transform: translateX(-5px); } 60% { transform: translateX(4px); } }
+.cl-pre { margin: 0; font-family: var(--term); font-size: 15px; line-height: 1.3; white-space: pre-wrap; word-break: break-word; }
+.cl-out { color: #b8ffcf; } .cl-err { color: var(--red); } .cl-sys { color: var(--cyan); } .cl-ok { color: var(--green); font-weight: bold; }
+.cl-cancel { position: absolute; top: 0; right: 0; font-family: var(--px); font-size: 7px; padding: 3px 8px;
+  cursor: pointer; background: transparent; color: var(--red); border: 1px solid var(--frame); }
+
+/* ------------------------------------------------------- dry-run confirm */
+#castconfirm { position: fixed; inset: 0; z-index: 90; display: none; background: rgba(2,1,8,.75); }
+#castconfirm.open { display: grid; place-items: center; }
+.cc-card { width: min(620px, 92vw); background: var(--panel); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--gold, #ffd23f), 0 0 40px -10px rgba(255,210,63,.5); padding: 18px 20px; }
+.cc-head { font-family: var(--px); font-size: 11px; color: var(--gold, #ffd23f); }
+.cc-why { margin-top: 10px; font-family: var(--term); font-size: 17px; color: var(--muted); }
+.cc-sec { margin-top: 14px; font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--faint); }
+.cc-cmd { margin-top: 6px; padding: 10px; background: #000; border: 1px solid var(--frame);
+  font-family: var(--term); font-size: 15px; color: var(--green); word-break: break-all; max-height: 140px; overflow-y: auto; }
+.cc-kv { margin-top: 8px; font-family: var(--term); font-size: 14px; color: var(--faint); word-break: break-all; }
+.cc-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.cc-actions button { font-family: var(--px); font-size: 9px; padding: 9px 16px; cursor: pointer; border: 2px solid var(--ink); }
+.cc-cancel { background: transparent; color: var(--muted); box-shadow: 0 0 0 1px var(--frame); }
+.cc-go { background: rgba(255,210,63,.12); color: var(--gold, #ffd23f); box-shadow: 0 0 0 1px var(--gold, #ffd23f); }
+.cc-go:hover { background: rgba(255,210,63,.25); }
+
+/* ------------------------------------------------------------ boot splash */
+#boot {
+  position: fixed; inset: 0; z-index: 300; background: #020108;
+  display: grid; place-items: center; cursor: pointer;
+  animation: crt-on .5s cubic-bezier(.23,1,.32,1);
+}
+#boot.off { opacity: 0; pointer-events: none; transition: opacity .45s; }
+#boot[hidden] { display: none; }
+@keyframes crt-on {
+  0%   { transform: scaleY(.004); filter: brightness(8); }
+  55%  { transform: scaleY(.004); filter: brightness(8); }
+  100% { transform: scaleY(1); filter: brightness(1); }
+}
+.boot-inner { text-align: center; animation: boot-in .8s .35s both; }
+@keyframes boot-in { from { opacity: 0; transform: translateY(10px); } }
+.boot-logo {
+  font-family: var(--px); font-size: clamp(22px, 4.6vw, 44px); letter-spacing: 2px; color: var(--text);
+  text-shadow: 3px 0 var(--magenta), -3px 0 var(--cyan), 0 0 26px rgba(232,230,255,.4);
+}
+.boot-logo span { color: var(--gold); text-shadow: 3px 0 var(--magenta), -3px 0 var(--cyan), 0 0 26px rgba(255,210,63,.8); }
+.boot-sub { font-family: var(--px); font-size: 9px; color: var(--faint); margin-top: 18px; letter-spacing: 3px; }
+.boot-start { font-family: var(--px); font-size: 12px; color: var(--gold-2); margin-top: 46px; animation: blink 1.05s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ----------------------------------------------------------------- topbar */
+/* v2 #topbar → v3 #topstrip. position:sticky/top dropped: #stage-wrap is a
+   non-scrolling flex column (base.css invariant — never reposition #topstrip). */
+#topstrip {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 14px 26px; z-index: 40;
+  background: linear-gradient(180deg, rgba(7,6,15,.97), rgba(7,6,15,.86));
+  backdrop-filter: blur(10px);
+  border-bottom: 2px solid var(--ink);
+  box-shadow: 0 2px 0 var(--frame);
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand .logo {
+  width: 46px; height: 46px; padding: 6px;
+  background: var(--card); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame-hi), 0 0 16px -4px rgba(0,240,255,.5);
+}
+.brand .logo svg { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.brand .title {
+  font-family: var(--px); font-size: 15px; letter-spacing: 1px; line-height: 1;
+  text-shadow: 2px 0 rgba(255,43,214,.55), -2px 0 rgba(0,240,255,.55);
+}
+.brand .title .hq { color: var(--gold); }
+.brand .subtitle { font-size: 15px; color: var(--muted); margin-top: 6px; letter-spacing: .4px; }
+/* neutralize base.css's placeholder #topstrip .brand rules (id specificity
+   would otherwise beat the v2 look above: accent-tinted .hq, bold brand) */
+#topstrip .brand { font-weight: 400; letter-spacing: normal; }
+#topstrip .brand .title .hq { color: var(--gold); }
+
+/* player HUD */
+.player { display: flex; align-items: center; gap: 20px; }
+.level-chip {
+  display: grid; place-items: center; width: 64px; padding: 7px 4px 6px;
+  background: var(--card); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 18px -6px rgba(255,210,63,.8);
+}
+.level-chip b { font-family: var(--px); font-size: 19px; color: var(--gold-2); line-height: 1.1; text-shadow: 0 0 9px rgba(255,210,63,.7); }
+.level-chip small { font-family: var(--px); font-size: 6.5px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.level-chip small:last-child { color: var(--cyan); margin-top: 3px; }
+
+.xp { width: 200px; }
+.xp-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.xp-row b { font-family: var(--px); font-size: 9px; color: var(--gold-2); }
+.xp-row .muted { font-size: 14px; color: var(--faint); }
+.xp-bar { height: 12px; background: var(--ink); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--frame); position: relative; }
+.xp-fill {
+  height: 100%; width: 0; background: linear-gradient(180deg, var(--gold-2), var(--gold) 60%, #c98f1b);
+  box-shadow: 0 0 10px rgba(255,210,63,.55);
+  transition: width .8s cubic-bezier(.22,1,.36,1);
+}
+.xp-bar::after {  /* segment notches over the fill */
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 7px, var(--ink) 7px 9px);
+  pointer-events: none;
+}
+
+.stat { text-align: center; }
+.stat label { display: block; font-family: var(--px); font-size: 7px; color: var(--muted); letter-spacing: 1px; margin-top: 5px; }
+.stat.hp { text-align: left; width: 130px; }
+.stat.hp label { margin: 0 0 5px; display: flex; align-items: baseline; gap: 7px; }
+.hpnum { font-family: var(--term); font-size: 19px; color: var(--text); line-height: .8; }
+.hp-bar { height: 12px; background: var(--ink); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--frame); position: relative; }
+.hp-fill { height: 100%; width: 0; background: linear-gradient(180deg, #7dffa3, var(--green) 60%, #1a9e43); box-shadow: 0 0 10px rgba(58,255,110,.55); transition: width .8s cubic-bezier(.22,1,.36,1), background .4s; }
+.hp-fill.warn { background: linear-gradient(180deg, #ffd27a, var(--orange) 60%, #b36f00); box-shadow: 0 0 10px rgba(255,165,2,.55); }
+.hp-fill.crit { background: linear-gradient(180deg, #ff8a93, var(--red) 60%, #b3202c); box-shadow: 0 0 10px rgba(255,71,87,.6); animation: hp-pulse 1.1s steps(2) infinite; }
+@keyframes hp-pulse { 50% { filter: brightness(1.5); } }
+.hp-bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 7px, var(--ink) 7px 9px); pointer-events: none; }
+
+.flame { display: flex; align-items: center; gap: 6px; justify-content: center; }
+.px-flame { width: 24px; height: 24px; image-rendering: pixelated; animation: flame-flick .5s steps(2) infinite; }
+@keyframes flame-flick { 50% { transform: scaleY(1.06); filter: brightness(1.18); } }
+.flame b { font-family: var(--term); font-size: 22px; color: var(--orange); text-shadow: 0 0 8px rgba(255,165,2,.6); }
+
+.sfx {
+  font-family: var(--px); font-size: 7.5px; letter-spacing: 1px; cursor: pointer;
+  color: var(--faint); background: var(--card); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame); padding: 8px 10px; transition: color .15s;
+}
+.sfx.on { color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan), 0 0 12px -4px rgba(0,240,255,.7); }
+.sfx:hover { color: var(--text); }
+
+/* ------------------------------------------------------- stage select */
+.timemachine {
+  position: sticky; top: 78px; z-index: 35;
+  padding: 12px 26px 14px;
+  background: linear-gradient(180deg, rgba(16,13,36,.97), rgba(16,13,36,.88));
+  backdrop-filter: blur(8px);
+  border-bottom: 2px solid var(--ink);
+  box-shadow: 0 2px 0 var(--frame);
+}
+.tm-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.tm-head .lbl { font-family: var(--px); font-size: 8px; letter-spacing: 2px; color: var(--magenta); text-shadow: 0 0 8px rgba(255,43,214,.5); }
+.tm-head .date { font-family: var(--term); font-size: 21px; color: var(--text); line-height: 1; }
+.tm-head .live {
+  font-family: var(--px); font-size: 6.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--green);
+  border: 2px solid var(--green); padding: 4px 8px;
+  display: inline-flex; align-items: center; gap: 6px; background: rgba(58,255,110,.07);
+  box-shadow: 0 0 10px -3px rgba(58,255,110,.7);
+}
+.tm-head .live::before { content: ""; width: 6px; height: 6px; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.tm-head .live.past { color: var(--faint); border-color: var(--frame); background: transparent; box-shadow: none; }
+.tm-head .live.past::before { background: var(--faint); box-shadow: none; animation: none; }
+.tm-head .spacer { flex: 1; }
+.tm-head .delta { font-family: var(--term); font-size: 17px; }
+
+.tm-track { display: flex; align-items: center; gap: 12px; }
+.tm-nav {
+  width: 32px; height: 32px; flex: 0 0 auto; cursor: pointer;
+  background: var(--card); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--frame);
+  color: var(--muted); display: grid; place-items: center; font-size: 12px; transition: .12s;
+}
+.tm-nav:hover:not(:disabled) { color: var(--gold-2); box-shadow: 0 0 0 2px var(--gold); }
+.tm-nav:active:not(:disabled) { transform: translateY(2px); }
+.tm-nav:disabled { opacity: .25; cursor: default; }
+.tm-rail { position: relative; flex: 1; height: 48px; }
+.tm-rail svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tm-dots { position: absolute; inset: 0; }
+.tm-dot {
+  position: absolute; transform: translate(-50%, -50%); top: 60%; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.tm-dot i { width: 10px; height: 10px; background: var(--frame); border: 2px solid var(--frame-hi); transition: .15s; display: block; }
+.tm-dot span { font-family: var(--mono); font-size: 14px; color: var(--faint); transition: .15s; white-space: nowrap; }
+.tm-dot:hover i { transform: scale(1.3) rotate(45deg); border-color: var(--gold); }
+.tm-dot:hover span { color: var(--muted); }
+.tm-dot.active i { background: var(--active); border-color: var(--active-arrow); transform: scale(1.35) rotate(45deg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--active) 25%, transparent), 0 0 14px color-mix(in srgb, var(--active) 80%, transparent); }
+.tm-dot.active span { color: var(--active-arrow); }
+
+/* --------------------------------------------------------------- footer */
+#statusbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 38; padding: 7px 26px;
+  background: rgba(7,6,15,.94); backdrop-filter: blur(8px); border-top: 2px solid var(--ink);
+  box-shadow: 0 -2px 0 var(--frame); font-family: var(--term); font-size: 15px; color: var(--faint);
+  display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+/* v2 gave <main> 64px bottom padding to clear the fixed statusbar; #stage is
+   the v3 scroll surface, so the clearance moves here. */
+#stage { padding-bottom: 64px; }
+#statusbar b { color: var(--muted); font-weight: 400; }
+.coin-blink { font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--gold-2); flex: 0 0 auto; }
+
+/* ------------------------------------------------------- responsiveness */
+/* split from v2 rule: #tabs retired from the .timemachine selector list */
+@media (max-width: 760px) {
+  #topstrip { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .player { flex-wrap: wrap; }
+  .timemachine { top: 0; position: static; }
+}
+
+/* ------------------------------------------------- reduced-motion respect */
+/* split from the v2 block: content selectors moved to components.css,
+   #tabs button.active::before retired */
+@media (prefers-reduced-motion: reduce) {
+  #crt::after, .coin-blink, .boot-start, .px-flame,
+  .hp-fill.crit, .tm-head .live::before { animation: none !important; }
+}
+
+/* --- XP juice: smooth bar tweens + HP-drop pulse --- */
+.xp-fill, .hp-fill { transition: width .55s cubic-bezier(.22, 1, .36, 1); }
+@keyframes hpdrop { 0%, 100% { filter: none; } 20% { filter: brightness(1.8) drop-shadow(0 0 6px var(--red)); } 50% { filter: brightness(.55); } }
+.hp-fill.drop { animation: hpdrop .5s ease-in-out 2; }
+
+/* --- celebration takeover --- */
+#takeover { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center;
+  background: rgba(4, 3, 12, .74); backdrop-filter: blur(4px); cursor: pointer; }
+#takeover.show { display: flex; animation: tofade .25s ease-out; }
+@keyframes tofade { from { opacity: 0; } to { opacity: 1; } }
+#confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 91; }
+.to-card { position: relative; z-index: 92; text-align: center; padding: 30px 44px; min-width: 320px; max-width: 90vw;
+  background: linear-gradient(180deg, #14102b, #0c0a1e); border: 3px solid var(--gold); border-radius: 10px;
+  box-shadow: 0 0 0 4px var(--ink), 0 0 40px rgba(255, 210, 63, .35); animation: topop .42s cubic-bezier(.18, 1.4, .4, 1); }
+@keyframes topop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+.to-big { font-family: var(--px); font-size: 30px; color: var(--gold); letter-spacing: 1px; text-shadow: 0 2px 0 #7a5a00, 0 0 18px rgba(255, 210, 63, .6); }
+.to-sub { font-family: var(--term); font-size: 22px; color: var(--text); margin-top: 14px; }
+.to-xp { font-family: var(--px); font-size: 18px; color: var(--green); margin-top: 14px; text-shadow: 0 0 10px rgba(58, 255, 110, .5); }
+.to-rows { margin-top: 16px; display: grid; gap: 6px; }
+.to-row { font-family: var(--term); font-size: 16px; color: var(--muted); display: flex; justify-content: space-between; gap: 18px; }
+.to-row b { color: var(--green); }
+.to-hint { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 18px; opacity: .8; }
+
+/* Wave 3: One-Thing Mode focus overlay */
+/* split from v2 rule: body.focus-mode main / body.focus-mode #tabs retired —
+   #stage (+ the sigil rail) is the v3 surface to dim */
+body.focus-mode .timemachine, body.focus-mode header .player,
+body.focus-mode #stage, body.focus-mode #rail-left {
+  filter: grayscale(1) brightness(.38); pointer-events: none; transition: filter .3s; }
+#onething { position: fixed; inset: 0; z-index: 95; display: none; align-items: center; justify-content: center;
+  background: rgba(4, 3, 12, .7); backdrop-filter: blur(3px); }
+#onething.show { display: flex; animation: tofade .25s ease-out; }
+.ot-card { text-align: center; padding: 34px 48px; max-width: 92vw; background: linear-gradient(180deg, #141033, #0c0a1e);
+  border: 3px solid var(--cyan); border-radius: 12px; box-shadow: 0 0 0 4px var(--ink), 0 0 50px rgba(0, 240, 255, .3); }
+.ot-eyebrow { font-family: var(--px); font-size: 9px; color: var(--cyan); letter-spacing: 1px; }
+.ot-quest { font-family: var(--term); font-size: 30px; color: var(--text); margin: 16px 0 4px; line-height: 1.2; }
+.ot-proj { font-family: var(--term); font-size: 16px; color: var(--muted); }
+.ot-timer { font-family: var(--px); font-size: 34px; color: var(--gold); margin: 18px 0; letter-spacing: 2px; text-shadow: 0 0 16px rgba(255, 210, 63, .5); }
+.ot-exit { background: var(--green); color: var(--ink); border: 0; border-radius: 5px; font-family: var(--px); font-size: 10px; padding: 13px 20px; cursor: pointer; box-shadow: 0 3px 0 #1f9e4b; }
+.ot-exit:hover { filter: brightness(1.1); }
+.ot-exit:active { transform: translateY(2px); box-shadow: 0 1px 0 #1f9e4b; }
+.ot-hint { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 16px; }
+.ot-hint b { color: var(--cyan); }
+
+/* --- Theme picker chrome (lives across all themes) --- */
+.theme-wrap { position: relative; display: inline-block; }
+.theme-btn { min-width: 96px; }
+.theme-menu {
+  display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 30;
+  min-width: 220px; background: var(--card); border: 1px solid var(--frame);
+  border-radius: 6px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55); padding: 5px;
+}
+.theme-menu.open { display: block; }
+.theme-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: 100%; padding: 9px 12px; background: transparent; border: 0; cursor: pointer;
+  color: var(--text); font-family: var(--term); text-align: left; border-radius: 4px;
+}
+.theme-opt:hover { background: var(--card-hi); }
+.theme-opt.active { background: var(--frame); border-left: 3px solid var(--active); padding-left: 9px; font-weight: 700; }
+.th-name { font-family: var(--px); font-size: 11px; letter-spacing: 0.4px; color: var(--gold); }
+.th-hint { font-family: var(--term); font-size: 11.5px; color: var(--muted); }
+
+/* Smoothen bg/font swap for the switch itself (not the crt overlay). */
+body { transition: background-color 0.35s ease, color 0.25s ease; }
+#crt { transition: opacity 0.35s ease; }
+
+/* Cross-theme .tm-dot span metric compensation — Space Mono is wider than VT323 at the
+   same px; drop 3px and tighten letter-spacing so the 29 date labels fit the timeline. */
+:root[data-theme="okami"] .tm-dot span,
+:root[data-theme="numidea"] .tm-dot span,
+:root[data-theme="ops"] .tm-dot span { font-size: 11px; letter-spacing: -0.02em; }
+
+/* Reduced-motion respect: Numidea's drift mesh + glitch shimmer disabled. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="numidea"] body::before { animation: none; }
+  :root[data-theme="numidea"] .title .hq { animation: none; }
+}
+
+/* ============================================================
+   OKAMI — chrome half (atmosphere, sticky chrome, boot kill).
+   Tokens + card/button dress are in components.css.
+   ============================================================ */
+/* kill the CRT overlay — museum, not arcade */
+:root[data-theme="okami"] #crt { opacity: 0; pointer-events: none; }
+/* aurora orbs behind everything (blur-60px purple/green/orange radials) */
+:root[data-theme="okami"] body { background: var(--bg); }
+:root[data-theme="okami"] body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(500px 500px at 12% 18%, rgba(172, 75, 255, 0.22), transparent 60%),
+    radial-gradient(400px 400px at 88% 55%, rgba(0, 199, 88, 0.14), transparent 60%),
+    radial-gradient(350px 350px at 50% 105%, rgba(254, 110, 0, 0.10), transparent 60%);
+  filter: blur(50px);
+}
+/* grain overlay (mix-blend for texture) */
+:root[data-theme="okami"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 99; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: 0.35;
+}
+/* CRITICAL: DO NOT override position on v2 #tabs / .timemachine — they are
+   baseline position: sticky. (v3 successor invariant: never override
+   positioning on #rail-left / #rail-right / #stage-wrap / #topstrip.)
+   Split from v2 rule: main dropped, #drawer/#scrim → components.css. */
+:root[data-theme="okami"] #statusbar { position: relative; z-index: 1; }
+/* bump z-index above body::before (z:0); v2 #topbar → v3 #topstrip */
+:root[data-theme="okami"] #topstrip { z-index: 41; }
+:root[data-theme="okami"] .timemachine { z-index: 36; }
+/* split from v2 rule (h2.sec / .toolbar-title → components.css) */
+:root[data-theme="okami"] .title,
+:root[data-theme="okami"] #level { letter-spacing: 0.15em; text-transform: uppercase; }
+:root[data-theme="okami"] .title { font-size: 18px; letter-spacing: 0.12em; }
+/* topbar surface — occlude aurora directly (background inherits from body which is transparent to orbs) */
+:root[data-theme="okami"] #topstrip { background: linear-gradient(180deg, #1E1623 0%, rgba(30, 22, 35, 0.92) 100%); }
+/* split from v2 rule: #tabs retired */
+:root[data-theme="okami"] .timemachine { background: rgba(30, 22, 35, 0.88); backdrop-filter: blur(10px); }
+/* boot splash out (museum doesn't boot) */
+:root[data-theme="okami"] #boot { display: none !important; }
+
+/* ============================================================
+   NUMIDEA — chrome half (mesh atmosphere, sticky chrome, glitch title).
+   ============================================================ */
+:root[data-theme="numidea"] #crt { opacity: 0; pointer-events: none; }
+:root[data-theme="numidea"] body { background: var(--bg); }
+/* drifting radial mesh — the numidea atmosphere */
+:root[data-theme="numidea"] body::before {
+  content: ""; position: fixed; inset: -20%; z-index: 0; pointer-events: none; filter: blur(8px);
+  background:
+    radial-gradient(38% 38% at 78% 12%, rgba(189, 9, 39, 0.38), transparent 60%),
+    radial-gradient(34% 34% at 12% 30%, rgba(9, 216, 199, 0.22), transparent 60%),
+    radial-gradient(46% 46% at 60% 100%, rgba(65, 30, 58, 0.65), transparent 60%),
+    radial-gradient(30% 30% at 95% 75%, rgba(80, 10, 31, 0.45), transparent 60%);
+  animation: hqmesh 22s ease-in-out infinite alternate;
+}
+/* subtle teal grid over the mesh */
+:root[data-theme="numidea"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.06;
+  background-image: linear-gradient(#09D8C7 1px, transparent 1px), linear-gradient(90deg, #09D8C7 1px, transparent 1px);
+  background-size: 84px 84px;
+}
+@keyframes hqmesh {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3%, 2%) scale(1.08); }
+  100% { transform: translate(2%, -2%) scale(1.04); }
+}
+/* CRITICAL: do NOT override position on #tabs / .timemachine (baseline sticky).
+   Split from v2 rule: main dropped, #drawer/#scrim → components.css. */
+:root[data-theme="numidea"] #statusbar { position: relative; z-index: 1; }
+:root[data-theme="numidea"] #topstrip { z-index: 41; background: linear-gradient(180deg, #0D1A2F 0%, rgba(13, 26, 47, 0.92) 100%); }
+:root[data-theme="numidea"] .timemachine { z-index: 36; background: rgba(13, 26, 47, 0.88); backdrop-filter: blur(10px); }
+:root[data-theme="numidea"] .title { font-size: 20px; letter-spacing: 0.06em; }
+/* subtle glitch shimmer on the WORKSPACEHQ title */
+:root[data-theme="numidea"] .title { position: relative; }
+:root[data-theme="numidea"] .title .hq { animation: hqGlitch 4s infinite steps(1); }
+@keyframes hqGlitch {
+  0%, 92%, 100% { text-shadow: none; transform: translate(0, 0); }
+  93% { text-shadow: 2px 0 var(--red), -2px 0 var(--cyan); transform: translate(-1px, 0); }
+  96% { text-shadow: -1px 0 var(--red), 1px 0 var(--cyan); transform: translate(1px, 0); }
+}
+:root[data-theme="numidea"] #boot { display: none !important; }
+
+/* ============================================================
+   OPS DESK — chrome half. Zero atmosphere layer.
+   ============================================================ */
+:root[data-theme="ops"] #crt { opacity: 0; pointer-events: none; }
+:root[data-theme="ops"] body { background: var(--bg); }
+:root[data-theme="ops"] .title { font-size: 24px; letter-spacing: 0.06em; }
+:root[data-theme="ops"] #boot { display: none !important; }
+
+/* ===========================================================================
+   UX DECLUTTER PASS — chrome half (collapsed STAGE SELECT, FOCUS chip,
+   SYS menu group labels, statusbar keyboard advert).
+   =========================================================================== */
+
+/* --- STAGE SELECT: one-line scrubber, rail folds --- */
+.timemachine.collapsed .tm-track { display: none; }
+.timemachine.collapsed { padding-bottom: 10px; }
+#tm-toggle {
+  font-family: var(--px); font-size: 8px; letter-spacing: 2px; color: var(--magenta);
+  background: transparent; border: 0; cursor: pointer; padding: 4px 2px;
+}
+#tm-toggle:hover { color: var(--text); }
+.tm-nav.sm { width: 24px; height: 24px; font-size: 10px; }
+.tm-live {
+  font-family: var(--px); font-size: 7px; letter-spacing: 1px; cursor: pointer;
+  color: var(--ink); background: var(--gold); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--gold-2); padding: 5px 9px;
+}
+.tm-live:hover { filter: brightness(1.12); }
+
+/* --- FOCUS chip (v2: lived in the tab bar; v3 charter: bottom of #rail-left) --- */
+.tab-focus {
+  margin-left: auto; font-family: var(--px); font-size: 9px; letter-spacing: 1px;
+  color: var(--green); background: transparent; border: 2px solid var(--frame);
+  padding: 8px 12px; cursor: pointer; transition: .15s;
+}
+.tab-focus:hover { border-color: var(--green); background: rgba(58, 255, 110, 0.08); }
+/* rail seat: vertical flow, so margin-top (not margin-left) pushes it to the
+   bottom; sized to the 52px sigil column */
+#rail-left .tab-focus {
+  margin: auto 0 4px; width: 52px; padding: 8px 2px;
+  font-size: 7px; letter-spacing: 0; text-align: center;
+}
+
+/* --- SYS menu group labels --- */
+.th-group { font-family: var(--px); font-size: 6.5px; letter-spacing: 1.5px; color: var(--faint); padding: 8px 12px 3px; }
+
+/* --- statusbar keyboard advert --- */
+#status .keys { color: var(--faint); }
+
+/* ============================================================
+   NIGHTFALL — chrome half (fog atmosphere, sticky chrome, night hour).
+   ============================================================ */
+:root[data-theme="nightfall"] #crt { opacity: 0; pointer-events: none; }
+:root[data-theme="nightfall"] body { background: var(--bg); }
+/* atmosphere: slow fog drift + vignette — ethereal, never busy */
+:root[data-theme="nightfall"] body::before {
+  content: ""; position: fixed; inset: -15%; z-index: 0; pointer-events: none; filter: blur(30px);
+  background:
+    radial-gradient(42% 34% at 22% 18%, rgba(124, 147, 168, 0.10), transparent 65%),
+    radial-gradient(38% 30% at 80% 70%, rgba(199, 139, 60, 0.07), transparent 60%),
+    radial-gradient(50% 44% at 55% 105%, rgba(166, 44, 43, 0.08), transparent 65%);
+  animation: nffog 36s ease-in-out infinite alternate;
+}
+@keyframes nffog {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-2.5%, 1.8%) scale(1.06); }
+}
+:root[data-theme="nightfall"] body::after {
+  content: ""; position: fixed; inset: 0; z-index: 99; pointer-events: none;
+  background:
+    radial-gradient(120% 100% at 50% 45%, transparent 62%, rgba(6, 4, 3, 0.55) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="nightfall"] body::before { animation: none; }
+}
+/* CRITICAL: do NOT override position on #tabs / .timemachine (baseline sticky).
+   Split from v2 rule: main dropped, #drawer/#scrim → components.css. */
+:root[data-theme="nightfall"] #statusbar { position: relative; z-index: 1; }
+:root[data-theme="nightfall"] #topstrip { z-index: 41; background: linear-gradient(180deg, #0e0b09 0%, rgba(14, 11, 9, 0.93) 100%); }
+:root[data-theme="nightfall"] .timemachine { z-index: 36; background: rgba(14, 11, 9, 0.90); backdrop-filter: blur(9px); }
+/* Cinzel metric compensation (rail): larger em-box than Press Start 2P */
+:root[data-theme="nightfall"] .title { font-size: 19px; letter-spacing: 0.10em; }
+:root[data-theme="nightfall"] .tm-dot span { font-size: 11px; letter-spacing: -0.02em; }
+:root[data-theme="nightfall"] #boot { display: none !important; }
+
+/* NIGHTFALL P4 — the night hour: void deepens (tide/lantern card dress is in
+   components.css) */
+:root[data-theme="nightfall"].night-tide body { background: #090705; }
+:root[data-theme="nightfall"].night-tide .tm-head .date::after {
+  content: " · the night deepens"; font-family: var(--term); font-size: 0.6em; color: var(--faint);
+}

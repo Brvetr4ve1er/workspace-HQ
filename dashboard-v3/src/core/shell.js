@@ -5,8 +5,8 @@ import { bus } from './bus.js';
 import { data } from './data.js';
 import { LX } from './lexicon.js';
 import { ordered, byId } from './registry.js';
-import { THEMES, applyTheme, currentTheme } from './themes.js';
-import { el, esc } from '../ui/util.js';
+import { applyTheme, currentTheme } from './themes.js';
+import { el } from '../ui/util.js';
 
 let activeId = null;
 
@@ -53,23 +53,57 @@ function refreshBadges() {
   }
 }
 
-// Topstrip: brand + a dev theme cycler. Placeholder chrome — the real Warden
-// plate (LV · Runes · Vitality · Ember) and SYS menu land with the ports.
+// Topstrip: v2's #topbar chrome verbatim — brand + Warden plate + SYS menu.
+// Structure only (static markup, built once): chrome.js wires behavior and
+// paints the live values; the ids are the contract between the two files.
 function renderTopstrip() {
   const top = document.getElementById('topstrip');
-  top.innerHTML = '';
-  top.appendChild(el('span', 'brand', 'WORKSPACE<span class="hq">HQ</span> · NEXUS'));
-  const built = data.bundle.built_at ? esc(String(data.bundle.built_at).slice(0, 10)) : '—';
-  top.appendChild(el('span', 'built', `data ${built} · ${data.scans.length} scans`));
-  const themeBtn = el('button', 'theme-cycle', `◈ ${THEMES[currentTheme()]?.label || 'ARCADE'}`);
-  themeBtn.title = 'Cycle theme (dev placeholder for the SYS menu)';
-  themeBtn.onclick = () => {
-    const ids = Object.keys(THEMES);
-    const next = ids[(ids.indexOf(currentTheme()) + 1) % ids.length];
-    applyTheme(next);
-    themeBtn.innerHTML = `◈ ${THEMES[next].label}`;
-  };
-  top.appendChild(themeBtn);
+  top.innerHTML = `
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- pixel monitor glyph -->
+        <svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="1" y="2" width="14" height="10" fill="#1b1640"/><rect x="2" y="3" width="12" height="8" fill="#0c0a1e"/><rect x="3" y="4" width="6" height="2" fill="#00f0ff"/><rect x="3" y="7" width="9" height="1" fill="#ff2bd6"/><rect x="3" y="9" width="4" height="1" fill="#ffd23f"/><rect x="6" y="12" width="4" height="1" fill="#1b1640"/><rect x="4" y="13" width="8" height="1" fill="#1b1640"/></svg>
+      </div>
+      <div>
+        <div class="title">WORKSPACE<span class="hq">HQ</span></div>
+        <div class="subtitle" id="scan-date">—</div>
+      </div>
+    </div>
+
+    <div class="player">
+      <div class="level-chip"><small>LV</small><b id="level">–</b><small id="title-rank">—</small></div>
+      <div class="xp">
+        <div class="xp-row"><b id="xp-label">0 XP</b><span class="muted" id="xp-next">—</span></div>
+        <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
+      </div>
+      <div class="stat hp">
+        <label><span id="hp-word">HP</span> <b id="health" class="hpnum">0</b></label>
+        <div class="hp-bar" id="hp-bar"><div class="hp-fill" id="hp-fill"></div></div>
+      </div>
+      <div class="stat">
+        <div class="flame" id="flame">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" class="px-flame"><rect x="7" y="1" width="2" height="2" fill="#ffa502"/><rect x="6" y="3" width="4" height="2" fill="#ffa502"/><rect x="5" y="5" width="6" height="3" fill="#ff6348"/><rect x="4" y="8" width="8" height="4" fill="#ff4757"/><rect x="6" y="9" width="4" height="4" fill="#ffd23f"/><rect x="5" y="12" width="6" height="2" fill="#ff6348"/></svg>
+          <b id="streak">0</b>
+        </div>
+        <label id="streak-word">STREAK</label>
+      </div>
+      <!-- One SYS menu instead of three sibling utility buttons: status stays glanceable,
+           config lives one click away (accent-budget + declutter rule). -->
+      <div class="theme-wrap">
+        <button id="theme-btn" class="sfx theme-btn" title="Themes · card export · sound">◈ SYS</button>
+        <div id="theme-menu" class="theme-menu" role="menu">
+          <div class="th-group">THEME</div>
+          <button data-theme="arcade" class="theme-opt"><span class="th-name">ARCADE</span><span class="th-hint">CRT · pixel · phosphor</span></button>
+          <button data-theme="okami" class="theme-opt"><span class="th-name">OKAMI</span><span class="th-hint">streetwear · void purple</span></button>
+          <button data-theme="numidea" class="theme-opt"><span class="th-name">NUMIDEA</span><span class="th-hint">editorial · mesh · glitch</span></button>
+          <button data-theme="ops" class="theme-opt"><span class="th-name">OPS DESK</span><span class="th-hint">cream · utility · quiet</span></button>
+          <button data-theme="nightfall" class="theme-opt"><span class="th-name">NIGHTFALL</span><span class="th-hint">yharnam gothic · lands between</span></button>
+          <div class="th-group">TOOLS</div>
+          <button id="share-card" class="theme-opt"><span class="th-name">◈ EXPORT CARD</span><span class="th-hint">shareable stat PNG</span></button>
+          <button id="sfx-toggle" class="theme-opt"><span class="th-name">♪ OFF</span><span class="th-hint">chiptune sound effects</span></button>
+        </div>
+      </div>
+    </div>`;
 }
 
 export function startShell(defaultRealm) {

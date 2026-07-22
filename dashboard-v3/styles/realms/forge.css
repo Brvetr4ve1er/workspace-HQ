@@ -1,0 +1,5 @@
+/* THE FORGE — no realm-private rules yet. Every surface this realm renders
+   (.toolbar/#psearch, .grid/.card/.cdevbtn/.tag.class, .bfocus browser focus,
+   and the shared #drawer/.dwr-* machinery) is styled by the components.css
+   extraction from v2 styles.css. Add forge-ONLY selectors here; never
+   re-declare shared ones (last-loaded wins and drifts other realms). */

@@ -3,16 +3,21 @@
    override positioning on #rail-left / #rail-right / #stage-wrap / #topstrip. */
 
 :root {
-  /* token contract every theme must remap (successor to v2's
-     --active/--active-arrow/--divider/--mono invariant) */
+  /* The shell CONSUMES v2's theme token contract (components.css :root and
+     the :root[data-theme=*] blocks load after this file and win) — so the
+     rail/topstrip ride every theme automatically. Values here are only
+     fallbacks for a broken/missing components.css. Semantics per v2:
+     --text/--muted = text · --panel = raised surface · --ink = NES frame
+     black (NOT text) · themes must remap --active/--active-arrow/--divider/--mono. */
   --bg: #07060f;
-  --bg-raised: #0d0b1a;
-  --ink: #d8d4e8;
-  --ink-dim: #7a7490;
-  --active: #ffb347;
-  --active-arrow: #ffd98a;
-  --divider: #2a2540;
-  --mono: "Cascadia Mono", "Consolas", monospace;
+  --panel: #100d24;
+  --text: #e8e6ff;
+  --muted: #9a93c9;
+  --active: #ffd23f;
+  --active-arrow: #ffd23f;
+  --divider: #322a5e;
+  --term: "VT323", "Cascadia Code", Consolas, monospace;
+  /* v3 shell-only tokens (no v2 counterpart — safe namespace) */
   --rail-w: 64px;
   --ambient-w: 240px;
 }
@@ -23,8 +28,8 @@ html, body { height: 100%; }
 
 body {
   background: var(--bg);
-  color: var(--ink);
-  font-family: var(--mono);
+  color: var(--text);
+  font-family: var(--term);
   overflow: hidden;
 }
 
@@ -36,7 +41,7 @@ body {
 }
 
 #rail-left {
-  background: var(--bg-raised);
+  background: var(--panel);
   border-right: 1px solid var(--divider);
   display: flex;
   flex-direction: column;
@@ -64,7 +69,7 @@ body {
 }
 
 #rail-right {
-  background: var(--bg-raised);
+  background: var(--panel);
   border-left: 1px solid var(--divider);
   padding: 8px;
   overflow-y: auto;
@@ -77,8 +82,8 @@ body {
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
-  color: var(--ink-dim);
-  font-family: var(--mono);
+  color: var(--muted);
+  font-family: var(--term);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -86,7 +91,7 @@ body {
   gap: 2px;
   position: relative;
 }
-.sigil:hover { color: var(--ink); border-color: var(--divider); }
+.sigil:hover { color: var(--text); border-color: var(--divider); }
 .sigil.active { color: var(--active); border-color: var(--active); }
 .sigil .glyph { font-size: 18px; line-height: 1; }
 .sigil .lbl { font-size: 7px; letter-spacing: 0.04em; text-align: center; }
@@ -104,13 +109,13 @@ body {
 #topstrip { display: flex; align-items: center; gap: 12px; }
 #topstrip .brand { font-weight: 700; letter-spacing: 0.06em; }
 #topstrip .brand .hq { color: var(--active); }
-#topstrip .built { color: var(--ink-dim); font-size: 11px; flex: 1; }
+#topstrip .built { color: var(--muted); font-size: 11px; flex: 1; }
 #topstrip .theme-cycle {
   background: none;
   border: 1px solid var(--divider);
   border-radius: 4px;
-  color: var(--ink);
-  font-family: var(--mono);
+  color: var(--text);
+  font-family: var(--term);
   font-size: 11px;
   padding: 3px 8px;
   cursor: pointer;
@@ -119,7 +124,7 @@ body {
 
 /* --- stub views ----------------------------------------------------------- */
 .port-pending .sec { color: var(--active); margin-bottom: 8px; }
-.port-pending .muted { color: var(--ink-dim); font-size: 12px; margin-top: 4px; }
+.port-pending .muted { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
 /* overlay layer sits above everything; individual overlays opt into events */
 #overlays {

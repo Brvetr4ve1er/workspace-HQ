@@ -16,10 +16,41 @@
   <link rel="stylesheet" href="./styles/fx.css" />
 </head>
 <body>
+  <!-- CRT atmosphere: scanlines + vignette + faint phosphor flicker (pure CSS, pointer-events none) -->
+  <div id="crt" aria-hidden="true"></div>
+
+  <!-- boot splash: shows once per session, dismissed by click/key or auto after the power-on animation -->
+  <div id="boot" aria-hidden="true">
+    <div class="boot-inner">
+      <div class="boot-logo">WORKSPACE<span>HQ</span></div>
+      <div class="boot-sub">PERSONAL OPS CONSOLE — v2</div>
+      <div class="boot-start">PRESS START</div>
+    </div>
+  </div>
+
   <div id="nexus">
     <aside id="rail-left" aria-label="realms"></aside>
     <div id="stage-wrap">
       <header id="topstrip"></header>
+
+      <!-- ====== STAGE SELECT: one-line scrubber by default; the dot rail is a power
+           feature that unfolds on demand (and auto-unfolds when viewing the past). ====== -->
+      <div class="timemachine collapsed" id="timemachine">
+        <div class="tm-head">
+          <button class="lbl" id="tm-toggle" title="Expand the snapshot rail">▸ STAGE SELECT</button>
+          <button class="tm-nav sm" id="tm-prev" title="Older (←)">◀</button>
+          <span class="date" id="tm-date">—</span>
+          <button class="tm-nav sm" id="tm-next" title="Newer (→)">▶</button>
+          <span class="live" id="tm-badge">live</span>
+          <button class="tm-live" id="tm-live" title="Jump back to the latest scan">⏎ BACK TO LIVE</button>
+          <span class="spacer"></span>
+          <span class="delta" id="tm-delta"></span>
+        </div>
+        <div class="tm-track">
+          <div class="tm-rail"><svg id="tm-spark"></svg><div class="tm-dots" id="tm-dots"></div></div>
+        </div>
+      </div>
+
       <main id="stage"></main>
     </div>
     <aside id="rail-right" aria-label="ambient"></aside>
@@ -30,6 +61,11 @@
     <div id="scrim"></div>
     <aside id="drawer"></aside>
   </div>
+
+  <footer id="statusbar">
+    <span class="coin-blink">● INSERT COIN</span>
+    <span id="status">loading…</span>
+  </footer>
 
   <!-- v2's data bundle, read-only — build-data.mjs is never touched pre-swap -->
   <script src="../dashboard/data.js"></script>

@@ -1,0 +1,8 @@
+/* HUNTS realm — quest board. Every board rule (.qboard/.qcol/.quest/.qbtn/.sq/
+   .qdone-strip + all theme dress incl. Night's Tide) is v2-verbatim in
+   components.css. This file only rebuilds the content box the board rendered
+   inside in v2 — main { max-width: 1280px; margin: 0 auto; padding: 22px 26px
+   64px } plus .tab's entry fade. #stage already pads 12px; the wrapper's
+   padding makes up the difference. */
+.hunts { max-width: 1280px; margin: 0 auto; padding: 10px 14px 52px; animation: hunts-in .3s ease; }
+@keyframes hunts-in { from { opacity: 0; transform: translateY(6px); } }

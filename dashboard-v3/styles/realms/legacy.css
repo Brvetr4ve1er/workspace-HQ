@@ -1,0 +1,9 @@
+/* LEGACY realm (v2 STATS tab) — intentionally no realm-scoped rules yet.
+   Every surface this realm renders was extracted VERBATIM from v2 styles.css
+   into components.css and is shared with other consumers:
+     .charts / .chart / .legend        — trend charts (chartCard/lineChart/stackedBar)
+     .blessing / .bl-*                 — Completion grove / Scadutree Blessing card
+     .ach-grid / .ach / .pbar / .pnum  — trophy grid + progress feet
+     h2.sec                            — section headers
+   Rules added here later must be scoped under .realm-legacy so they never leak
+   into other realms. */

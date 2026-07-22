@@ -1,0 +1,7 @@
+/* LANDS BETWEEN — realm-local styles.
+   Every rule the MAP tab needs already lives in styles/components.css as
+   verbatim v2 extractions, because both blocks are shared surfaces:
+     - warehouse:  .invwrap .invcard .invrow .pill (+ theme overrides)
+     - base map:   .mapwrap .maphead .maplegend(.penn) .mapholder .isomap(.bld/.blab)
+   Duplicating them here would fork the parity source of truth — this file
+   stays empty until a lands-ONLY rule exists. */

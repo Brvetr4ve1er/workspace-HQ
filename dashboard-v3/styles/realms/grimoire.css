@@ -1,0 +1,8 @@
+/* GRIMOIRE realm — spellbook. No realm-local rules needed: every v2 selector
+   this realm renders is already extracted verbatim into shared sheets —
+   components.css (.spellcard/.sp-*/.pips/.sch-chip*/.collmeter/.cm-*/
+   .famshelf/.familiar/.fam-*/.spdrawer/.spd-*/.sec-acts/.sec-btn/.toolbar/
+   .empty-note + nightfall overrides) and chrome.css (#castlog/.cl-*,
+   #castconfirm/.cc-*). Add grimoire-only rules here; never re-declare shared
+   selectors (realms.css imports after components.css, so duplicates would
+   silently win the cascade and drift parity). */
