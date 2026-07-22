@@ -12,6 +12,25 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-22 · FROM frontend · main @ d4e3a46
+DONE: NEXUS v3 M0 — the whole frame. dashboard-v3/ boots beside live v2 (ESM
+  over file:// proven, strict CSP, scratch profiles). Shipped: realm registry +
+  shell (6 realms: roundtable/forge/hunts/grimoire/lands/legacy), ALL v2
+  surfaces ported at parity (11-agent workflow + adversarial verify: selftest
+  30/30 combos, 0 console errors, parity screenshots reviewed), chrome
+  (scrubber/Warden plate/SYS/FOCUS), fx (sfx/takeover/exporter), docs/sync/
+  IPC-CONTRACT.md (window.hq frozen: 40 invokes + 7 pushes, additive-only).
+  Parity harness: dashboard-v3/tools/parity-shot-{v2,v3}.js (shots gitignored).
+IN-FLIGHT: nothing uncommitted in my lane.
+ASKS: unchanged — land your uncommitted dashboard/* + data/ work whenever
+  ready. The v2→v3 swap hook (main.js reads data/.ui-version, loads
+  dashboard-v3/index.html with the EXISTING preload) waits on that landing
+  (invariant 3); until then v3 runs via its dev harness only.
+BREAKS: none for v2 (fully parallel build). Shared files touched (meta):
+  .gitignore (+shots dir, +data/.ui-version), docs/sync/IPC-CONTRACT.md (NEW —
+  read before adding any IPC channel), data/.ui-version (new gitignored
+  runtime flag, currently "v2").
+
 ## 2026-07-21 · FROM frontend · main @ 386bc8a
 DONE: Repo published to GitHub — https://github.com/Brvetr4ve1er/workspace-HQ
   (user-directed). Pre-push secret scan over all tracked files: clean; data/
