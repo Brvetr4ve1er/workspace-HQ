@@ -6,7 +6,9 @@ const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 const os = require('node:os');
 
-app.setPath('userData', path.join(os.tmpdir(), 'hq-v3-dev-profile'));
+// HQ_V3_PROFILE lets concurrent harness runs (parity shots, agent verifies)
+// use separate Chromium profiles instead of colliding on one lock
+app.setPath('userData', path.join(os.tmpdir(), process.env.HQ_V3_PROFILE || 'hq-v3-dev-profile'));
 
 function create() {
   const win = new BrowserWindow({

@@ -8,6 +8,12 @@
         content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
   <title>WorkspaceHQ — NEXUS</title>
   <link rel="stylesheet" href="./styles/base.css" />
+  <!-- components.css = realm-content rules extracted from v2 styles.css;
+       realms.css @imports per-realm files; fx.css = takeover/confetti/sfx UI -->
+  <link rel="stylesheet" href="./styles/components.css" />
+  <link rel="stylesheet" href="./styles/chrome.css" />
+  <link rel="stylesheet" href="./styles/realms.css" />
+  <link rel="stylesheet" href="./styles/fx.css" />
 </head>
 <body>
   <div id="nexus">
@@ -18,7 +24,12 @@
     </div>
     <aside id="rail-right" aria-label="ambient"></aside>
   </div>
-  <div id="overlays"></div>
+  <div id="overlays">
+    <!-- pre-seeded overlay anchors (v2 siblings); realm/fx code creates its
+         own nodes programmatically — only chrome.js edits this file further -->
+    <div id="scrim"></div>
+    <aside id="drawer"></aside>
+  </div>
 
   <!-- v2's data bundle, read-only — build-data.mjs is never touched pre-swap -->
   <script src="../dashboard/data.js"></script>

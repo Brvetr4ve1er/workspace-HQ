@@ -1,0 +1,8 @@
+/* Realm style loader — one @import per realm so port agents never touch a
+   shared file. Empty realm files are fine; ports fill their own. */
+@import './realms/roundtable.css';
+@import './realms/forge.css';
+@import './realms/hunts.css';
+@import './realms/grimoire.css';
+@import './realms/lands.css';
+@import './realms/legacy.css';

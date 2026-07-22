@@ -29,6 +29,14 @@ register(legacyM, legacyV);
 
 startShell('roundtable');
 
+// chrome (scrubber/statusbar/SYS/warden plate) and fx (takeover/confetti/sfx/
+// card exporter) are ported by dedicated agents; boot tolerates their absence
+// so no port ever has to edit this file.
+try { const m = await import('./chrome.js'); m.initChrome?.(); }
+catch (err) { console.warn('[boot] chrome not ready:', err.message); }
+try { const m = await import('../fx.js'); m.initFx?.(); }
+catch (err) { console.warn('[boot] fx not ready:', err.message); }
+
 // Debug/harness handle — the parity screenshot harness drives realm + theme
 // switches through this instead of synthesizing clicks.
 window.NEXUS = { switchRealm, applyTheme, THEMES, ordered };
@@ -50,6 +58,8 @@ if (new URLSearchParams(location.search).get('selftest')) {
       try {
         switchRealm(manifest.id);
         seen.push(`${themeId}/${manifest.id}`);
+        const stage = document.getElementById('stage');
+        console.log(`SELFTEST-REALM ${themeId}/${manifest.id} nodes=${stage.childElementCount} chars=${stage.innerHTML.length}`);
       } catch (err) { errors++; console.error('[selftest] realm', themeId, manifest.id, err); }
     }
   }
