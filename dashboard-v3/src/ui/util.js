@@ -1,5 +1,25 @@
-// Shared formatters — realm ports pull from here instead of re-inlining
-// the v2 helpers scattered through dashboard/app.js.
+// Shared renderer helpers — el/esc/mdLite/COL are VERBATIM ports from
+// dashboard/app.js (parity requirement: every realm port pulls from here
+// instead of re-inlining them). fmt/clock/dur are v3 additions.
+
+export const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+export const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Minimal markdown for LLM-written text (Weekly Saga). Escapes EVERYTHING first,
+// then rebuilds only headings/bold/bullets from the escaped text — raw HTML in the
+// input can never reach the DOM as markup.
+export const mdLite = (md) => esc(md)
+  .split('\n')
+  .map((l) => {
+    if (/^###?\s+/.test(l)) return `<div class="md-h">${l.replace(/^###?\s+/, '')}</div>`;
+    if (/^[-*]\s+/.test(l)) return `<div class="md-li">▸ ${l.replace(/^[-*]\s+/, '')}</div>`;
+    return l ? `<div class="md-p">${l}</div>` : '';
+  })
+  .join('')
+  .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+
+export const COL = { red: '#ff4757', orange: '#ffa502', yellow: '#ffe14d', green: '#3aff6e', blue: '#4d9fff', purple: '#b14aff', cyan: '#00f0ff', pink: '#ff6bcb', gold: '#ffd23f', low: '#3aff6e', medium: '#ffa502', high: '#ff4757' };
 
 // thousands-separated integer: 12345 -> "12,345"
 export function fmt(n) {

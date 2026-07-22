@@ -20,7 +20,9 @@ function create() {
   if (process.argv.includes('--smoke')) {
     win.webContents.on('did-finish-load', () => setTimeout(() => app.quit(), 1500));
   }
-  win.loadFile(path.join(__dirname, 'index.html'));
+  // --selftest rides into the renderer as a query param (no preload needed)
+  const query = process.argv.includes('--selftest') ? { selftest: '1' } : undefined;
+  win.loadFile(path.join(__dirname, 'index.html'), query ? { query } : undefined);
 }
 
 app.whenReady().then(create);
