@@ -10,6 +10,7 @@ import { bus } from './core/bus.js';
 import { data } from './core/data.js';
 import { el, esc } from './ui/util.js';
 import { setSfx, ACH, castBlocks, castlogLine, showCastlog } from './ui/components.js';
+import { voiceLine } from './lexicon/voice.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -78,7 +79,7 @@ function fireConfetti(durationMs) {
   };
   confettiRaf = requestAnimationFrame(tick);
 }
-function celebrate(items) {
+function celebrate(items, seed = '') {
   if (!items || !items.length) return;
   const to = $('takeover'), card = $('to-card'); if (!to || !card) return;
   const lvl = items.find((c) => c.type === 'level_up');
@@ -90,7 +91,9 @@ function celebrate(items) {
   const rows = [];
   if (quests.length) rows.push(`<div class="to-row">✓ ${quests.length} quest${quests.length > 1 ? 's' : ''} complete</div>`);
   ach.forEach((c) => rows.push(`<div class="to-row"><span>${esc(c.icon || '🏆')} ${esc(c.name || c.achievement_id)}</span><b>+${c.xp || 0}</b></div>`));
-  card.innerHTML = `<div class="to-big">${big}</div><div class="to-sub">${sub}</div>${xpGain ? `<div class="to-xp">+${xpGain} XP</div>` : ''}${rows.length ? `<div class="to-rows">${rows.join('')}</div>` : ''}<div class="to-hint">click to dismiss</div>`;
+  // voice pack line — theme-scoped flavor, deterministic per (seed, event)
+  const voice = voiceLine(lvl ? 'level_up' : ach.length ? 'new_achievement' : 'quest_completed', seed);
+  card.innerHTML = `<div class="to-big">${big}</div><div class="to-sub">${sub}</div>${voice ? `<div class="to-voice">${esc(voice)}</div>` : ''}${xpGain ? `<div class="to-xp">+${xpGain} XP</div>` : ''}${rows.length ? `<div class="to-rows">${rows.join('')}</div>` : ''}<div class="to-hint">click to dismiss</div>`;
   to.classList.add('show'); to.setAttribute('aria-hidden', 'false');
   fireConfetti(2800);
   (lvl || ach.length) ? sfx('levelup') : sfx('coin');
@@ -117,7 +120,7 @@ function maybeCelebrate(S) {
   const sig = S.scan.id + '|' + items.map((c) => c.type + (c.quest_id || c.achievement_id || c.level || '')).sort().join(',');
   if (localStorage.getItem('hq-celebrated') === sig) return;   // already celebrated this exact set
   localStorage.setItem('hq-celebrated', sig);
-  celebrate(items);
+  celebrate(items, S.scan.id);
 }
 
 // ============================================================ shareable stat card (PNG)

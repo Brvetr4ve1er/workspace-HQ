@@ -1,0 +1,33 @@
+{
+  "level_up": [
+    "the runes take shape — rise, Warden",
+    "another grace kindled",
+    "strength wells up from within"
+  ],
+  "quest_completed": [
+    "prey slaughtered",
+    "the hunt is done — for now",
+    "a whisper falls silent"
+  ],
+  "new_achievement": [
+    "a memorial is raised",
+    "insight gained",
+    "the messengers bring a gift"
+  ],
+  "cast_ok": [
+    "the incantation holds",
+    "so it is willed"
+  ],
+  "cast_fail": [
+    "the spell fizzles — the night resists",
+    "not yet. the runes refuse"
+  ],
+  "break_nudge": [
+    "rest at the bonfire, Warden",
+    "even hunters must breathe"
+  ],
+  "ambient": [
+    "the tide is patient",
+    "embers drift in the dark"
+  ]
+}

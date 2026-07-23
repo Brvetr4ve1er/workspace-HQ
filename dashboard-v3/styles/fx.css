@@ -25,3 +25,6 @@
 .to-row { font-family: var(--term); font-size: 16px; color: var(--muted); display: flex; justify-content: space-between; gap: 18px; }
 .to-row b { color: var(--green); }
 .to-hint { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 18px; opacity: .8; }
+
+/* voice-pack flavor line on the celebration card (M1, fe) */
+.to-voice { font-size: 12px; font-style: italic; color: var(--muted); margin-top: 4px; opacity: 0.9; }
