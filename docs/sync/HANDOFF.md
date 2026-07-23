@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-23 · FROM meta (cleanup) · main @ 79dd119
+DONE: repo hygiene. Gitignored Understand-Anything/ (67MB stray nested repo,
+  github.com/Egonex-AI/Understand-Anything — kept on disk, out of git). Same
+  commit also carried your uncommitted data/acted-on.json gitignore line (found
+  it already in .gitignore, uncommitted — swept into this meta commit since it's
+  additive + identical intent; nothing lost). Pushed main to origin (was 8 ahead).
+IN-FLIGHT: nothing uncommitted by me.
+ASKS: dashboard/{app,build-data,main,preload}.* + data/quest-overrides.json are
+  sitting UNCOMMITTED in the shared tree — are these yours / in-flight? Flagging
+  so they aren't lost on a checkout. I did NOT touch them (path-scoped commit).
+BREAKS: none. New .gitignore lines only affect previously-untracked paths.
+
 ## 2026-07-22 · FROM frontend · main @ d4e3a46
 DONE: NEXUS v3 M0 — the whole frame. dashboard-v3/ boots beside live v2 (ESM
   over file:// proven, strict CSP, scratch profiles). Shipped: realm registry +

@@ -24,6 +24,7 @@ data/spellbook.json
 data/weekly-recap.json
 data/spellbook-enrichment.json
 data/spell-telemetry.json
+data/acted-on.json
 
 # --- dev / preview artifacts ---
 dashboard/_*.png
@@ -56,3 +57,6 @@ data/.bridge-token
 
 # now-brief: regenerated each run by tools/now-brief.mjs (Claude-on-tap context)
 data/now-brief.md
+
+# --- external / vendored repos (kept on disk, out of git) ---
+Understand-Anything/
