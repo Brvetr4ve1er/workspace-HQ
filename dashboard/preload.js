@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('hq', {
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
   actedOn: (entry) => ipcRenderer.invoke('hq:acted-on', entry),
   getActedOn: () => ipcRenderer.invoke('hq:acted-on-read'),
+  // M2: MED-BAY — live PC-health scan + whitelisted safe fix runner
+  healthScan: () => ipcRenderer.invoke('hq:health-scan'),
+  healthFix: (command) => ipcRenderer.invoke('hq:health-fix', command),
   // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
   getCanvas: () => ipcRenderer.invoke('hq:canvas-read'),
   canvasAdd: (name, node) => ipcRenderer.invoke('hq:canvas-add', name, node),

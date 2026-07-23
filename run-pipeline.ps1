@@ -36,6 +36,9 @@ $steps = @( @{ name = 'collector'; args = @((Join-Path $collector 'collector.mjs
 # Spellbook catalog refresh: read-only discovery of skills/scripts/tasks/MCP into
 # data/spellbook.json. Optional — a broken schtasks query must never block the scan.
 $steps += @{ name = 'spellbook'; args = @((Join-Path $collector 'spellbook.mjs')); optional = $true }
+# PC-health probe: unelevated Windows vitals into data/pc-health.json for Med-Bay.
+# Optional — a slow/blocked WMI query must never hold up the scan.
+$steps += @{ name = 'pc-health'; args = @((Join-Path $collector 'pc-health.mjs')); optional = $true }
 if (-not $NoEnrich) { $steps += @{ name = 'enrich'; args = @((Join-Path $collector 'enrich.mjs'), '--reports-dir', $ReportsDir); optional = $true } }
 $steps += @{ name = 'assemble'; args = @((Join-Path $collector 'assemble.mjs'), '--date', $Date, '--reports-dir', $ReportsDir) }
 $steps += @{ name = 'render';   args = @((Join-Path $collector 'render.mjs'), '--in', $latest, '--out', $mdOut) }

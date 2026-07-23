@@ -989,6 +989,29 @@ ipcMain.handle('hq:canvas-add', (_e, name, node) => {
   } catch { /* canvas dir unwatchable — reads still work */ }
 }
 
+// ---- MED-BAY (M2): live PC-health scan + safe fix runner -----------------
+const PC_HEALTH_FILE = path.join(DATA, 'pc-health.json');
+function readPcHealth() { try { return JSON.parse(fs.readFileSync(PC_HEALTH_FILE, 'utf8')); } catch { return null; } }
+// RE-EXAMINE: re-run the unelevated probe, rebuild the bundle, return fresh vitals.
+ipcMain.handle('hq:health-scan', async () => {
+  try { await runNodeAsync(path.join(COLLECTOR, 'pc-health.mjs')); }
+  catch (e) { return { error: String(e.message || e) }; }
+  rebuildData();
+  return readPcHealth();
+});
+// RUN a fix — ONLY commands that appear verbatim as a danger:'safe' fix in the
+// CURRENT pc-health.json. The renderer cannot smuggle an arbitrary command
+// through: unknown/altered strings and every 'caution'/'admin' fix are refused.
+ipcMain.handle('hq:health-fix', (_e, command) => {
+  const ph = readPcHealth();
+  const safe = new Set();
+  for (const o of ph?.organs || []) for (const f of o.fixes || []) if (f && f.danger === 'safe') safe.add(f.command);
+  if (!safe.has(String(command))) return { ok: false, output: 'refused: not a whitelisted read-only fix' };
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', String(command)],
+    { encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 4 * 1024 * 1024 });
+  return { ok: r.status === 0, output: ((r.stdout || '') + (r.stderr || '')).slice(0, 6000) };
+});
+
 // Channeled spells (Claude skills, dev-ish scripts) open a real terminal:
 // Windows Terminal when present, classic cmd window otherwise.
 function openChanneled(spell) {

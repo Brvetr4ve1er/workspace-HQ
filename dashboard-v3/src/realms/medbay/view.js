@@ -22,7 +22,7 @@
 // }
 // Unknown organ ids still render (fallback tag, auto grid slot) — additive-safe.
 import { el, esc, COL, fmt } from '../../ui/util.js';
-import { castSpell, aosKids, aosRefresh } from '../../ui/components.js';
+import { aosKids, aosRefresh } from '../../ui/components.js';
 
 const STATUS = {
   grace: { cls: 'st-grace', c: COL.green,  word: 'GRACE' },
@@ -100,6 +100,7 @@ function spark(vals, color) {
 }
 
 let CTX = null, root = null, offSelect = null;
+let LIVE = null;   // a fresh RE-EXAMINE report overrides the build-time snapshot
 
 function organCard(o, dayKey) {
   const st = STATUS[o.status] || STATUS.ember;
@@ -131,7 +132,14 @@ function renderAnatomy(parent, ph) {
   const counts = { grace: 0, ember: 0, blood: 0 };
   organs.forEach((o) => { if (counts[o.status] != null) counts[o.status]++; });
   const when = String(ph.scanned_at || '').slice(0, 16).replace('T', ' ');
-  parent.appendChild(el('h2', 'sec', `${CTX.LX('tab_medbay')} · patient: this machine`));
+  const head = el('h2', 'sec', `${CTX.LX('tab_medbay')} · patient: this machine`);
+  if (CTX.hq?.healthScan) {
+    const btn = el('button', 'sec-btn mb-reexamine', '◆ RE-EXAMINE');
+    btn.title = 'Run a fresh health scan of this machine (~3s)';
+    btn.onclick = async () => { btn.disabled = true; btn.textContent = '◆ examining…'; try { const fresh = await CTX.hq.healthScan(); if (fresh?.organs) { LIVE = fresh; render(); } } finally { btn.disabled = false; } };
+    head.appendChild(btn);
+  }
+  parent.appendChild(head);
   parent.appendChild(el('div', 'mb-tally', `
     <span class="mbt" style="--oc:${COL.green}">${counts.grace} in grace</span>
     <span class="mbt" style="--oc:${COL.orange}">${counts.ember} ember</span>
@@ -198,45 +206,73 @@ function renderTriage(parent) {
   parent.appendChild(grid);
 }
 
-// ---- restoration ward: the medicine cabinet --------------------------------
-// Cross-list of school === 'restoration' spells; CAST goes through the shared
-// casting engine (castSpell feature-detects window.hq — dev harness no-ops).
-function wardRow(s) {
-  const row = el('div', 'ward-spell');
-  const castable = s.kind === 'castable' || s.kind === 'chain' || s.kind === 'channeled';
-  row.innerHTML = `
-    <span class="ws-icon">${esc(s.icon || '🩹')}</span>
-    <div class="ws-body">
-      <div class="ws-name">${esc(s.name)}${s.kind === 'chain' ? ' <span class="ws-kind">⛓️ chain</span>' : ''}</div>
-      <div class="ws-desc">${esc(s.tooltip || s.description || '—')}</div>
+// ---- treatments: the real fix scripts --------------------------------------
+// Each organ carries curated `fixes` (title, why, teaching, command, danger).
+// COPY hands you the exact PowerShell; RUN executes ONLY danger:'safe' fixes,
+// and only after main validates the command against the current pc-health.json
+// (the renderer can never smuggle an arbitrary command through). Sickest organs
+// prescribe first.
+const DANGER = {
+  safe:    { cls: 'dg-safe',    label: 'read-only' },
+  caution: { cls: 'dg-caution', label: 'deletes files' },
+  admin:   { cls: 'dg-admin',   label: 'needs admin' },
+};
+const SEV = { blood: 0, ember: 1, grace: 2 };
+
+function fixCard(fix, organ) {
+  const dg = DANGER[fix.danger] || DANGER.caution;
+  const an = ANATOMY[organ.id];
+  const card = el('div', 'rx');
+  const runnable = fix.danger === 'safe' && CTX.hq?.healthFix;
+  card.innerHTML = `
+    <div class="rx-top">
+      <span class="rx-organ" style="--oc:${(STATUS[organ.status] || STATUS.ember).c}">${an ? an.tag : esc(organ.id)}</span>
+      <span class="rx-title">${esc(fix.title)}</span>
+      <span class="rx-danger ${dg.cls}">${dg.label}</span>
     </div>
-    ${castable ? `<button class="ws-cast"${s.invalid ? ' disabled' : ''}>⚡ CAST</button>` : ''}`;
-  const b = row.querySelector('.ws-cast');
-  if (b) b.onclick = () => castSpell(s);
-  return row;
+    <div class="rx-why">${esc(fix.why || '')}</div>
+    ${fix.teaching ? `<div class="rx-teach">${esc(fix.teaching)}</div>` : ''}
+    <div class="rx-cmd"><code>${esc(fix.command)}</code></div>
+    <div class="rx-act">
+      <button class="rx-copy">⧉ COPY</button>
+      ${runnable ? '<button class="rx-run">▶ RUN</button>' : `<span class="rx-manual">run it yourself — ${dg.label}</span>`}
+    </div>
+    <pre class="rx-out" hidden></pre>`;
+  const out = card.querySelector('.rx-out');
+  card.querySelector('.rx-copy').onclick = async (e) => {
+    try { await navigator.clipboard.writeText(fix.command); e.target.textContent = '✓ COPIED'; setTimeout(() => (e.target.textContent = '⧉ COPY'), 1400); } catch {}
+  };
+  const runBtn = card.querySelector('.rx-run');
+  if (runBtn) runBtn.onclick = async () => {
+    runBtn.disabled = true; runBtn.textContent = '▶ running…'; out.hidden = false; out.textContent = '…';
+    try {
+      const r = await CTX.hq.healthFix(fix.command);
+      out.textContent = (r?.output || '').trim() || (r?.ok ? '(done — no output)' : 'refused or failed.');
+      out.classList.toggle('err', !r?.ok);
+    } catch (err) { out.textContent = String(err?.message || err); out.classList.add('err'); }
+    finally { runBtn.disabled = false; runBtn.textContent = '▶ RUN'; }
+  };
+  return card;
 }
 
-function renderWard(parent) {
-  const spells = (CTX.data.bundle.spellbook?.spells || []).filter((s) => s.school === 'restoration');
-  parent.appendChild(el('h2', 'sec', `🩹 RESTORATION WARD · ${spells.length} ${spells.length === 1 ? 'remedy' : 'remedies'} stocked`));
-  if (!spells.length) {
-    parent.appendChild(el('div', 'empty-note',
-      'The medicine cabinet is bare — curated fix-spells land in <b>spellbook/</b> with the M2 struct slice. The casting engine is already plumbed; it just needs medicine.'));
-    return;
-  }
-  const list = el('div', 'ward-list');
-  spells.forEach((s) => list.appendChild(wardRow(s)));
-  aosKids(list, 'fade-up', 40);
+function renderTreatments(parent, ph) {
+  const organs = (ph.organs || []).filter((o) => o && Array.isArray(o.fixes) && o.fixes.length);
+  if (!organs.length) return;
+  const ranked = [...organs].sort((a, b) => (SEV[a.status] ?? 3) - (SEV[b.status] ?? 3));
+  const total = ranked.reduce((n, o) => n + o.fixes.length, 0);
+  parent.appendChild(el('h2', 'sec', `🩹 TREATMENTS · ${total} script${total === 1 ? '' : 's'}, sickest first`));
+  const list = el('div', 'rx-list');
+  ranked.forEach((o) => o.fixes.forEach((f) => list.appendChild(fixCard(f, o))));
+  aosKids(list, 'fade-up', 30);
   parent.appendChild(list);
 }
 
 function render() {
   if (!root || !CTX) return;
   root.innerHTML = '';
-  const ph = CTX.data.bundle.pcHealth;
-  if (ph && Array.isArray(ph.organs) && ph.organs.length) renderAnatomy(root, ph);
+  const ph = LIVE || CTX.data.bundle.pcHealth;
+  if (ph && Array.isArray(ph.organs) && ph.organs.length) { renderAnatomy(root, ph); renderTreatments(root, ph); }
   else renderTriage(root);
-  renderWard(root);
   aosRefresh();
 }
 

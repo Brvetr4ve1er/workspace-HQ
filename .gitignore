@@ -63,3 +63,7 @@ data/now-brief.md
 
 # --- external / vendored repos (kept on disk, out of git) ---
 Understand-Anything/
+
+# pc-health vitals + rolling history (runtime, machine-specific, regenerated each scan)
+data/pc-health.json
+data/pc-health-history.json
