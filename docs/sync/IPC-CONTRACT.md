@@ -75,6 +75,9 @@ grep the channel name).
 | `miniHide()` | `hq:mini-hide` | — | `true` | mini HUD |
 | **Claude sessions (MA)** | | | | |
 | `getSessions()` | `hq:sessions-list` | — | `[{jobId, label, status, startedAt, endedAt, exitCode, tail}]` | main |
+| **The Canvas (M3)** | | | | |
+| `getCanvas()` | `hq:canvas-read` | — | `[{name, nodes, edges}]` (JSON Canvas boards from `data/canvas/`) | main |
+| `canvasAdd(name, node)` | `hq:canvas-add` | board name (`[\w][\w -]{0,63}`), `{type:'text', text, x?, y?}` | `true`/`false` (text clamped 2000; atomic write; watcher pushes) | main |
 | **Browser bridge** | | | | |
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 
@@ -94,6 +97,7 @@ realm switches is the #1 porting hazard).
 | `onMachine(cb)` | `hq:machine` | machine vitals | vitals poll tick |
 | `onBrowserTab(cb)` | `hq:browser-tab` | active-tab event | bridge extension reports focus |
 | `onClaudeSessions(cb)` | `hq:claude-sessions` | full sessions list | any registry change (start/stream-end/linger-expiry) |
+| `onCanvas(cb)` | `hq:canvas` | full boards list | any `.canvas` file change in `data/canvas/` (300ms debounce) |
 
 ## Rules
 

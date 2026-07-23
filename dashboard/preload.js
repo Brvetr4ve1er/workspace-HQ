@@ -21,6 +21,14 @@ contextBridge.exposeInMainWorld('hq', {
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
   actedOn: (entry) => ipcRenderer.invoke('hq:acted-on', entry),
   getActedOn: () => ipcRenderer.invoke('hq:acted-on-read'),
+  // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
+  getCanvas: () => ipcRenderer.invoke('hq:canvas-read'),
+  canvasAdd: (name, node) => ipcRenderer.invoke('hq:canvas-add', name, node),
+  onCanvas: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:canvas', handler);
+    return () => ipcRenderer.removeListener('hq:canvas', handler);
+  },
   // MA: Claude session presence (registry in claude-sessions.js)
   getSessions: () => ipcRenderer.invoke('hq:sessions-list'),
   onClaudeSessions: (callback) => {

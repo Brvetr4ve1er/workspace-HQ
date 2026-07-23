@@ -30,7 +30,7 @@ const DAILY_DIR = path.join(VAULT, '10_Daily');
 // Allow-list of regenerable dirs the reclaim action may delete (npm install / rebuild restores them).
 const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
-let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null;
+let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null, canvasWatcher = null;
 let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
 const activeDevServers = new Map();
 
@@ -938,6 +938,51 @@ function castSend(channel, payload) {
 claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessions));
 ipcMain.handle('hq:sessions-list', () => claudeSessions.list());
 
+// ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
+// fs-watched so both the Warden and the Familiar (via the MCP server writing
+// the same files) draw on a live shared board.
+const CANVAS_DIR = path.join(DATA, 'canvas');
+const CANVAS_NAME_RE = /^[\w][\w -]{0,63}$/;   // confinement: no dots, no separators
+function canvasList() {
+  try {
+    return fs.readdirSync(CANVAS_DIR).filter((f) => f.endsWith('.canvas')).map((f) => {
+      try { return { name: f.replace(/\.canvas$/, ''), ...JSON.parse(fs.readFileSync(path.join(CANVAS_DIR, f), 'utf8')) }; }
+      catch { return null; }
+    }).filter(Boolean);
+  } catch { return []; }
+}
+ipcMain.handle('hq:canvas-read', () => canvasList());
+ipcMain.handle('hq:canvas-add', (_e, name, node) => {
+  if (!CANVAS_NAME_RE.test(String(name || ''))) return false;
+  if (!node || node.type !== 'text' || typeof node.text !== 'string') return false;
+  const file = path.join(CANVAS_DIR, name + '.canvas');
+  let board = { nodes: [], edges: [] };
+  try { const b = JSON.parse(fs.readFileSync(file, 'utf8')); if (b && Array.isArray(b.nodes)) board = { edges: [], ...b }; } catch { /* new board */ }
+  board.nodes.push({
+    id: 'n-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    type: 'text', text: node.text.slice(0, 2000),
+    x: Number.isFinite(node.x) ? Math.round(node.x) : 40,
+    y: Number.isFinite(node.y) ? Math.round(node.y) : 40,
+    width: 280, height: 120,
+  });
+  fs.mkdirSync(CANVAS_DIR, { recursive: true });
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(board, null, 1));
+  fs.renameSync(tmp, file);   // the watcher pushes; no manual castSend needed
+  return true;
+});
+{
+  let t = null;
+  try {
+    fs.mkdirSync(CANVAS_DIR, { recursive: true });
+    canvasWatcher = fs.watch(CANVAS_DIR, (_evt, file) => {
+      if (!file || !file.endsWith('.canvas')) return;
+      clearTimeout(t);
+      t = setTimeout(() => castSend('hq:canvas', canvasList()), 300);
+    });
+  } catch { /* canvas dir unwatchable — reads still work */ }
+}
+
 // Channeled spells (Claude skills, dev-ish scripts) open a real terminal:
 // Windows Terminal when present, classic cmd window otherwise.
 function openChanneled(spell) {
@@ -1305,7 +1350,7 @@ if (!app.requestSingleInstanceLock()) {
     try { persistShards(); } catch {}   // sticky shards remember their spots
     if (machineTimer) clearInterval(machineTimer);
     try { globalShortcut.unregisterAll(); } catch {}
-    for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}
+    for (const w of [watcher, qbWatcher, dailyWatcher, canvasWatcher]) if (w) try { w.close(); } catch {}
     if (bridge) try { bridge.stop(); } catch {}
     // no orphaned incantations: kill any live cast trees on the way out
     for (const [, entry] of castRegistry) {

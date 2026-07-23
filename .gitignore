@@ -39,6 +39,9 @@ dashboard-v3/tools/shots/
 # main.js loads once the swap hook lands (gated per NEXUS v3 invariant 3)
 data/.ui-version
 
+# THE CANVAS (M3): user/Familiar shared boards — personal content, stays local
+data/canvas/
+
 # --- OS noise ---
 Thumbs.db
 desktop.ini
