@@ -19,6 +19,14 @@ import { manifest as landsM } from '../realms/lands/manifest.js';
 import { view as landsV } from '../realms/lands/view.js';
 import { manifest as legacyM } from '../realms/legacy/manifest.js';
 import { view as legacyV } from '../realms/legacy/view.js';
+import { manifest as medbayM } from '../realms/medbay/manifest.js';
+import { view as medbayV } from '../realms/medbay/view.js';
+import { manifest as observatoryM } from '../realms/observatory/manifest.js';
+import { view as observatoryV } from '../realms/observatory/view.js';
+import { manifest as watchtowerM } from '../realms/watchtower/manifest.js';
+import { view as watchtowerV } from '../realms/watchtower/view.js';
+import { manifest as summoningM } from '../realms/summoning/manifest.js';
+import { view as summoningV } from '../realms/summoning/view.js';
 
 register(roundtableM, roundtableV);
 register(forgeM, forgeV);
@@ -26,6 +34,10 @@ register(huntsM, huntsV);
 register(grimoireM, grimoireV);
 register(landsM, landsV);
 register(legacyM, legacyV);
+register(medbayM, medbayV);
+register(observatoryM, observatoryV);
+register(watchtowerM, watchtowerV);
+register(summoningM, summoningV);
 
 startShell('roundtable');
 

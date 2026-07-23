@@ -11,7 +11,7 @@ const os = require('node:os');
 app.setPath('userData', path.join(os.tmpdir(), process.env.HQ_V3_PROFILE || 'hq-v3-shots'));
 
 const THEMES = ['arcade', 'okami', 'numidea', 'ops', 'nightfall'];
-const REALMS = ['roundtable', 'forge', 'hunts', 'grimoire', 'lands', 'legacy'];
+const REALMS = ['roundtable', 'forge', 'hunts', 'grimoire', 'lands', 'legacy', 'medbay', 'observatory', 'watchtower', 'summoning'];
 const OUT = path.join(__dirname, 'shots', 'v3');
 
 app.whenReady().then(async () => {

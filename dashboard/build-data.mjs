@@ -54,7 +54,22 @@ try {
   actedOn = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/acted-on.json'), 'utf8'));
 } catch { /* no ledger yet */ }
 
-const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, actedOn, built_at: new Date().toISOString() };
+// Optional sidecars for the v3 realms — additive, null/[] until their
+// producers exist (pc-health: struct M2; notebooklm: tendril M4; canvas:
+// Summoning Circle M3 — data/canvas/*.canvas, JSON Canvas format).
+const optionalJson = (rel) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, rel), 'utf8')); } catch { return null; } };
+const pcHealth = optionalJson('../data/pc-health.json');
+const notebooklm = optionalJson('../data/notebooklm.json');
+let canvas = [];
+try {
+  const cdir = path.join(__dirname, '../data/canvas');
+  canvas = fs.readdirSync(cdir).filter((f) => f.endsWith('.canvas')).map((f) => {
+    try { return { name: f.replace(/\.canvas$/, ''), ...JSON.parse(fs.readFileSync(path.join(cdir, f), 'utf8')) }; }
+    catch { return null; }
+  }).filter(Boolean);
+} catch { /* no canvas dir yet */ }
+
+const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, actedOn, pcHealth, notebooklm, canvas, built_at: new Date().toISOString() };
 const out = path.join(__dirname, 'data.js');
 fs.writeFileSync(out, 'window.DATA = ' + JSON.stringify(data) + ';\n');
 console.log(`[build-data] ${scans.length} scan(s) -> ${out} (latest: ${data.latest?.scan.id || 'none'})`);

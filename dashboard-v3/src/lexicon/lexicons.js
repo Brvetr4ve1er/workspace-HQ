@@ -18,6 +18,7 @@ export const LEXICONS = {
     blessing_head: '🌳 Completion grove', fragment_word: 'day-fragments', classes: false,
     amb_machine: 'MACHINE', amb_whisper: 'SIDE-QUEST', amb_familiar: 'CLAUDE',
     amb_familiar_idle: 'no sessions running',
+    tab_medbay: 'MED-BAY', tab_observatory: 'OBSERVATORY', tab_watchtower: 'WATCHTOWER', tab_summoning: 'SUMMONING',
   },
   nightfall: {
     tab_overview: 'ROUNDTABLE', tab_quests: 'HUNTS', tab_spellbook: 'GRIMOIRE', tab_trends: 'LEGACY', tab_basemap: 'LANDS BETWEEN',
@@ -33,5 +34,6 @@ export const LEXICONS = {
     blessing_head: '🌳 Scadutree Blessing', fragment_word: 'fragments', classes: true,
     amb_machine: 'THE VESSEL', amb_whisper: 'WHISPER', amb_familiar: 'FAMILIAR',
     amb_familiar_idle: 'unbound — the bell is silent',
+    tab_medbay: 'THE WARD', tab_observatory: 'OBSERVATORY', tab_watchtower: 'THE SPIRE', tab_summoning: 'THE CIRCLE',
   },
 };
