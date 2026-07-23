@@ -122,6 +122,67 @@ body {
 }
 #topstrip .theme-cycle:hover { border-color: var(--active); color: var(--active); }
 
+/* --- ambient rail (right) -------------------------------------------------- */
+#nexus.ambient-closed { grid-template-columns: var(--rail-w) 1fr 22px; }
+#rail-right.closed { padding: 8px 2px; }
+.am-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: var(--term);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0 8px;
+}
+.am-toggle:hover { color: var(--active); }
+.am-sec { margin-bottom: 14px; }
+.am-h {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 3px;
+  margin-bottom: 6px;
+}
+.am-empty { color: var(--faint, var(--muted)); font-size: 11px; }
+.am-now { font-size: 12px; }
+.am-domain { color: var(--text); }
+.am-dur { color: var(--muted); margin-left: 6px; font-size: 11px; }
+.am-title {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.am-kv { display: flex; justify-content: space-between; font-size: 11px; padding: 1px 0; }
+.am-kv span { color: var(--muted); }
+.am-whisper { font-size: 12px; line-height: 1.4; }
+.am-whisper .am-wkind {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.am-whisper.risk .am-wkind { color: var(--red, #ff4757); border-color: var(--red, #ff4757); }
+.am-tide {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
+  text-align: center;
+  opacity: 0.8;
+}
+
 /* --- stub views ----------------------------------------------------------- */
 .port-pending .sec { color: var(--active); margin-bottom: 8px; }
 .port-pending .muted { color: var(--muted); font-size: 12px; margin-top: 4px; }

@@ -37,6 +37,10 @@ catch (err) { console.warn('[boot] chrome not ready:', err.message); }
 try { const m = await import('../fx.js'); m.initFx?.(); }
 catch (err) { console.warn('[boot] fx not ready:', err.message); }
 
+// ambient rail (right) — core chrome, mounts once after the shell exists
+const { initAmbient } = await import('./ambient.js');
+initAmbient();
+
 // Debug/harness handle — the parity screenshot harness drives realm + theme
 // switches through this instead of synthesizing clicks.
 window.NEXUS = { switchRealm, applyTheme, THEMES, ordered };

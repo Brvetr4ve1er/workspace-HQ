@@ -499,3 +499,13 @@ body { transition: background-color 0.35s ease, color 0.25s ease; }
 :root[data-theme="nightfall"].night-tide .tm-head .date::after {
   content: " · the night deepens"; font-family: var(--term); font-size: 0.6em; color: var(--faint);
 }
+
+/* --- v3 frame adaptation (integrator, not v2-verbatim): the topstrip lives
+   in the stage column (~870px at 1180), not v2's full-window #topbar — the
+   plate must flex instead of overflowing into the ambient rail. */
+#topstrip { justify-content: space-between; gap: 14px; }
+#topstrip .brand { min-width: 0; flex: 0 1 auto; }
+#topstrip .brand .subtitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#topstrip .player { gap: 12px; flex: 0 1 auto; min-width: 0; }
+#topstrip .player .xp { width: auto; flex: 1 1 130px; min-width: 110px; max-width: 200px; }
+#topstrip .player .stat.hp { width: 110px; }

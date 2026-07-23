@@ -16,6 +16,8 @@ export const LEXICONS = {
     side_col: 'Side-quests — ideas &amp; risks', done_strip: 'completed this scan',
     memorials: '🏆 High scores', warehouse: '📦 Warehouse', basemap_head: 'Base map', buildings: 'buildings',
     blessing_head: '🌳 Completion grove', fragment_word: 'day-fragments', classes: false,
+    amb_machine: 'MACHINE', amb_whisper: 'SIDE-QUEST', amb_familiar: 'CLAUDE',
+    amb_familiar_idle: 'no sessions running',
   },
   nightfall: {
     tab_overview: 'ROUNDTABLE', tab_quests: 'HUNTS', tab_spellbook: 'GRIMOIRE', tab_trends: 'LEGACY', tab_basemap: 'LANDS BETWEEN',
@@ -29,5 +31,7 @@ export const LEXICONS = {
     side_col: 'Whispers — ideas &amp; risks', done_strip: 'hunts completed this scan',
     memorials: '🏆 Memorials', warehouse: '📦 The Warehouse', basemap_head: 'The Lands Between', buildings: 'holdings',
     blessing_head: '🌳 Scadutree Blessing', fragment_word: 'fragments', classes: true,
+    amb_machine: 'THE VESSEL', amb_whisper: 'WHISPER', amb_familiar: 'FAMILIAR',
+    amb_familiar_idle: 'unbound — the bell is silent',
   },
 };
