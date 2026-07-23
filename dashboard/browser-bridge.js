@@ -1,16 +1,20 @@
-// WorkspaceHQ browser bridge — localhost ingest for the Chrome extension.
+// WorkspaceHQ tendril router — localhost ingest for external connectors.
 //
-// Mirrors the Obsidian sync-hub pattern: the app runs a small local endpoint,
-// the "WorkspaceHQ Bridge" extension pushes active-tab focus to it, and we
-// persist it to data/browser-activity.json. The collector folds that file into
-// latest.json (the "Working On Now" insight) and Claude can read it directly.
+// Grew out of the browser bridge (which mirrored the Obsidian sync-hub
+// pattern): the app runs a small local endpoint and connectors push into
+// per-tendril sidecar files under data/. Each tendril is one row in TENDRILS;
+// all of them share the atomic writer, rolling-window prune, size clamps, and
+// auth gate below. The browser extension is the first tendril — it keeps its
+// legacy POST /ingest route and data/browser-activity.json shape unchanged,
+// and the collector folds that file into latest.json (the "Working On Now"
+// insight) as before.
 //
 // Security posture (a personal, localhost-only tool):
 //   - binds 127.0.0.1 only — never reachable off-machine.
-//   - POST /ingest requires the custom `X-HQ-Bridge: 1` header. A malicious web
-//     page can't send a custom header without a CORS preflight, and we only
-//     approve preflight for extension origins — so pages are blocked while the
-//     extension (which has host-permission, bypassing CORS) gets through.
+//   - every ingest route requires the custom `X-HQ-Bridge: 1` header. A
+//     malicious web page can't send a custom header without a CORS preflight,
+//     and we only approve preflight for extension origins — so pages are
+//     blocked while extensions (host-permission, bypassing CORS) get through.
 //   - optional: drop a token in data/.bridge-token to also require X-HQ-Token.
 
 const http = require('node:http');
@@ -19,12 +23,35 @@ const path = require('node:path');
 
 const PORT = 47821;
 const HOST = '127.0.0.1';
-const WINDOW_MS = 3 * 24 * 60 * 60 * 1000;   // keep 3 days of visits
+const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 4000;
 const MAX_BODY = 512 * 1024;
 
+// ---- shared machinery (every tendril goes through these) ----
+
 const clampStr = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '');
-function sanitize(e) {
+
+function readJsonOr(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// tmp + rename so readers (collector, Claude) never see a half-written file.
+// Windows quirk: a reader/AV holding the destination makes rename throw EPERM.
+function writeAtomic(file, text) {
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, text);
+  for (let attempt = 1; ; attempt++) {
+    try { fs.renameSync(tmp, file); return; }
+    catch (e) {
+      if (e.code !== 'EPERM' || attempt >= 3) throw e;
+      sleepSync(50);
+    }
+  }
+}
+
+function sanitizeBrowser(e) {
   if (!e || typeof e !== 'object') return null;
   const ts = Number(e.ts);
   const focus_ms = Number(e.focus_ms);
@@ -41,32 +68,82 @@ function sanitize(e) {
   };
 }
 
-function startBridge({ dataDir, onLive } = {}) {
-  const ACTIVITY = path.join(dataDir, 'browser-activity.json');
+// ---- tendril registry ----
+//
+// A tendril = one connector feeding one sidecar. Future connectors (NotebookLM
+// capture, Watchtower rollups) are one entry here each:
+//   name          connector id (logs)
+//   route         POST /ingest/<route>
+//   legacyRoutes  extra exact paths kept alive for already-deployed clients
+//   sidecarPath   sidecar file, relative to dataDir
+//   windowDays    rolling window — events older than this are pruned
+//   maxEvents     hard cap after pruning (newest kept)
+//   dedupe(e)     identity key over a sanitized event; a key already stored
+//                 drops the entry (return null to keep everything)
+//   sanitize(e)   raw entry -> clamped clean entry, or null to reject
+//   onLive?(p)    called with the sanitized `live` payload after each ingest
+
+const TENDRILS = [
+  {
+    name: 'browser',
+    route: 'browser',
+    legacyRoutes: ['/ingest'],   // the deployed extension POSTs bare /ingest
+    sidecarPath: 'browser-activity.json',
+    windowDays: 3,
+    maxEvents: MAX_EVENTS,
+    dedupe: (e) => `${e.ts}|${e.domain}|${e.path}|${e.focus_ms}`,
+    sanitize: sanitizeBrowser,
+    // onLive comes from startBridge({ onLive }) — main.js owns the ticker.
+  },
+];
+
+function startBridge({ dataDir, onLive, port = PORT } = {}) {
   const TOKEN_FILE = path.join(dataDir, '.bridge-token');
   let token = '';
   try { token = fs.readFileSync(TOKEN_FILE, 'utf8').trim(); } catch { /* token optional */ }
 
-  function ingest(payload) {
-    let doc = { updated: null, live: null, events: [] };
-    try { doc = JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')); } catch { /* fresh file */ }
+  // exact path -> runtime; legacy aliases land on the same runtime
+  const routes = new Map();
+  for (const t of TENDRILS) {
+    const rt = {
+      tendril: t,
+      file: path.join(dataDir, t.sidecarPath),
+      onLive: t.name === 'browser' ? onLive : t.onLive,
+    };
+    routes.set(`/ingest/${t.route}`, rt);
+    for (const alias of t.legacyRoutes || []) routes.set(alias, rt);
+  }
+
+  function ingest(rt, payload) {
+    const t = rt.tendril;
+    const doc = readJsonOr(rt.file, { updated: null, live: null, events: [] });
     if (!Array.isArray(doc.events)) doc.events = [];
 
+    const seen = new Set(t.dedupe ? doc.events.map(t.dedupe) : []);
     const incoming = Array.isArray(payload.events) ? payload.events : [];
     let stored = 0;
     for (const raw of incoming) {
-      const e = sanitize(raw);
-      if (e && e.focus_ms >= 0) { doc.events.push(e); stored++; }
+      const e = t.sanitize(raw);
+      if (!e) continue;
+      const key = t.dedupe ? t.dedupe(e) : null;
+      if (key != null) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+      }
+      doc.events.push(e);
+      stored++;
     }
     const now = Date.now();
-    doc.events = doc.events.filter((e) => e.ts && now - e.ts < WINDOW_MS);
-    if (doc.events.length > MAX_EVENTS) doc.events = doc.events.slice(doc.events.length - MAX_EVENTS);
-    doc.live = payload.live ? sanitize(payload.live) : null;
+    const windowMs = t.windowDays * DAY_MS;
+    doc.events = doc.events.filter((e) => e.ts && now - e.ts < windowMs);
+    const max = t.maxEvents || MAX_EVENTS;
+    if (doc.events.length > max) doc.events = doc.events.slice(doc.events.length - max);
+    doc.live = payload.live ? t.sanitize(payload.live) : null;
     doc.updated = new Date(now).toISOString();
 
-    fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(ACTIVITY, JSON.stringify(doc));
-    if (typeof onLive === 'function') { try { onLive(doc.live); } catch { /* renderer maybe gone */ } }
+    fs.mkdirSync(path.dirname(rt.file), { recursive: true });
+    writeAtomic(rt.file, JSON.stringify(doc));
+    if (typeof rt.onLive === 'function') { try { rt.onLive(doc.live); } catch { /* renderer maybe gone */ } }
     return { ok: true, stored, total: doc.events.length };
   }
 
@@ -88,7 +165,9 @@ function startBridge({ dataDir, onLive } = {}) {
       return send(200, { ok: true, app: 'workspacehq', bridge: '0.1.0', needsToken: !!token });
     }
 
-    if (req.method === 'POST' && url === '/ingest') {
+    if (req.method === 'POST' && (routes.has(url) || url.startsWith('/ingest/'))) {
+      const rt = routes.get(url);
+      if (!rt) return send(404, { ok: false, error: 'unknown tendril' });
       if (req.headers['x-hq-bridge'] !== '1') return send(403, { ok: false, error: 'missing bridge header' });
       if (token && req.headers['x-hq-token'] !== token) return send(401, { ok: false, error: 'bad token' });
       let body = '', tooBig = false;
@@ -96,7 +175,7 @@ function startBridge({ dataDir, onLive } = {}) {
       req.on('end', () => {
         if (tooBig) return send(413, { ok: false, error: 'too big' });
         let payload; try { payload = JSON.parse(body || '{}'); } catch { return send(400, { ok: false, error: 'bad json' }); }
-        try { send(200, ingest(payload)); } catch (e) { send(500, { ok: false, error: String((e && e.message) || e) }); }
+        try { send(200, ingest(rt, payload)); } catch (e) { send(500, { ok: false, error: String((e && e.message) || e) }); }
       });
       return;
     }
@@ -104,15 +183,16 @@ function startBridge({ dataDir, onLive } = {}) {
   });
 
   server.on('error', (e) => {
-    if (e && e.code === 'EADDRINUSE') console.warn(`[bridge] port ${PORT} busy — another WorkspaceHQ instance? Bridge disabled.`);
+    if (e && e.code === 'EADDRINUSE') console.warn(`[bridge] port ${port} busy — another WorkspaceHQ instance? Bridge disabled.`);
     else console.error('[bridge] server error:', e);
   });
-  server.listen(PORT, HOST, () => console.log(`[bridge] listening on http://${HOST}:${PORT}${token ? ' (token required)' : ''}`));
+  server.listen(port, HOST, () => console.log(`[bridge] listening on http://${HOST}:${port}${token ? ' (token required)' : ''}`));
 
+  const browserFile = path.join(dataDir, TENDRILS.find((t) => t.name === 'browser').sidecarPath);
   return {
-    port: PORT,
+    port,
     stop: () => { try { server.close(); } catch { /* already down */ } },
-    readActivity: () => { try { return JSON.parse(fs.readFileSync(ACTIVITY, 'utf8')); } catch { return null; } },
+    readActivity: () => readJsonOr(browserFile, null),
   };
 }
 

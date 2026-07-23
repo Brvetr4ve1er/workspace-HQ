@@ -13,6 +13,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { spawnSync, spawn } = require('node:child_process');
 const { startBridge } = require('./browser-bridge');
+const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
 
 const DIR = __dirname;
 const SCAN_DIR = path.join(DIR, '..');
@@ -513,7 +514,8 @@ function spawnShard(cfg) {
     alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
     fullscreenable: false, maximizable: false, minimizable: false,
     backgroundColor: '#00000000', title: 'HQ Shard',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'preload.js') },
+    // REDUCED preload (MA): conjured HTML never sees the full hq bridge
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'organic', 'shard-preload.js') },
   });
   sw.setAlwaysOnTop(true, 'screen-saver');                       // float over fullscreen apps
   sw.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -589,8 +591,6 @@ function conjureShard(prompt, at) {
   return id;
 }
 function generateInto(id, prompt) {
-  const claude = findClaude();
-  if (!claude) { updateShard(id, { status: 'error', error: 'claude CLI not found on PATH' }); return; }
   const gen = `Generate a tiny self-contained desktop widget for: "${prompt.replace(/"/g, "'")}"
 
 HARD RULES:
@@ -600,19 +600,18 @@ HARD RULES:
 - Dark translucent card look: background rgba(12,10,30,.92); 1px border #322a5e; border-radius 10px; neon accents (#00f0ff cyan, #ff2bd6 magenta, #ffd23f gold); monospace font.
 - Max footprint ~340x260px. It must be immediately useful and interactive if the request implies it (buttons, counters, inputs all work via inline JS).
 - If the request implies live time, use setInterval. State can live in JS variables only.`;
-  const child = spawn(claude, ['-p'], { windowsHide: true });
-  let out = '';
-  child.stdout.on('data', (d) => { out += d; });
-  child.on('close', () => {
-    let html = out.trim().replace(/^```(html)?\s*/i, '').replace(/```\s*$/, '').trim();
-    if (!html || !/</.test(html)) { updateShard(id, { status: 'error', error: 'generation returned nothing usable' }); return; }
-    updateShard(id, { status: 'ready', html });
-    libUpsert(prompt, html);   // durable: joins the widget library for instant re-summon
-    console.log(`[shard] conjured "${prompt.slice(0, 40)}" (${html.length}b) -> library`);
+  // MA: routed through the sessions registry — tracked, killable, presence-visible
+  const r = claudeSessions.start({
+    label: `conjure: ${prompt.slice(0, 32)}`, input: gen, timeoutMs: 120000,
+    onDone: ({ status, output }) => {
+      const html = output.trim().replace(/^```(html)?\s*/i, '').replace(/```\s*$/, '').trim();
+      if (status !== 'done' || !html || !/</.test(html)) { updateShard(id, { status: 'error', error: 'generation returned nothing usable' }); return; }
+      updateShard(id, { status: 'ready', html });
+      libUpsert(prompt, html);   // durable: joins the widget library for instant re-summon
+      console.log(`[shard] conjured "${prompt.slice(0, 40)}" (${html.length}b) -> library`);
+    },
   });
-  child.on('error', () => updateShard(id, { status: 'error', error: 'claude failed to start' }));
-  try { child.stdin.write(gen); child.stdin.end(); } catch {}
-  setTimeout(() => { try { child.kill(); } catch {} }, 120000);
+  if (r.error) updateShard(id, { status: 'error', error: r.error });
 }
 
 // Summon router: known words materialize built-ins; everything else is conjured.
@@ -645,7 +644,7 @@ function openSummon() {
     y: Math.max(wa.y, Math.min(pt.y + 16, wa.y + wa.height - H)),
     frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: true,
     fullscreenable: false, minimizable: false, maximizable: false,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'preload.js') },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'organic', 'summon-preload.js') },
   });
   summonWin.setAlwaysOnTop(true, 'screen-saver');
   summonWin.loadFile(path.join(DIR, 'organic', 'summon.html'));
@@ -710,24 +709,30 @@ ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
 });
 
 // ---- Commit drafter (Wave 4): claude -p over git diff -> conventional commit ----
-function findClaude() {
-  const cands = ['C:/Users/ROG STRIX/AppData/Roaming/npm/claude.cmd', 'claude'];
-  for (const c of cands) { try { spawnSync(c, ['--version'], { stdio: 'ignore' }); return c; } catch {} }
-  return null;
-}
-ipcMain.handle('hq:draft-commit', (_e, projPath) => {
+// MA: async via the sessions registry — the main process no longer freezes for
+// up to 90s while Claude writes. invoke() already promises to the renderer,
+// so the {message}|{error} contract is unchanged.
+ipcMain.handle('hq:draft-commit', async (_e, projPath) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return { error: 'bad path' };
-  const claude = findClaude();
-  if (!claude) return { error: 'claude CLI not found on PATH' };
   // unstaged + staged diff; cap to avoid blowing token budget
   const diff = (spawnSync('git', ['-C', cwd, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }).stdout || '').slice(0, 30000);
   if (!diff.trim()) return { error: 'no diff to summarize' };
   const prompt = `Write a single conventional-commit message for this diff. Format: "type(scope): summary" then blank line then 1-3 bullet points if useful. Reply with ONLY the message text, no fences.\n\n${diff}`;
-  const r = spawnSync(claude, ['-p'], { input: prompt, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 90000 });
-  if (r.status !== 0) return { error: (r.stderr || '').slice(0, 300) || 'claude failed' };
-  return { message: (r.stdout || '').trim() };
+  const r = await claudeSessions.run({ label: 'draft-commit', input: prompt, timeoutMs: 90000 });
+  if (r.error) return { error: r.error };
+  if (r.status !== 'done') return { error: r.output.slice(-300).trim() || 'claude failed' };
+  return { message: r.output.trim() };
 });
+// MA: async twin of the sync node runners — for post-action rescans that
+// must not freeze the main process
+function runNodeAsync(script, args = []) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(process.execPath, [script, ...args], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true });
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(path.basename(script) + ' exit ' + code))));
+    p.on('error', reject);
+  });
+}
 ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return false;
@@ -735,11 +740,16 @@ ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   if (a.status !== 0) return { error: 'add failed' };
   const c = spawnSync('git', ['-C', cwd, 'commit', '-m', String(message || 'wip')], { encoding: 'utf8' });
   if (c.status !== 0) return { error: (c.stderr || c.stdout || '').slice(0, 300) };
-  // refresh
+  // MA: the post-commit rescan runs async — the commit returns immediately
+  // instead of freezing main for a full collector pass; the window reloads
+  // by itself once fresh data is bundled.
   const s = latest();
-  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'collector.mjs')], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini();
+  if (s) {
+    runNodeAsync(path.join(COLLECTOR, 'collector.mjs'))
+      .then(() => runNodeAsync(path.join(COLLECTOR, 'assemble.mjs'), ['--date', s.scan.id]))
+      .then(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); })
+      .catch((err) => console.error('[do-commit] rescan failed:', err.message));
+  }
   return { ok: true };
 });
 
@@ -923,6 +933,10 @@ function castSend(channel, payload) {
     if (w && !w.isDestroyed()) try { w.webContents.send(channel, payload); } catch {}
   }
 }
+// MA: session presence — every registry change pushes to the windows, and the
+// list is pollable (IPC-CONTRACT: hq:claude-sessions push / hq:sessions-list)
+claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessions));
+ipcMain.handle('hq:sessions-list', () => claudeSessions.list());
 
 // Channeled spells (Claude skills, dev-ish scripts) open a real terminal:
 // Windows Terminal when present, classic cmd window otherwise.
@@ -936,7 +950,7 @@ function openChanneled(spell) {
   recordCast({ cast_id: 'c-' + Date.now().toString(36), spell_id: spell.id, started_at: new Date().toISOString(), duration_ms: null, outcome: 'channeled', exit_code: null, chain_id: null });
 }
 
-function doCast(spell, { notifyOutcome = false, chainId = null } = {}) {
+function doCast(spell, { notifyOutcome = false, chainId = null, onDone = null } = {}) {
   if (castRegistry.has(spell.id)) return { error: 'already casting' };
   const castId = 'c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   const startedAt = new Date().toISOString();
@@ -966,6 +980,7 @@ function doCast(spell, { notifyOutcome = false, chainId = null } = {}) {
     const duration = Date.now() - t0;
     recordCast({ cast_id: castId, spell_id: spell.id, started_at: startedAt, duration_ms: duration, outcome, exit_code: timedOut ? null : code, chain_id: chainId });
     castSend('hq:cast-done', { castId, spellId: spell.id, name: spell.name, icon: spell.icon, outcome, exit_code: code, duration_ms: duration, timed_out: !!timedOut, chainId });
+    if (onDone) try { onDone(outcome); } catch { /* chain settles itself */ }
     if (notifyOutcome && Notification.isSupported()) {
       const secs = Math.round(duration / 1000);
       new Notification({
@@ -988,6 +1003,52 @@ function doCast(spell, { notifyOutcome = false, chainId = null } = {}) {
   return { castId };
 }
 
+// MA: chains/Ultimates — members cast sequentially through doCast, halting on
+// the first fizzle. The chain holds a synthetic castRegistry entry (key = the
+// chain spell's id, proc:null) so 'already casting' and cancel both work;
+// cancelling kills the active member, whose fizzle settles the chain.
+function doChain(book, spell, { notifyOutcome = false } = {}) {
+  if (castRegistry.has(spell.id)) return { error: 'already casting' };
+  const members = (spell.chain || []).map((id) => book.spells.find((s) => s.id === id));
+  if (!members.length || members.some((m) => !m || m.invalid || m.kind === 'tome' || m.kind === 'channeled' || m.kind === 'chain'))
+    return { error: 'chain has unresolvable members' };
+  const chainId = 'c-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const startedAt = new Date().toISOString();
+  const t0 = Date.now();
+  const entry = { proc: null, castId: chainId, startedAt, timer: null, chain: true, halted: false, activeMember: null };
+  castRegistry.set(spell.id, entry);
+  castSend('hq:cast-output', { castId: chainId, spellId: spell.id, name: spell.name, icon: spell.icon, stream: 'sys', chunk: `⛓️ ${spell.name} — ${members.length} links`, chainId });
+
+  let i = 0;
+  const settle = (outcome) => {
+    if (!castRegistry.has(spell.id)) return;
+    castRegistry.delete(spell.id);
+    const duration = Date.now() - t0;
+    recordCast({ cast_id: chainId, spell_id: spell.id, started_at: startedAt, duration_ms: duration, outcome, exit_code: null, chain_id: chainId });
+    castSend('hq:cast-done', { castId: chainId, spellId: spell.id, name: spell.name, icon: spell.icon, outcome, exit_code: null, duration_ms: duration, timed_out: false, chainId });
+    if (notifyOutcome && Notification.isSupported()) {
+      new Notification({
+        title: outcome === 'resolved' ? `⛓️ ${spell.name} resolved · ${members.length} links` : `💥 ${spell.name} broke at link ${i + 1}/${members.length}`,
+        body: outcome === 'resolved' ? 'Every link held.' : 'Open WorkspaceHQ → Spellbook for the casting log.',
+        icon: path.join(DIR, 'icon.png'),
+      }).show();
+    }
+  };
+  const next = () => {
+    if (entry.halted) return settle('fizzled');
+    if (i >= members.length) return settle('resolved');
+    const m = members[i];
+    entry.activeMember = m.id;
+    const r = doCast(m, { chainId, onDone: (outcome) => { if (outcome === 'resolved' && !entry.halted) { i++; next(); } else settle('fizzled'); } });
+    if (r.error) {
+      castSend('hq:cast-output', { castId: chainId, spellId: spell.id, stream: 'err', chunk: `link ${m.id}: ${r.error}`, chainId });
+      settle('fizzled');
+    }
+  };
+  next();
+  return { castId: chainId, chain: true };
+}
+
 // confirmedHash: the content_hash the user saw in the dry-run modal this round.
 // Required on first cast, after any hash change, and every time for confirm:true spells.
 ipcMain.handle('hq:spell-cast', (_e, spellId, confirmedHash, opts) => {
@@ -997,7 +1058,6 @@ ipcMain.handle('hq:spell-cast', (_e, spellId, confirmedHash, opts) => {
   if (!spell) return { error: 'unknown spell' };
   if (spell.invalid) return { error: 'spell is invalid (broken chain refs?)' };
   if (spell.kind === 'tome') return { error: 'tomes are lore, not incantations' };
-  if (spell.kind === 'chain') return { error: 'spell chains arrive in a later phase' };
 
   const t = readTelemetry();
   const known = t.confirmed_hashes[spell.id] === spell.content_hash;
@@ -1014,11 +1074,22 @@ ipcMain.handle('hq:spell-cast', (_e, spellId, confirmedHash, opts) => {
   if (!known && !spell.confirm) { t.confirmed_hashes[spell.id] = spell.content_hash; writeTelemetry(t); }
 
   if (spell.kind === 'channeled') { openChanneled(spell); return { channeled: true }; }
-  return doCast(spell, { notifyOutcome: !!opts?.notify || !win || !win.isVisible() });
+  const notifyOutcome = !!opts?.notify || !win || !win.isVisible();
+  if (spell.kind === 'chain') return doChain(book, spell, { notifyOutcome });   // MA: Ultimates live
+  return doCast(spell, { notifyOutcome });
 });
 ipcMain.handle('hq:spell-cancel', (_e, spellId) => {
   const entry = castRegistry.get(String(spellId));
   if (!entry) return false;
+  if (entry.chain) {
+    // MA: cancelling a chain = halt + kill the active member; its fizzle
+    // settles the chain (members chain synchronously, so there is no idle
+    // between-links state to catch).
+    entry.halted = true;
+    const m = entry.activeMember && castRegistry.get(entry.activeMember);
+    if (m?.proc?.pid) spawnSync('taskkill', ['/pid', String(m.proc.pid), '/f', '/t'], { windowsHide: true });
+    return true;
+  }
   if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
   return true;   // the close handler records the fizzle
 });

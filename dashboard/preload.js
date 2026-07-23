@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld('hq', {
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
   actedOn: (entry) => ipcRenderer.invoke('hq:acted-on', entry),
   getActedOn: () => ipcRenderer.invoke('hq:acted-on-read'),
+  // MA: Claude session presence (registry in claude-sessions.js)
+  getSessions: () => ipcRenderer.invoke('hq:sessions-list'),
+  onClaudeSessions: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:claude-sessions', handler);
+    return () => ipcRenderer.removeListener('hq:claude-sessions', handler);
+  },
   devStart: (id) => ipcRenderer.invoke('hq:dev-start', id),
   devStop: (id) => ipcRenderer.invoke('hq:dev-stop', id),
   saveNote: (id, note) => ipcRenderer.invoke('hq:note-save', id, note),
