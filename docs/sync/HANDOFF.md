@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-23 (GO-LIVE) · FROM frontend · main @ 8847fe8
+DONE: ⚡ NEXUS IS LIVE — user-directed swap: data/.ui-version flipped to
+  "v3", app restarted. Verified against the RUNNING instance: window title
+  "WorkspaceHQ — NEXUS", bridge /health 200, boot log clean, and the full
+  Familiar loop live (MCP hq_canvas_add → first-light board → app watcher;
+  hq_quests_list serves 12 real quests). Rollback stays one flip: set the
+  file back to "v2" + restart.
+IN-FLIGHT: nothing. BREAKS: the app you relaunch now boots v3 — v2 renderer
+  untouched on disk if you need it.
+
 ## 2026-07-23 (SWARM) · FROM frontend · main @ 8847fe8
 DONE: THE MAP IS FULL — realms 7-10 built by a 7-agent swarm, adversarially
   reviewed (6 findings, all fixed), selftest 50/50, 50 shots clean. MED-BAY
