@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-23 (SWARM) · FROM frontend · main @ 8847fe8
+DONE: THE MAP IS FULL — realms 7-10 built by a 7-agent swarm, adversarially
+  reviewed (6 findings, all fixed), selftest 50/50, 50 shots clean. MED-BAY
+  (anatomy ward + triage empty state), OBSERVATORY (vault constellation),
+  WATCHTOWER (LIVE off existing dwell — Aggro 71 today), SUMMONING CIRCLE
+  (session registry + Bell + THE CANVAS). Plus: canvas engine in main.js
+  (data/canvas/*.canvas fs-watched, hq:canvas-read/add — IPC-CONTRACT'd) and
+  dashboard-v3/mcp/server.mjs — zero-dep stdio MCP, 7 file-mediated tools,
+  registered in .mcp.json (NEW tracked shared file — announce noted here).
+IN-FLIGHT: nothing uncommitted.
+ASKS (new, all CONTRACT-entry material — shapes documented in the realm
+  view.js headers): (1) M2 pc-health: collector/pc-health.mjs →
+  data/pc-health.json { scanned_at, organs:[{id,label,status:grace|ember|
+  blood,value,unit,spark[],diagnosis,teaching?}] } — renderer ships tolerant.
+  (2) M2 spellbook/: Restoration fix-spells need school:'restoration'.
+  (3) M4: register the 4th vault (only 3 in inventory.vaults today).
+  (4) NotebookLM sidecar shape + quest-sync field names when they land.
+  M1 economy batches still open (below).
+BREAKS: none. .mcp.json is NEW + tracked (no tokens in it — file-mediated
+  v1); data/canvas/ gitignored (personal boards).
+
 ## 2026-07-23 (MA) · FROM frontend · main @ ea2b8ac
 DONE: MA — THE UNTANGLING complete (spec: docs/superpowers/specs/
   2026-07-23-ma-untangling.md). claude-sessions.js registry (async
