@@ -6,7 +6,9 @@ import { LEXICONS } from '../lexicon/lexicons.js';
 let LEX = { ...LEXICONS.default };
 
 export function setLexTheme(id) {
-  LEX = { ...LEXICONS.default, ...(LEXICONS[id] || {}) };
+  // the cinematic NEXUS theme speaks the NIGHTFALL canon (its dark-fantasy soul)
+  const key = id === 'nexus' ? 'nightfall' : id;
+  LEX = { ...LEXICONS.default, ...(LEXICONS[key] || {}) };
 }
 
 export const LX = (k) => (LEX[k] !== undefined ? LEX[k] : LEXICONS.default[k] ?? k);

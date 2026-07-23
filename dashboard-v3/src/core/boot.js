@@ -42,8 +42,10 @@ register(summoningM, summoningV);
 
 // Restore the scrubbed scan + active realm across win.reload() (main reloads
 // on scan/commit/etc.) so a data refresh doesn't snap the user home.
-const _si = Number(sessionStorage.getItem('hq-scan-idx'));
-if (Number.isInteger(_si)) data.select(_si);
+// (Guard the raw value: Number(null) is 0, which would wrongly select the
+// oldest scan when the key is absent — check for the key first.)
+const _rawIdx = sessionStorage.getItem('hq-scan-idx');
+if (_rawIdx !== null && Number.isInteger(Number(_rawIdx))) data.select(Number(_rawIdx));
 startShell(sessionStorage.getItem('hq-active-realm') || 'roundtable');
 
 // App-lifetime session-presence subscriber: keeps the Summoning rail badge

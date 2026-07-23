@@ -94,6 +94,7 @@ function renderTopstrip() {
         <button id="theme-btn" class="sfx theme-btn" title="Themes · card export · sound">◈ SYS</button>
         <div id="theme-menu" class="theme-menu" role="menu">
           <div class="th-group">THEME</div>
+          <button data-theme="nexus" class="theme-opt"><span class="th-name">NEXUS</span><span class="th-hint">cinematic · obsidian &amp; gold</span></button>
           <button data-theme="arcade" class="theme-opt"><span class="th-name">ARCADE</span><span class="th-hint">CRT · pixel · phosphor</span></button>
           <button data-theme="okami" class="theme-opt"><span class="th-name">OKAMI</span><span class="th-hint">streetwear · void purple</span></button>
           <button data-theme="numidea" class="theme-opt"><span class="th-name">NUMIDEA</span><span class="th-hint">editorial · mesh · glitch</span></button>

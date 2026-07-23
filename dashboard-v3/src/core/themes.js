@@ -5,6 +5,7 @@ import { bus } from './bus.js';
 import { setLexTheme } from './lexicon.js';
 
 export const THEMES = {
+  nexus:     { label: 'NEXUS' },      // cinematic dark-fantasy — the default
   arcade:    { label: 'ARCADE' },
   okami:     { label: 'OKAMI' },
   numidea:   { label: 'NUMIDEA' },
@@ -13,13 +14,24 @@ export const THEMES = {
 };
 
 const KEY = 'hq-theme';
+const DEFAULT = 'nexus';
 
 export function currentTheme() {
-  try { return localStorage.getItem(KEY) || 'arcade'; } catch { return 'arcade'; }
+  try {
+    // One-time migration: earlier boots auto-persisted 'arcade', so a returning
+    // app would never see the new cinematic default. Flip everyone to NEXUS once;
+    // after that their pick sticks (they can still choose any theme, arcade too).
+    if (!localStorage.getItem('hq-theme-migrated')) {
+      localStorage.setItem('hq-theme-migrated', '1');
+      localStorage.setItem(KEY, DEFAULT);
+      return DEFAULT;
+    }
+    return localStorage.getItem(KEY) || DEFAULT;
+  } catch { return DEFAULT; }
 }
 
 export function applyTheme(id) {
-  if (!THEMES[id]) id = 'arcade';
+  if (!THEMES[id]) id = DEFAULT;
   document.documentElement.setAttribute('data-theme', id);
   try { localStorage.setItem(KEY, id); } catch {}
   setLexTheme(id);
