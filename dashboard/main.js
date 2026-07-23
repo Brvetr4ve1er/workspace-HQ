@@ -820,6 +820,59 @@ ipcMain.handle('hq:quest-done', (_e, id) => { if (!id) return false; applyDone(i
 // in the renderer; always-confirm spells re-prompt every time.
 const SPELLBOOK_FILE = path.join(DATA, 'spellbook.json');
 const TELEMETRY_FILE = path.join(DATA, 'spell-telemetry.json');
+const ACTED_ON_FILE = path.join(DATA, 'acted-on.json');
+function readActedOn() {
+  let raw;
+  try { raw = fs.readFileSync(ACTED_ON_FILE, 'utf8'); }
+  catch (e) {
+    if (e.code === 'ENOENT') return { entries: [] };  // no ledger yet — fresh start is correct
+    throw e;                                            // real I/O error: don't mask it by resetting
+  }
+  try {
+    const led = JSON.parse(raw);
+    if (led && Array.isArray(led.entries)) return led;
+    throw new Error('ledger missing entries[]');
+  } catch (e) {
+    // File exists but is unparseable/malformed. Quarantine it instead of
+    // overwriting — silently resetting would destroy the entire history.
+    try { fs.renameSync(ACTED_ON_FILE, ACTED_ON_FILE + '.corrupt'); } catch { /* best effort */ }
+    console.error(`[acted-on] corrupt ledger quarantined to ${ACTED_ON_FILE}.corrupt: ${e.message}`);
+    return { entries: [] };
+  }
+}
+// Normalize into a known shape — never persist arbitrary renderer-supplied
+// keys. `resolved` = user asserted done; `marked_done` = a durable side-effect
+// (quest-overrides.json) actually fired. quest-overrides.json stays the source
+// of truth for quest STATE; this ledger is an append-only EVENT log.
+function cleanEntry(entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  if (typeof entry.kind !== 'string' || typeof entry.action_id !== 'string') return null;
+  return {
+    at: typeof entry.at === 'string' ? entry.at : new Date().toISOString(),
+    kind: entry.kind,
+    action_id: entry.action_id,
+    project_id: typeof entry.project_id === 'string' ? entry.project_id : null,
+    seconds: Number.isFinite(entry.seconds) ? Math.max(0, Math.round(entry.seconds)) : 0,
+    resolved: !!entry.resolved,
+    marked_done: !!entry.marked_done,
+    via: typeof entry.via === 'string' ? entry.via : 'unknown',
+  };
+}
+ipcMain.handle('hq:acted-on', (_e, entry) => {
+  const clean = cleanEntry(entry);
+  if (!clean) return false;
+  const led = readActedOn();
+  led.entries.push(clean);
+  if (led.entries.length > 500) led.entries = led.entries.slice(-500); // rolling window
+  fs.mkdirSync(DATA, { recursive: true });
+  const tmp = ACTED_ON_FILE + '.tmp';                                   // atomic write
+  fs.writeFileSync(tmp, JSON.stringify(led, null, 1));
+  fs.renameSync(tmp, ACTED_ON_FILE);
+  return true;
+});
+// Live read — the renderer bakes a build-time snapshot into window.DATA.actedOn,
+// but that goes stale the moment a session is logged; this serves the current file.
+ipcMain.handle('hq:acted-on-read', () => readActedOn());
 const castRegistry = new Map();   // spellId -> { proc, castId, startedAt, timer }
 
 function readSpellbook() {

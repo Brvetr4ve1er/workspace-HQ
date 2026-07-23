@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('hq', {
   reviveProject: (id) => ipcRenderer.invoke('hq:revive-project', id),
   orphanArchive: (p) => ipcRenderer.invoke('hq:orphan-archive', p),
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
+  actedOn: (entry) => ipcRenderer.invoke('hq:acted-on', entry),
+  getActedOn: () => ipcRenderer.invoke('hq:acted-on-read'),
   devStart: (id) => ipcRenderer.invoke('hq:dev-start', id),
   devStop: (id) => ipcRenderer.invoke('hq:dev-stop', id),
   saveNote: (id, note) => ipcRenderer.invoke('hq:note-save', id, note),

@@ -49,7 +49,12 @@ try {
   // nothing cast yet
 }
 
-const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, built_at: new Date().toISOString() };
+let actedOn = null;
+try {
+  actedOn = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/acted-on.json'), 'utf8'));
+} catch { /* no ledger yet */ }
+
+const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, actedOn, built_at: new Date().toISOString() };
 const out = path.join(__dirname, 'data.js');
 fs.writeFileSync(out, 'window.DATA = ' + JSON.stringify(data) + ';\n');
 console.log(`[build-data] ${scans.length} scan(s) -> ${out} (latest: ${data.latest?.scan.id || 'none'})`);

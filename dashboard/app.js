@@ -807,6 +807,24 @@
       ov.appendChild(otc);
     }
 
+    // Evidence, not vanity: how often HQ prompted a move the user actually took.
+    if (isLatest) {
+      const strip = el('div', 'acted-strip');
+      const paint = (led) => {                       // led shape is { entries: [...] } — read .entries, tolerate absence
+        const weekAgo = Date.now() - 7 * 86400000;
+        const wk = (led?.entries || []).filter((e) => Date.parse(e.at) >= weekAgo);
+        const n = wk.length, done = wk.filter((e) => e.resolved).length;   // n, done are integers — safe to inline as HTML
+        strip.innerHTML = n
+          ? `◆ HQ prompted <b>${n}</b> action${n === 1 ? '' : 's'} you took this week · <b>${done}</b> resolved`
+          : `◆ No prompted actions taken yet — hit <b>FOCUS</b> on the one thing above`;
+      };
+      paint(window.DATA?.actedOn);                   // instant: the build-time snapshot
+      if (isElectron && window.hq?.getActedOn) {     // then correct to the live file — the snapshot goes stale on the first log
+        window.hq.getActedOn().then(paint).catch(() => {});
+      }
+      ov.appendChild(strip);
+    }
+
     // Spell of the Day rides inside the TODAY module as a slim bonus ribbon
     const sotd = a.spellcraft?.spell_of_day;
     if (sotd && isLatest) {
@@ -1755,11 +1773,17 @@
   }
   function exitOneThing(done) {
     const ot = $('onething'); if (!ot.classList.contains('show')) return;
-    const mins = Math.round((performance.now() - otStart) / 60000);
+    const secs = Math.round((performance.now() - otStart) / 1000);   // seconds, not minutes — rounding to minutes floored short sessions to 0
     clearInterval(otTimer); otTimer = null;
     document.body.classList.remove('focus-mode'); ot.classList.remove('show'); ot.setAttribute('aria-hidden', 'true');
-    if (done && isElectron && otKind === 'quest' && otQid) { SFX.coin(); window.hq.markQuestDone(otQid); }
-    // [Task 3 inserts the acted-on ledger call here]
+    const markedDone = !!(done && isElectron && otKind === 'quest' && otQid);
+    if (markedDone) { SFX.coin(); window.hq.markQuestDone(otQid); }
+    if (isElectron && otQid && window.hq?.actedOn) {
+      // resolved = user asserted done (pressed the done button); marked_done = a durable
+      // side-effect (quest-overrides.json) actually fired. Distinguishing them keeps the
+      // ledger honest for non-quest actions, where nothing else records completion.
+      window.hq.actedOn({ at: new Date().toISOString(), kind: otKind, action_id: otQid, project_id: otProj, seconds: secs, resolved: !!done, marked_done: markedDone, via: 'focus' });
+    }
     otQid = null; otKind = null; otProj = null;
   }
   { const ox = $('ot-exit'); if (ox) ox.onclick = () => exitOneThing(true); }

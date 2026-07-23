@@ -1402,3 +1402,8 @@ h2.sec.sec-fold:hover { color: var(--text); }
   background: rgba(255,210,63,.12); color: var(--gold, #ffd23f);
   border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--gold, #ffd23f); }
 .otc-focus:hover { background: rgba(255,210,63,.24); }
+
+/* acted-on evidence strip — sits under the One-Thing card */
+.acted-strip { font-family: var(--term); font-size: 14px; color: var(--muted);
+  margin: -6px 0 14px; padding: 6px 10px; border-left: 3px solid var(--gold, #ffd23f); background: var(--card); }
+.acted-strip b { color: var(--gold, #ffd23f); }
