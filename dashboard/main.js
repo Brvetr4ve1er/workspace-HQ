@@ -121,13 +121,23 @@ function latest() {
   try { return JSON.parse(fs.readFileSync(path.join(DATA, 'latest.json'), 'utf8')); } catch { return null; }
 }
 
+// NEXUS v3 swap flag: data/.ui-version containing exactly "v3" loads the
+// parallel dashboard-v3 renderer with THIS preload (per IPC-CONTRACT.md the
+// swap needs zero channel changes). Anything else — missing file, "v2",
+// read error — stays v2, so rollback is one flip + restart away.
+function uiVersion() {
+  try { return fs.readFileSync(path.join(DATA, '.ui-version'), 'utf8').trim(); } catch { return 'v2'; }
+}
+
 function createWindow(show = true) {
   win = new BrowserWindow({
     width: 1180, height: 820, backgroundColor: '#0d1117', title: 'WorkspaceHQ',
     icon: path.join(DIR, 'icon.png'), show,
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
   });
-  win.loadFile(path.join(DIR, 'index.html'));
+  win.loadFile(uiVersion() === 'v3'
+    ? path.join(DIR, '..', 'dashboard-v3', 'index.html')
+    : path.join(DIR, 'index.html'));
   // Close-to-tray: keep the app (and tray) alive when the user closes the window,
   // unless they explicitly quit. The dead app.isQuitting flag now drives this.
   win.on('close', (e) => {

@@ -13,7 +13,9 @@ app.setPath('userData', path.join(os.tmpdir(), process.env.HQ_V3_PROFILE || 'hq-
 function create() {
   const win = new BrowserWindow({
     width: 1280, height: 860, backgroundColor: '#07060f', title: 'NEXUS v3 (dev)',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') },
+    // HQ_V3_PRELOAD=v2 loads the REAL app preload instead of the dev stub —
+    // proves the swap surface (v3 html + v2 preload) before flipping the flag
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, process.env.HQ_V3_PRELOAD === 'v2' ? '..\\dashboard\\preload.js' : 'preload.js') },
   });
   // pipe renderer console to stdout so spikes/parity checks are scriptable
   win.webContents.on('console-message', (_e, _level, msg) => console.log('[v3]', msg));
