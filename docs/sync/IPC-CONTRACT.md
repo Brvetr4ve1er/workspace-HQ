@@ -73,6 +73,8 @@ grep the channel name).
 | `getMiniData()` | `hq:mini-data` | — | `miniPayload()` object | mini HUD |
 | `showMain()` | `hq:show-main` | — | `true` | mini HUD |
 | `miniHide()` | `hq:mini-hide` | — | `true` | mini HUD |
+| **Claude sessions (MA)** | | | | |
+| `getSessions()` | `hq:sessions-list` | — | `[{jobId, label, status, startedAt, endedAt, exitCode, tail}]` | main |
 | **Browser bridge** | | | | |
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 
@@ -91,6 +93,7 @@ realm switches is the #1 porting hazard).
 | `onMiniUpdate(cb)` | `hq:mini-update` | mini payload | mini HUD data refresh |
 | `onMachine(cb)` | `hq:machine` | machine vitals | vitals poll tick |
 | `onBrowserTab(cb)` | `hq:browser-tab` | active-tab event | bridge extension reports focus |
+| `onClaudeSessions(cb)` | `hq:claude-sessions` | full sessions list | any registry change (start/stream-end/linger-expiry) |
 
 ## Rules
 

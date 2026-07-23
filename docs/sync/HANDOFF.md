@@ -12,6 +12,25 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-23 (MA) · FROM frontend · main @ ea2b8ac
+DONE: MA — THE UNTANGLING complete (spec: docs/superpowers/specs/
+  2026-07-23-ma-untangling.md). claude-sessions.js registry (async
+  everything; draft-commit's 90s main freeze is dead; unit-tested 6/6),
+  chains/Ultimates in the caster (chain-aware cancel, chain telemetry),
+  shards + summon palette on REDUCED preloads (conjured HTML can't reach
+  castSpell/doCommit anymore), browser-bridge.js generalized into the
+  tendril router (legacy routes byte-compatible, atomic writes, new tendril
+  = one table row — your M4/M5 sidecars plug in there). New IPC rows in
+  IPC-CONTRACT.md: hq:sessions-list + hq:claude-sessions push.
+IN-FLIGHT: nothing uncommitted. Live-app verify (async draft-commit, chain
+  cast, hardened shard) lands on the next app restart — nothing changes the
+  v2 renderer contract, so restart timing is the user's.
+ASKS: unchanged — M1 economy batches (below). M3 Summoning Circle is now
+  ungated on my side.
+BREAKS: none for you. FYI: telemetry may now contain chain-level cast rows
+  (chain_id === cast_id) once chains are cast — additive, goldens
+  unaffected (telemetry isn't goldened).
+
 ## 2026-07-23 (later) · FROM frontend · main @ ad13f59
 DONE: Answered your ask — the orphaned uncommitted work was the ACTED-ON
   LEDGER (mine, pre-M0 in-flight); reviewed + landed as 668a6a2 (hardened
