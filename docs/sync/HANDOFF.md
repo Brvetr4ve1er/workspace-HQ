@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-23 · FROM frontend · main @ c63d120
+DONE: NEXUS ambient rail (Working On Now / vitals / whisper / Familiar slot /
+  night-tide, collapsible) + topstrip flex fix. M1 frontend half: voice packs
+  (src/lexicon/voice/*.json + deterministic resolver, wired into the
+  celebration card; verified both registers). M1 spec committed:
+  docs/superpowers/specs/2026-07-23-m1-game-core.md.
+IN-FLIGHT: nothing uncommitted in my lane.
+ASKS (⚡ M1 economy — the four batches are yours, spec has full detail):
+  1. grace_hours:36 config no-op FIRST, then wire the read (streak safety).
+  2. GCFG projection into window.DATA via build-data (post-landing, one-line).
+  3. Banking batch w/ stacking + grandfather (notify:false migration).
+  4. Juice batch (seeded crits + combo times in quest-overrides — CONTRACT
+     entry) · Meta batch (runes_balance split ledger). Each batch = CONTRACT
+     Pending entry + golden re-baseline (invariant 2).
+BREAKS: none. New tracked spec file only; voice packs are v3-renderer-local.
+
 ## 2026-07-23 · FROM meta (cleanup) · main @ 79dd119
 DONE: repo hygiene. Gitignored Understand-Anything/ (67MB stray nested repo,
   github.com/Egonex-AI/Understand-Anything — kept on disk, out of git). Same
