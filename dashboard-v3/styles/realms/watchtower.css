@@ -1,0 +1,90 @@
+/* THE SPIRE / WATCHTOWER — realm-only rules (wt- prefix). Shared surfaces
+   (h2.sec, .empty-note, chart cards) come from components.css and are never
+   re-declared here. Colors ride the theme token contract; the category accent
+   arrives per-card as --cc from categories.js. */
+
+/* doomscroll banner */
+.wt-doom {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; margin-bottom: 14px;
+  background: linear-gradient(160deg, rgba(255, 71, 87, .12), var(--card));
+  border: 2px solid var(--ink);
+  animation: wt-doom-pulse 2.4s ease-in-out infinite;
+}
+.wt-doom-k { font-family: var(--px); font-size: 8px; letter-spacing: 1px; color: var(--red); white-space: nowrap; }
+.wt-doom-t { font-family: var(--term); font-size: 17px; color: var(--text); }
+@keyframes wt-doom-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--red), 0 0 16px -6px var(--red); }
+  50%      { box-shadow: 0 0 0 2px var(--red), 0 0 26px -3px var(--red); }
+}
+
+/* overwatch row: dial · rhythm · census */
+.wt-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: 14px; }
+.wt-panel {
+  background: linear-gradient(160deg, var(--card-hi), var(--card));
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
+  padding: 12px 14px;
+}
+.wt-panel .wt-k {
+  font-family: var(--px); font-size: 6.5px; letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+}
+
+/* aggro dial — tier tints the value arc + the lit scale label */
+.wt-dial.calm     { --wt-tier: var(--green); }
+.wt-dial.watchful { --wt-tier: var(--orange); }
+.wt-dial.aggro    { --wt-tier: var(--red); }
+.wt-dial-svg { display: block; width: 100%; max-width: 210px; margin: 0 auto; }
+.wt-arc { fill: none; stroke-width: 12; }
+.wt-arc.bg  { stroke: var(--frame); opacity: .4; }
+.wt-arc.val { stroke: var(--wt-tier, var(--cyan)); filter: drop-shadow(0 0 6px var(--wt-tier, var(--cyan))); }
+.wt-dial-num { font-family: var(--term); font-size: 36px; fill: var(--text); }
+.wt-dial-sub { font-family: var(--px); font-size: 7px; letter-spacing: 2px; fill: var(--muted); }
+.wt-scale {
+  display: flex; justify-content: space-between; margin-top: 8px;
+  font-family: var(--px); font-size: 6.5px; letter-spacing: 1px; color: var(--faint);
+}
+.wt-scale .on { color: var(--wt-tier, var(--text)); text-shadow: 0 0 8px var(--wt-tier, transparent); }
+
+/* weekly rhythm heat strip */
+.wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.wt-wc { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wt-wc .box { display: block; width: 100%; height: 34px; background: var(--ink); border: 1px solid var(--frame); }
+.wt-wc .box i { display: block; width: 100%; height: 100%; background: var(--cyan); }
+.wt-wc b { font-family: var(--px); font-size: 6px; color: var(--faint); font-weight: normal; }
+
+/* watch-log census */
+.wt-cen-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--term); font-size: 16px; padding: 2px 0; }
+.wt-cen-row span { color: var(--muted); }
+.wt-cen-row b { color: var(--text); font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* platform cards */
+.wt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 2px; }
+.wt-card {
+  background: linear-gradient(160deg, var(--card-hi), var(--card));
+  border: 2px solid var(--ink);
+  border-left: 4px solid var(--cc, var(--frame));
+  box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
+  padding: 11px 13px;
+}
+.wt-dom-row { display: flex; align-items: center; gap: 8px; }
+.wt-dom {
+  flex: 1; font-family: var(--term); font-size: 17px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wt-chip {
+  font-family: var(--px); font-size: 6px; letter-spacing: 1px; padding: 3px 6px;
+  color: var(--cc, var(--muted)); border: 1px solid var(--cc, var(--frame));
+  background: rgba(255, 255, 255, .03); white-space: nowrap;
+}
+.wt-total { font-family: var(--term); font-size: 30px; line-height: .95; color: var(--text); margin-top: 8px; }
+.wt-spark { display: block; width: 100%; height: 26px; margin-top: 6px; opacity: .9; }
+.wt-cadence { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 4px; }
+
+/* empty state — the spire awaits its eyes */
+.wt-empty { text-align: center; padding: 56px 20px; color: var(--muted); }
+.wt-empty-glyph { font-size: 44px; margin-bottom: 14px; }
+.wt-empty-head { font-family: var(--px); font-size: 11px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
+.wt-empty-sub { font-family: var(--term); font-size: 17px; line-height: 1.45; max-width: 480px; margin: 0 auto; }
+.wt-empty-sub code { color: var(--cyan); }

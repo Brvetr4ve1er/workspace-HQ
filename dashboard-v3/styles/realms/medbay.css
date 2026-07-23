@@ -1,0 +1,133 @@
+/* MED-BAY realm — PC-health anatomy ward. v3-native (no v2 parity source), so
+   unlike ported realms this file owns real rules. Everything is scoped under
+   .realm-medbay; shared chrome (h2.sec, .empty-note, frame tokens) comes from
+   components.css. Per-card status colour arrives as --oc (set from JS COL). */
+
+.realm-medbay { max-width: 1280px; margin: 0 auto; padding: 10px 14px 52px; animation: medbay-in .3s ease; }
+@keyframes medbay-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* --- triage tally --------------------------------------------------------- */
+.realm-medbay .mb-tally { display: flex; align-items: baseline; gap: 12px; margin: 2px 0 16px; font-family: var(--term); font-size: 15px; }
+.realm-medbay .mbt { color: var(--oc, var(--muted)); }
+.realm-medbay .mbt::before { content: '■ '; }
+.realm-medbay .mbt-when { margin-left: auto; color: var(--faint); font-size: 13px; }
+
+/* --- anatomy: organ cards arranged as a wireframe body --------------------
+   head = cpu · eyes = gpu · heart = ram · veins/arms = network · immune/arm =
+   updates · gut = disk · bowels = temp · legs = startup. Slots are the closed
+   .organ-<id> set the view assigns; unknown organs flow into spare cells. */
+.realm-medbay .anatomy {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  grid-template-areas:
+    "gpu     cpu     ."
+    "network ram     updates"
+    "network disk    updates"
+    ".       temp    ."
+    "startup startup startup";
+  gap: 12px 14px;
+  max-width: 940px;
+  margin: 0 auto 30px;
+}
+.realm-medbay .organ-cpu     { grid-area: cpu; }
+.realm-medbay .organ-gpu     { grid-area: gpu; }
+.realm-medbay .organ-ram     { grid-area: ram; }
+.realm-medbay .organ-network { grid-area: network; }
+.realm-medbay .organ-updates { grid-area: updates; }
+.realm-medbay .organ-disk    { grid-area: disk; }
+.realm-medbay .organ-temp    { grid-area: temp; }
+.realm-medbay .organ-startup { grid-area: startup; }
+
+.realm-medbay .organ {
+  --oc: var(--green, #3aff6e);
+  background: linear-gradient(165deg, var(--card-hi), var(--card));
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 0 16px -6px var(--oc);
+  padding: 10px 12px;
+}
+.realm-medbay .organ.st-ember { box-shadow: 0 0 0 2px var(--frame), 0 0 18px -5px var(--oc); }
+.realm-medbay .organ.st-blood { animation: organ-throb 1.5s ease-in-out infinite; }
+@keyframes organ-throb {
+  0%, 100% { box-shadow: 0 0 0 2px var(--oc), 0 0 14px -6px var(--oc); }
+  50%      { box-shadow: 0 0 0 2px var(--oc), 0 0 24px -2px var(--oc); }
+}
+
+.realm-medbay .organ-top { display: flex; align-items: baseline; gap: 8px; }
+.realm-medbay .organ-tag { font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--oc); }
+.realm-medbay .organ-name { font-family: var(--term); font-size: 16px; color: var(--text); }
+.realm-medbay .organ-status { margin-left: auto; font-family: var(--px); font-size: 7px; letter-spacing: 1px; color: var(--oc); }
+.realm-medbay .organ-read { margin-top: 6px; font-family: var(--term); line-height: 1; }
+.realm-medbay .organ-read b { font-size: 26px; font-weight: 400; color: var(--text); }
+.realm-medbay .organ-unit { margin-left: 5px; font-size: 14px; color: var(--muted); }
+.realm-medbay .organ-spark { display: block; width: 100%; height: 26px; margin-top: 6px; opacity: .9; }
+.realm-medbay .organ-dx { margin-top: 6px; font-family: var(--term); font-size: 14px; line-height: 1.35; color: var(--muted); }
+.realm-medbay .organ-tx { margin-top: 4px; font-family: var(--term); font-size: 13px; font-style: italic; line-height: 1.35; color: var(--faint); }
+
+/* --- empty state: the triage cot ------------------------------------------ */
+.realm-medbay .ward-cot {
+  background: linear-gradient(165deg, var(--card-hi), var(--card));
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
+  max-width: 940px;
+  margin: 0 auto 18px;
+  padding: 0 0 18px;
+  text-align: center;
+}
+.realm-medbay .ekg { display: block; width: 100%; height: 28px; }
+.realm-medbay .ekg-base { fill: none; stroke: var(--green, #3aff6e); stroke-width: 2; opacity: .14; }
+.realm-medbay .ekg-line {
+  fill: none; stroke: var(--green, #3aff6e); stroke-width: 2;
+  stroke-dasharray: 70 500;
+  animation: ekg-sweep 3.4s linear infinite;
+  filter: drop-shadow(0 0 4px var(--green, #3aff6e));
+}
+@keyframes ekg-sweep { from { stroke-dashoffset: 570; } to { stroke-dashoffset: 0; } }
+.realm-medbay .cot-px { display: block; width: 240px; height: 112px; margin: 8px auto 2px; }
+.realm-medbay .cot-flat { animation: cot-blip 2.4s steps(2, jump-none) infinite; }
+@keyframes cot-blip { 50% { opacity: .25; } }
+.realm-medbay .cot-head { font-family: var(--px); font-size: 11px; letter-spacing: 1px; line-height: 1.8; color: var(--text); margin: 8px 16px 0; }
+.realm-medbay .cot-sub { font-family: var(--term); font-size: 16px; color: var(--muted); margin: 6px 16px 0; }
+.realm-medbay .cot-how { font-family: var(--term); font-size: 14px; color: var(--faint); margin: 8px 16px 0; }
+.realm-medbay .cot-how b { color: var(--cyan, #00f0ff); font-weight: 400; }
+.realm-medbay .ghost-cap { font-family: var(--term); font-size: 13px; font-style: italic; color: var(--faint); text-align: center; margin: 0 0 12px; }
+
+/* ghost beds: dashed, unlit, waiting */
+.realm-medbay .organ.ghost {
+  background: transparent;
+  border: 2px dashed var(--frame);
+  box-shadow: none;
+  opacity: .8;
+}
+.realm-medbay .organ.ghost .organ-tag,
+.realm-medbay .organ.ghost .organ-read b { color: var(--faint); }
+.realm-medbay .organ.ghost .organ-name { color: var(--muted); }
+.realm-medbay .organ.ghost .organ-dx { color: var(--faint); font-style: italic; }
+
+/* --- restoration ward ------------------------------------------------------ */
+.realm-medbay .ward-list { display: flex; flex-direction: column; gap: 10px; max-width: 940px; margin: 0 auto; }
+.realm-medbay .ward-spell {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card);
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 0 12px -7px var(--green, #3aff6e);
+  padding: 9px 12px;
+}
+.realm-medbay .ws-icon { font-size: 20px; flex: 0 0 auto; }
+.realm-medbay .ws-body { min-width: 0; }
+.realm-medbay .ws-name { font-family: var(--term); font-size: 16px; color: var(--text); }
+.realm-medbay .ws-kind { font-size: 13px; color: var(--faint); }
+.realm-medbay .ws-desc { font-family: var(--term); font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.realm-medbay .ws-cast {
+  margin-left: auto; flex: 0 0 auto; cursor: pointer;
+  font-family: var(--px); font-size: 8px; letter-spacing: 1px; padding: 7px 10px;
+  background: transparent; color: var(--green, #3aff6e);
+  border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--green, #3aff6e); border-radius: 0;
+}
+.realm-medbay .ws-cast:hover:not(:disabled) { background: rgba(58, 255, 110, .12); }
+.realm-medbay .ws-cast:disabled { color: var(--faint); box-shadow: 0 0 0 1px var(--frame); cursor: not-allowed; }
+
+/* narrow fallback: the body folds into a single column, head to toe */
+@media (max-width: 820px) {
+  .realm-medbay .anatomy { grid-template-columns: 1fr; grid-template-areas: none; }
+  .realm-medbay .anatomy .organ { grid-area: auto; }
+}

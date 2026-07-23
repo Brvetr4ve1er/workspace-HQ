@@ -1,0 +1,153 @@
+/* SUMMONING CIRCLE — realm-private surfaces only: session registry (.ss-*),
+   Beckoning Bell console (.sum-*), THE CANVAS (.cv-*). Shared machinery
+   (h2.sec, .empty-note, frame tokens) comes from components.css — never
+   re-declared here (realms.css loads after it; duplicates would win the
+   cascade and drift other realms). Everything rides the theme tokens. */
+
+.realm-summoning { display: flex; flex-direction: column; gap: 20px; }
+
+/* ---- session registry --------------------------------------------------- */
+.ss-live { color: var(--green); }
+.ss-list { display: flex; flex-direction: column; gap: 10px; }
+.ss-row {
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame);
+  background: var(--card);
+  padding: 10px 12px;
+}
+.ss-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ss-chip {
+  font-family: var(--px); font-size: 7px; letter-spacing: 1px;
+  padding: 4px 8px; border: 1px solid var(--frame); color: var(--muted);
+  white-space: nowrap;
+}
+.ss-chip.running { color: var(--green); border-color: var(--green); animation: ss-pulse 1.6s ease-in-out infinite; }
+.ss-chip.failed { color: var(--red); border-color: var(--red); }
+@keyframes ss-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(58, 255, 110, .45); opacity: 1; }
+  50%      { box-shadow: 0 0 10px 2px rgba(58, 255, 110, .18); opacity: .7; }
+}
+.ss-label { color: var(--text); font-size: 17px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ss-time { margin-left: auto; color: var(--faint); font-family: var(--term); font-size: 14px; white-space: nowrap; }
+.ss-tail { margin-top: 8px; }
+.ss-tail summary { cursor: pointer; color: var(--faint); font-family: var(--term); font-size: 13px; letter-spacing: 1px; list-style: none; }
+.ss-tail summary::-webkit-details-marker { display: none; }
+.ss-tail summary:hover { color: var(--muted); }
+.ss-tail pre {
+  margin-top: 6px; max-height: 220px; overflow: auto;
+  background: var(--bg2); border: 1px solid var(--frame);
+  padding: 8px 10px; font-family: var(--mono); font-size: 13px; line-height: 1.35;
+  color: var(--muted); white-space: pre-wrap; word-break: break-word;
+}
+
+/* ---- Beckoning Bell console --------------------------------------------- */
+.sum-console {
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
+  background: var(--card);
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.sum-teach { color: var(--muted); font-size: 15px; }
+.sum-teach b { color: var(--gold-2, var(--active)); }
+.sum-proj {
+  background: var(--ink); color: var(--text); border: 1px solid var(--frame);
+  font-family: var(--term); font-size: 15px; padding: 7px 8px; max-width: 100%;
+}
+.sum-prompt {
+  background: var(--ink); color: var(--text); border: 1px solid var(--frame);
+  font-family: var(--term); font-size: 16px; padding: 8px 10px;
+  resize: vertical; min-height: 74px;
+}
+.sum-proj:focus, .sum-prompt:focus { outline: none; border-color: var(--active); }
+.sum-act { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sum-go {
+  font-family: var(--px); font-size: 9px; letter-spacing: 1px; cursor: pointer;
+  padding: 10px 16px; background: var(--frame); color: var(--gold-2, var(--active));
+  border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--frame);
+}
+.sum-go:hover:not(:disabled) { color: var(--active); box-shadow: 0 0 0 2px var(--active); }
+.sum-go:active:not(:disabled) { transform: translateY(2px); }
+.sum-go:disabled { opacity: .4; cursor: default; }
+.sum-hint { color: var(--faint); font-family: var(--term); font-size: 14px; }
+
+/* ---- THE CANVAS --------------------------------------------------------- */
+.cv-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.cv-tab {
+  appearance: none; cursor: pointer;
+  background: var(--ink); color: var(--muted); border: 1px solid var(--frame);
+  font-family: var(--term); font-size: 15px; padding: 5px 12px; letter-spacing: 1px;
+}
+.cv-tab:hover { color: var(--text); }
+.cv-tab.active { color: var(--active); border-color: var(--active); }
+.cv-none { color: var(--faint); font-family: var(--term); font-size: 14px; }
+.cv-note-btn {
+  margin-left: auto; appearance: none; cursor: pointer;
+  font-family: var(--px); font-size: 7px; letter-spacing: 1px; padding: 6px 10px;
+  background: var(--ink); color: var(--muted); border: 1px solid var(--frame);
+}
+.cv-note-btn:hover:not(:disabled) { color: var(--active); border-color: var(--active); }
+.cv-note-btn:disabled { opacity: .4; cursor: default; }
+.cv-note-form { display: flex; gap: 8px; margin-bottom: 8px; }
+.cv-note-in {
+  flex: 1; background: var(--ink); color: var(--text); border: 1px solid var(--frame);
+  font-family: var(--term); font-size: 15px; padding: 6px 9px;
+}
+.cv-note-in:focus { outline: none; border-color: var(--active); }
+.cv-note-go {
+  appearance: none; cursor: pointer; font-family: var(--px); font-size: 7px;
+  letter-spacing: 1px; padding: 6px 10px;
+  background: var(--frame); color: var(--gold-2, var(--active)); border: 1px solid var(--ink);
+}
+.cv-note-go:hover { color: var(--active); }
+
+.cv-viewport {
+  position: relative; height: 520px; overflow: hidden;
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
+  background: var(--bg2);
+  cursor: grab; touch-action: none; user-select: none;
+}
+.cv-viewport.panning { cursor: grabbing; }
+.cv-plane {
+  position: absolute; top: 0; left: 0; will-change: transform;
+  background-image: radial-gradient(var(--frame) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+.cv-edges { position: absolute; top: 0; left: 0; overflow: visible; color: var(--faint); }
+.cv-edge { fill: none; stroke: var(--faint); stroke-width: 2; opacity: .85; }
+.cv-elbl {
+  fill: var(--muted); font-family: var(--term); font-size: 13px;
+  paint-order: stroke; stroke: var(--bg2); stroke-width: 4px;
+}
+.cv-node {
+  position: absolute; overflow: hidden;
+  background: var(--card); border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--cvc, var(--frame));
+  padding: 8px 10px; font-size: 15px; color: var(--text);
+}
+.cv-node:hover { box-shadow: 0 0 0 2px var(--cvc, var(--frame)), 0 0 14px -4px var(--cvc, var(--frame-hi)); }
+.cv-node .md-h { font-family: var(--px); font-size: 9px; color: var(--gold-2, var(--active)); margin-bottom: 6px; }
+.cv-node .md-li { margin: 2px 0 2px 6px; }
+.cv-node .md-p { margin: 2px 0; }
+.cv-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  color: var(--cyan, var(--active)); font-family: var(--term); font-size: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* beckoning empty circle (no boards yet) */
+.cv-void { display: flex; align-items: center; justify-content: center; cursor: default; }
+.cv-empty { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; }
+.cv-circle {
+  width: 190px; height: 190px; border: 2px dashed var(--frame-hi, var(--frame));
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 44px; opacity: .8; animation: cv-beckon 3.2s ease-in-out infinite;
+}
+@keyframes cv-beckon {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(177, 74, 255, 0); transform: scale(1); }
+  50%      { box-shadow: 0 0 26px -4px rgba(177, 74, 255, .5); transform: scale(1.03); }
+}
+.cv-empty-note { color: var(--faint); font-size: 15px; text-align: center; max-width: 440px; }
+.cv-empty-note b { color: var(--muted); }
+.cv-path { font-family: var(--mono); color: var(--muted); }

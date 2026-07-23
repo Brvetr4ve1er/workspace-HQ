@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "workspacehq": {
+      "command": "node",
+      "args": ["dashboard-v3/mcp/server.mjs"]
+    }
+  }
+}
