@@ -14,8 +14,8 @@ function ctx() {
   return { data, bus, LX, theme: currentTheme(), hq: window.hq };
 }
 
-export function switchRealm(id) {
-  if (id === activeId) return;
+export function switchRealm(id, force = false) {
+  if (id === activeId && !force) return;
   const r = byId(id);
   if (!r || !r.manifest.enabled(data)) return;
   const stage = document.getElementById('stage');
@@ -23,6 +23,7 @@ export function switchRealm(id) {
   if (prev) { try { prev.view.unmount(); } catch (err) { console.error('[shell] unmount', activeId, err); } }
   stage.innerHTML = '';
   activeId = id;
+  try { sessionStorage.setItem('hq-active-realm', id); } catch {}   // survive win.reload()
   r.view.mount(stage, ctx());
   document.querySelectorAll('#rail-left .sigil').forEach((b) => b.classList.toggle('active', b.dataset.realm === id));
   bus.emit('realm:switched', { id });
@@ -43,7 +44,7 @@ function renderRail() {
   refreshBadges();
 }
 
-function refreshBadges() {
+export function refreshBadges() {
   for (const { manifest: m } of ordered()) {
     const b = document.querySelector(`#rail-left .sigil[data-realm="${m.id}"] .badge`);
     if (!b) continue;
@@ -112,8 +113,7 @@ export function startShell(defaultRealm) {
   renderRail();
   bus.on('theme:changed', () => {      // labels ride the theme; active realm re-mounts for LX
     renderRail();
-    const id = activeId; activeId = null;
-    if (id) switchRealm(id);
+    if (activeId) switchRealm(activeId, true);   // force: real unmount()→mount(), no leak
   });
   bus.on('data:select', () => refreshBadges());
   switchRealm(defaultRealm);

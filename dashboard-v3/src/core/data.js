@@ -18,6 +18,7 @@ export const data = {
     const next = Math.max(0, Math.min(SCANS.length - 1, i));
     if (next === idx) return;
     idx = next;
+    try { sessionStorage.setItem('hq-scan-idx', String(idx)); } catch {}   // survive win.reload()
     bus.emit('data:select', { index: idx, scan: SCANS[idx], isLatest: this.isLatest });
   },
 };

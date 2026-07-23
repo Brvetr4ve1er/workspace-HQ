@@ -35,18 +35,20 @@ function readJsonOr(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
 }
 
-const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // tmp + rename so readers (collector, Claude) never see a half-written file.
 // Windows quirk: a reader/AV holding the destination makes rename throw EPERM.
-function writeAtomic(file, text) {
+// Async + yields between retries: the old Atomics.wait busy-spin froze the whole
+// Electron main event loop on every EPERM retry.
+async function writeAtomic(file, text) {
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, text);
+  await fs.promises.writeFile(tmp, text);
   for (let attempt = 1; ; attempt++) {
-    try { fs.renameSync(tmp, file); return; }
+    try { await fs.promises.rename(tmp, file); return; }
     catch (e) {
-      if (e.code !== 'EPERM' || attempt >= 3) throw e;
-      sleepSync(50);
+      if (e.code === 'EPERM' && attempt < 3) { await delay(50); continue; }
+      throw e;
     }
   }
 }
@@ -114,7 +116,7 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
     for (const alias of t.legacyRoutes || []) routes.set(alias, rt);
   }
 
-  function ingest(rt, payload) {
+  async function ingest(rt, payload) {
     const t = rt.tendril;
     const doc = readJsonOr(rt.file, { updated: null, live: null, events: [] });
     if (!Array.isArray(doc.events)) doc.events = [];
@@ -142,7 +144,7 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
     doc.updated = new Date(now).toISOString();
 
     fs.mkdirSync(path.dirname(rt.file), { recursive: true });
-    writeAtomic(rt.file, JSON.stringify(doc));
+    await writeAtomic(rt.file, JSON.stringify(doc));
     if (typeof rt.onLive === 'function') { try { rt.onLive(doc.live); } catch { /* renderer maybe gone */ } }
     return { ok: true, stored, total: doc.events.length };
   }
@@ -170,12 +172,17 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
       if (!rt) return send(404, { ok: false, error: 'unknown tendril' });
       if (req.headers['x-hq-bridge'] !== '1') return send(403, { ok: false, error: 'missing bridge header' });
       if (token && req.headers['x-hq-token'] !== token) return send(401, { ok: false, error: 'bad token' });
-      let body = '', tooBig = false;
-      req.on('data', (c) => { body += c; if (body.length > MAX_BODY) { tooBig = true; req.destroy(); } });
-      req.on('end', () => {
+      // Accumulate raw Buffer chunks and decode ONCE at end (a per-chunk string
+      // concat corrupts multibyte UTF-8 split across a TCP boundary). Bound by
+      // byte length; on overflow flag + still answer 413 from 'end' — never
+      // req.destroy() (that wedged the extension's send queue).
+      const chunks = []; let size = 0, tooBig = false;
+      req.on('data', (c) => { chunks.push(c); size += c.length; if (size > MAX_BODY) tooBig = true; });
+      req.on('end', async () => {
         if (tooBig) return send(413, { ok: false, error: 'too big' });
-        let payload; try { payload = JSON.parse(body || '{}'); } catch { return send(400, { ok: false, error: 'bad json' }); }
-        try { send(200, ingest(rt, payload)); } catch (e) { send(500, { ok: false, error: String((e && e.message) || e) }); }
+        let payload;
+        try { payload = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { return send(400, { ok: false, error: 'bad json' }); }
+        try { send(200, await ingest(rt, payload)); } catch (e) { send(500, { ok: false, error: String((e && e.message) || e) }); }
       });
       return;
     }

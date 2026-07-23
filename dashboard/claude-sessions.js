@@ -93,4 +93,14 @@ function kill(jobId) {
   return true;
 }
 
-module.exports = { findClaude, start, run, list, kill, setOnChange };
+// Reap every tracked session at once — for app before-quit, so no Claude proc
+// tree is orphaned when the window dies.
+function killAll() {
+  for (const e of sessions.values()) {
+    if (e.timer) clearTimeout(e.timer);
+    if (e.proc?.pid) try { spawnSync('taskkill', ['/pid', String(e.proc.pid), '/f', '/t'], { windowsHide: true }); } catch { /* best-effort */ }
+  }
+  sessions.clear();
+}
+
+module.exports = { findClaude, start, run, list, kill, killAll, setOnChange };

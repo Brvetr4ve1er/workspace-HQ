@@ -86,7 +86,7 @@ function celebrate(items, seed = '') {
   const ach = items.filter((c) => c.type === 'new_achievement');
   const quests = items.filter((c) => c.type === 'quest_completed');
   const big = lvl ? 'LEVEL UP' : ach.length ? 'ACHIEVEMENT' : 'QUEST COMPLETE';
-  const sub = lvl ? `L${lvl.level} · ${esc(lvl.title || '')}` : ach.length ? esc(ach[0].name || ach[0].achievement_id || 'Unlocked') : esc(quests[0]?.detail || '');
+  const sub = lvl ? `L${esc(String(lvl.level))} · ${esc(lvl.title || '')}` : ach.length ? esc(ach[0].name || ach[0].achievement_id || 'Unlocked') : esc(quests[0]?.detail || '');
   const xpGain = items.reduce((acc, c) => acc + (c.xp || 0), 0);
   const rows = [];
   if (quests.length) rows.push(`<div class="to-row">✓ ${quests.length} quest${quests.length > 1 ? 's' : ''} complete</div>`);

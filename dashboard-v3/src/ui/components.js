@@ -328,7 +328,10 @@ export function openDrawer(p, prevP, data) {
 
   let branchWarn = '';
   const rf = p.metrics.risk_security.flags || [];
-  if (rf.includes('non-canonical-branch') || (g.flags && g.flags.includes('non-canonical-branch'))) {
+  // risk_security.flags are objects ({type}) with underscore tokens; git_safety
+  // .flags are hyphenated strings — check each in its own shape.
+  const rsNonCanon = rf.some((f) => typeof f === 'string' ? f === 'non-canonical-branch' : f.type === 'non_canonical_branch');
+  if (rsNonCanon || (g.flags && g.flags.includes('non-canonical-branch'))) {
     branchWarn = `<div class="branch-warn">Active branch (${esc(g.branch)}) differs from canonical (${esc(p.canonical_branch)})</div>`;
   }
 
@@ -425,7 +428,10 @@ export function openDrawer(p, prevP, data) {
     const moreBtn = $('dwr-more'), moreMenu = $('dwr-menu');
     if (moreBtn && moreMenu) {
       moreBtn.onclick = (e) => { e.stopPropagation(); moreMenu.classList.toggle('open'); };
-      d.addEventListener('click', (e) => { if (!moreMenu.contains(e.target) && e.target !== moreBtn) moreMenu.classList.remove('open'); });
+      // single-slot handler on the PERSISTENT #drawer: reassigning .onclick each
+      // open replaces the prior closure (which referenced a now-detached menu),
+      // instead of stacking a fresh addEventListener + leaking DOM every open.
+      d.onclick = (e) => { if (!moreMenu.contains(e.target) && e.target !== moreBtn) moreMenu.classList.remove('open'); };
     }
     const cm = $('dwr-commit');
     if (cm) cm.onclick = async () => {

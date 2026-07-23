@@ -162,7 +162,7 @@ const TOOLS = [
     run(args) {
       if (args.name != null && args.name !== '') {
         const name = String(args.name);
-        if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name)) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
+        if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
         const board = readJson(confined('canvas', `${name}.canvas`), null);
         if (!board) throw new ToolError(`no board named "${name}"`);
         return { name, ...board };
@@ -197,7 +197,7 @@ const TOOLS = [
     },
     run(args) {
       const name = String(args.name || '');
-      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name)) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
+      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
       const text = String(args.text ?? '');
       if (!text.trim()) throw new ToolError('text required');
       const file = confined('canvas', `${name}.canvas`);

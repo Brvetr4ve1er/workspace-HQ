@@ -4,8 +4,9 @@
 import { bus } from './bus.js';
 import { data } from './data.js';
 import { register, ordered } from './registry.js';
-import { startShell, switchRealm } from './shell.js';
+import { startShell, switchRealm, refreshBadges } from './shell.js';
 import { THEMES, applyTheme, currentTheme } from './themes.js';
+import { setSessions } from '../realms/summoning/session-store.js';
 
 import { manifest as roundtableM } from '../realms/roundtable/manifest.js';
 import { view as roundtableV } from '../realms/roundtable/view.js';
@@ -39,7 +40,19 @@ register(observatoryM, observatoryV);
 register(watchtowerM, watchtowerV);
 register(summoningM, summoningV);
 
-startShell('roundtable');
+// Restore the scrubbed scan + active realm across win.reload() (main reloads
+// on scan/commit/etc.) so a data refresh doesn't snap the user home.
+const _si = Number(sessionStorage.getItem('hq-scan-idx'));
+if (Number.isInteger(_si)) data.select(_si);
+startShell(sessionStorage.getItem('hq-active-realm') || 'roundtable');
+
+// App-lifetime session-presence subscriber: keeps the Summoning rail badge
+// live even while that realm is unmounted (the view's own sub covers on-screen
+// detail; setSessions is an idempotent replace, so no double-count).
+if (window.hq?.onClaudeSessions) {
+  window.hq.onClaudeSessions((list) => { setSessions(list); refreshBadges(); });
+  Promise.resolve(window.hq.getSessions?.()).then((l) => { if (Array.isArray(l)) { setSessions(l); refreshBadges(); } }).catch(() => {});
+}
 
 // chrome (scrubber/statusbar/SYS/warden plate) and fx (takeover/confetti/sfx/
 // card exporter) are ported by dedicated agents; boot tolerates their absence

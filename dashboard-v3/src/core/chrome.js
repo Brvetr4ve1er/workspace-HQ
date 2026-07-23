@@ -178,7 +178,9 @@ function paintAll() { paintWarden(); paintTimeMachine(); paintStatusbar(); }
 function wireKeys() {
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
-    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { bus.emit('focus:toggle'); return; }
+    // NOTE: the F (focus) hotkey is owned SOLELY by roundtable/focus.js — do
+    // not handle it here too, or one press toggles twice (net no-op + a bogus
+    // acted-on ledger write). The FOCUS chip still reaches it via bus.
     // ←/→ scrub only when the STAGE SELECT rail is open (or already off-live) —
     // browsing must never silently time-travel into a read-only snapshot.
     const tmOpen = !$('timemachine').classList.contains('collapsed') || !data.isLatest;

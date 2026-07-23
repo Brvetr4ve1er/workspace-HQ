@@ -6,7 +6,7 @@
 import { el, esc } from '../../ui/util.js';
 import {
   sfx, aosKids, aosRefresh, fmtCd, SCHOOL,
-  castSpell, castBlocks, castlogLine, showCastlog, closeDrawer,
+  castSpell, closeDrawer,
 } from '../../ui/components.js';
 
 const $ = (id) => document.getElementById(id);
@@ -20,7 +20,7 @@ const MASTERY_TIERS = [
 let spellSchool = 'all', spellSource = 'all', spellSearch = '', spellMax = 24;
 
 let CTX = null, sb = null;
-let offSelect = null, offCastOut = null, offCastDone = null, cdTimer = 0;
+let offSelect = null, cdTimer = 0;
 
 const masteryOf = (id) => {
   const days = (CTX.data.bundle.telemetry?.rollup?.[id]?.distinct_days || []).length;
@@ -134,8 +134,10 @@ function render() {
   for (const [k, v] of Object.entries(SCHOOL)) chips.appendChild(chip(k, v.label, v.c, B.counts.by_school[k] || 0));
   sb.appendChild(chips);
 
-  // Collection meter: how much of the arsenal you've actually wielded
-  const sc = CTX.data.latest?.account?.spellcraft;
+  // Collection meter: how much of the arsenal you've actually wielded.
+  // .selected (not .latest) so the Memory-of-Grace scrubber time-travels; the
+  // `if (sc)` guard hides it on older snapshots that predate spellcraft.
+  const sc = CTX.data.selected?.account?.spellcraft;
   if (sc) {
     const cm = el('div', 'collmeter');
     const schoolBars = Object.entries(sc.per_school || {})
@@ -248,40 +250,13 @@ export const view = {
         n.textContent = `⏳ ${fmtCd(t - Date.now())}`;
       });
     }, 30000);
-
-    // Cast stream → castlog (v2 app.js 547-571). Handlers close over hq, not
-    // CTX — castlog DOM outlives the realm and a stale CTX must never throw.
-    if (hq?.onCastOutput) {
-      offCastOut = hq.onCastOutput((d) => {
-        showCastlog();
-        const pre = castBlocks.get(d.castId);
-        if (!pre && d.stream === 'sys') castlogLine(d.castId, 'sys', d.chunk);
-        else d.chunk.split(/\r?\n/).forEach((l) => { if (l.trim()) castlogLine(d.castId, d.stream, l); });
-        // attach a cancel button to the block header once
-        if (d.castId && !castBlocks.get(d.castId)?.parentNode.querySelector('.cl-cancel')) {
-          const b = el('button', 'cl-cancel', '✕ cancel');
-          b.onclick = () => hq.cancelCast(d.spellId);
-          castBlocks.get(d.castId)?.parentNode.prepend(b);
-        }
-      });
-      offCastDone = hq.onCastDone((d) => {
-        const ok = d.outcome === 'resolved';
-        castlogLine(d.castId, ok ? 'ok' : 'err',
-          ok ? `✨ ${d.name} RESOLVED · ${(d.duration_ms / 1000).toFixed(1)}s`
-             : `💥 ${d.name} FIZZLED${d.timed_out ? ' (timeout)' : ` (exit ${d.exit_code})`} · ${(d.duration_ms / 1000).toFixed(1)}s`);
-        const blk = castBlocks.get(d.castId)?.parentNode;
-        if (blk) { blk.classList.add(ok ? 'done-ok' : 'done-err'); blk.querySelector('.cl-cancel')?.remove(); }
-        // optimistic XP hint: the ledger truth lands at the next assemble
-        if (ok) castlogLine(d.castId, 'sys', '   +XP queued (settles on next scan — cast Deep Scan to bank it now)');
-        ok ? sfx('coin') : sfx('fizzle');
-      });
-    }
+    // NOTE: the cast-stream → castlog subscription is owned SOLELY by fx.js
+    // (wireCastStream, app-lifetime) — the contract in components.js. This realm
+    // must NOT also subscribe or every log line + SFX double-fires.
   },
 
   unmount() {
     offSelect?.(); offSelect = null;
-    offCastOut?.(); offCastOut = null;
-    offCastDone?.(); offCastDone = null;
     clearInterval(cdTimer); cdTimer = 0;
     closeDrawer();   // an open spell drawer must not outlive the realm
     CTX = null; sb = null;

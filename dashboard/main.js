@@ -15,6 +15,11 @@ const { spawnSync, spawn } = require('node:child_process');
 const { startBridge } = require('./browser-bridge');
 const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
 
+// Last-resort safety net: a stray throw/rejection anywhere must never take the
+// whole main process (and every window) down. Log and keep the app alive.
+process.on('uncaughtException', (e) => console.error('[uncaught]', e));
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
+
 const DIR = __dirname;
 const SCAN_DIR = path.join(DIR, '..');
 const PIPELINE = path.join(SCAN_DIR, 'run-pipeline.ps1');
@@ -380,6 +385,7 @@ function watchQuestBoard() {
 function runScan() {
   if (win) win.setTitle('WorkspaceHQ — scanning…');
   const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PIPELINE], { windowsHide: true });
+  ps.on('error', (err) => { if (win && !win.isDestroyed()) win.setTitle('WorkspaceHQ'); try { dialog.showErrorBox('Scan failed to start', String(err.message || err)); } catch {} });
   ps.on('close', (code) => {
     if (win) win.setTitle('WorkspaceHQ');
     if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); pushMini(); notifyForLatest(); }
@@ -990,8 +996,11 @@ function openChanneled(spell) {
   const quote = (a) => (/[\s"&|<>^]/.test(a) ? `"${String(a).replace(/"/g, '\\"')}"` : a);
   const cmdline = [spell.command, ...(spell.args || [])].map(quote).join(' ');
   const wt = spawnSync('where', ['wt'], { encoding: 'utf8', windowsHide: true }).status === 0;
-  if (wt) spawn('wt', ['-w', '0', 'nt', '-d', cwd, 'cmd', '/k', cmdline], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
-  else spawn('cmd.exe', ['/c', 'start', '', 'cmd', '/k', `cd /d "${cwd}" && ${cmdline}`], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+  const child = wt
+    ? spawn('wt', ['-w', '0', 'nt', '-d', cwd, 'cmd', '/k', cmdline], { detached: true, stdio: 'ignore', windowsHide: false })
+    : spawn('cmd.exe', ['/c', 'start', '', 'cmd', '/k', `cd /d "${cwd}" && ${cmdline}`], { detached: true, stdio: 'ignore', windowsHide: false });
+  child.on('error', (e) => console.error('[channeled] spawn failed', e));
+  child.unref();
   recordCast({ cast_id: 'c-' + Date.now().toString(36), spell_id: spell.id, started_at: new Date().toISOString(), duration_ms: null, outcome: 'channeled', exit_code: null, chain_id: null });
 }
 
@@ -1358,5 +1367,9 @@ if (!app.requestSingleInstanceLock()) {
       if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
     }
     castRegistry.clear();
+    // same for live dev servers and in-flight Claude sessions — no orphans on quit
+    for (const [, proc] of activeDevServers) { if (proc?.pid) try { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { windowsHide: true }); } catch {} }
+    activeDevServers.clear();
+    try { claudeSessions.killAll(); } catch {}
   });
 }
