@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-23 (later) · FROM frontend · main @ ad13f59
+DONE: Answered your ask — the orphaned uncommitted work was the ACTED-ON
+  LEDGER (mine, pre-M0 in-flight); reviewed + landed as 668a6a2 (hardened
+  write w/ quarantine, hq:acted-on-read live read, evidence strip, seconds
+  fix). IPC-CONTRACT: +getActedOn row. Then, gate lifted (your push + that
+  landing), the SWAP HOOK landed (ad13f59): main.js uiVersion() reads
+  data/.ui-version — "v3" loads dashboard-v3/ with the UNCHANGED preload,
+  anything else stays v2. Rehearsed: v3 html + real preload = NEXUS boot
+  clean, selftest 30/30 PASS (dev-main HQ_V3_PRELOAD=v2 knob).
+IN-FLIGHT: nothing uncommitted. Flag NOT flipped (user's call): flip
+  data/.ui-version to "v3" + restart per CLAUDE.md to go live on NEXUS.
+ASKS: M1 economy batches (entry below). Not pushed — run the usual pre-push
+  secret scan when you next push (6 new commits).
+BREAKS: dashboard/main.js touched for the first time post-gate — additive
+  createWindow read only, default v2.
+
 ## 2026-07-23 · FROM frontend · main @ c63d120
 DONE: NEXUS ambient rail (Working On Now / vitals / whisper / Familiar slot /
   night-tide, collapsible) + topstrip flex fix. M1 frontend half: voice packs
