@@ -278,3 +278,36 @@
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="nexus"] * { transition: none !important; }
 }
+
+/* ============================================================================
+   LIVELINESS — restrained motion so the NEXUS breathes without looking busy.
+   One entrance reveal per realm mount, a slow breathing glow on where-you-are,
+   a live pulse on real-time signals. Everything yields to reduced-motion.
+   ========================================================================== */
+:root[data-theme="nexus"] #stage > * { animation: nx-rise .42s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes nx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* the active realm's sigil breathes a low ember — a quiet "you are here" */
+:root[data-theme="nexus"] .sigil.active { animation: nx-breathe 4.5s ease-in-out infinite; }
+@keyframes nx-breathe {
+  0%, 100% { box-shadow: inset 0 0 18px -8px var(--ember), 0 0 0 1px rgba(232,170,90,.15); }
+  50%      { box-shadow: inset 0 0 22px -6px var(--ember), 0 0 14px -4px rgba(232,170,90,.35); }
+}
+
+/* live signals (browser "now", running sessions) pulse so real-time reads as real-time */
+:root[data-theme="nexus"] .bf-dot.live,
+:root[data-theme="nexus"] .ss-chip.running::before { animation: nx-pulse 1.8s ease-in-out infinite; }
+@keyframes nx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* interactive affordance: anything the design marks [data-expand] lifts on hover */
+:root[data-theme="nexus"] [data-expand] { cursor: pointer; transition: transform .14s, border-color .14s, box-shadow .14s; }
+:root[data-theme="nexus"] [data-expand]:hover { transform: translateY(-2px); border-color: rgba(232,170,90,.4); }
+:root[data-theme="nexus"] [data-expand].open { border-color: rgba(232,170,90,.5); }
+:root[data-theme="nexus"] .nx-detail { animation: nx-rise .28s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="nexus"] #stage > *,
+  :root[data-theme="nexus"] .sigil.active,
+  :root[data-theme="nexus"] .bf-dot.live,
+  :root[data-theme="nexus"] .nx-detail { animation: none !important; }
+}
