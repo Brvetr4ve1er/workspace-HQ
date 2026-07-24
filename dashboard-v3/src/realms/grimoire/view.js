@@ -1,8 +1,9 @@
-// GRIMOIRE — the spellbook realm. Port of v2 renderSpellbook (app.js 612-739)
-// plus its private helpers (mastery tiers, spell cards, spell drawer, the 30s
-// cooldown ticker) and the cast-stream console wiring (app.js 547-571).
-// The casting flow itself (castSpell / confirm modal / castlog surface) is
-// shared machinery in ui/components.js — the roundtable sotd ribbon uses it too.
+// AUTOMATIONS — the automation catalog realm. Renders the discovered command
+// catalog (skills, scripts, npm targets, tasks, plugins, built-ins) as a dense,
+// filterable grid, plus the run-confirm / run-log wiring and the 30s cooldown
+// ticker. The run flow itself (castSpell / confirm modal / run-log surface) is
+// shared machinery in ui/components.js — the overview run-of-the-day strip uses
+// it too, so it stays under its original function names.
 import { el, esc } from '../../ui/util.js';
 import {
   sfx, aosKids, aosRefresh, fmtCd, SCHOOL,
@@ -11,7 +12,25 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
-const MASTERY_TIERS = [
+// Plain category labels for the internal "school" ids the data still carries —
+// we keep SCHOOL's colour but drop the RPG naming (school -> category).
+const CATEGORY = {
+  divination: 'Analyze', conjuration: 'Generate', transmutation: 'Build',
+  abjuration: 'Secure', evocation: 'Execute', illusion: 'Design',
+  enchantment: 'Notify', restoration: 'Fix',
+};
+const catLabel = (k) => CATEGORY[k] || SCHOOL[k]?.label || 'Other';
+
+// Friendly labels for the internal source ids (used by the filter + card meta).
+const SOURCE_LABEL = {
+  all: 'All', grimoire: 'Built-in', skill: 'Skills', command: 'Commands',
+  script: 'Scripts', npm: 'npm', task: 'Tasks', plugin: 'Plugins',
+};
+const srcLabel = (k) => SOURCE_LABEL[k] || k;
+
+// Usage tiers: how many distinct days an automation has been run (real signal
+// from telemetry, shown as filled/empty dots — not decoration).
+const USAGE_TIERS = [
   { rank: 'Novice', days: 1 }, { rank: 'Adept', days: 5 }, { rank: 'Expert', days: 15 },
   { rank: 'Master', days: 40 }, { rank: 'Grandmaster', days: 100 },
 ];
@@ -22,39 +41,38 @@ let spellSchool = 'all', spellSource = 'all', spellSearch = '', spellMax = 24;
 let CTX = null, sb = null;
 let offSelect = null, cdTimer = 0;
 
-const masteryOf = (id) => {
+const usageOf = (id) => {
   const days = (CTX.data.bundle.telemetry?.rollup?.[id]?.distinct_days || []).length;
   let pips = 0;
-  for (const t of MASTERY_TIERS) if (days >= t.days) pips++;
-  return { days, pips, rank: pips ? MASTERY_TIERS[pips - 1].rank : null };
+  for (const t of USAGE_TIERS) if (days >= t.days) pips++;
+  return { days, pips, rank: pips ? USAGE_TIERS[pips - 1].rank : null };
 };
-const pipsHtml = (n) => `<span class="pips" title="mastery">${'●'.repeat(n)}${'○'.repeat(5 - n)}</span>`;
+const pipsHtml = (n) => `<span class="pips" title="usage">${'●'.repeat(n)}${'○'.repeat(5 - n)}</span>`;
 
 function spellCard(s) {
   const sch = SCHOOL[s.school] || SCHOOL.evocation;
   const card = el('div', `spellcard r-${s.rarity}`);
   card.style.setProperty('--sch', sch.c);
-  const m = masteryOf(s.id);
-  const castable = s.kind === 'castable' || s.kind === 'chain';
+  const m = usageOf(s.id);
+  const runnable = s.kind === 'castable' || s.kind === 'chain';
   const cd = s.schedule?.next_run ? new Date(s.schedule.next_run).getTime() : null;
   card.innerHTML = `
     <div class="sp-top">
-      <span class="sp-icon">${esc(s.icon || '✴️')}</span>
+      <span class="sp-icon">${esc(s.icon || '◆')}</span>
       <span class="sp-name">${esc(s.name)}</span>
       ${m.pips ? pipsHtml(m.pips) : ''}
     </div>
     <div class="sp-meta">
-      <span class="sp-school">${sch.label}</span>
-      <span class="sp-src">${esc(s.source)}</span>
-      <span class="sp-rarity">${esc(s.rarity)}</span>
+      <span class="sp-school">${esc(catLabel(s.school))}</span>
+      <span class="sp-src">${esc(srcLabel(s.source))}</span>
     </div>
     <div class="sp-desc">${esc(s.tooltip || s.description || '—')}</div>
     <div class="sp-foot">
       ${cd && !isNaN(cd) ? `<span class="sp-cd" data-cd="${cd}">⏳ ${fmtCd(cd - Date.now())}</span>` : ''}
-      ${s.kind === 'channeled' ? '<span class="sp-kind">⚡ channeled</span>' : ''}
-      ${s.kind === 'tome' ? '<span class="sp-kind">📦 tome</span>' : ''}
-      ${s.kind === 'chain' ? '<span class="sp-kind">⛓️ chain</span>' : ''}
-      ${castable || s.kind === 'channeled' ? `<button class="sp-cast" ${s.invalid ? 'disabled' : ''}>CAST</button>` : ''}
+      ${s.kind === 'channeled' ? '<span class="sp-kind">Interactive</span>' : ''}
+      ${s.kind === 'tome' ? '<span class="sp-kind">Plugin</span>' : ''}
+      ${s.kind === 'chain' ? '<span class="sp-kind">Chain</span>' : ''}
+      ${runnable || s.kind === 'channeled' ? `<button class="sp-cast" ${s.invalid ? 'disabled' : ''}>RUN</button>` : ''}
     </div>`;
   card.onclick = () => openSpellDrawer(s);
   const btn = card.querySelector('.sp-cast');
@@ -64,32 +82,32 @@ function spellCard(s) {
 
 function openSpellDrawer(s) {
   const sch = SCHOOL[s.school] || SCHOOL.evocation;
-  const m = masteryOf(s.id);
+  const m = usageOf(s.id);
   const roll = CTX.data.bundle.telemetry?.rollup?.[s.id];
   const d = $('drawer');
   d.innerHTML = `
     <div class="spdrawer" style="--sch:${sch.c}">
       <div class="spd-head r-${esc(s.rarity)}">
-        <span class="spd-icon">${esc(s.icon || '✴️')}</span>
+        <span class="spd-icon">${esc(s.icon || '◆')}</span>
         <div>
           <div class="spd-name">${esc(s.name)}</div>
-          <div class="spd-sub">${sch.label} · ${esc(s.rarity)} · ${esc(s.source)}${m.rank ? ` · ${m.rank} (${m.days}d)` : ''}</div>
+          <div class="spd-sub">${esc(catLabel(s.school))} · ${esc(srcLabel(s.source))}${m.rank ? ` · ${esc(m.rank)} (${m.days}d used)` : ''}</div>
         </div>
-        <button class="spd-close" title="close">✕</button>
+        <button class="spd-close" title="Close">✕</button>
       </div>
-      <div class="spd-tip">${esc(s.tooltip || s.description || 'An unidentified incantation.')}</div>
+      <div class="spd-tip">${esc(s.tooltip || s.description || 'No description available.')}</div>
       ${s.body ? `<div class="spd-body">${esc(s.body).slice(0, 1200)}</div>` : ''}
-      <div class="spd-sec">INCANTATION (exact command)</div>
+      <div class="spd-sec">COMMAND</div>
       <div class="spd-cmd">${s.kind === 'chain'
-        ? esc('chain: ' + (s.chain || []).join(' → '))
+        ? esc('steps: ' + (s.chain || []).join(' → '))
         : esc([s.command, ...(s.args || [])].filter(Boolean).join(' '))}</div>
-      ${s.cwd ? `<div class="spd-kv">cwd: ${esc(s.cwd)}</div>` : ''}
-      ${s.origin_path ? `<div class="spd-kv">origin: ${esc(s.origin_path)}</div>` : ''}
+      ${s.cwd ? `<div class="spd-kv">dir: ${esc(s.cwd)}</div>` : ''}
+      ${s.origin_path ? `<div class="spd-kv">source: ${esc(s.origin_path)}</div>` : ''}
       ${s.schedule ? `<div class="spd-kv">next: ${esc(s.schedule.next_run || '—')} · last: ${esc(s.schedule.last_run || '—')} (result ${esc(String(s.schedule.last_result ?? '—'))})</div>` : ''}
-      ${roll ? `<div class="spd-kv">casts: ${roll.lifetime_casts} · last: ${esc((roll.last_cast || '').slice(0, 16).replace('T', ' '))}</div>` : ''}
+      ${roll ? `<div class="spd-kv">runs: ${roll.lifetime_casts} · last: ${esc((roll.last_cast || '').slice(0, 16).replace('T', ' '))}</div>` : ''}
       <div class="spd-actions">
-        ${s.kind === 'castable' || s.kind === 'chain' || s.kind === 'channeled' ? `<button class="spd-cast" ${s.invalid ? 'disabled' : ''}>⚡ CAST</button>` : ''}
-        ${s.origin_path && CTX.hq ? `<button class="spd-open">📂 origin</button>` : ''}
+        ${s.kind === 'castable' || s.kind === 'chain' || s.kind === 'channeled' ? `<button class="spd-cast" ${s.invalid ? 'disabled' : ''}>▶ RUN</button>` : ''}
+        ${s.origin_path && CTX.hq ? `<button class="spd-open">Open file</button>` : ''}
       </div>
     </div>`;
   d.querySelector('.spd-close').onclick = closeDrawer;
@@ -106,19 +124,20 @@ function render() {
   sb.innerHTML = '';
   const B = CTX.data.bundle.spellbook;
   if (!B || !B.spells?.length) {
-    sb.appendChild(el('div', 'empty-note', 'No spellbook yet — run <b>node collector/spellbook.mjs</b> (or the full pipeline) to divine your arsenal.'));
+    sb.appendChild(el('div', 'empty-note', 'No automations indexed yet — run <b>node collector/spellbook.mjs</b> (or the full pipeline) to build the catalog.'));
     return;
   }
 
-  // Header: school chips (click = filter) + collection meter slot (economy fills it in Phase 6)
+  // Header: category chips (click = filter) + rescan actions. The coverage meter
+  // (below) is filled in by the economy pass in Phase 6.
   const head = el('h2', 'sec', `${LX('arsenal')} · ${B.counts.total} ${LX('spells_known')}`);
   if (hq) {
     const acts = el('span', 'sec-acts');
-    const deep = el('button', 'sec-btn', '🔮 DEEP SCAN');
-    deep.title = 'Cast the full pipeline (collector → enrich → assemble → render)';
+    const deep = el('button', 'sec-btn', 'DEEP SCAN');
+    deep.title = 'Run the full pipeline (collect → enrich → assemble → build)';
     deep.onclick = (e) => { e.stopPropagation(); const ds = B.spells.find((x) => x.id === 'grimoire:deep-scan'); if (ds) castSpell(ds); };
-    const relearn = el('button', 'sec-btn', '✨ RELEARN');
-    relearn.title = 'Rescan skills/scripts/tasks only (fast, no pipeline)';
+    const relearn = el('button', 'sec-btn', 'RESCAN');
+    relearn.title = 'Rescan skills, scripts and tasks only (fast, no pipeline)';
     relearn.onclick = async (e) => { e.stopPropagation(); relearn.textContent = '…'; await hq.rescanSpellbook?.(); };
     acts.append(deep, relearn);
     head.appendChild(acts);
@@ -126,30 +145,30 @@ function render() {
   sb.appendChild(head);
   const chips = el('div', 'sch-chips');
   const chip = (key, label, color, count) => {
-    const c = el('button', 'sch-chip' + (spellSchool === key ? ' active' : ''), `${label} <b>${count}</b>`);
+    const c = el('button', 'sch-chip' + (spellSchool === key ? ' active' : ''), `${esc(label)} <b>${count}</b>`);
     c.style.setProperty('--sch', color);
     c.onclick = () => { spellSchool = spellSchool === key ? 'all' : key; spellMax = 24; render(); };
     return c;
   };
-  for (const [k, v] of Object.entries(SCHOOL)) chips.appendChild(chip(k, v.label, v.c, B.counts.by_school[k] || 0));
+  for (const [k, v] of Object.entries(SCHOOL)) chips.appendChild(chip(k, catLabel(k), v.c, B.counts.by_school[k] || 0));
   sb.appendChild(chips);
 
-  // Collection meter: how much of the arsenal you've actually wielded.
-  // .selected (not .latest) so the Memory-of-Grace scrubber time-travels; the
-  // `if (sc)` guard hides it on older snapshots that predate spellcraft.
+  // Coverage meter: how much of the catalog you've actually run.
+  // .selected (not .latest) so the snapshot scrubber time-travels; the
+  // `if (sc)` guard hides it on older snapshots that predate the economy.
   const sc = CTX.data.selected?.account?.spellcraft;
   if (sc) {
     const cm = el('div', 'collmeter');
     const schoolBars = Object.entries(sc.per_school || {})
       .filter(([k]) => SCHOOL[k])
-      .map(([k, v]) => `<div class="cm-school" title="${SCHOOL[k].label}: ${v.cast}/${v.known} cast">
+      .map(([k, v]) => `<div class="cm-school" title="${esc(catLabel(k))}: ${v.cast}/${v.known} run">
           <span class="cm-dot" style="--sch:${SCHOOL[k].c}"></span>
           <div class="cm-mini"><i style="width:${v.pct}%; --sch:${SCHOOL[k].c}"></i></div>
         </div>`).join('');
     cm.innerHTML = `<div class="cm-main">
-        <span class="cm-lbl">COLLECTION</span>
+        <span class="cm-lbl">COVERAGE</span>
         <div class="cm-bar"><i style="width:${sc.ever_cast_pct}%"></i></div>
-        <span class="cm-num">${sc.ever_cast}/${sc.spells_known} wielded (${sc.ever_cast_pct}%) · ${sc.lifetime_casts} lifetime casts</span>
+        <span class="cm-num">${sc.ever_cast}/${sc.spells_known} used (${sc.ever_cast_pct}%) · ${sc.lifetime_casts} total runs</span>
       </div><div class="cm-schools">${schoolBars}</div>`;
     sb.appendChild(cm);
   }
@@ -157,8 +176,8 @@ function render() {
   // Toolbar: search + source filter
   const tb = el('div', 'toolbar');
   const sources = ['all', 'grimoire', 'skill', 'command', 'script', 'npm', 'task', 'plugin'];
-  tb.innerHTML = `<input id="spsearch" placeholder="Search spells…" value="${esc(spellSearch)}" />
-    <div class="seg" id="spseg">${sources.map((s) => `<button data-f="${s}" class="${spellSource === s ? 'active' : ''}">${s === 'plugin' ? 'tomes' : s}</button>`).join('')}</div>
+  tb.innerHTML = `<input id="spsearch" placeholder="Search automations…" value="${esc(spellSearch)}" />
+    <div class="seg" id="spseg">${sources.map((s) => `<button data-f="${esc(s)}" class="${spellSource === s ? 'active' : ''}">${esc(srcLabel(s))}</button>`).join('')}</div>
     <span class="count" id="spcount"></span>`;
   sb.appendChild(tb);
 
@@ -172,14 +191,14 @@ function render() {
       (spellSchool === 'all' || s.school === spellSchool) &&
       (spellSource === 'all' || s.source === spellSource || (spellSource === 'plugin' && s.kind === 'tome')) &&
       (!q || `${s.name} ${s.description} ${s.id}`.toLowerCase().includes(q)));
-    // "my spells" first: mastery desc, then most-recently-cast — the first screen
-    // is the arsenal you actually wield, not an alphabet of 957 strangers.
+    // Most-used first: usage tier desc, then most-recently-run — the first screen
+    // is what you actually reach for, not an alphabet of everything discovered.
     const lastCast = (id) => Date.parse(CTX.data.bundle.telemetry?.rollup?.[id]?.last_cast || 0) || 0;
-    hits.sort((x, y) => (masteryOf(y.id).pips - masteryOf(x.id).pips) || (lastCast(y.id) - lastCast(x.id)));
+    hits.sort((x, y) => (usageOf(y.id).pips - usageOf(x.id).pips) || (lastCast(y.id) - lastCast(x.id)));
     tb.querySelector('#spcount').textContent = `${hits.length} match${hits.length === 1 ? '' : 'es'}`;
     hits.slice(0, spellMax).forEach((s) => grid.appendChild(spellCard(s)));
     if (hits.length > spellMax) {
-      const b = el('button', 'sp-morebtn', `SHOW MORE (${hits.length - spellMax} hidden)`);
+      const b = el('button', 'sp-morebtn', `Show more (${hits.length - spellMax} hidden)`);
       b.onclick = () => { spellMax += 120; draw(); };
       more.appendChild(b);
     }
@@ -193,7 +212,7 @@ function render() {
     draw();
   });
 
-  // Familiars shelf: summoned MCP allies — perched, not castable
+  // Connected agents (MCP servers) — reference only, not runnable.
   if (B.familiars?.length) {
     sb.appendChild(el('h2', 'sec', `${LX('familiars')} · ${B.familiars.length} ${LX('familiars_bound')}`));
     const shelf = el('div', 'famshelf');
@@ -250,7 +269,7 @@ export const view = {
         n.textContent = `⏳ ${fmtCd(t - Date.now())}`;
       });
     }, 30000);
-    // NOTE: the cast-stream → castlog subscription is owned SOLELY by fx.js
+    // NOTE: the run-stream → run-log subscription is owned SOLELY by fx.js
     // (wireCastStream, app-lifetime) — the contract in components.js. This realm
     // must NOT also subscribe or every log line + SFX double-fires.
   },
@@ -258,7 +277,7 @@ export const view = {
   unmount() {
     offSelect?.(); offSelect = null;
     clearInterval(cdTimer); cdTimer = 0;
-    closeDrawer();   // an open spell drawer must not outlive the realm
+    closeDrawer();   // an open detail drawer must not outlive the realm
     CTX = null; sb = null;
   },
 };

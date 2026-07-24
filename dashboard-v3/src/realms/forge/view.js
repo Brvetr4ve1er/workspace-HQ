@@ -1,16 +1,18 @@
-// THE FORGE — Products split out of v2's overview (charter realm 2).
-// Verbatim ports from dashboard/app.js: products grid + toolbar (renderOverview
-// tail, ~892-919), projectCard + class sigils (~997-1053), WORKING ON NOW
-// browser focus (~922-995), dev-status + browser-tab live wiring (~1786-1809).
-// The project drawer itself is shared machinery in ui/components.js — cards
-// only open it.
+// PROJECTS realm — the products grid, split out of v2's overview.
+// Ports from dashboard/app.js: products grid + toolbar, the project card, the
+// WORKING ON NOW browser-focus card, and the dev-status + browser-tab live
+// wiring. v3 additions: a sort control + unified filters, and each card expands
+// inline into an .nx-detail panel (git / completion / activity / stack / tasks /
+// browser dwell) without opening the full drawer — the drawer stays one click
+// away via the card's Open button.
 import { el, esc, COL } from '../../ui/util.js';
-import { aos, aosRefresh, deltaSpan, deriveScanContext, devState, fmtDur, openDrawer } from '../../ui/components.js';
+import { aos, aosRefresh, deltaSpan, deriveScanContext, devState, fmtDur, openDrawer, sfx } from '../../ui/components.js';
 
 const $ = (id) => document.getElementById(id);
 
-// filter state outlives re-renders and realm switches (v2 module-level lets)
-let projFilter = 'all', projSearch = '';
+// filter/sort/expand state outlives re-renders and realm switches (v2 module lets)
+let projFilter = 'all', projSearch = '', projSort = 'completion';
+const expanded = new Set();   // project ids whose peek panel survives repaints
 
 function gitText(g) {
   if (!g.has_git) return 'no git';
@@ -22,11 +24,12 @@ function gitText(g) {
   return 'in sync';
 }
 
-// The Seven Classes (docs/CANON.md): deterministic auto-classify, first match wins.
-// Display-gated by the theme lexicon (LX('classes')) so arcade stays pristine.
-const CLASS_SIGIL = {
-  guardian: '🛡️ Guardian', 'heavy-knight': '🏰 Heavy Knight', hunter: '⚔️ Hunter',
-  wylder: '🌀 Wylder', recluse: '📜 Recluse', 'knight-of-ides': '🗝️ Knight of Ides', duchess: '👑 Duchess',
+// Project archetype label: deterministic auto-classify, first match wins. Plain,
+// descriptive labels — display-gated by the theme lexicon (LX('classes')), which
+// the default professional theme leaves off.
+const CLASS_LABEL = {
+  guardian: 'Hardened', 'heavy-knight': 'Large', hunter: 'Active',
+  wylder: 'Early stage', recluse: 'Dormant', 'knight-of-ides': 'Experiment', duchess: 'Standard',
 };
 function classifyProject(p) {
   const s = p.signals || {}, ch = p.metrics.code_health, act = p.activity || {};
@@ -37,6 +40,109 @@ function classifyProject(p) {
   if (act.state === 'dormant' && s.has_readme) return 'recluse';
   if (/experiment|lab|poc|sandbox|test/i.test(p.name)) return 'knight-of-ides';
   return 'duchess';
+}
+
+// --------------------------------------------------------- sort / filter keys
+const RISK_RANK = { high: 3, medium: 1, low: 0 };
+// composite "how much this needs attention" — deterministic, no RNG.
+function riskScore(p) {
+  const g = p.metrics.git_safety, ch = p.metrics.code_health, rs = p.metrics.risk_security;
+  let s = RISK_RANK[g.risk] ?? 0;
+  if (ch.build === 'red') s += 2;
+  s += RISK_RANK[rs.score] ?? 0;
+  if ((g.dirty || 0) > 20) s += 1;
+  return s;
+}
+const recentKey = (p) => p.activity.days_since_commit ?? Infinity;   // 0 = today, nulls last
+const isAtRisk = (p) => p.metrics.git_safety.risk === 'high' || p.metrics.code_health.build === 'red' || p.metrics.risk_security.score === 'high';
+function sortProjects(list) {
+  if (projSort === 'risk') list.sort((a, b) => riskScore(b) - riskScore(a) || a.completion.pct - b.completion.pct);
+  else if (projSort === 'recent') list.sort((a, b) => recentKey(a) - recentKey(b) || b.completion.pct - a.completion.pct);
+  else list.sort((a, b) => b.completion.pct - a.completion.pct);
+  return list;
+}
+
+// -------------------------------------------------- inline detail (.nx-detail)
+const TIER_COL = { red: COL.red, orange: COL.orange, yellow: COL.yellow };
+function openTasksFor(S, pid) {
+  const rank = { red: 0, orange: 1, yellow: 2 };
+  return (S.quests || [])
+    .filter((q) => (q.status === 'open' || q.status === 'in_progress') && q.project_id === pid)
+    .sort((a, b) => (rank[a.tier] ?? 3) - (rank[b.tier] ?? 3));
+}
+const dwellFor = (S, pid) => ((S.browser && S.browser.by_project) || []).find((x) => x.project_id === pid) || null;
+
+// Inline detail — the drawer's headline facts, one click without the full overlay.
+function buildPeek(p, prevP, ctx) {
+  const S = ctx.data.selected;
+  const g = p.metrics.git_safety, ch = p.metrics.code_health, rs = p.metrics.risk_security;
+  const dpc = prevP ? p.completion.pct - prevP.completion.pct : 0;
+  const riskCls = g.risk === 'high' ? 'red' : g.risk === 'medium' ? 'orange' : 'green';
+  const dsc = p.activity.days_since_commit;
+  const commitTxt = dsc == null ? '—' : dsc === 0 ? 'today' : dsc + 'd ago';
+  const ts = ch.tests;
+  const testsTxt = ts?.passing ? `${ts.passing}/${ts.count ?? '?'}` : ts?.present ? 'present' : 'none';
+
+  const tile = (k, v, cls) => `<div class="pk-t${cls ? ' ' + cls : ''}"><span class="pk-k">${esc(k)}</span><span class="pk-v">${v}</span></div>`;
+  const metrics = [
+    tile('completion', `${p.completion.pct}%${dpc ? ' ' + deltaSpan(dpc) : ''}`),
+    tile('git', esc(gitText(g)), riskCls),
+    tile('activity', esc(p.activity.state)),
+    tile('last commit', esc(commitTxt)),
+    tile('files · loc', `${esc(String(ch.files ?? '—'))} · ${esc((ch.loc || 0).toLocaleString())}`),
+    tile('tests', esc(testsTxt)),
+    tile('todo/fixme', esc(String(ch.todo_fixme ?? 0))),
+    tile('secrets', esc(String(rs.secrets_found ?? 0)), (rs.secrets_found > 0 ? 'red' : '')),
+  ].join('');
+
+  const gitBits = [];
+  if (g.branch) gitBits.push(`<span class="pk-branch">${esc(g.branch)}</span>${g.remote ? ` <span class="pk-arrow">→</span> ${esc(g.remote)}` : ''}`);
+  const gm = [];
+  if (g.dirty) gm.push(`${g.dirty} dirty`);
+  if (g.ahead) gm.push(`${g.ahead} ahead`);
+  if (g.behind) gm.push(`${g.behind} behind`);
+  if (g.commits != null) gm.push(`${g.commits} commits`);
+
+  const stackChips = (p.stack || []).map((s) => `<span class="pk-chip">${esc(s)}</span>`).join('') || '<span class="pk-none">no stack detected</span>';
+
+  const oq = openTasksFor(S, p.id);
+  const taskHtml = oq.length
+    ? oq.slice(0, 4).map((q) => `<div class="pk-q"><i style="background:${TIER_COL[q.tier] || COL.blue}"></i>${esc(q.title)}</div>`).join('')
+    : '<span class="pk-none">no open tasks</span>';
+
+  const dw = dwellFor(S, p.id);
+  const dwellHtml = dw
+    ? `<b>${esc(fmtDur(dw.focus_ms))}</b> · ${esc(String(dw.visits))} visit${dw.visits === 1 ? '' : 's'}${dw.domains && dw.domains.length ? ` · ${esc(dw.domains.join(', '))}` : ''}`
+    : '<span class="pk-none">no browser time this scan</span>';
+
+  const rfiles = ch.recent_files || [];
+  const filesHtml = rfiles.map((f) => `<button class="pk-file" type="button" data-f="${esc(f)}" title="${esc(f)}">${esc(f.split('/').pop())}</button>`).join('');
+
+  const panel = el('div', 'nx-detail');
+  panel.innerHTML = `
+    <div class="pk-metrics">${metrics}</div>
+    <div class="pk-line pk-git"><span class="pk-lbl">git</span><span class="pk-val">${gitBits.join(' ')}${gm.length ? ` · ${esc(gm.join(' · '))}` : ''}</span></div>
+    ${g.last_commit_subject ? `<div class="pk-line pk-msg"><span class="pk-lbl">last</span><span class="pk-val">"${esc(g.last_commit_subject)}"</span></div>` : ''}
+    <div class="pk-line"><span class="pk-lbl">stack</span><span class="pk-val pk-chips">${stackChips}</span></div>
+    <div class="pk-line"><span class="pk-lbl">tasks</span><span class="pk-val pk-quests">${taskHtml}</span></div>
+    <div class="pk-line"><span class="pk-lbl">browser</span><span class="pk-val">${dwellHtml}</span></div>
+    ${filesHtml ? `<div class="pk-line"><span class="pk-lbl">recent</span><span class="pk-val pk-files">${filesHtml}</span></div>` : ''}
+    ${p.completion.basis ? `<div class="pk-basis">${esc(p.completion.basis)}</div>` : ''}`;
+
+  // clicks inside the peek must not bubble to the card's collapse handler
+  panel.addEventListener('click', (e) => e.stopPropagation());
+  // recent-file open (live app only; feature-detected — never throws in the harness)
+  if (ctx.hq && window.hq?.openFile) panel.querySelectorAll('.pk-file').forEach((b) => b.onclick = () => window.hq.openFile(p.path, b.getAttribute('data-f')));
+  return panel;
+}
+function togglePeek(p, prevP, card, ctx) {
+  const open = !expanded.has(p.id);
+  if (open) expanded.add(p.id); else expanded.delete(p.id);
+  card.classList.toggle('open', open);
+  let panel = card.querySelector('.nx-detail');
+  if (open) { if (!panel) card.appendChild(buildPeek(p, prevP, ctx)); }
+  else if (panel) panel.remove();
+  sfx('blip');
 }
 
 function projectCard(p, prevP, ctx) {
@@ -60,7 +166,11 @@ function projectCard(p, prevP, ctx) {
     <h3><span class="pct">${pc}%</span><span class="nm">${esc(p.name)}</span></h3>
     <div class="stack">${esc((p.stack || []).slice(0, 4).join(' · '))}</div>
     <div class="bar"><i style="width:${pc}%;background:${barColor}"></i></div>
-    <div class="badges"></div>`;
+    <div class="badges"></div>
+    <div class="peek-hint">
+      <span class="ph-left"><span class="ph-chev">▸</span> Details</span>
+      <button class="ph-drawer" type="button" title="Open the full project panel">Open ⤢</button>
+    </div>`;
   const dv = card.querySelector('.cdevbtn');
   if (dv) dv.onclick = (e) => { e.stopPropagation(); window.hq[isRunning ? 'devStop' : 'devStart'](p.id); };
   const badges = card.querySelector('.badges');
@@ -69,8 +179,14 @@ function projectCard(p, prevP, ctx) {
   badges.appendChild(el('span', 'tag ' + (g.risk === 'high' ? 'red' : g.risk === 'medium' ? 'orange' : 'green'), `git: ${esc(gitText(g))}`));
   const ts = ch.tests; badges.appendChild(el('span', 'tag', `tests: ${ts?.passing ? ts.passing + '/' + (ts.count ?? '?') : ts?.present ? 'present' : 'none'}`));
   badges.appendChild(el('span', 'tag blue', esc(p.activity.state)));
-  if (ctx.LX('classes')) badges.appendChild(el('span', 'tag class', CLASS_SIGIL[classifyProject(p)]));
-  card.onclick = () => openDrawer(p, prevP, ctx.data);
+  if (ctx.LX('classes')) badges.appendChild(el('span', 'tag class', CLASS_LABEL[classifyProject(p)]));
+
+  // whole card toggles the inline detail; the Open button jumps to the drawer.
+  card.setAttribute('data-expand', '');
+  card.onclick = () => togglePeek(p, prevP, card, ctx);
+  const drw = card.querySelector('.ph-drawer');
+  if (drw) drw.onclick = (e) => { e.stopPropagation(); openDrawer(p, prevP, ctx.data); };
+  if (expanded.has(p.id)) { card.classList.add('open'); card.appendChild(buildPeek(p, prevP, ctx)); }
   return card;
 }
 
@@ -150,32 +266,44 @@ function render(root, ctx) {
   // products
   root.appendChild(el('h2', 'sec', ctx.LX('products')));
   const tb = el('div', 'toolbar');
-  tb.innerHTML = `<input id="psearch" placeholder="Filter products…" value="${esc(projSearch)}" />
+  tb.innerHTML = `<input id="psearch" placeholder="Filter ${esc(ctx.LX('products').toLowerCase())}…" value="${esc(projSearch)}" />
     <div class="seg" id="pseg">
       <button data-f="all" class="${projFilter === 'all' ? 'active' : ''}">All</button>
       <button data-f="risk" class="${projFilter === 'risk' ? 'active' : ''}">At risk</button>
       <button data-f="active" class="${projFilter === 'active' ? 'active' : ''}">Active</button>
-      <button data-f="cold" class="${projFilter === 'cold' ? 'active' : ''}">Cold cases</button>
+      <button data-f="cold" class="${projFilter === 'cold' ? 'active' : ''}">Dormant</button>
+    </div>
+    <div class="seg sortseg" id="psort">
+      <span class="seg-lbl">sort</span>
+      <button data-s="completion" class="${projSort === 'completion' ? 'active' : ''}">Completion</button>
+      <button data-s="risk" class="${projSort === 'risk' ? 'active' : ''}">Risk</button>
+      <button data-s="recent" class="${projSort === 'recent' ? 'active' : ''}">Recent</button>
     </div><span class="count" id="pcount"></span>`;
   root.appendChild(tb);
-  const grid = el('div', 'grid'); root.appendChild(grid);
+  const grid = el('div', 'grid forge-grid'); root.appendChild(grid);
 
   const drawCards = (animate) => {
     grid.innerHTML = '';
-    let list = [...S.projects].sort((x, y) => y.completion.pct - x.completion.pct);
+    let list = [...S.projects];
     const q = projSearch.trim().toLowerCase();
     if (q) list = list.filter((p) => p.name.toLowerCase().includes(q) || (p.stack || []).join(' ').toLowerCase().includes(q));
-    if (projFilter === 'risk') list = list.filter((p) => p.metrics.git_safety.risk === 'high' || p.metrics.code_health.build === 'red' || p.metrics.risk_security.score === 'high');
+    if (projFilter === 'risk') list = list.filter(isAtRisk);
     if (projFilter === 'active') list = list.filter((p) => p.activity.state === 'active');
-    if (projFilter === 'cold') list = list.filter((p) => p.activity.state === 'dormant').sort((x, y) => (y.activity.days_since_commit ?? 0) - (x.activity.days_since_commit ?? 0));
+    if (projFilter === 'cold') list = list.filter((p) => p.activity.state === 'dormant');
+    sortProjects(list);
     $('pcount').textContent = `${list.length} / ${S.projects.length}`;
     list.forEach((p, i) => { const c = projectCard(p, prevProj[p.id], ctx); if (animate) aos(c, 'fade-up', i, 45); grid.appendChild(c); });
     if (animate) aosRefresh();
   };
   drawCards(true);
-  // no reveal on live search redraw — cards swap instantly, no flicker
+  // no reveal on live search/sort redraw — cards swap instantly, no flicker
   $('psearch').oninput = (e) => { projSearch = e.target.value; drawCards(false); };
   tb.querySelectorAll('#pseg button').forEach((b) => b.onclick = () => { projFilter = b.dataset.f; render(root, ctx); });
+  tb.querySelectorAll('#psort button').forEach((b) => b.onclick = () => {
+    projSort = b.dataset.s;
+    tb.querySelectorAll('#psort button').forEach((x) => x.classList.toggle('active', x === b));
+    drawCards(false);
+  });
 }
 
 export const view = {

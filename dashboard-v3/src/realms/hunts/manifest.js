@@ -1,9 +1,9 @@
-// HUNTS — quest board (charter realm 3). Badge = v2's #quest-count.
+// TASKS — priority board (realm 3). Badge = the open-task count.
 import { questCount } from '../../ui/components.js';
 
 export const manifest = {
   id: 'hunts',
-  sigil: '⚔',
+  sigil: '☑',
   lexKey: 'tab_quests',
   order: 3,
   badge: (data) => (data.selected ? questCount(data.selected) : null),

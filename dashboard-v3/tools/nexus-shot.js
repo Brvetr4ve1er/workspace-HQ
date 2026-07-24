@@ -15,12 +15,15 @@ app.whenReady().then(async () => {
   win.webContents.on('console-message', (_e, level, msg) => { if (level >= 2) errs.push(msg); });
   await win.loadFile(path.join(__dirname, '..', 'index.html'));
   await new Promise((r) => setTimeout(r, 2500));
-  await win.webContents.executeJavaScript(`document.getElementById('boot')?.remove(); document.getElementById('takeover')?.remove(); window.NEXUS.applyTheme('nexus'); true;`);
-  await new Promise((r) => setTimeout(r, 400));
-  for (const realm of REALMS) {
-    await win.webContents.executeJavaScript(`window.NEXUS.switchRealm('${realm}'); document.getElementById('stage').scrollTo(0,0); true;`);
-    await new Promise((r) => setTimeout(r, 450));
-    fs.writeFileSync(path.join(OUT, `${realm}.png`), (await win.webContents.capturePage()).toPNG());
+  await win.webContents.executeJavaScript(`document.getElementById('boot')?.remove(); document.getElementById('takeover')?.remove(); true;`);
+  for (const theme of ['nexus', 'daylight']) {
+    await win.webContents.executeJavaScript(`window.NEXUS.applyTheme('${theme}'); true;`);
+    await new Promise((r) => setTimeout(r, 400));
+    for (const realm of REALMS) {
+      await win.webContents.executeJavaScript(`window.NEXUS.switchRealm('${realm}'); document.getElementById('stage').scrollTo(0,0); true;`);
+      await new Promise((r) => setTimeout(r, 420));
+      fs.writeFileSync(path.join(OUT, `${theme}_${realm}.png`), (await win.webContents.capturePage()).toPNG());
+    }
   }
   fs.writeFileSync(path.join(OUT, '_console.txt'), errs.join('\n') || 'no errors');
   console.log(`NEXUS shots: ${REALMS.length} realms, ${errs.length} console errors`);

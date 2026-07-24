@@ -5,7 +5,8 @@ import { bus } from './bus.js';
 import { setLexTheme } from './lexicon.js';
 
 export const THEMES = {
-  nexus:     { label: 'NEXUS' },      // cinematic dark-fantasy — the default
+  nexus:     { label: 'NEXUS' },      // clean dark — the default
+  daylight:  { label: 'DAYLIGHT' },   // clean light
   arcade:    { label: 'ARCADE' },
   okami:     { label: 'OKAMI' },
   numidea:   { label: 'NUMIDEA' },

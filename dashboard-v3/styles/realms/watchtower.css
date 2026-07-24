@@ -1,9 +1,11 @@
-/* THE SPIRE / WATCHTOWER — realm-only rules (wt- prefix). Shared surfaces
+/* WATCHTOWER (Screen Time) — realm-only rules (wt- prefix). Shared surfaces
    (h2.sec, .empty-note, chart cards) come from components.css and are never
    re-declared here. Colors ride the theme token contract; the category accent
-   arrives per-card as --cc from categories.js. */
+   arrives per-card as --cc from categories.js. Legacy (bitmap/display-font)
+   themes use the base sizing below; the nexus theme's Inter-based readability
+   refinements live in the scoped block at the foot of this file. */
 
-/* doomscroll banner */
+/* rising-trend banner */
 .wt-doom {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 14px; margin-bottom: 14px;
@@ -18,7 +20,7 @@
   50%      { box-shadow: 0 0 0 2px var(--red), 0 0 26px -3px var(--red); }
 }
 
-/* overwatch row: dial · rhythm · census */
+/* overview row: meter · rhythm · summary */
 .wt-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: 14px; }
 .wt-panel {
   background: linear-gradient(160deg, var(--card-hi), var(--card));
@@ -42,10 +44,10 @@
 .wt-dial-trend .wt-trend { font-size: 14px; }
 .wt-trend-cap { font-family: var(--px); font-size: 6px; letter-spacing: 1px; color: var(--faint); }
 
-/* aggro dial — tier tints the value arc + the lit scale label */
-.wt-dial.calm     { --wt-tier: var(--green); }
-.wt-dial.watchful { --wt-tier: var(--orange); }
-.wt-dial.aggro    { --wt-tier: var(--red); }
+/* distraction meter — tier tints the value arc + the lit scale label */
+.wt-dial.low  { --wt-tier: var(--green); }
+.wt-dial.mid  { --wt-tier: var(--orange); }
+.wt-dial.high { --wt-tier: var(--red); }
 .wt-dial-svg { display: block; width: 100%; max-width: 210px; margin: 0 auto; }
 .wt-arc { fill: none; stroke-width: 12; }
 .wt-arc.bg  { stroke: var(--frame); opacity: .4; }
@@ -65,7 +67,7 @@
 .wt-wc .box i { display: block; width: 100%; height: 100%; background: var(--cyan); }
 .wt-wc b { font-family: var(--px); font-size: 6px; color: var(--faint); font-weight: normal; }
 
-/* watch-log census */
+/* summary rows */
 .wt-cen-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--term); font-size: 16px; padding: 2px 0; }
 .wt-cen-row span { color: var(--muted); }
 .wt-cen-row b { color: var(--text); font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -102,7 +104,7 @@
 .wt-exp { font-family: var(--term); font-size: 12px; color: var(--faint); transition: transform .16s, color .16s; }
 .wt-card.open .wt-exp { transform: rotate(90deg); color: var(--cc, var(--text)); }
 
-/* inline dossier — the per-day dwell history + census for one platform */
+/* inline detail — the per-day time history + summary for one platform */
 .wt-card .nx-detail {
   margin-top: 12px; padding-top: 12px;
   border-top: 1px dashed var(--frame);
@@ -123,9 +125,98 @@
 .wt-hv { font-family: var(--term); font-size: 12px; color: var(--text); white-space: nowrap; }
 .wt-hrow.zero .wt-hv { color: var(--faint); }
 
-/* empty state — the spire awaits its eyes */
+/* empty state */
 .wt-empty { text-align: center; padding: 56px 20px; color: var(--muted); }
-.wt-empty-glyph { font-size: 44px; margin-bottom: 14px; }
 .wt-empty-head { font-family: var(--px); font-size: 11px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
 .wt-empty-sub { font-family: var(--term); font-size: 17px; line-height: 1.45; max-width: 480px; margin: 0 auto; }
 .wt-empty-sub code { color: var(--cyan); }
+
+/* ==========================================================================
+   NEXUS theme refinements — scoped to [data-theme="nexus"] only.
+   Here --px/--term resolve to Inter (not a bitmap face), so the compact base
+   label sizes above (6-8px) are illegible: this block restores real, readable
+   px sizes and swaps the neon frames/glows for calm, flat surfaces with a
+   single quiet accent. Legacy pixel-font themes never see any of this.
+   ========================================================================== */
+
+/* section rhythm */
+:root[data-theme="nexus"] .realm-watchtower h2.sec { margin: 30px 0 14px; }
+:root[data-theme="nexus"] .realm-watchtower h2.sec:first-child { margin-top: 6px; }
+:root[data-theme="nexus"] .wt-top { gap: 16px; }
+:root[data-theme="nexus"] .wt-grid { gap: 16px; margin-top: 2px; }
+
+/* surfaces — flat panel, one hairline, soft radius, no purple glow */
+:root[data-theme="nexus"] .wt-panel,
+:root[data-theme="nexus"] .wt-card {
+  background: var(--card-hi);
+  border: 1px solid var(--frame);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 16px 18px;
+}
+:root[data-theme="nexus"] .wt-card { border-left: 3px solid var(--cc, var(--frame)); }
+
+/* labels — the core readability fix */
+:root[data-theme="nexus"] .wt-panel .wt-k {
+  font-size: 11px; letter-spacing: .09em; font-weight: 600; color: var(--muted); margin-bottom: 14px;
+}
+:root[data-theme="nexus"] .wt-chip {
+  font-size: 10.5px; letter-spacing: .05em; font-weight: 600;
+  padding: 3px 8px; border-radius: 6px; background: transparent;
+}
+:root[data-theme="nexus"] .wt-scale { font-size: 11px; letter-spacing: .04em; font-weight: 600; margin-top: 12px; }
+:root[data-theme="nexus"] .wt-wc b { font-size: 11px; }
+:root[data-theme="nexus"] .wt-dt-c span,
+:root[data-theme="nexus"] .wt-dt-k { font-size: 10.5px; letter-spacing: .07em; font-weight: 600; }
+:root[data-theme="nexus"] .wt-trend-cap { font-size: 10px; letter-spacing: .04em; font-weight: 600; }
+
+/* distraction meter — thinner, calm arc; no glow, no text-shadow */
+:root[data-theme="nexus"] .wt-arc { stroke-width: 9; }
+:root[data-theme="nexus"] .wt-arc.bg { opacity: .5; }
+:root[data-theme="nexus"] .wt-arc.val { filter: none; }
+:root[data-theme="nexus"] .wt-dial-num { font-size: 34px; font-weight: 600; }
+:root[data-theme="nexus"] .wt-dial-sub { font-size: 10.5px; letter-spacing: .12em; }
+:root[data-theme="nexus"] .wt-scale .on { text-shadow: none; }
+
+/* weekly rhythm — softer cells */
+:root[data-theme="nexus"] .wt-wc .box { border-radius: 4px; height: 36px; }
+
+/* summary rows */
+:root[data-theme="nexus"] .wt-cen-row { font-size: 15px; padding: 4px 0; }
+
+/* platform cards */
+:root[data-theme="nexus"] .wt-dom { font-size: 16px; }
+:root[data-theme="nexus"] .wt-total { font-size: 28px; }
+:root[data-theme="nexus"] .wt-cadence { font-size: 12.5px; margin-top: 8px; }
+:root[data-theme="nexus"] .wt-trend { font-size: 13px; font-weight: 600; }
+
+/* detail — legible history */
+:root[data-theme="nexus"] .wt-dt-c b { font-size: 15px; }
+:root[data-theme="nexus"] .wt-dt-title { font-size: 13px; }
+:root[data-theme="nexus"] .wt-hd { font-size: 11.5px; }
+:root[data-theme="nexus"] .wt-hv { font-size: 12.5px; }
+:root[data-theme="nexus"] .wt-hbar i { box-shadow: none; }
+
+/* rising-trend banner — a quiet notice, not a neon alarm */
+:root[data-theme="nexus"] .wt-doom {
+  gap: 12px; padding: 12px 16px; margin: 2px 0 16px;
+  background: rgba(217, 138, 58, .09);
+  border: 1px solid var(--frame);
+  border-left: 3px solid var(--orange);
+  border-radius: 12px;
+  box-shadow: none;
+  animation: none;
+}
+:root[data-theme="nexus"] .wt-doom-k {
+  font-size: 11px; letter-spacing: .05em; font-weight: 600; color: var(--orange);
+}
+:root[data-theme="nexus"] .wt-doom-t { font-size: 14.5px; color: var(--text); }
+
+/* empty state — headline-led, no oversized glyph */
+:root[data-theme="nexus"] .wt-empty { padding: 60px 20px; }
+:root[data-theme="nexus"] .wt-empty-head { font-size: 17px; letter-spacing: 0; font-weight: 600; margin-bottom: 8px; }
+:root[data-theme="nexus"] .wt-empty-sub { font-size: 15px; line-height: 1.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="nexus"] .wt-hbar i { transition: none; }
+}

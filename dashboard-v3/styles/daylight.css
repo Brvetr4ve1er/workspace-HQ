@@ -1,0 +1,311 @@
+/* ============================================================================
+   DAYLIGHT — the clean light theme. Near-white surfaces, dark ink text,
+   hairline borders, soft shadows (no glow), and ONE restrained blue accent
+   used sparingly (active nav, primary buttons, a few key numbers). Inter
+   throughout. Mirrors the token set + structure of cinematic.css so every
+   existing component recolors coherently. Loaded AFTER cinematic.css; scoped
+   to [data-theme="daylight"] so nothing else is touched.
+   ========================================================================== */
+
+/* Inter / JetBrains Mono @font-face come from cinematic.css (loaded first). */
+
+:root[data-theme="daylight"] {
+  /* ---- palette ---------------------------------------------------------- */
+  --void:    #f6f7f9;   /* app / stage background — soft cool grey */
+  --void-2:  #eef0f3;   /* deepest — page edges */
+  --ash:     #ffffff;   /* panel surface — white */
+  --ash-2:   #f1f3f6;   /* raised / hover / chip */
+  --ash-3:   #d9dde4;   /* scrollbar thumb / meter track */
+  --edge:    #e3e6eb;   /* structural hairline */
+  --edge-2:  rgba(20,28,46,.16);     /* neutral hover edge */
+  --etch:    rgba(20,28,46,.06);     /* faint neutral seam */
+  --parch:   #1b1f27;   /* primary text — near-black ink, very high contrast */
+  --parch-2: #565d6b;   /* secondary */
+  --parch-3: #838a97;   /* tertiary */
+  --ember:   #2f6feb;   /* THE accent — restrained blue, used sparingly */
+  --ember-2: #1e5fd8;   /* accent (deeper — legible as text on light) */
+  --ember-deep: #1848a8;
+  --blood:   #d64545;   /* danger (clear red) */
+  --grace:   #2f9e57;   /* success (green) */
+  --rune:    #2f6feb;   /* links / info (blue) */
+
+  /* type roles */
+  --font-display: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+
+  /* ---- remap the v2/base token contract (same keys cinematic.css remaps) - */
+  --bg: var(--void); --bg2: var(--void-2);
+  --panel: var(--ash); --card: var(--ash); --card-hi: var(--ash-2);
+  --ink: #eef0f4; --frame: var(--edge); --frame-hi: var(--ember-deep);
+  --text: var(--parch); --muted: var(--parch-2); --faint: var(--parch-3);
+  --cyan: var(--rune); --magenta: var(--ember); --blue: var(--rune);
+  --gold: var(--ember); --gold-2: var(--ember-2);
+  --green: var(--grace); --red: var(--blood); --orange: #c07817; --yellow: #b8891f;
+  --purple: #7a5ec8; --pink: #c0568f;
+  --active: var(--ember); --active-arrow: var(--ember); --divider: var(--edge);
+  --px: var(--font-ui); --term: var(--font-ui); --mono: var(--font-data);
+
+  --rail-w: 84px;
+  --ambient-w: 264px;
+}
+
+/* ---- atmosphere: near-solid light, one very faint low tint --------------- */
+:root[data-theme="daylight"] body {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: 0;
+  color: var(--parch);
+  background:
+    radial-gradient(120% 80% at 50% 120%, rgba(47,111,235,.03), transparent 62%),
+    linear-gradient(180deg, var(--void) 0%, var(--void-2) 100%);
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="daylight"] #nexus { background: transparent; }
+
+/* kill the CRT scanline/flicker overlay and the arcade boot splash — a light
+   productivity surface must not carry dark scanlines or a game splash */
+:root[data-theme="daylight"] #crt { opacity: 0 !important; pointer-events: none; }
+:root[data-theme="daylight"] #boot { display: none !important; }
+
+/* ---- rails: calm solid surfaces, hairline seam -------------------------- */
+:root[data-theme="daylight"] #rail-left {
+  background: var(--ash);
+  border-right: 1px solid var(--edge);
+  box-shadow: none;
+  padding: 12px 0; gap: 4px;
+}
+:root[data-theme="daylight"] .sigil {
+  width: 68px; padding: 9px 2px; border-radius: 9px;
+  color: var(--parch-3); border: 1px solid transparent; gap: 5px;
+  transition: color .18s, background .18s, border-color .18s;
+}
+:root[data-theme="daylight"] .sigil .glyph { font-size: 21px; filter: grayscale(.35) opacity(.75); transition: filter .18s; }
+:root[data-theme="daylight"] .sigil .lbl {
+  font-family: var(--font-ui); font-size: 8.5px; font-weight: 600; letter-spacing: .06em;
+  line-height: 1.15; text-transform: uppercase; color: var(--parch-3);
+}
+:root[data-theme="daylight"] .sigil:hover { color: var(--parch); background: rgba(20,28,46,.04); border-color: var(--edge); }
+:root[data-theme="daylight"] .sigil:hover .glyph { filter: grayscale(0) opacity(1); }
+:root[data-theme="daylight"] .sigil.active {
+  color: var(--ember-2); border-color: rgba(47,111,235,.3);
+  background: rgba(47,111,235,.08);
+  box-shadow: none;
+}
+:root[data-theme="daylight"] .sigil.active .glyph { filter: none; }
+:root[data-theme="daylight"] .sigil.active .lbl { color: var(--ember-2); }
+:root[data-theme="daylight"] .sigil .badge {
+  background: var(--blood); color: #fff; font-family: var(--font-data);
+  font-size: 9px; font-weight: 600; top: 4px; right: 8px; box-shadow: none;
+}
+
+/* ---- topstrip / status header ------------------------------------------- */
+:root[data-theme="daylight"] #topstrip {
+  border-bottom: 1px solid var(--edge);
+  background: var(--ash);
+  box-shadow: none;
+  padding: 10px 18px;
+}
+:root[data-theme="daylight"] .title {
+  font-family: var(--font-ui); font-weight: 600; font-size: 18px;
+  letter-spacing: -.01em; color: var(--parch); text-shadow: none;
+}
+:root[data-theme="daylight"] .title .hq { color: var(--ember); }
+:root[data-theme="daylight"] .subtitle { font-family: var(--font-ui); font-size: 12px; color: var(--parch-3); letter-spacing: 0; }
+:root[data-theme="daylight"] .level-chip {
+  background: var(--ash-2);
+  border: 1px solid var(--edge); border-radius: 8px; padding: 5px 10px;
+}
+:root[data-theme="daylight"] .level-chip b { font-family: var(--font-ui); font-weight: 600; font-size: 20px; color: var(--ember-2); text-shadow: none; }
+:root[data-theme="daylight"] .level-chip small { font-family: var(--font-ui); font-size: 8px; font-weight: 600; letter-spacing: .12em; color: var(--parch-3); }
+:root[data-theme="daylight"] .level-chip small:last-child { color: var(--rune); }
+:root[data-theme="daylight"] .xp-row b { font-family: var(--font-data); font-size: 13px; color: var(--ember-2); font-weight: 600; }
+:root[data-theme="daylight"] .xp-row .muted { font-family: var(--font-data); font-size: 11px; color: var(--parch-3); }
+:root[data-theme="daylight"] .xp-bar, :root[data-theme="daylight"] .hp-bar {
+  height: 9px; border: 1px solid var(--edge); border-radius: 5px; background: var(--ash-3); box-shadow: none;
+}
+:root[data-theme="daylight"] .xp-fill { background: linear-gradient(90deg, var(--ember-deep), var(--ember)); box-shadow: none; }
+:root[data-theme="daylight"] .xp-bar::after, :root[data-theme="daylight"] .hp-bar::after { display: none; }
+:root[data-theme="daylight"] .hp-fill { border-radius: 4px; }
+:root[data-theme="daylight"] .stat label, :root[data-theme="daylight"] .stat.hp label {
+  font-family: var(--font-ui); font-size: 9px; font-weight: 600; letter-spacing: .1em; color: var(--parch-3);
+}
+:root[data-theme="daylight"] .stat .hpnum, :root[data-theme="daylight"] #streak { font-family: var(--font-data); font-size: 18px; color: var(--parch); }
+:root[data-theme="daylight"] .theme-btn {
+  font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  color: var(--parch-2); background: var(--ash); border: 1px solid var(--edge); border-radius: 7px; padding: 7px 12px;
+}
+:root[data-theme="daylight"] .theme-btn:hover { color: var(--ember-2); border-color: rgba(47,111,235,.4); }
+:root[data-theme="daylight"] .theme-menu { background: var(--ash); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 20px 46px -20px rgba(20,28,46,.35); }
+:root[data-theme="daylight"] .th-group { font-family: var(--font-ui); font-size: 9px; font-weight: 600; letter-spacing: .14em; color: var(--parch-3); }
+:root[data-theme="daylight"] .theme-opt { border-radius: 6px; }
+:root[data-theme="daylight"] .theme-opt .th-name { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--parch); }
+:root[data-theme="daylight"] .theme-opt .th-hint { font-family: var(--font-ui); font-size: 10.5px; color: var(--parch-3); }
+:root[data-theme="daylight"] .theme-opt:hover, :root[data-theme="daylight"] .theme-opt.active { background: rgba(47,111,235,.09); }
+
+/* ---- snapshot scrubber -------------------------------------------------- */
+:root[data-theme="daylight"] .timemachine { background: rgba(255,255,255,.9); border-bottom: 1px solid var(--edge); backdrop-filter: blur(8px); }
+:root[data-theme="daylight"] .tm-head .lbl { font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .12em; color: var(--parch-3); }
+:root[data-theme="daylight"] .tm-head .date, :root[data-theme="daylight"] #tm-date { font-family: var(--font-data); font-size: 16px; color: var(--parch); letter-spacing: 0; }
+:root[data-theme="daylight"] .tm-nav { color: var(--parch-3); }
+:root[data-theme="daylight"] .tm-nav:hover { color: var(--ember-2); }
+:root[data-theme="daylight"] .tm-live, :root[data-theme="daylight"] .live, :root[data-theme="daylight"] .delta { font-family: var(--font-data); font-size: 12px; }
+:root[data-theme="daylight"] .delta .up { color: var(--grace); } :root[data-theme="daylight"] .delta .down { color: var(--blood); }
+
+/* ---- stage + statusbar -------------------------------------------------- */
+:root[data-theme="daylight"] #stage { padding: 20px 26px; }
+:root[data-theme="daylight"] #statusbar {
+  background: var(--ash); border-top: 1px solid var(--edge);
+  box-shadow: none; font-family: var(--font-data); font-size: 11px; color: var(--parch-3); padding: 7px 18px;
+}
+:root[data-theme="daylight"] #statusbar .coin-blink { color: var(--ember); }
+
+/* ---- TYPOGRAPHY: clean Inter heading system ----------------------------- */
+:root[data-theme="daylight"] h2.sec {
+  font-family: var(--font-ui); font-weight: 600; font-size: 15px; letter-spacing: -.005em;
+  color: var(--parch); text-shadow: none; text-transform: none;
+  padding-bottom: 9px; margin: 22px 0 14px; position: relative; border: none;
+  display: flex; align-items: baseline; gap: 10px;
+}
+:root[data-theme="daylight"] h2.sec::before {
+  content: ""; position: absolute; left: 0; bottom: 0; width: 24px; height: 2px;
+  background: var(--ember); color: transparent; border-radius: 2px;
+}
+:root[data-theme="daylight"] h2.sec::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--edge);
+}
+:root[data-theme="daylight"] h2.sec:first-child { margin-top: 6px; }
+:root[data-theme="daylight"] h3 { font-family: var(--font-ui); font-weight: 600; color: var(--parch); }
+
+/* every sub-11px pixel-font label → readable Inter caps ------------------- */
+:root[data-theme="daylight"] .mtier,
+:root[data-theme="daylight"] .kpi .l,
+:root[data-theme="daylight"] .card h3 .nm,
+:root[data-theme="daylight"] .tag,
+:root[data-theme="daylight"] .sec-btn,
+:root[data-theme="daylight"] .mxp,
+:root[data-theme="daylight"] .pill,
+:root[data-theme="daylight"] .qds-lbl,
+:root[data-theme="daylight"] .sp-school,
+:root[data-theme="daylight"] .sp-rarity,
+:root[data-theme="daylight"] .bf-k {
+  font-family: var(--font-ui) !important; font-size: 10.5px !important;
+  font-weight: 600; letter-spacing: .04em; line-height: 1.3;
+}
+:root[data-theme="daylight"] .card h3 .nm { font-size: 14px !important; letter-spacing: 0; white-space: normal; }
+
+/* big display numbers → high-contrast text (accent reserved, not on every number) */
+:root[data-theme="daylight"] .kpi .v,
+:root[data-theme="daylight"] .card h3 .pct { font-family: var(--font-data); color: var(--parch); text-shadow: none; font-weight: 600; }
+:root[data-theme="daylight"] .mission .mt { font-family: var(--font-ui); font-size: 16px; font-weight: 600; color: var(--parch); }
+
+/* ---- PRIMITIVES: white panels, hairline border, soft shadow ------------- */
+:root[data-theme="daylight"] .card,
+:root[data-theme="daylight"] .kpi,
+:root[data-theme="daylight"] .mission,
+:root[data-theme="daylight"] .quest,
+:root[data-theme="daylight"] .sq,
+:root[data-theme="daylight"] .invcard,
+:root[data-theme="daylight"] .chart,
+:root[data-theme="daylight"] .bfocus,
+:root[data-theme="daylight"] .blessing,
+:root[data-theme="daylight"] .spellcard,
+:root[data-theme="daylight"] .ach {
+  background: var(--ash);
+  border: 1px solid var(--edge); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+}
+:root[data-theme="daylight"] .card:hover,
+:root[data-theme="daylight"] .mission:hover,
+:root[data-theme="daylight"] .spellcard:hover {
+  transform: translateY(-1px); border-color: var(--edge-2);
+  box-shadow: 0 6px 18px -10px rgba(16,24,40,.24);
+}
+/* the accent seam on cards/kpis becomes a slim status bar */
+:root[data-theme="daylight"] .card::before,
+:root[data-theme="daylight"] .kpi::before { width: 3px; box-shadow: none; border-radius: 3px 0 0 3px; }
+
+:root[data-theme="daylight"] .pill {
+  background: rgba(47,111,235,.09); color: var(--ember-2); border: 1px solid rgba(47,111,235,.26);
+  border-radius: 999px; padding: 2px 10px; box-shadow: none;
+}
+:root[data-theme="daylight"] .tag {
+  background: var(--ash-2); border: 1px solid var(--edge); border-radius: 6px; color: var(--parch-2); box-shadow: none; padding: 3px 8px;
+}
+:root[data-theme="daylight"] .tag.class { background: rgba(47,111,235,.1); border-color: rgba(47,111,235,.28); color: var(--rune); }
+
+/* buttons: primary action affordance (blue, no glow) --------------------- */
+:root[data-theme="daylight"] .qbtn, :root[data-theme="daylight"] .sec-btn,
+:root[data-theme="daylight"] .ab-btn, :root[data-theme="daylight"] .otc-focus,
+:root[data-theme="daylight"] button.sum-go, :root[data-theme="daylight"] .obs-scry-copy {
+  font-family: var(--font-ui); font-weight: 600; letter-spacing: .01em;
+  background: rgba(47,111,235,.1);
+  color: var(--ember-2); border: 1px solid rgba(47,111,235,.3); border-radius: 8px;
+  box-shadow: none; transition: background .16s, border-color .16s, transform .1s;
+}
+:root[data-theme="daylight"] .qbtn:hover, :root[data-theme="daylight"] .sec-btn:hover,
+:root[data-theme="daylight"] .ab-btn:hover, :root[data-theme="daylight"] .otc-focus:hover,
+:root[data-theme="daylight"] button.sum-go:hover {
+  background: rgba(47,111,235,.17);
+  border-color: rgba(47,111,235,.46); transform: translateY(-1px);
+}
+:root[data-theme="daylight"] .sec-btn { font-size: 11px !important; color: var(--ember-2); }
+
+:root[data-theme="daylight"] .empty-note {
+  color: var(--parch-2); font-family: var(--font-ui); font-size: 14px; line-height: 1.55;
+  background: rgba(47,111,235,.03); border: 1px dashed var(--edge); border-radius: 10px; box-shadow: none; padding: 16px 18px;
+}
+:root[data-theme="daylight"] .muted, :root[data-theme="daylight"] .faint { color: var(--parch-3); }
+:root[data-theme="daylight"] .stack { font-size: 12.5px; color: var(--parch-3); }
+
+/* ---- ambient rail ------------------------------------------------------- */
+:root[data-theme="daylight"] #rail-right {
+  background: var(--ash); border-left: 1px solid var(--edge);
+  box-shadow: none;
+}
+:root[data-theme="daylight"] .am-h { font-family: var(--font-ui); font-size: 9.5px; font-weight: 600; letter-spacing: .12em; color: var(--parch-3); border-bottom: 1px solid var(--edge); }
+:root[data-theme="daylight"] .am-now, :root[data-theme="daylight"] .am-whisper { font-family: var(--font-ui); font-size: 12.5px; }
+:root[data-theme="daylight"] .am-domain { color: var(--parch); }
+:root[data-theme="daylight"] .am-empty, :root[data-theme="daylight"] .am-title, :root[data-theme="daylight"] .am-kv span { color: var(--parch-3); }
+
+/* ---- quest board tiers -------------------------------------------------- */
+:root[data-theme="daylight"] .qcol h3 { font-family: var(--font-ui); font-size: 14px; font-weight: 600; color: var(--parch); }
+:root[data-theme="daylight"] .quest .qt { font-size: 14.5px; color: var(--parch); line-height: 1.4; }
+:root[data-theme="daylight"] .quest .qwhy, :root[data-theme="daylight"] .sq .sqwhy { font-size: 12.5px; color: var(--parch-3); }
+
+/* clear any residual neon text-shadow the base leaves on body text */
+:root[data-theme="daylight"] .bf-domain, :root[data-theme="daylight"] .sp-name, :root[data-theme="daylight"] .qt { text-shadow: none; }
+
+/* ---- MOTION: same restrained set as nexus (keyframes from cinematic.css) - */
+:root[data-theme="daylight"] #stage > * { animation: nx-rise .34s cubic-bezier(.22, 1, .36, 1) both; }
+:root[data-theme="daylight"] .bf-dot.live,
+:root[data-theme="daylight"] .ss-chip.running::before { animation: nx-pulse 1.8s ease-in-out infinite; }
+:root[data-theme="daylight"] [data-expand] { cursor: pointer; transition: transform .14s, border-color .14s, box-shadow .14s; }
+:root[data-theme="daylight"] [data-expand]:hover { transform: translateY(-1px); border-color: var(--edge-2); }
+:root[data-theme="daylight"] [data-expand].open { border-color: var(--edge-2); }
+:root[data-theme="daylight"] .nx-detail { animation: nx-rise .24s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="daylight"] * { transition: none !important; }
+  :root[data-theme="daylight"] #stage > *,
+  :root[data-theme="daylight"] .bf-dot.live,
+  :root[data-theme="daylight"] .nx-detail { animation: none !important; }
+}
+
+/* ---- scrollbars: slim, muted thumb, transparent track ------------------- */
+:root[data-theme="daylight"] #stage,
+:root[data-theme="daylight"] #rail-right,
+:root[data-theme="daylight"] #rail-left,
+:root[data-theme="daylight"] .theme-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ash-3) transparent;
+}
+:root[data-theme="daylight"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+:root[data-theme="daylight"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-theme="daylight"] ::-webkit-scrollbar-thumb {
+  background: var(--ash-3); border: 3px solid transparent;
+  background-clip: padding-box; border-radius: 8px;
+}
+:root[data-theme="daylight"] ::-webkit-scrollbar-thumb:hover { background: #b9bfc9; }
+:root[data-theme="daylight"] ::-webkit-scrollbar-corner { background: transparent; }

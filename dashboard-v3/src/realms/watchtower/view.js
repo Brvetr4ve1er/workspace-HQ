@@ -1,22 +1,21 @@
-// WATCHTOWER — the social overseer (charter realm 9, passive tier). Every
-// surface is pure derivation over the browser dwell already captured per scan
-// (S.browser, written by the Bridge extension) — no new data contract, no IPC.
-// Rollups honour the Memory of Grace scrubber: only scans at-or-before the
-// selected snapshot are read, so viewing the past shows the past.
+// WATCHTOWER — the Screen Time realm. Every surface is pure derivation over the
+// browsing time already captured per scan (S.browser, written by the Bridge
+// extension) — no new data contract, no IPC. Rollups honour the time-machine
+// scrubber: only scans at-or-before the selected snapshot are read, so viewing
+// the past shows the past.
 import { el, esc, fmt } from '../../ui/util.js';
 import { fmtDur, aosKids, aosRefresh, sfx } from '../../ui/components.js';
-import { voiceLine } from '../../lexicon/voice.js';
 import { categorize, CATEGORIES } from './categories.js';
 
 const TOP_N = 8;
-const isAggroCat = (c) => c === 'social' || c === 'video';
+const isDistractingCat = (c) => c === 'social' || c === 'video';
 
 // which platform cards are expanded. Module-scope so a data:select re-render
-// (or a remount) repaints exactly the panels the Warden left open. Keyed by the
+// (or a remount) repaints exactly the panels the user left open. Keyed by the
 // stable domain string.
 const openDoms = new Set();
 
-// scans up to (and including) the selection that actually captured dwell —
+// scans up to (and including) the selection that actually captured browsing —
 // older scans predate the Bridge and carry no browser block at all.
 function browserScans(data) {
   return data.scans
@@ -30,7 +29,7 @@ function browserScans(data) {
 
 const domSum = (B, pick) => B.by_domain.reduce((t, d) => t + (pick && !pick(d) ? 0 : (d.focus_ms || 0)), 0);
 
-// per-domain rollup across the captured scans; series (dwell) and visitsSeries
+// per-domain rollup across the captured scans; series (time) and visitsSeries
 // are indexed per scan-with-browser (0 where the domain didn't surface that
 // day). lastTs/title track the most recent visit so the detail can name it.
 function rollup(scansB) {
@@ -70,13 +69,13 @@ function projectMap(scansB) {
   return m;
 }
 
-// social+video share of the reference scan's visible dwell, 0-100. Both the
+// social+video share of the reference scan's visible time, 0-100. Both the
 // numerator and denominator read by_domain so the ratio compares like to like.
-function aggroPct(B) {
+function distractPct(B) {
   const all = domSum(B);
-  return all ? Math.round((domSum(B, (d) => isAggroCat(categorize(d.domain))) / all) * 100) : 0;
+  return all ? Math.round((domSum(B, (d) => isDistractingCat(categorize(d.domain))) / all) * 100) : 0;
 }
-const aggroTier = (pct) => (pct < 35 ? 'calm' : pct < 65 ? 'watchful' : 'aggro');
+const distractTier = (pct) => (pct < 35 ? 'low' : pct < 65 ? 'mid' : 'high');
 
 // direction of a captured-scan-over-scan change; null when there's no prior
 // capture to compare against (single-day history).
@@ -85,7 +84,7 @@ function trend(cur, prev) {
   const d = cur - prev;
   return { d, glyph: d > 0 ? '▲' : d < 0 ? '▼' : '●', dir: d > 0 ? 'up' : d < 0 ? 'down' : 'flat' };
 }
-// percent-change label for a dwell delta; 'new' when it climbed from nothing.
+// percent-change label for a time delta; 'new' when it climbed from nothing.
 function trendPct(t, prev) {
   if (!t) return '';
   if (t.d === 0) return '±0';
@@ -95,7 +94,7 @@ function trendPct(t, prev) {
 }
 const trendChip = (t, label) => (t ? `<span class="wt-trend ${t.dir}" title="vs previous captured scan">${esc(label)}</span>` : '');
 
-// consecutive scan-over-scan INCREASES in social dwell ending at the selected
+// consecutive scan-over-scan INCREASES in social time ending at the selected
 // snapshot (strict growth; video rides the meter, not the streak).
 function socialStreak(scansB) {
   const per = scansB.map((s) => domSum(s.browser, (d) => categorize(d.domain) === 'social'));
@@ -105,7 +104,7 @@ function socialStreak(scansB) {
 }
 
 // day-of-week buckets, Monday-first; scans are daily so each captured scan
-// contributes its whole visible dwell to its weekday.
+// contributes its whole visible time to its weekday.
 function weekBuckets(scansB) {
   const b = new Array(7).fill(0);
   for (const s of scansB) {
@@ -121,12 +120,12 @@ function dialSvg(pct) {
   const r = 78, cx = 100, cy = 104;
   const len = Math.PI * r;
   const off = len - (len * pct) / 100;
-  return `<svg class="wt-dial-svg" viewBox="0 0 200 118" aria-label="aggro ${pct} of 100">
+  return `<svg class="wt-dial-svg" viewBox="0 0 200 118" role="img" aria-label="Distraction meter, ${pct} percent of browsing time">
     <path class="wt-arc bg" d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}"/>
     <path class="wt-arc val" d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}"
       style="stroke-dasharray:${len.toFixed(1)};stroke-dashoffset:${off.toFixed(1)}"/>
-    <text class="wt-dial-num" x="${cx}" y="88" text-anchor="middle">${pct}</text>
-    <text class="wt-dial-sub" x="${cx}" y="106" text-anchor="middle">AGGRO</text>
+    <text class="wt-dial-num" x="${cx}" y="90" text-anchor="middle">${pct}%</text>
+    <text class="wt-dial-sub" x="${cx}" y="108" text-anchor="middle">DISTRACTING</text>
   </svg>`;
 }
 
@@ -144,33 +143,32 @@ function sparkSvg(series, color) {
 }
 
 // ------------------------------------------------------------------ sections
-function renderDoom(parent, scansB, S) {
+function renderTrendBanner(parent, scansB) {
   const streak = socialStreak(scansB);
   if (streak < 3) return;
-  const line = voiceLine('break_nudge', S.scan.id) || 'touch grass, Warden';
   parent.appendChild(el('div', 'wt-doom',
-    `<span class="wt-doom-k">⚠ DOOMSCROLL</span>
-     <span class="wt-doom-t">social dwell up ${streak} scans straight — ${esc(line)}</span>`));
+    `<span class="wt-doom-k">↑ Trend</span>
+     <span class="wt-doom-t">Social time has risen ${streak} scans in a row.</span>`));
 }
 
-function renderOverwatch(parent, scansB, roll) {
-  parent.appendChild(el('h2', 'sec', 'THE OVERWATCH'));
+function renderOverview(parent, scansB, roll) {
+  parent.appendChild(el('h2', 'sec', 'Overview'));
   const grid = el('div', 'wt-top');
   parent.appendChild(grid);
 
   const ref = scansB[scansB.length - 1].browser;   // nearest captured window at-or-before the selection
-  const pct = aggroPct(ref);
-  const tier = aggroTier(pct);
-  // trend vs the previous captured scan (points of aggro share, not %-of-%).
-  const at = scansB.length > 1 ? trend(pct, aggroPct(scansB[scansB.length - 2].browser)) : null;
+  const pct = distractPct(ref);
+  const tier = distractTier(pct);
+  // trend vs the previous captured scan (points of distraction share, not %-of-%).
+  const at = scansB.length > 1 ? trend(pct, distractPct(scansB[scansB.length - 2].browser)) : null;
   const atLabel = at ? `${at.glyph} ${at.d > 0 ? '+' : ''}${at.d} pts` : '';
   const dial = el('div', `wt-panel wt-dial ${tier}`,
-    `<div class="wt-k">aggro meter · social+video share</div>
+    `<div class="wt-k">Distraction meter · social &amp; video share</div>
      ${dialSvg(pct)}
      <div class="wt-scale">
-       <span class="${tier === 'calm' ? 'on' : ''}">calm</span>
-       <span class="${tier === 'watchful' ? 'on' : ''}">watchful</span>
-       <span class="${tier === 'aggro' ? 'on' : ''}">AGGRO'D</span>
+       <span class="${tier === 'low' ? 'on' : ''}">Low</span>
+       <span class="${tier === 'mid' ? 'on' : ''}">Moderate</span>
+       <span class="${tier === 'high' ? 'on' : ''}">High</span>
      </div>
      ${at ? `<div class="wt-dial-trend">${trendChip(at, atLabel)}<span class="wt-trend-cap">vs last capture</span></div>` : ''}`);
   grid.appendChild(dial);
@@ -184,20 +182,20 @@ function renderOverwatch(parent, scansB, roll) {
        <b>${days[i][0]}</b>
      </div>`).join('');
   grid.appendChild(el('div', 'wt-panel',
-    `<div class="wt-k">weekly rhythm · dwell by weekday</div><div class="wt-week">${cells}</div>`));
+    `<div class="wt-k">Weekly rhythm · time by weekday</div><div class="wt-week">${cells}</div>`));
 
   const grand = roll.reduce((t, r) => t + r.total, 0);
-  const den = roll[0];
+  const busiest = roll[0];
   grid.appendChild(el('div', 'wt-panel',
-    `<div class="wt-k">watch log</div>
-     <div class="wt-cen-row"><span>total dwell</span><b>${fmtDur(grand)}</b></div>
-     <div class="wt-cen-row"><span>domains watched</span><b>${roll.length}</b></div>
-     <div class="wt-cen-row"><span>days captured</span><b>${scansB.length}</b></div>
-     ${den ? `<div class="wt-cen-row"><span>busiest den</span><b>${esc(den.domain.replace(/^www\./, ''))}</b></div>` : ''}`));
+    `<div class="wt-k">Summary</div>
+     <div class="wt-cen-row"><span>Total time</span><b>${fmtDur(grand)}</b></div>
+     <div class="wt-cen-row"><span>Sites tracked</span><b>${roll.length}</b></div>
+     <div class="wt-cen-row"><span>Days captured</span><b>${scansB.length}</b></div>
+     ${busiest ? `<div class="wt-cen-row"><span>Busiest site</span><b>${esc(busiest.domain.replace(/^www\./, ''))}</b></div>` : ''}`));
   aosKids(grid, 'fade-up', 60);
 }
 
-// inline dossier for one platform — the per-day dwell history, category, peak,
+// inline detail for one platform — the per-day time history, category, peak,
 // first-seen, and any project attribution. Built lazily on expand, rebuilt on a
 // data:select repaint for domains still in openDoms.
 function detailNode(r, scansB, projMap) {
@@ -219,14 +217,14 @@ function detailNode(r, scansB, projMap) {
   }).join('');
   const det = el('div', 'nx-detail',
     `<div class="wt-dt-grid">
-       <div class="wt-dt-c"><span>category</span><b style="color:${cat.color}">${cat.label}</b></div>
-       <div class="wt-dt-c"><span>peak day</span><b>${esc(fmtDur(peak))} · ${dLabel(peakIdx)}</b></div>
-       <div class="wt-dt-c"><span>first seen</span><b>${firstIdx >= 0 ? dLabel(firstIdx) : '—'}</b></div>
-       <div class="wt-dt-c"><span>total visits</span><b>${esc(fmt(r.visits))}</b></div>
-       ${proj ? `<div class="wt-dt-c wide"><span>project</span><b>↳ ${esc(proj)}</b></div>` : ''}
+       <div class="wt-dt-c"><span>Category</span><b style="color:${cat.color}">${cat.label}</b></div>
+       <div class="wt-dt-c"><span>Peak day</span><b>${esc(fmtDur(peak))} · ${dLabel(peakIdx)}</b></div>
+       <div class="wt-dt-c"><span>First seen</span><b>${firstIdx >= 0 ? dLabel(firstIdx) : '—'}</b></div>
+       <div class="wt-dt-c"><span>Total visits</span><b>${esc(fmt(r.visits))}</b></div>
+       ${proj ? `<div class="wt-dt-c wide"><span>Project</span><b>↳ ${esc(proj)}</b></div>` : ''}
      </div>
      ${r.title ? `<div class="wt-dt-title" title="${esc(r.title)}">“${esc(r.title)}”</div>` : ''}
-     <div class="wt-dt-k">dwell by captured day</div>
+     <div class="wt-dt-k">Time by day</div>
      <div class="wt-hist">${rows}</div>`);
   det.addEventListener('click', (e) => e.stopPropagation());   // clicks inside don't collapse the card
   return det;
@@ -251,7 +249,7 @@ function toggleCard(card, r, scansB, projMap) {
 function renderPlatforms(parent, scansB, roll) {
   const top = roll.slice(0, TOP_N);
   const projMap = projectMap(scansB);
-  parent.appendChild(el('h2', 'sec', `PLATFORM WATCH · top ${top.length}`));
+  parent.appendChild(el('h2', 'sec', `Platforms · top ${top.length}`));
   const grid = el('div', 'wt-grid');
   parent.appendChild(grid);
   for (const r of top) {
@@ -272,7 +270,7 @@ function renderPlatforms(parent, scansB, roll) {
          ${trendChip(t, tlabel)}
        </div>
        ${sparkSvg(r.series, cat.color)}
-       <div class="wt-cadence">cadence ${r.days}/${scansB.length} days · ${esc(fmt(r.visits))} visits</div>`);
+       <div class="wt-cadence">Seen ${r.days}/${scansB.length} days · ${esc(fmt(r.visits))} visits</div>`);
     card.setAttribute('data-expand', '');   // cinematic theme styles hover + .open off this
     card.style.setProperty('--cc', cat.color);
     if (open) card.appendChild(detailNode(r, scansB, projMap));
@@ -284,11 +282,10 @@ function renderPlatforms(parent, scansB, roll) {
 
 function renderEmpty(parent) {
   parent.appendChild(el('div', 'wt-empty',
-    `<div class="wt-empty-glyph">🗼</div>
-     <div class="wt-empty-head">the spire sees nothing yet</div>
-     <div class="wt-empty-sub">no browser dwell in any snapshot. Load the <b>WorkspaceHQ Bridge</b>
+    `<div class="wt-empty-head">No browsing captured yet</div>
+     <div class="wt-empty-sub">There's no browsing time in any snapshot. Load the <b>WorkspaceHQ Bridge</b>
        extension (<code>browser-bridge/</code> → chrome://extensions → Load unpacked)
-       and the watch begins next scan.</div>`));
+       and tracking begins on the next scan.</div>`));
 }
 
 // ------------------------------------------------------------------- realm
@@ -304,8 +301,8 @@ function render() {
   const scansB = browserScans(ctx.data);
   if (!scansB.length) { renderEmpty(root); return; }
   const roll = rollup(scansB);
-  renderDoom(root, scansB, S);
-  renderOverwatch(root, scansB, roll);
+  renderTrendBanner(root, scansB);
+  renderOverview(root, scansB, roll);
   renderPlatforms(root, scansB, roll);
   aosRefresh();
 }

@@ -1,9 +1,10 @@
 /* ============================================================================
-   NEXUS · CINEMATIC — the "nexus" theme. A dark-fantasy AAA game-menu skin:
-   obsidian + parchment + molten gold, backlit panels, gilded etching, a
-   dramatic serif for titles and a genuinely legible sans for everything you
-   read. Loaded LAST so it wins the cascade; scoped to [data-theme="nexus"]
-   so the five legacy themes are untouched (rollback = pick another theme).
+   NEXUS — the default dark theme. Clean and professional: near-solid dark
+   surfaces, hairline borders, high-contrast text, and ONE restrained amber
+   accent used sparingly (active nav, primary buttons, a few key numbers).
+   Inter throughout. Aims for a calm Linear/Raycast feel, not a game menu.
+   Loaded LAST so it wins the cascade; scoped to [data-theme="nexus"] so the
+   other themes are untouched (rollback = pick another theme).
    ========================================================================== */
 
 @font-face { font-family: "Inter"; src: url("./fonts/Inter-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
@@ -12,23 +13,24 @@
 @font-face { font-family: "JetBrains Mono"; src: url("./fonts/JetBrainsMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 
 :root[data-theme="nexus"] {
-  /* ---- cinematic palette ------------------------------------------------ */
-  --void:    #0b0d13;   /* obsidian, cool undertone (never pure black) */
-  --void-2:  #06070d;   /* deepest — vignette edges */
+  /* ---- palette ---------------------------------------------------------- */
+  --void:    #0b0d13;   /* deep base, cool undertone (never pure black) */
+  --void-2:  #06070d;   /* deepest — page edges */
   --ash:     #141824;   /* panel surface */
   --ash-2:   #1c2130;   /* raised / hover */
   --ash-3:   #232a3b;
-  --edge:    #2c3346;   /* structural hairline */
-  --etch:    rgba(232,170,90,.22);   /* gilded hairline */
-  --parch:   #ece6d6;   /* primary text — warm off-white, very high contrast */
-  --parch-2: #b7b2a3;   /* secondary */
-  --parch-3: #8a8677;   /* tertiary */
-  --ember:   #e8a13c;   /* THE accent — molten gold */
-  --ember-2: #ffcf6b;   /* highlight/glow */
+  --edge:    #2a3040;   /* structural hairline */
+  --edge-2:  rgba(255,255,255,.12);  /* neutral hover edge */
+  --etch:    rgba(150,160,180,.10);  /* faint neutral seam (no gold spam) */
+  --parch:   #eceef3;   /* primary text — cool off-white, very high contrast */
+  --parch-2: #aeb4c2;   /* secondary */
+  --parch-3: #7d8394;   /* tertiary */
+  --ember:   #e2a24a;   /* THE accent — restrained amber, used sparingly */
+  --ember-2: #f2c479;   /* accent highlight (calm, not neon) */
   --ember-deep: #a8701c;
-  --blood:   #d9503f;   /* danger / red hunts (deep crimson, not neon) */
-  --grace:   #86b986;   /* success (muted sage) */
-  --rune:    #74a8dc;   /* cool accent / links / insight (steel blue) */
+  --blood:   #e0645a;   /* danger (warm red, not neon) */
+  --grace:   #7fb98a;   /* success (muted sage) */
+  --rune:    #6f9fe0;   /* links / info (calm steel blue) */
 
   /* type roles */
   --font-display: "DM Serif Display", "Cinzel", Georgia, serif;
@@ -48,11 +50,11 @@
   --active: var(--ember); --active-arrow: var(--ember); --divider: var(--edge);
   --px: var(--font-ui); --term: var(--font-ui); --mono: var(--font-data);
 
-  --rail-w: 84px;        /* a wider, more substantial left rail reads AAA */
+  --rail-w: 84px;        /* a wider, more substantial left rail */
   --ambient-w: 264px;
 }
 
-/* ---- atmosphere: layered obsidian with a low ember glow + vignette ------- */
+/* ---- atmosphere: near-solid dark, one very faint low glow ---------------- */
 :root[data-theme="nexus"] body {
   font-family: var(--font-ui);
   font-size: 15px;
@@ -60,18 +62,22 @@
   letter-spacing: 0;
   color: var(--parch);
   background:
-    radial-gradient(120% 90% at 50% 118%, rgba(232,161,60,.10), transparent 60%),
-    radial-gradient(100% 80% at 50% -20%, rgba(116,168,220,.06), transparent 55%),
+    radial-gradient(120% 80% at 50% 120%, rgba(226,162,74,.035), transparent 62%),
     linear-gradient(180deg, var(--void) 0%, var(--void-2) 100%);
   -webkit-font-smoothing: antialiased;
 }
 :root[data-theme="nexus"] #nexus { background: transparent; }
 
-/* ---- rails: backlit edges, gilded seam ---------------------------------- */
+/* kill the CRT scanline/flicker overlay and the arcade boot splash — this is a
+   calm productivity surface, not a game (matches the other quiet themes) */
+:root[data-theme="nexus"] #crt { opacity: 0 !important; pointer-events: none; }
+:root[data-theme="nexus"] #boot { display: none !important; }
+
+/* ---- rails: calm solid surfaces, hairline seam -------------------------- */
 :root[data-theme="nexus"] #rail-left {
-  background: linear-gradient(180deg, rgba(20,24,36,.72), rgba(9,11,18,.72));
+  background: var(--ash);
   border-right: 1px solid var(--edge);
-  box-shadow: inset -1px 0 0 rgba(232,170,90,.08);
+  box-shadow: none;
   padding: 12px 0; gap: 4px;
 }
 :root[data-theme="nexus"] .sigil {
@@ -84,38 +90,38 @@
   font-family: var(--font-ui); font-size: 8.5px; font-weight: 600; letter-spacing: .06em;
   line-height: 1.15; text-transform: uppercase; color: var(--parch-3);
 }
-:root[data-theme="nexus"] .sigil:hover { color: var(--parch); background: rgba(232,170,90,.06); border-color: var(--edge); }
+:root[data-theme="nexus"] .sigil:hover { color: var(--parch); background: rgba(255,255,255,.04); border-color: var(--edge); }
 :root[data-theme="nexus"] .sigil:hover .glyph { filter: grayscale(0) opacity(1); }
 :root[data-theme="nexus"] .sigil.active {
-  color: var(--ember-2); border-color: rgba(232,170,90,.5);
-  background: linear-gradient(180deg, rgba(232,161,60,.14), rgba(232,161,60,.04));
-  box-shadow: inset 0 0 18px -8px var(--ember), 0 0 0 1px rgba(232,170,90,.15);
+  color: var(--ember-2); border-color: rgba(226,162,74,.34);
+  background: rgba(226,162,74,.08);
+  box-shadow: none;
 }
 :root[data-theme="nexus"] .sigil.active .glyph { filter: none; }
 :root[data-theme="nexus"] .sigil.active .lbl { color: var(--ember-2); }
 :root[data-theme="nexus"] .sigil .badge {
   background: var(--blood); color: #fff; font-family: var(--font-data);
-  font-size: 9px; font-weight: 600; top: 4px; right: 8px; box-shadow: 0 0 10px -3px var(--blood);
+  font-size: 9px; font-weight: 600; top: 4px; right: 8px; box-shadow: none;
 }
 
-/* ---- topstrip / Warden plate -------------------------------------------- */
+/* ---- topstrip / status header ------------------------------------------- */
 :root[data-theme="nexus"] #topstrip {
   border-bottom: 1px solid var(--edge);
-  background: linear-gradient(180deg, rgba(18,22,33,.6), transparent);
-  box-shadow: inset 0 -1px 0 var(--etch);
+  background: var(--ash);
+  box-shadow: none;
   padding: 10px 18px;
 }
 :root[data-theme="nexus"] .title {
-  font-family: var(--font-display); font-weight: 400; font-size: 24px;
-  letter-spacing: .01em; color: var(--parch); text-shadow: none;
+  font-family: var(--font-ui); font-weight: 600; font-size: 18px;
+  letter-spacing: -.01em; color: var(--parch); text-shadow: none;
 }
 :root[data-theme="nexus"] .title .hq { color: var(--ember); }
 :root[data-theme="nexus"] .subtitle { font-family: var(--font-ui); font-size: 12px; color: var(--parch-3); letter-spacing: 0; }
 :root[data-theme="nexus"] .level-chip {
-  background: radial-gradient(120% 120% at 50% 0%, rgba(232,161,60,.16), var(--ash));
-  border: 1px solid rgba(232,170,90,.4); border-radius: 8px; padding: 5px 10px;
+  background: var(--ash-2);
+  border: 1px solid var(--edge); border-radius: 8px; padding: 5px 10px;
 }
-:root[data-theme="nexus"] .level-chip b { font-family: var(--font-display); font-size: 22px; color: var(--ember-2); text-shadow: 0 0 12px rgba(232,161,60,.5); }
+:root[data-theme="nexus"] .level-chip b { font-family: var(--font-ui); font-weight: 600; font-size: 20px; color: var(--ember-2); text-shadow: none; }
 :root[data-theme="nexus"] .level-chip small { font-family: var(--font-ui); font-size: 8px; font-weight: 600; letter-spacing: .12em; color: var(--parch-3); }
 :root[data-theme="nexus"] .level-chip small:last-child { color: var(--rune); }
 :root[data-theme="nexus"] .xp-row b { font-family: var(--font-data); font-size: 13px; color: var(--ember-2); font-weight: 600; }
@@ -123,7 +129,7 @@
 :root[data-theme="nexus"] .xp-bar, :root[data-theme="nexus"] .hp-bar {
   height: 9px; border: 1px solid var(--edge); border-radius: 5px; background: #0a0c12; box-shadow: none;
 }
-:root[data-theme="nexus"] .xp-fill { background: linear-gradient(90deg, var(--ember-deep), var(--ember-2)); box-shadow: 0 0 10px -2px var(--ember); }
+:root[data-theme="nexus"] .xp-fill { background: linear-gradient(90deg, var(--ember-deep), var(--ember)); box-shadow: none; }
 :root[data-theme="nexus"] .xp-bar::after, :root[data-theme="nexus"] .hp-bar::after { display: none; }
 :root[data-theme="nexus"] .hp-fill { border-radius: 4px; }
 :root[data-theme="nexus"] .stat label, :root[data-theme="nexus"] .stat.hp label {
@@ -134,15 +140,15 @@
   font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: .08em;
   color: var(--parch-2); background: var(--ash); border: 1px solid var(--edge); border-radius: 7px; padding: 7px 12px;
 }
-:root[data-theme="nexus"] .theme-btn:hover { color: var(--ember-2); border-color: rgba(232,170,90,.4); }
+:root[data-theme="nexus"] .theme-btn:hover { color: var(--ember-2); border-color: rgba(226,162,74,.4); }
 :root[data-theme="nexus"] .theme-menu { background: var(--ash); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 20px 50px -18px #000; }
 :root[data-theme="nexus"] .th-group { font-family: var(--font-ui); font-size: 9px; font-weight: 600; letter-spacing: .14em; color: var(--parch-3); }
 :root[data-theme="nexus"] .theme-opt { border-radius: 6px; }
 :root[data-theme="nexus"] .theme-opt .th-name { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--parch); }
 :root[data-theme="nexus"] .theme-opt .th-hint { font-family: var(--font-ui); font-size: 10.5px; color: var(--parch-3); }
-:root[data-theme="nexus"] .theme-opt:hover, :root[data-theme="nexus"] .theme-opt.active { background: rgba(232,161,60,.1); }
+:root[data-theme="nexus"] .theme-opt:hover, :root[data-theme="nexus"] .theme-opt.active { background: rgba(226,162,74,.1); }
 
-/* ---- Memory-of-Grace scrubber ------------------------------------------- */
+/* ---- snapshot scrubber -------------------------------------------------- */
 :root[data-theme="nexus"] .timemachine { background: rgba(11,13,19,.9); border-bottom: 1px solid var(--edge); backdrop-filter: blur(8px); }
 :root[data-theme="nexus"] .tm-head .lbl { font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .12em; color: var(--parch-3); }
 :root[data-theme="nexus"] .tm-head .date, :root[data-theme="nexus"] #tm-date { font-family: var(--font-data); font-size: 16px; color: var(--parch); letter-spacing: 0; }
@@ -159,16 +165,16 @@
 }
 :root[data-theme="nexus"] #statusbar .coin-blink { color: var(--ember); }
 
-/* ---- TYPOGRAPHY: the cinematic heading system --------------------------- */
+/* ---- TYPOGRAPHY: clean Inter heading system ----------------------------- */
 :root[data-theme="nexus"] h2.sec {
-  font-family: var(--font-display); font-weight: 400; font-size: 21px; letter-spacing: .01em;
+  font-family: var(--font-ui); font-weight: 600; font-size: 15px; letter-spacing: -.005em;
   color: var(--parch); text-shadow: none; text-transform: none;
   padding-bottom: 9px; margin: 22px 0 14px; position: relative; border: none;
   display: flex; align-items: baseline; gap: 10px;
 }
 :root[data-theme="nexus"] h2.sec::before {
-  content: ""; position: absolute; left: 0; bottom: 0; width: 46px; height: 2px;
-  background: linear-gradient(90deg, var(--ember), transparent); color: transparent;
+  content: ""; position: absolute; left: 0; bottom: 0; width: 24px; height: 2px;
+  background: var(--ember); color: transparent; border-radius: 2px;
 }
 :root[data-theme="nexus"] h2.sec::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--etch);
@@ -193,12 +199,12 @@
 }
 :root[data-theme="nexus"] .card h3 .nm { font-size: 14px !important; letter-spacing: 0; white-space: normal; }
 
-/* big display numbers → mono/serif, gilded ------------------------------- */
+/* big display numbers → high-contrast text (accent reserved, not on every number) */
 :root[data-theme="nexus"] .kpi .v,
-:root[data-theme="nexus"] .card h3 .pct { font-family: var(--font-data); color: var(--ember-2); text-shadow: none; font-weight: 600; }
+:root[data-theme="nexus"] .card h3 .pct { font-family: var(--font-data); color: var(--parch); text-shadow: none; font-weight: 600; }
 :root[data-theme="nexus"] .mission .mt { font-family: var(--font-ui); font-size: 16px; font-weight: 600; color: var(--parch); }
 
-/* ---- PRIMITIVES: backlit panels ---------------------------------------- */
+/* ---- PRIMITIVES: near-solid panels, hairline border -------------------- */
 :root[data-theme="nexus"] .card,
 :root[data-theme="nexus"] .kpi,
 :root[data-theme="nexus"] .mission,
@@ -210,22 +216,22 @@
 :root[data-theme="nexus"] .blessing,
 :root[data-theme="nexus"] .spellcard,
 :root[data-theme="nexus"] .ach {
-  background: linear-gradient(168deg, rgba(28,33,48,.9), rgba(18,22,33,.92));
+  background: var(--ash);
   border: 1px solid var(--edge); border-radius: 12px;
-  box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px -18px #000;
+  box-shadow: 0 1px 2px rgba(0,0,0,.22);
 }
 :root[data-theme="nexus"] .card:hover,
 :root[data-theme="nexus"] .mission:hover,
 :root[data-theme="nexus"] .spellcard:hover {
-  transform: translateY(-2px); border-color: rgba(232,170,90,.32);
-  box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 16px 38px -18px #000, 0 0 24px -14px var(--ember);
+  transform: translateY(-1px); border-color: var(--edge-2);
+  box-shadow: 0 6px 18px -10px rgba(0,0,0,.55);
 }
-/* the accent seam on cards/kpis becomes a slim gilded/status bar */
+/* the accent seam on cards/kpis becomes a slim status bar */
 :root[data-theme="nexus"] .card::before,
 :root[data-theme="nexus"] .kpi::before { width: 3px; box-shadow: none; border-radius: 3px 0 0 3px; }
 
 :root[data-theme="nexus"] .pill {
-  background: rgba(232,170,90,.1); color: var(--ember-2); border: 1px solid rgba(232,170,90,.28);
+  background: rgba(226,162,74,.1); color: var(--ember-2); border: 1px solid rgba(226,162,74,.28);
   border-radius: 999px; padding: 2px 10px; box-shadow: none;
 }
 :root[data-theme="nexus"] .tag {
@@ -233,42 +239,42 @@
 }
 :root[data-theme="nexus"] .tag.class { background: rgba(116,168,220,.12); border-color: rgba(116,168,220,.3); color: var(--rune); }
 
-/* buttons: the FOCUS/CAST/action language ------------------------------- */
+/* buttons: primary action affordance (amber, no glow) -------------------- */
 :root[data-theme="nexus"] .qbtn, :root[data-theme="nexus"] .sec-btn,
 :root[data-theme="nexus"] .ab-btn, :root[data-theme="nexus"] .otc-focus,
 :root[data-theme="nexus"] button.sum-go, :root[data-theme="nexus"] .obs-scry-copy {
-  font-family: var(--font-ui); font-weight: 600; letter-spacing: .04em;
-  background: linear-gradient(180deg, rgba(232,161,60,.16), rgba(232,161,60,.05));
-  color: var(--ember-2); border: 1px solid rgba(232,170,90,.42); border-radius: 8px;
-  box-shadow: 0 0 0 0 var(--ember); transition: box-shadow .18s, background .18s, transform .1s;
+  font-family: var(--font-ui); font-weight: 600; letter-spacing: .01em;
+  background: rgba(226,162,74,.12);
+  color: var(--ember-2); border: 1px solid rgba(226,162,74,.34); border-radius: 8px;
+  box-shadow: none; transition: background .16s, border-color .16s, transform .1s;
 }
 :root[data-theme="nexus"] .qbtn:hover, :root[data-theme="nexus"] .sec-btn:hover,
 :root[data-theme="nexus"] .ab-btn:hover, :root[data-theme="nexus"] .otc-focus:hover,
 :root[data-theme="nexus"] button.sum-go:hover {
-  background: linear-gradient(180deg, rgba(232,161,60,.28), rgba(232,161,60,.1));
-  box-shadow: 0 0 22px -8px var(--ember); transform: translateY(-1px);
+  background: rgba(226,162,74,.2);
+  border-color: rgba(226,162,74,.5); transform: translateY(-1px);
 }
 :root[data-theme="nexus"] .sec-btn { font-size: 11px !important; color: var(--ember-2); }
 
 :root[data-theme="nexus"] .empty-note {
   color: var(--parch-2); font-family: var(--font-ui); font-size: 14px; line-height: 1.55;
-  background: rgba(232,170,90,.03); border: 1px dashed var(--edge); border-radius: 10px; box-shadow: none; padding: 16px 18px;
+  background: rgba(226,162,74,.03); border: 1px dashed var(--edge); border-radius: 10px; box-shadow: none; padding: 16px 18px;
 }
 :root[data-theme="nexus"] .muted, :root[data-theme="nexus"] .faint { color: var(--parch-3); }
 :root[data-theme="nexus"] .stack { font-size: 12.5px; color: var(--parch-3); }
 
 /* ---- ambient rail ------------------------------------------------------- */
 :root[data-theme="nexus"] #rail-right {
-  background: linear-gradient(180deg, rgba(20,24,36,.5), rgba(9,11,18,.5)); border-left: 1px solid var(--edge);
-  box-shadow: inset 1px 0 0 rgba(232,170,90,.06);
+  background: var(--ash); border-left: 1px solid var(--edge);
+  box-shadow: none;
 }
-:root[data-theme="nexus"] .am-h { font-family: var(--font-ui); font-size: 9.5px; font-weight: 600; letter-spacing: .12em; color: var(--ember); border-bottom: 1px solid var(--etch); }
+:root[data-theme="nexus"] .am-h { font-family: var(--font-ui); font-size: 9.5px; font-weight: 600; letter-spacing: .12em; color: var(--parch-3); border-bottom: 1px solid var(--edge); }
 :root[data-theme="nexus"] .am-now, :root[data-theme="nexus"] .am-whisper { font-family: var(--font-ui); font-size: 12.5px; }
 :root[data-theme="nexus"] .am-domain { color: var(--parch); }
 :root[data-theme="nexus"] .am-empty, :root[data-theme="nexus"] .am-title, :root[data-theme="nexus"] .am-kv span { color: var(--parch-3); }
 
 /* ---- quest board tiers -------------------------------------------------- */
-:root[data-theme="nexus"] .qcol h3 { font-family: var(--font-display); font-size: 15px; font-weight: 400; color: var(--parch); }
+:root[data-theme="nexus"] .qcol h3 { font-family: var(--font-ui); font-size: 14px; font-weight: 600; color: var(--parch); }
 :root[data-theme="nexus"] .quest .qt { font-size: 14.5px; color: var(--parch); line-height: 1.4; }
 :root[data-theme="nexus"] .quest .qwhy, :root[data-theme="nexus"] .sq .sqwhy { font-size: 12.5px; color: var(--parch-3); }
 
@@ -280,34 +286,43 @@
 }
 
 /* ============================================================================
-   LIVELINESS — restrained motion so the NEXUS breathes without looking busy.
-   One entrance reveal per realm mount, a slow breathing glow on where-you-are,
-   a live pulse on real-time signals. Everything yields to reduced-motion.
+   MOTION — restrained. One quiet entrance reveal per realm mount and a live
+   pulse on real-time signals only. The active nav is static (no breathing
+   glow). Everything yields to reduced-motion.
    ========================================================================== */
-:root[data-theme="nexus"] #stage > * { animation: nx-rise .42s cubic-bezier(.22, 1, .36, 1) both; }
-@keyframes nx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-/* the active realm's sigil breathes a low ember — a quiet "you are here" */
-:root[data-theme="nexus"] .sigil.active { animation: nx-breathe 4.5s ease-in-out infinite; }
-@keyframes nx-breathe {
-  0%, 100% { box-shadow: inset 0 0 18px -8px var(--ember), 0 0 0 1px rgba(232,170,90,.15); }
-  50%      { box-shadow: inset 0 0 22px -6px var(--ember), 0 0 14px -4px rgba(232,170,90,.35); }
-}
+:root[data-theme="nexus"] #stage > * { animation: nx-rise .34s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes nx-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* live signals (browser "now", running sessions) pulse so real-time reads as real-time */
 :root[data-theme="nexus"] .bf-dot.live,
 :root[data-theme="nexus"] .ss-chip.running::before { animation: nx-pulse 1.8s ease-in-out infinite; }
-@keyframes nx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes nx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 
 /* interactive affordance: anything the design marks [data-expand] lifts on hover */
 :root[data-theme="nexus"] [data-expand] { cursor: pointer; transition: transform .14s, border-color .14s, box-shadow .14s; }
-:root[data-theme="nexus"] [data-expand]:hover { transform: translateY(-2px); border-color: rgba(232,170,90,.4); }
-:root[data-theme="nexus"] [data-expand].open { border-color: rgba(232,170,90,.5); }
-:root[data-theme="nexus"] .nx-detail { animation: nx-rise .28s ease both; }
+:root[data-theme="nexus"] [data-expand]:hover { transform: translateY(-1px); border-color: var(--edge-2); }
+:root[data-theme="nexus"] [data-expand].open { border-color: var(--edge-2); }
+:root[data-theme="nexus"] .nx-detail { animation: nx-rise .24s ease both; }
 
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="nexus"] #stage > *,
-  :root[data-theme="nexus"] .sigil.active,
   :root[data-theme="nexus"] .bf-dot.live,
   :root[data-theme="nexus"] .nx-detail { animation: none !important; }
 }
+
+/* ---- scrollbars: slim, muted thumb, transparent track ------------------- */
+:root[data-theme="nexus"] #stage,
+:root[data-theme="nexus"] #rail-right,
+:root[data-theme="nexus"] #rail-left,
+:root[data-theme="nexus"] .theme-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ash-3) transparent;
+}
+:root[data-theme="nexus"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+:root[data-theme="nexus"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-theme="nexus"] ::-webkit-scrollbar-thumb {
+  background: var(--ash-3); border: 3px solid transparent;
+  background-clip: padding-box; border-radius: 8px;
+}
+:root[data-theme="nexus"] ::-webkit-scrollbar-thumb:hover { background: var(--edge); }
+:root[data-theme="nexus"] ::-webkit-scrollbar-corner { background: transparent; }

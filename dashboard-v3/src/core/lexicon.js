@@ -6,8 +6,9 @@ import { LEXICONS } from '../lexicon/lexicons.js';
 let LEX = { ...LEXICONS.default };
 
 export function setLexTheme(id) {
-  // NEXUS (the default) speaks PLAIN, professional English — no RPG flavor.
-  const key = id === 'nexus' ? 'plain' : id;
+  // The clean themes (NEXUS dark, DAYLIGHT light) speak PLAIN, professional
+  // English — no RPG flavor. Other themes keep their own register.
+  const key = (id === 'nexus' || id === 'daylight') ? 'plain' : id;
   LEX = { ...LEXICONS.default, ...(LEXICONS[key] || {}) };
 }
 

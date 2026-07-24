@@ -54,7 +54,7 @@ export function refreshBadges() {
   }
 }
 
-// Topstrip: v2's #topbar chrome verbatim — brand + Warden plate + SYS menu.
+// Topstrip: v2's #topbar chrome verbatim — brand + status plate + SYS menu.
 // Structure only (static markup, built once): chrome.js wires behavior and
 // paints the live values; the ids are the contract between the two files.
 function renderTopstrip() {
@@ -94,12 +94,8 @@ function renderTopstrip() {
         <button id="theme-btn" class="sfx theme-btn" title="Themes · card export · sound">◈ SYS</button>
         <div id="theme-menu" class="theme-menu" role="menu">
           <div class="th-group">THEME</div>
-          <button data-theme="nexus" class="theme-opt"><span class="th-name">NEXUS</span><span class="th-hint">cinematic · obsidian &amp; gold</span></button>
-          <button data-theme="arcade" class="theme-opt"><span class="th-name">ARCADE</span><span class="th-hint">CRT · pixel · phosphor</span></button>
-          <button data-theme="okami" class="theme-opt"><span class="th-name">OKAMI</span><span class="th-hint">streetwear · void purple</span></button>
-          <button data-theme="numidea" class="theme-opt"><span class="th-name">NUMIDEA</span><span class="th-hint">editorial · mesh · glitch</span></button>
-          <button data-theme="ops" class="theme-opt"><span class="th-name">OPS DESK</span><span class="th-hint">cream · utility · quiet</span></button>
-          <button data-theme="nightfall" class="theme-opt"><span class="th-name">NIGHTFALL</span><span class="th-hint">yharnam gothic · lands between</span></button>
+          <button data-theme="nexus" class="theme-opt"><span class="th-name">NEXUS</span><span class="th-hint">clean dark</span></button>
+          <button data-theme="daylight" class="theme-opt"><span class="th-name">DAYLIGHT</span><span class="th-hint">clean light</span></button>
           <div class="th-group">TOOLS</div>
           <button id="share-card" class="theme-opt"><span class="th-name">◈ EXPORT CARD</span><span class="th-hint">shareable stat PNG</span></button>
           <button id="sfx-toggle" class="theme-opt"><span class="th-name">♪ OFF</span><span class="th-hint">chiptune sound effects</span></button>

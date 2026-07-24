@@ -1,15 +1,14 @@
-// LANDS BETWEEN — v2's MAP tab at parity: isometric base map (app.js
-// renderBaseMap) + the Warehouse inventory (renderInventory) below it, in
-// v2's render order. Drawing code is verbatim; only module plumbing changed
-// ($('basemap') → mount root, SCANS/cur/D closure globals → ctx.data,
-// SFX.x() → sfx('x'), LX arrives via ctx).
+// MAP — the project map: an isometric base map (app.js renderBaseMap) + the
+// storage inventory (renderInventory) below it, in v2's render order. Drawing
+// code is verbatim; only module plumbing changed ($('basemap') → mount root,
+// SCANS/cur/D closure globals → ctx.data, SFX.x() → sfx('x'), LX arrives via ctx).
 import { el, esc, COL } from '../../ui/util.js';
 import { aosKids, aosRefresh, deriveScanContext, openDrawer, sfx } from '../../ui/components.js';
 
 // ============================================================ isometric base map
 // Each project is a building on a 2:1 iso grid. Height ∝ completion, colour ∝ standing
 // (green→yellow→orange→red by completion / git-risk / build), floor-lines lit by
-// activity, a red pennant per open quest, a ⚠ if secrets were seen. Click → drawer.
+// activity, a red pennant per open task, a ⚠ if secrets were seen. Click → drawer.
 function shade(hex, amt) {            // amt<0 darkens, amt>0 lightens
   const n = parseInt(hex.slice(1), 16);
   let r = (n >> 16) & 255, gg = (n >> 8) & 255, b = n & 255;
@@ -48,9 +47,12 @@ function isoBuilding(p, cx, cy, fx, fy, openQ, sqN) {
   s += poly([N, E, Sp, W], top, 'stroke="#0c0a1e" stroke-width="0.7"');
   if (openQ) s += `<g transform="translate(${f1(cx)},${f1(cy - fy - h - 7)})"><line x1="0" y1="-7" x2="0" y2="6" stroke="#d9d6ff" stroke-width="1"/><polygon points="0,-7 12,-4 0,-1" fill="${COL.red}"/><text x="3.5" y="-2.6" font-size="6" fill="#fff" font-family="monospace">${openQ}</text></g>`;
   if ((rs.secrets_found || 0) > 0) s += `<text x="${f1(cx + fx - 6)}" y="${f1(cy - h + 2)}" font-size="10" fill="${COL.gold}">⚠</text>`;
-  // Time-blindness: ghost glyph on dormant (60d+), days-since chip on stale (30-60d)
-  if (dsc >= 60) s += `<text x="${f1(cx - fx + 4)}" y="${f1(cy - h + 4)}" font-size="9" fill="#7a7099" opacity="0.85">👻</text>`;
-  else if (dsc >= 14) s += `<text x="${f1(cx - fx + 2)}" y="${f1(cy - h + 4)}" font-size="6" fill="#7a7099" font-family="monospace">${dsc}d</text>`;
+  // Idle marker: time since last commit on each building; dormant (60d+) faded.
+  if (dsc >= 14) {
+    const dormant = dsc >= 60;
+    const idle = dormant ? Math.round(dsc / 30) + 'mo' : dsc + 'd';
+    s += `<text class="bidle${dormant ? ' dormant' : ''}" x="${f1(cx - fx + 3)}" y="${f1(cy - h + 4)}" font-size="6.5" fill="#8c85a8" opacity="${dormant ? 0.75 : 0.95}" font-family="monospace">${idle}</text>`;
+  }
   const nm = p.name.length > 14 ? p.name.slice(0, 13) + '…' : p.name;
   s += `<text class="bpct" x="${f1(cx)}" y="${f1(cy - fy - h - 1.5)}" text-anchor="middle" font-size="7" fill="${base}" font-family="monospace">${comp}%</text>`;
   s += `<text class="blab" x="${f1(cx)}" y="${f1(cy + fy + 13)}" text-anchor="middle" font-size="6.5" fill="#cfcaf5">${esc(nm)}</text>`;
@@ -58,9 +60,9 @@ function isoBuilding(p, cx, cy, fx, fy, openQ, sqN) {
 }
 function mapLegend() {
   const it = (c, l) => `<span><i style="background:${c}"></i>${l}</span>`;
-  return it(COL.green, 'healthy') + it(COL.yellow, 'mid') + it(COL.orange, 'low') + it(COL.red, 'at risk')
-    + `<span><i class="penn" style="background:${COL.red}"></i>open quests</span><span><i style="background:${COL.gold}"></i>⚠ secrets</span>`
-    + `<span>👻 dormant 60d+</span>`;
+  return it(COL.green, 'on track') + it(COL.yellow, 'in progress') + it(COL.orange, 'early') + it(COL.red, 'at risk')
+    + `<span><i class="penn" style="background:${COL.red}"></i>open tasks</span><span><i style="background:${COL.gold}"></i>⚠ secrets</span>`
+    + `<span>idle time per project · faded = dormant</span>`;
 }
 function renderBaseMap(bm, S, prevProj, data, LX) {
   bm.innerHTML = '';
@@ -92,8 +94,8 @@ function renderBaseMap(bm, S, prevProj, data, LX) {
 }
 
 // -------------------------------------------------------------- inventory
-// The warehouse lives inside MAP now — vaults/clones/graveyard ARE the base's
-// inventory. Must run AFTER renderBaseMap (which clears the container).
+// Storage lives inside MAP — knowledge bases / clones / archive are the
+// project's inventory. Must run AFTER renderBaseMap (which clears the container).
 function renderInventory(iv, S, LX, hq) {
   const inv = S.inventory || {};
   iv.appendChild(el('h2', 'sec', LX('warehouse')));
@@ -101,7 +103,7 @@ function renderInventory(iv, S, LX, hq) {
   const card = (title) => { const c = el('div', 'invcard'); c.appendChild(el('h3', null, title)); wrap.appendChild(c); return c; };
 
   if (inv.vaults?.length) {
-    const c = card(`Knowledge vaults · ${inv.vaults.length}`);
+    const c = card(`Knowledge bases · ${inv.vaults.length}`);
     inv.vaults.forEach((v) => c.appendChild(el('div', 'invrow', `<span class="nm">${esc(v.name)}</span><span class="meta">${v.notes} notes</span><span class="pill">${esc(v.role)}</span>`)));
   }
   if (inv.clones?.length) {
@@ -116,7 +118,7 @@ function renderInventory(iv, S, LX, hq) {
     inv.anomalies.forEach((an) => c.appendChild(el('div', 'invrow', `<span class="nm">${esc(an.detail)}</span><span class="pill ${an.severity === 'danger' ? 'dang' : an.severity === 'warning' ? 'warn' : ''}">${esc(an.severity)}</span>`)));
   }
   if (inv.duplicates?.length) {
-    const c = card(`Duplicates & twins · ${inv.duplicates.length}`);
+    const c = card(`Duplicates · ${inv.duplicates.length}`);
     inv.duplicates.forEach((dp) => c.appendChild(el('div', 'invrow', `<span class="nm">${esc(dp.detail)}</span><span class="pill warn">${esc(dp.type)}</span>`)));
   }
   const misc = [];
@@ -124,14 +126,14 @@ function renderInventory(iv, S, LX, hq) {
   if (inv.trivial?.length) inv.trivial.forEach((t) => misc.push(`<div class="invrow"><span class="nm">${esc(t.name)}</span><span class="meta">${esc(t.note)}</span></div>`));
   if (misc.length) { const c = card('Trivial / empty'); c.insertAdjacentHTML('beforeend', misc.join('')); }
 
-  // Graveyard (Wave 5) — archived projects with one-click revive
+  // Archive (Wave 5) — archived projects with one-click restore
   if (S.archived_projects?.length) {
-    const c = card(`Graveyard · ${S.archived_projects.length} archived`);
+    const c = card(`Archived projects · ${S.archived_projects.length}`);
     S.archived_projects.forEach((ap) => {
       const row = el('div', 'invrow');
-      row.innerHTML = `<span class="nm">⚰ ${esc(ap.name)}</span><span class="meta">archived ${esc(ap.archived_on || '')}</span>`;
+      row.innerHTML = `<span class="nm">${esc(ap.name)}</span><span class="meta">archived ${esc(ap.archived_on || '')}</span>`;
       if (hq) {                                    // v2's isElectron gate — button absent in the dev harness
-        const b = el('button', 'qbtn', '↺ Revive');
+        const b = el('button', 'qbtn', '↺ Restore');
         b.onclick = () => { hq.reviveProject?.(ap.id); };
         row.appendChild(b);
       }
@@ -141,16 +143,19 @@ function renderInventory(iv, S, LX, hq) {
 
   // Recent learnings (Wave 5)
   if (S.recent_learnings?.length) {
-    const c = card(`What I learned · ${S.account?.totals?.learnings || 0} total · +${S.account?.totals?.knowledge_xp || 0} KXP`);
-    S.recent_learnings.forEach((l) => c.appendChild(el('div', 'invrow', `<span class="nm">📚 ${esc(l.text)}</span><span class="meta">${esc((l.ts || '').slice(0, 10))}</span>`)));
+    const c = card(`What I learned · ${S.account?.totals?.learnings || 0} total · +${S.account?.totals?.knowledge_xp || 0} XP`);
+    S.recent_learnings.forEach((l) => c.appendChild(el('div', 'invrow', `<span class="nm">${esc(l.text)}</span><span class="meta">${esc((l.ts || '').slice(0, 10))}</span>`)));
   }
   aosKids(wrap, 'fade-up', 60);
 }
 
 let unsub = null;
+let rootEl = null;
 
 export const view = {
   mount(root, ctx) {
+    rootEl = root;
+    root.classList.add('realm-lands');          // scope realm-local CSS (map + storage)
     const paint = () => {
       const { S, prevProj } = deriveScanContext(ctx.data);
       renderBaseMap(root, S, prevProj, ctx.data, ctx.LX);
@@ -162,5 +167,6 @@ export const view = {
   },
   unmount() {
     if (unsub) { unsub(); unsub = null; }
+    if (rootEl) { rootEl.classList.remove('realm-lands'); rootEl = null; }
   },
 };

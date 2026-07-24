@@ -1,9 +1,9 @@
-// THE CANVAS — JSON Canvas boards (data/canvas/*.canvas, Obsidian-compatible).
+// CANVAS — JSON Canvas boards (data/canvas/*.canvas, Obsidian-compatible).
 // Read-only render (drag-to-pan, inspect) plus exactly ONE write path: the
-// "＋ NOTE" inscription → hq.canvasAdd(boardName, {type:'text', text, x, y}).
+// "＋ Note" button → hq.canvasAdd(boardName, {type:'text', text, x, y}).
 // Boards arrive from the view (bundle snapshot, replaced by live pushes); this
 // module owns board selection + per-board pan, which survive re-renders and
-// realm switches like grimoire's filter state.
+// realm switches.
 import { el, esc, mdLite } from '../../ui/util.js';
 import { sfx } from '../../ui/components.js';
 
@@ -112,27 +112,27 @@ export function renderCanvas(host, ctx, boardsIn) {
     const board = boards.find((b) => b.name === activeBoard) || boards[0] || null;
     if (board) activeBoard = board.name;
 
-    // picker frame renders even with zero boards — the circle beckons below it
+    // picker frame renders even with zero boards — the empty state sits below it
     const bar = el('div', 'cv-bar');
     boards.forEach((b) => {
       const t = el('button', 'cv-tab' + (b === board ? ' active' : ''), esc(b.name));
       t.onclick = () => { activeBoard = b.name; draw(); sfx('blip'); };
       bar.appendChild(t);
     });
-    if (!boards.length) bar.appendChild(el('span', 'cv-none', 'no boards bound'));
+    if (!boards.length) bar.appendChild(el('span', 'cv-none', 'No boards'));
     const canAdd = !!ctx.hq?.canvasAdd;
-    const add = el('button', 'cv-note-btn', '＋ NOTE');
+    const add = el('button', 'cv-note-btn', '＋ Note');
     add.disabled = !canAdd || !board;
-    add.title = canAdd ? 'inscribe a text note at the center of your view'
-      : 'bridge asleep — the quill wakes when hq:canvas-add answers';
+    add.title = canAdd ? 'Add a text note at the center of your view'
+      : 'Unavailable — the bridge is offline';
     bar.appendChild(add);
     host.appendChild(bar);
 
     if (!board) {
       const void_ = el('div', 'cv-viewport cv-void');
       void_.innerHTML = `<div class="cv-empty">
-          <div class="cv-circle">🔔</div>
-          <div class="cv-empty-note">no canvases yet — drop a <b>.canvas</b> file in <span class="cv-path">data\\canvas\\</span> or let the Familiar draw first</div>
+          <svg class="cv-empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>
+          <div class="cv-empty-note">No canvas boards yet. Add a <b>.canvas</b> file in <span class="cv-path">data\\canvas\\</span> and it will appear here.</div>
         </div>`;
       host.appendChild(void_);
       return;
@@ -145,7 +145,7 @@ export function renderCanvas(host, ctx, boardsIn) {
 
     const noteForm = el('div', 'cv-note-form');
     noteForm.style.display = 'none';
-    noteForm.innerHTML = `<input class="cv-note-in" maxlength="600" placeholder="inscribe… (lands at the center of your view)" /><button class="cv-note-go">INSCRIBE</button>`;
+    noteForm.innerHTML = `<input class="cv-note-in" maxlength="600" placeholder="New note… (added at the center of your view)" /><button class="cv-note-go">Add</button>`;
     host.appendChild(noteForm);
 
     const viewport = el('div', 'cv-viewport');
@@ -189,7 +189,7 @@ export function renderCanvas(host, ctx, boardsIn) {
       noteForm.style.display = show ? '' : 'none';
       if (show) input.focus();
     };
-    const inscribe = () => {
+    const addNote = () => {
       const text = input.value.trim();
       if (!text || !ctx.hq?.canvasAdd) return;
       const vw = viewport.clientWidth || 800, vh = viewport.clientHeight || 520;
@@ -203,8 +203,8 @@ export function renderCanvas(host, ctx, boardsIn) {
       sfx('coin');
       draw();
     };
-    noteForm.querySelector('.cv-note-go').onclick = inscribe;
-    input.onkeydown = (e) => { if (e.key === 'Enter') inscribe(); };
+    noteForm.querySelector('.cv-note-go').onclick = addNote;
+    input.onkeydown = (e) => { if (e.key === 'Enter') addNote(); };
   };
   draw();
 }

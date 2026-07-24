@@ -1,35 +1,33 @@
-/* LEGACY realm (v2 STATS tab) — intentionally no realm-scoped rules yet.
-   Every surface this realm renders was extracted VERBATIM from v2 styles.css
-   into components.css and is shared with other consumers:
-     .charts / .chart / .legend        — trend charts (chartCard/lineChart/stackedBar)
-     .blessing / .bl-*                 — Completion grove / Scadutree Blessing card
-     .ach-grid / .ach / .pbar / .pnum  — trophy grid + progress feet
-     h2.sec                            — section headers
-   Rules added here later must be scoped under .realm-legacy so they never leak
-   into other realms. */
+/* HISTORY realm (v2 STATS tab) — scoped to .realm-legacy so nothing leaks.
+   The parity surfaces (.charts/.chart/.legend/.ach-grid/.ach/.blessing/.bl-*)
+   are styled in components.css and, for the nexus theme, cleaned up in
+   cinematic.css. These rules dress the v3-only additions — the records callout,
+   chart tooltip, trophy detail, and consistency card — to match that language:
+   hairline surfaces, one restrained accent, no glow, labels at a readable size.
+   Semantic tokens only (--active/--divider/--card/--text…), so it holds up under
+   every theme. */
 
 /* ---- PERSONAL RECORDS callout (above the charts) ------------------------- */
 .realm-legacy .pr-callout {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px; margin: 4px 0 20px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 12px; margin: 2px 0 22px;
 }
 .realm-legacy .pr-item {
-  --pc: var(--ember);
-  position: relative; display: flex; flex-direction: column; gap: 2px;
-  padding: 13px 14px; background: linear-gradient(160deg, var(--card-hi), var(--card));
-  border: 2px solid var(--ink);
-  box-shadow: 0 0 0 2px var(--frame), inset 3px 0 0 -1px var(--pc), 0 12px 26px -18px #000;
+  --pc: var(--active);
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 13px 15px; background: var(--card);
+  border: 1px solid var(--divider); border-left: 3px solid var(--pc); border-radius: 10px;
 }
-.realm-legacy .pr-ic { font-size: 15px; color: var(--pc); filter: drop-shadow(0 0 5px var(--pc)); }
+.realm-legacy .pr-ic { font-size: 15px; color: var(--pc); line-height: 1; }
 .realm-legacy .pr-v {
-  font-family: var(--font-data); font-size: 25px; font-weight: 600; line-height: 1;
-  color: var(--pc); text-shadow: 0 0 14px var(--pc);
+  font-family: var(--font-data, var(--mono)); font-size: 26px; font-weight: 600; line-height: 1.1;
+  color: var(--text);
 }
 .realm-legacy .pr-k {
-  font-family: var(--px); font-size: 7.5px; letter-spacing: 1.2px;
-  text-transform: uppercase; color: var(--muted); margin-top: 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); margin-top: 5px;
 }
-.realm-legacy .pr-sub { font-family: var(--term); font-size: 12px; color: var(--faint); }
+.realm-legacy .pr-sub { font-size: 12.5px; color: var(--faint); }
 
 /* ---- trend-chart hover tooltip ------------------------------------------ */
 .realm-legacy .chart { position: relative; }
@@ -39,42 +37,48 @@
 .realm-legacy .chart.tip-on .nx-chart-guide,
 .realm-legacy .chart.tip-on .nx-chart-tip { display: block; }
 .realm-legacy .nx-chart-guide {
-  width: 1px; background: linear-gradient(var(--ember), transparent);
-  opacity: .55; transform: translateX(-.5px);
+  width: 1px; background: var(--divider); opacity: .9; transform: translateX(-.5px);
 }
 .realm-legacy .nx-chart-dot { width: 7px; height: 7px; border-radius: 50%; margin: -3.5px 0 0 -3.5px; }
 .realm-legacy .nx-chart-tip {
-  transform: translateX(-50%); min-width: 74px;
-  background: rgba(10, 12, 20, .94); border: 1px solid var(--etch);
-  box-shadow: 0 8px 22px -10px #000, 0 0 0 1px rgba(0, 0, 0, .4);
-  padding: 6px 8px; border-radius: 3px;
+  transform: translateX(-50%); min-width: 78px;
+  background: var(--card-hi); border: 1px solid var(--divider); border-radius: 8px;
+  box-shadow: 0 8px 22px -12px rgba(0, 0, 0, .8);
+  padding: 7px 9px;
 }
 .realm-legacy .nx-chart-tip .tp-d {
-  display: block; font-family: var(--font-data); font-size: 10px;
-  color: var(--ember-2); margin-bottom: 4px; letter-spacing: .04em;
+  display: block; font-family: var(--font-data, var(--mono)); font-size: 11px;
+  color: var(--muted); margin-bottom: 5px; letter-spacing: .02em;
 }
 .realm-legacy .nx-chart-tip .tp-row {
-  display: flex; align-items: center; gap: 5px;
-  font-family: var(--term); font-size: 11.5px; color: var(--muted); white-space: nowrap;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--muted); white-space: nowrap;
 }
-.realm-legacy .nx-chart-tip .tp-row i { width: 8px; height: 8px; flex: 0 0 8px; }
-.realm-legacy .nx-chart-tip .tp-row b { color: var(--text); font-family: var(--font-data); }
+.realm-legacy .nx-chart-tip .tp-row i { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 2px; }
+.realm-legacy .nx-chart-tip .tp-row b { color: var(--text); font-family: var(--font-data, var(--mono)); margin-left: 2px; }
+
+/* ---- consistency card ---------------------------------------------------- */
+.realm-legacy .bl-row { display: flex; align-items: center; gap: 12px; }
+.realm-legacy .bl-frags { font-size: 12px; letter-spacing: 3px; color: var(--active); }
+.realm-legacy .bl-num { font-family: var(--font-data, var(--mono)); font-size: 14px; color: var(--text); }
+.realm-legacy .bl-buff {
+  margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--muted);
+}
+.realm-legacy .bl-next { margin-top: 8px; font-size: 13px; color: var(--faint); }
 
 /* ---- trophy expand (data-expand → .nx-detail) --------------------------- */
 .realm-legacy .ach.nx-ach { cursor: pointer; }
 .realm-legacy .ach .ach-detail {
-  margin-top: 12px; padding-top: 11px; border-top: 1px dashed var(--frame);
-  text-align: left; display: flex; flex-direction: column; gap: 6px;
+  margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--divider);
+  text-align: left; display: flex; flex-direction: column; gap: 7px;
 }
 .realm-legacy .ach .nxd-row { display: flex; justify-content: space-between; gap: 10px; }
 .realm-legacy .ach .nxd-k {
-  font-family: var(--px); font-size: 7px; letter-spacing: 1px; text-transform: uppercase;
-  color: var(--faint); padding-top: 2px; flex: 0 0 auto;
+  font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--faint); flex: 0 0 auto;
 }
-.realm-legacy .ach .nxd-v { font-family: var(--term); font-size: 12.5px; color: var(--muted); text-align: right; line-height: 1.35; }
+.realm-legacy .ach .nxd-v { font-size: 12.5px; color: var(--muted); text-align: right; line-height: 1.35; }
 .realm-legacy .ach .nxd-v.ok { color: var(--gold-2); }
-.realm-legacy .ach .nxd-bar { height: 7px; background: var(--ink); border: 1px solid var(--frame); overflow: hidden; }
-.realm-legacy .ach .nxd-bar i {
-  display: block; height: 100%;
-  background: linear-gradient(180deg, var(--gold-2), var(--gold)); box-shadow: 0 0 7px rgba(255, 210, 63, .6);
-}
+.realm-legacy .ach .nxd-bar { height: 7px; background: var(--ink); border: 1px solid var(--divider); border-radius: 4px; overflow: hidden; }
+.realm-legacy .ach .nxd-bar i { display: block; height: 100%; background: var(--active); }

@@ -1,7 +1,28 @@
-/* LANDS BETWEEN — realm-local styles.
-   Every rule the MAP tab needs already lives in styles/components.css as
-   verbatim v2 extractions, because both blocks are shared surfaces:
-     - warehouse:  .invwrap .invcard .invrow .pill (+ theme overrides)
-     - base map:   .mapwrap .maphead .maplegend(.penn) .mapholder .isomap(.bld/.blab)
-   Duplicating them here would fork the parity source of truth — this file
-   stays empty until a lands-ONLY rule exists. */
+/* MAP realm — scoped to .realm-lands (base map + storage inventory). The shared
+   surfaces (.mapwrap/.isomap/.invcard/.invrow/.pill) are styled in
+   components.css and, for the nexus theme, cleaned up in cinematic.css. These
+   rules add what those sheets can't reach: legible map labels, a calmer holder,
+   and a restrained hover. Semantic tokens only, so it holds up under every theme. */
+
+/* ---- base map ----------------------------------------------------------- */
+.realm-lands .mapwrap { padding: 2px 0 18px; }
+.realm-lands .maphead { margin-bottom: 12px; }
+.realm-lands .maplegend { gap: 8px 16px; font-size: 12.5px; color: var(--muted); }
+.realm-lands .maplegend span { gap: 6px; }
+.realm-lands .mapholder {
+  background: radial-gradient(120% 90% at 50% 0%, var(--card-hi), var(--card) 72%);
+  border: 1px solid var(--divider); border-radius: 12px; padding: 14px;
+}
+
+/* Map text: a thin dark outline keeps labels legible over any building colour. */
+.realm-lands .isomap text { paint-order: stroke; stroke: rgba(5, 6, 10, .7); stroke-width: .5px; }
+.realm-lands .isomap .blab { fill: var(--text); font-weight: 600; }
+.realm-lands .isomap .bpct { font-weight: 600; }
+.realm-lands .isomap .bidle { fill: var(--faint); }
+/* calm hover — brightness only, no neon glow */
+.realm-lands .isomap .bld:hover { filter: brightness(1.12); }
+
+/* ---- storage inventory -------------------------------------------------- */
+.realm-lands .invrow { padding: 9px 0; font-size: 14px; }
+.realm-lands .invrow .nm { color: var(--text); }
+.realm-lands .invrow .meta { font-size: 12.5px; }
