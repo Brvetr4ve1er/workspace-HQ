@@ -4,6 +4,24 @@
 // addition is tab_forge: the Forge realm is new in v3 (Products split out of
 // the old overview), so it needs a label in both registers.
 export const LEXICONS = {
+  // PLAIN — clean, professional, no RPG flavor. The default theme (nexus) uses
+  // this; it's what a normal person reads without cringing.
+  plain: {
+    tab_overview: 'HOME', tab_quests: 'TASKS', tab_spellbook: 'AUTOMATIONS', tab_trends: 'HISTORY', tab_basemap: 'MAP',
+    tab_forge: 'PROJECTS',
+    focus: '◎ FOCUS', stage: 'SNAPSHOTS', hp_word: 'HEALTH', streak_word: 'STREAK', xp_unit: 'XP',
+    today: 'Today — pick one', pulse: 'Overview', changes: 'Changes since', saga: 'Weekly recap',
+    working_now: 'WORKING ON NOW',
+    products: 'Projects', arsenal: 'Automations', spells_known: 'known',
+    familiars: 'Agents', familiars_bound: 'available',
+    tier_red: 'Critical — loss & breakage', tier_orange: 'Important — before production', tier_yellow: 'Housekeeping',
+    side_col: 'Ideas &amp; risks', done_strip: 'completed this scan',
+    memorials: 'Milestones', warehouse: 'Storage', basemap_head: 'Project map', buildings: 'projects',
+    blessing_head: 'Consistency', fragment_word: 'active days', classes: false,
+    amb_machine: 'MACHINE', amb_whisper: 'TOP RISK', amb_familiar: 'ASSISTANT',
+    amb_familiar_idle: 'no sessions running',
+    tab_medbay: 'SYSTEM', tab_observatory: 'NOTES', tab_watchtower: 'SCREEN TIME', tab_summoning: 'ASSISTANT',
+  },
   default: {
     tab_overview: 'BASE', tab_quests: 'QUESTS', tab_spellbook: 'SPELLBOOK', tab_trends: 'STATS', tab_basemap: 'MAP',
     tab_forge: 'PRODUCTS',

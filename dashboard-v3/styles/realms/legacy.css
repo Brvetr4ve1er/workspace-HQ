@@ -7,3 +7,74 @@
      h2.sec                            — section headers
    Rules added here later must be scoped under .realm-legacy so they never leak
    into other realms. */
+
+/* ---- PERSONAL RECORDS callout (above the charts) ------------------------- */
+.realm-legacy .pr-callout {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; margin: 4px 0 20px;
+}
+.realm-legacy .pr-item {
+  --pc: var(--ember);
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  padding: 13px 14px; background: linear-gradient(160deg, var(--card-hi), var(--card));
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), inset 3px 0 0 -1px var(--pc), 0 12px 26px -18px #000;
+}
+.realm-legacy .pr-ic { font-size: 15px; color: var(--pc); filter: drop-shadow(0 0 5px var(--pc)); }
+.realm-legacy .pr-v {
+  font-family: var(--font-data); font-size: 25px; font-weight: 600; line-height: 1;
+  color: var(--pc); text-shadow: 0 0 14px var(--pc);
+}
+.realm-legacy .pr-k {
+  font-family: var(--px); font-size: 7.5px; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--muted); margin-top: 4px;
+}
+.realm-legacy .pr-sub { font-family: var(--term); font-size: 12px; color: var(--faint); }
+
+/* ---- trend-chart hover tooltip ------------------------------------------ */
+.realm-legacy .chart { position: relative; }
+.realm-legacy .nx-chart-guide,
+.realm-legacy .nx-chart-dot,
+.realm-legacy .nx-chart-tip { position: absolute; pointer-events: none; display: none; z-index: 5; }
+.realm-legacy .chart.tip-on .nx-chart-guide,
+.realm-legacy .chart.tip-on .nx-chart-tip { display: block; }
+.realm-legacy .nx-chart-guide {
+  width: 1px; background: linear-gradient(var(--ember), transparent);
+  opacity: .55; transform: translateX(-.5px);
+}
+.realm-legacy .nx-chart-dot { width: 7px; height: 7px; border-radius: 50%; margin: -3.5px 0 0 -3.5px; }
+.realm-legacy .nx-chart-tip {
+  transform: translateX(-50%); min-width: 74px;
+  background: rgba(10, 12, 20, .94); border: 1px solid var(--etch);
+  box-shadow: 0 8px 22px -10px #000, 0 0 0 1px rgba(0, 0, 0, .4);
+  padding: 6px 8px; border-radius: 3px;
+}
+.realm-legacy .nx-chart-tip .tp-d {
+  display: block; font-family: var(--font-data); font-size: 10px;
+  color: var(--ember-2); margin-bottom: 4px; letter-spacing: .04em;
+}
+.realm-legacy .nx-chart-tip .tp-row {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--term); font-size: 11.5px; color: var(--muted); white-space: nowrap;
+}
+.realm-legacy .nx-chart-tip .tp-row i { width: 8px; height: 8px; flex: 0 0 8px; }
+.realm-legacy .nx-chart-tip .tp-row b { color: var(--text); font-family: var(--font-data); }
+
+/* ---- trophy expand (data-expand → .nx-detail) --------------------------- */
+.realm-legacy .ach.nx-ach { cursor: pointer; }
+.realm-legacy .ach .ach-detail {
+  margin-top: 12px; padding-top: 11px; border-top: 1px dashed var(--frame);
+  text-align: left; display: flex; flex-direction: column; gap: 6px;
+}
+.realm-legacy .ach .nxd-row { display: flex; justify-content: space-between; gap: 10px; }
+.realm-legacy .ach .nxd-k {
+  font-family: var(--px); font-size: 7px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--faint); padding-top: 2px; flex: 0 0 auto;
+}
+.realm-legacy .ach .nxd-v { font-family: var(--term); font-size: 12.5px; color: var(--muted); text-align: right; line-height: 1.35; }
+.realm-legacy .ach .nxd-v.ok { color: var(--gold-2); }
+.realm-legacy .ach .nxd-bar { height: 7px; background: var(--ink); border: 1px solid var(--frame); overflow: hidden; }
+.realm-legacy .ach .nxd-bar i {
+  display: block; height: 100%;
+  background: linear-gradient(180deg, var(--gold-2), var(--gold)); box-shadow: 0 0 7px rgba(255, 210, 63, .6);
+}

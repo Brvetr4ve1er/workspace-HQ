@@ -37,7 +37,9 @@ body {
 #nexus {
   display: grid;
   grid-template-columns: var(--rail-w) 1fr var(--ambient-w);
+  grid-template-rows: minmax(0, 100vh);   /* row is height-capped so children can scroll, not overflow */
   height: 100vh;
+  overflow: hidden;
 }
 
 #rail-left {
@@ -48,12 +50,16 @@ body {
   align-items: center;
   padding: 8px 0;
   gap: 6px;
+  min-height: 0;
+  overflow-y: auto;   /* 10 sigils must never clip on a short window */
 }
 
 #stage-wrap {
   display: flex;
   flex-direction: column;
-  min-width: 0; /* let the stage shrink instead of blowing out the grid */
+  min-width: 0;    /* let the stage shrink instead of blowing out the grid */
+  min-height: 0;   /* CRITICAL: without this the flex child never scrolls, it overflows */
+  overflow: hidden;
 }
 
 #topstrip {
@@ -64,6 +70,7 @@ body {
 
 #stage {
   flex: 1 1 auto;
+  min-height: 0;      /* pair to #stage-wrap's cap so overflow-y actually engages */
   overflow-y: auto;
   padding: 12px;
 }

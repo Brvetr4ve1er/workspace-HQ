@@ -17,8 +17,7 @@ function fnv1a(str) {
 // event: level_up | quest_completed | new_achievement | cast_ok | cast_fail |
 // break_nudge | ambient. seed: any stable string (scan id, spell id + date).
 export function voiceLine(event, seed = '') {
-  let theme = document.documentElement.getAttribute('data-theme') || 'arcade';
-  if (theme === 'nexus') theme = 'nightfall';   // cinematic theme rides the canon voice
+  const theme = document.documentElement.getAttribute('data-theme') || 'arcade';
   const pool = (PACKS[theme] && PACKS[theme][event]) || PACKS.default[event] || [];
   if (!pool.length) return null;
   return pool[fnv1a(seed + '|' + event) % pool.length];

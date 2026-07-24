@@ -6,8 +6,8 @@ import { LEXICONS } from '../lexicon/lexicons.js';
 let LEX = { ...LEXICONS.default };
 
 export function setLexTheme(id) {
-  // the cinematic NEXUS theme speaks the NIGHTFALL canon (its dark-fantasy soul)
-  const key = id === 'nexus' ? 'nightfall' : id;
+  // NEXUS (the default) speaks PLAIN, professional English — no RPG flavor.
+  const key = id === 'nexus' ? 'plain' : id;
   LEX = { ...LEXICONS.default, ...(LEXICONS[key] || {}) };
 }
 
