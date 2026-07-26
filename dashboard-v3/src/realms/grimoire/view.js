@@ -160,7 +160,13 @@ function render() {
     deep.onclick = (e) => { e.stopPropagation(); const ds = B.spells.find((x) => x.id === 'grimoire:deep-scan'); if (ds) castSpell(ds); };
     const relearn = el('button', 'sec-btn', 'RESCAN');
     relearn.title = 'Rescan skills, scripts and tasks only (fast, no pipeline)';
-    relearn.onclick = async (e) => { e.stopPropagation(); relearn.textContent = '…'; await hq.rescanSpellbook?.(); };
+    relearn.onclick = async (e) => {
+      e.stopPropagation();
+      if (!hq.rescanSpellbook) return;   // no bridge → don't strand the label at '…'
+      relearn.textContent = '…'; relearn.disabled = true;
+      try { await hq.rescanSpellbook(); }
+      finally { relearn.textContent = 'RESCAN'; relearn.disabled = false; }   // restore even if the reload doesn't re-render us
+    };
     acts.append(deep, relearn);
     head.appendChild(acts);
   }
