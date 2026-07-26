@@ -17,6 +17,9 @@ test('oracle: uncommitted files at risk outrank a calm quest', () => {
 });
 
 test('oracle: never throws on an empty/old scan', () => {
+  // Both calls assert the empty/no-candidates → null path (no projects/quests
+  // to rank), not any time-of-day behavior — the two `now` values are
+  // deliberately different only to show the result is independent of hour.
   assert.doesNotThrow(() => oracle({}, null, '2026-07-26T14:00:00Z'));
-  assert.equal(oracle({}, null, '2026-07-26T03:00:00Z'), null); // nothing actionable → null
+  assert.equal(oracle({}, null, '2026-07-26T03:00:00Z'), null);
 });

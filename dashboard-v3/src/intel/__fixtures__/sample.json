@@ -5099,43 +5099,43 @@
         "diverged": false
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/agent-orchestrator",
+        "name": "clone-group-1/repo-1",
         "origin": "github.com/ComposioHQ/agent-orchestrator",
         "dirty": 0,
         "diverged": false
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/AiCMO-Marketing-Prompt-Collection",
+        "name": "clone-group-1/repo-2",
         "origin": "github.com/AICMO/AiCMO-Marketing-Prompt-Collection",
         "dirty": 8,
         "diverged": true
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/claude-code",
+        "name": "clone-group-1/repo-3",
         "origin": "github.com/anthropics/claude-code",
         "dirty": 0,
         "diverged": false
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/everything-claude-code",
+        "name": "clone-group-1/repo-4",
         "origin": "github.com/affaan-m/everything-claude-code",
         "dirty": 7,
         "diverged": true
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/openskills",
+        "name": "clone-group-1/repo-5",
         "origin": "github.com/numman-ali/openskills",
         "dirty": 1,
         "diverged": true
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/ui-ux-pro-max-skill",
+        "name": "clone-group-1/repo-6",
         "origin": "github.com/nextlevelbuilder/ui-ux-pro-max-skill",
         "dirty": 1,
         "diverged": true
       },
       {
-        "name": "VEEMO_CORTEX_REPOS/visual-explainer",
+        "name": "clone-group-1/repo-7",
         "origin": "github.com/nicobailon/visual-explainer",
         "dirty": 0,
         "diverged": false

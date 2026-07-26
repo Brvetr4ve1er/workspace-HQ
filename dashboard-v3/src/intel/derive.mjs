@@ -3,9 +3,12 @@ const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 // Weighted "what should I do right now". Higher weight wins. Ported from
 // tools/now-brief.mjs's next-action heuristic, made pure + testable.
+// Only 'commit' and 'quest' actions are produced today; 'capture'/'scan'/
+// 'rest' are deferred to a later increment. `bundle` and `now` are
+// intentionally forward-declared in the signature for that later increment
+// (time-of-day-aware recommendations) and are currently unused.
 export function oracle(bundle, selected, now) {
   const sel = selected || {};
-  const hour = new Date(now).getHours();
   const cands = [];
 
   for (const p of sel.projects || []) {
@@ -30,8 +33,8 @@ export function oracle(bundle, selected, now) {
     cands.push({ action: 'quest', weight: w, label: q.title,
       reason: `${q.tier} quest`, target: { realmId: 'hunts', questId: q.id } });
   }
-  // late night with nothing on fire → rest, don't nag
-  if (!cands.length) return (hour >= 22 || hour < 6) ? null : null;
+  // nothing actionable → null; a time-of-day 'rest' recommendation is deferred to a later increment
+  if (!cands.length) return null;
 
   cands.sort((a, b) => b.weight - a.weight);
   return cands[0];
