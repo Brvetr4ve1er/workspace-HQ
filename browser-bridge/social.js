@@ -104,16 +104,123 @@ async function bskySendInPage(action) {
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 
+// ---- Mastodon (federated; token in the page's initial-state JSON) ----------
+function mastoToken() {
+  try { const el = document.getElementById('initial-state'); if (el) { const s = JSON.parse(el.textContent); return (s.meta && s.meta.access_token) || null; } } catch (e) { /* not a masto page */ }
+  return null;
+}
+async function mastoScrapeInPage() {
+  const t = mastoToken();
+  if (!t) return { ok: false, error: 'no Mastodon session — open your instance logged in' };
+  const base = location.origin;
+  const H = { authorization: 'Bearer ' + t };
+  const now = Date.now();
+  const events = [];
+  // Mastodon content is HTML — strip to text via DOMParser (inert document: no
+  // script execution and no <img onerror>/resource side-effects, unlike innerHTML).
+  const strip = (html) => { try { return new DOMParser().parseFromString(html || '', 'text/html').body.textContent || ''; } catch (e) { return ''; } };
+  try {
+    const tl = await fetch(base + '/api/v1/timelines/home?limit=30', { headers: H }).then((r) => r.json());
+    for (const s of (Array.isArray(tl) ? tl : [])) {
+      events.push({ platform: 'mastodon', kind: 'feed', id: s.id, ts: Date.parse(s.created_at) || now, author: '@' + ((s.account && s.account.acct) || ''), text: strip(s.content), url: s.url || s.uri, uri: s.uri || '', counts: { likes: s.favourites_count || 0, reposts: s.reblogs_count || 0, replies: s.replies_count || 0 } });
+    }
+  } catch (e) { /* timeline unavailable */ }
+  try {
+    const nt = await fetch(base + '/api/v1/notifications?limit=30', { headers: H }).then((r) => r.json());
+    for (const n of (Array.isArray(nt) ? nt : [])) {
+      const kind = n.type === 'mention' ? 'mention' : 'notification';
+      const s = n.status;
+      events.push({ platform: 'mastodon', kind, id: n.id, ts: Date.parse(n.created_at) || now, author: '@' + ((n.account && n.account.acct) || ''), text: s ? strip(s.content) : (n.type || ''), url: s ? s.url : '', uri: s ? s.uri : '' });
+    }
+  } catch (e) { /* notifications unavailable */ }
+  let account = null;
+  try {
+    const me = await fetch(base + '/api/v1/accounts/verify_credentials', { headers: H }).then((r) => r.json());
+    if (me && me.acct) {
+      account = { platform: 'mastodon', handle: '@' + me.acct, display: me.display_name || '' };
+      events.push({ platform: 'mastodon', kind: 'metrics', id: 'metrics', ts: now, metrics: { followers: me.followers_count || 0, following: me.following_count || 0, posts: me.statuses_count || 0 } });
+    }
+  } catch (e) { /* profile unavailable */ }
+  return { ok: true, events, account };
+}
+async function mastoSendInPage(action) {
+  const t = mastoToken();
+  if (!t) return { ok: false, error: 'no Mastodon session' };
+  const body = { status: String(action.text || '') };
+  if (action.op === 'reply' && action.reply_to) body.in_reply_to_id = String(action.reply_to).split('/').pop();
+  try {
+    const res = await fetch(location.origin + '/api/v1/statuses', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t }, body: JSON.stringify(body) }).then((r) => r.json());
+    if (res && res.id) return { ok: true, uri: res.uri, url: res.url };
+    return { ok: false, error: (res && res.error) || 'post failed' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
+// ---- Reddit (session-cookie only; JSON endpoints + modhash for writes) ------
+async function redditScrapeInPage() {
+  const base = location.origin;
+  const now = Date.now();
+  const events = [];
+  const J = (u) => fetch(u, { credentials: 'include', headers: { accept: 'application/json' } }).then((r) => r.json());
+  try {
+    const home = await J(base + '/.json?limit=30');
+    for (const c of ((home && home.data && home.data.children) || [])) {
+      const d = c.data; if (!d) continue;
+      events.push({ platform: 'reddit', kind: 'feed', id: d.name, ts: d.created_utc ? d.created_utc * 1000 : now, author: 'u/' + (d.author || ''), text: d.title || '', url: 'https://www.reddit.com' + (d.permalink || ''), uri: d.name || '', counts: { likes: d.ups || 0, reposts: 0, replies: d.num_comments || 0 } });
+    }
+  } catch (e) { /* home unavailable */ }
+  try {
+    const inbox = await J(base + '/message/inbox.json?limit=30');
+    for (const c of ((inbox && inbox.data && inbox.data.children) || [])) {
+      const d = c.data; if (!d) continue;
+      events.push({ platform: 'reddit', kind: 'mention', id: d.name, ts: d.created_utc ? d.created_utc * 1000 : now, author: 'u/' + (d.author || ''), text: d.body || d.subject || '', url: 'https://www.reddit.com' + (d.context || ''), uri: d.name || '' });
+    }
+  } catch (e) { /* inbox unavailable */ }
+  let account = null;
+  try {
+    const me = await J(base + '/api/me.json');
+    const d = me && me.data;
+    if (d && d.name) {
+      account = { platform: 'reddit', handle: 'u/' + d.name, display: d.name };
+      events.push({ platform: 'reddit', kind: 'metrics', id: 'metrics', ts: now, metrics: { followers: d.total_karma || ((d.link_karma || 0) + (d.comment_karma || 0)), following: 0, posts: d.link_karma || 0 } });
+    }
+  } catch (e) { /* me unavailable */ }
+  return { ok: true, events, account };
+}
+async function redditSendInPage(action) {
+  const base = location.origin;
+  // Top-level Reddit posts need a subreddit + title, which the generic outbox
+  // action doesn't carry — support reply/comment (the natural social action) and
+  // reject posts with a clear message. (Top-level submit is a later phase once
+  // the action shape grows a platform target field.)
+  if (action.op !== 'reply' || !action.reply_to) return { ok: false, error: 'Reddit supports reply/comment only for now — put the target thing-id (t1_/t3_) in reply_to. Top-level posts (subreddit+title) come later.' };
+  let modhash = '';
+  try { const me = await fetch(base + '/api/me.json', { credentials: 'include' }).then((r) => r.json()); modhash = (me && me.data && me.data.modhash) || ''; } catch (e) { /* no modhash */ }
+  if (!modhash) return { ok: false, error: 'could not get a modhash (log in; old.reddit.com is most reliable)' };
+  try {
+    const form = new URLSearchParams({ thing_id: String(action.reply_to), text: String(action.text || ''), uh: modhash, api_type: 'json' });
+    const res = await fetch(base + '/api/comment', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() }).then((r) => r.json());
+    const j = res && res.json;
+    if (j && (!j.errors || !j.errors.length)) {
+      const thing = j.data && j.data.things && j.data.things[0] && j.data.things[0].data;
+      return { ok: true, uri: thing && thing.name, url: thing && thing.permalink ? 'https://www.reddit.com' + thing.permalink : '' };
+    }
+    return { ok: false, error: (j && j.errors && JSON.stringify(j.errors)) || 'comment failed' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
 // ---- adapter registry ------------------------------------------------------
+// match(url, cfg): cfg carries mastodonHost (Mastodon is federated — the user
+// grants their instance in the popup, so its host is config, not hard-coded).
 const SOCIAL_ADAPTERS = {
   bluesky: { match: (url) => /^https:\/\/bsky\.app\//.test(url || ''), scrape: bskyScrapeInPage, send: bskySendInPage },
-  // Phase 2+: mastodon, reddit, x, … each is { match, scrape, send } and one
-  // host_permissions entry in manifest.json.
+  mastodon: { match: (url, cfg) => !!(cfg && cfg.mastodonHost) && (url || '').indexOf(cfg.mastodonHost) === 0, scrape: mastoScrapeInPage, send: mastoSendInPage },
+  reddit: { match: (url) => /^https:\/\/(www\.|old\.|new\.|sh\.)?reddit\.com\//.test(url || ''), scrape: redditScrapeInPage, send: redditSendInPage },
+  // Phase 3: x, linkedin, youtube, instagram, threads, facebook.
 };
 
-async function firstTabFor(adapter) {
+async function firstTabFor(adapter, cfg) {
   const tabs = await chrome.tabs.query({});
-  return tabs.find((t) => adapter.match(t.url)) || null;
+  return tabs.find((t) => adapter.match(t.url, cfg)) || null;
 }
 async function runInTab(tabId, func, args) {
   const [r] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func, args: args || [] });
@@ -126,7 +233,7 @@ async function socialTick() {
   if (cfg.paused) return;
   const accounts = [];
   for (const [platform, ad] of Object.entries(SOCIAL_ADAPTERS)) {
-    const tab = await firstTabFor(ad);
+    const tab = await firstTabFor(ad, cfg);
     if (!tab) continue;
     let out;
     try { out = await runInTab(tab.id, ad.scrape); } catch (e) { continue; }   // tab closed / injection blocked
@@ -141,7 +248,8 @@ async function socialTick() {
 async function socialSend(action) {
   const ad = SOCIAL_ADAPTERS[action && action.platform];
   if (!ad) return { ok: false, error: 'no adapter for ' + (action && action.platform) };
-  const tab = await firstTabFor(ad);
+  const cfg = await socialCfg();
+  const tab = await firstTabFor(ad, cfg);
   if (!tab) return { ok: false, error: 'open a logged-in ' + action.platform + ' tab first' };
   let res;
   try { res = await runInTab(tab.id, ad.send, [action]); } catch (e) { res = { ok: false, error: String((e && e.message) || e) }; }

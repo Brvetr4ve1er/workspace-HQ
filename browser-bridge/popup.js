@@ -20,7 +20,22 @@ async function load() {
   $('paused').checked = !!cfg.paused;
   $('endpoint').value = cfg.endpoint;
   $('token').value = cfg.token || '';
+  if ($('masto') && document.activeElement !== $('masto')) $('masto').value = cfg.mastodonHost || '';
 }
+
+// Mastodon is federated — grant host permission for the user's specific instance
+// so chrome.scripting can inject the adapter there, then remember the host.
+$('masto-connect').addEventListener('click', async () => {
+  const raw = ($('masto').value || '').trim();
+  if (!raw) { $('masto-status').textContent = 'enter your instance URL'; return; }
+  let origin;
+  try { origin = new URL(raw).origin; } catch { $('masto-status').textContent = 'invalid URL'; return; }
+  const granted = await chrome.permissions.request({ origins: [origin + '/*'] }).catch(() => false);
+  if (!granted) { $('masto-status').textContent = 'permission denied'; return; }
+  const { hq_cfg } = await chrome.storage.local.get('hq_cfg');
+  await chrome.storage.local.set({ hq_cfg: { ...DEFAULTS, ...(hq_cfg || {}), mastodonHost: origin } });
+  $('masto-status').textContent = 'connected ✓ ' + origin;
+});
 
 // ---- social outbox (the human approval surface) ----------------------------
 function appHeaders(cfg, post) {
