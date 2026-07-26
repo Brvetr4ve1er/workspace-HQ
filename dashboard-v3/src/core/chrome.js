@@ -6,6 +6,8 @@ import { bus } from './bus.js';
 import { data } from './data.js';
 import { LX } from './lexicon.js';
 import { applyTheme } from './themes.js';
+import { switchRealm } from './shell.js';
+import { ordered } from './registry.js';
 import { el, esc } from '../ui/util.js';
 import { sfx, countUp, deltaSpan, closeDrawer } from '../ui/components.js';
 
@@ -160,7 +162,7 @@ function paintWarden() {
 function paintStatusbar() {
   const S = data.selected, a = S.account;
   const built = data.bundle.built_at ? String(data.bundle.built_at).slice(0, 16).replace('T', ' ') : '—';
-  $('status').innerHTML = `<b>${esc(S.scan.id)}</b> · ${a.totals.products} products · ${a.totals.open_quests} open (${a.totals.red_quests} red) · health ${a.health_index} · data built ${esc(built)} · <span class="keys">1-5 tabs · F focus · / search</span>`;
+  $('status').innerHTML = `<b>${esc(S.scan.id)}</b> · ${a.totals.products} products · ${a.totals.open_quests} open (${a.totals.red_quests} red) · health ${a.health_index} · data built ${esc(built)} · <span class="keys">1-9 realms · F focus · / search</span>`;
 }
 
 // theme swap keeps the chrome nodes; only their words change (v2 relabelChrome).
@@ -177,7 +179,8 @@ function paintAll() { paintWarden(); paintTimeMachine(); paintStatusbar(); }
 // global keys — attached ONCE (initChrome runs once, from boot)
 function wireKeys() {
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     // NOTE: the F (focus) hotkey is owned SOLELY by roundtable/focus.js — do
     // not handle it here too, or one press toggles twice (net no-op + a bogus
     // acted-on ledger write). The FOCUS chip still reaches it via bus.
@@ -187,6 +190,14 @@ function wireKeys() {
     if (e.key === 'ArrowLeft' && tmOpen) select(data.selectedIndex - 1);
     else if (e.key === 'ArrowRight' && tmOpen) select(data.selectedIndex + 1);
     else if (e.key === 'Escape') closeDrawer();
+    // 1-9 jump to the Nth VISIBLE realm (rail order) — no modifier, so Ctrl/Cmd+N
+    // stay free. The editable-target guard above keeps digits typable in fields.
+    else if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // ordered() yields {manifest, view} entries — switch by manifest.id, not r.id
+      const list = ordered().filter((r) => r.manifest.enabled(data));
+      const r = list[Number(e.key) - 1];
+      if (r) switchRealm(r.manifest.id);
+    }
   });
 }
 

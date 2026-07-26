@@ -189,6 +189,13 @@ function close() {
 function onKey(e) {
   const combo = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K');
   if (combo) { e.preventDefault(); isOpen ? close() : open(); return; }
+  // "/" is the other advertised search key (statusbar hint). Open only when NOT
+  // typing into a field, so "/" stays usable in the palette input and any form.
+  if (!isOpen && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const t = e.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    if (!typing) { e.preventDefault(); open(); return; }
+  }
   if (!isOpen) return;
   if (e.key === 'Escape') { e.preventDefault(); close(); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
