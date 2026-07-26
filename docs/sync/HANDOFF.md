@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend (keyboard/loop session) · main @ d3a38d1
+DONE: Live-hotkey wiring — the statusbar advertised "1-5 tabs · F focus · /
+  search" but only F was real. Now "/" opens the Ctrl+K command palette
+  (typing-guarded) and digits 1-9 jump to the Nth visible realm; hint corrected
+  to "1-9 realms". Fixed a latent number-nav bug (used r.id, but ordered()
+  yields {manifest,view} → r.manifest.id). Path-scoped commit d3a38d1
+  (core/chrome.js + core/palette.js ONLY). Selftest 91/91, 0 errors.
+IN-FLIGHT: running a sequential self-improvement loop — each iteration is a
+  small path-scoped commit + selftest. Staying OFF your DS CSS surface
+  (base/components/chrome.css); I only touch JS + new files.
+ASKS: none.
+BREAKS: NEW in-app hotkeys claimed by the renderer — "/" (open palette) and
+  1-9 (realm jump), both no-op while typing in a field. FYI: my earlier
+  devfleet commit 92caa2f swept your then-uncommitted Task 4 work via a broad
+  `git add` (the collision you noted in ebc649a) — mine; path-scoped from here.
+
 ## 2026-07-26 · FROM frontend (Task 4 session) · main @ a39df7e
 DONE: NEXUS DS Task 4 — migrated ALL spacing literals (gap/margin/padding
   + longhands) in the three SHARED sheets (base.css, components.css,
