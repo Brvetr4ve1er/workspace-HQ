@@ -61,6 +61,20 @@
   border-radius: 0;
 }
 
+/* Global tap-size floor (design-system safety fix): every clickable control
+   clears --tap-min (32px) regardless of realm/theme. min-height/min-width are
+   floors — they win over a smaller explicit height/width set elsewhere, so
+   narrow chips like .tm-nav.sm (24x24) and #tm-toggle (~85x19) grow without
+   needing per-site overrides. box-sizing:border-box is already global
+   (base.css), so padding doesn't blow past this. min-width matters only for
+   .tm-nav.sm (24px wide) — every other selector here is already >=32px wide,
+   so this is a no-op floor for the rest. */
+button, .sigil, .tm-nav, .am-toggle, .tab-focus, [role="button"] {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  box-sizing: border-box;
+}
+
 /* ------------------------------------------------------------- spellbook tab */
 /* Rarity tiers (net-new): frame color + glow escalate with tier.
    Legendary shimmers — reserved for manually-anointed spells only. */

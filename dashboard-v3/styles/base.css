@@ -19,7 +19,8 @@
   --term: "VT323", "Cascadia Code", Consolas, monospace;
   /* v3 shell-only tokens (no v2 counterpart — safe namespace) */
   --rail-w: 64px;
-  --ambient-w: 240px;
+  /* --ambient-w intentionally NOT set here — tokens.css's clamp() is the
+     single source of truth so the rail stays responsive in every theme. */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

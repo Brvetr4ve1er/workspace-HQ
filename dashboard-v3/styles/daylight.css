@@ -47,7 +47,7 @@
   --px: var(--font-ui); --term: var(--font-ui); --mono: var(--font-data);
 
   --rail-w: 84px;
-  --ambient-w: 264px;
+  /* --ambient-w intentionally NOT set here — inherits tokens.css's clamp(). */
 }
 
 /* ---- atmosphere: near-solid light, one very faint low tint --------------- */

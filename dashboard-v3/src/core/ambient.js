@@ -50,7 +50,11 @@ function render() {
 
   rail.classList.toggle('closed', collapsed());
   rail.innerHTML = '';
-  const tog = el('button', 'am-toggle', collapsed() ? '⟨' : '⟩');
+  // Plain ASCII chevrons — the term font (VT323) has no glyph for the
+  // Unicode angle brackets ⟨/⟩ this used to use, so the browser fell back to
+  // a substitute font whose glyph rendered as a bare ")" at the rail's
+  // top-right in every realm/theme. < / > are guaranteed to render.
+  const tog = el('button', 'am-toggle', collapsed() ? '<' : '>');
   tog.title = collapsed() ? 'Open the ambient rail' : 'Collapse the ambient rail';
   tog.onclick = () => {
     try { localStorage.setItem('hq-ambient', collapsed() ? 'open' : 'closed'); } catch {}
