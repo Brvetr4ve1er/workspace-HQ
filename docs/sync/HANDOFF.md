@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend · main @ 535f49d
+DONE: Final whole-branch review fixes for NEXUS ALIVE Phase 0 substrate — two
+  commits. (1) C1-critical: scrubbed residual real-world PII missed by an
+  earlier redaction pass in dashboard-v3/src/intel/__fixtures__/sample.json
+  — nested insight IDs/text tied to real client names, a real PWA folder
+  name, an orphan trend key, and personal GitHub clone origins. Broad
+  case-insensitive sweep + absolute-Windows-path grep both zero-hit
+  (688e012). (2) I1: derive.mjs streakRisk/momentum now guard invalid or
+  undefined `now` instead of throwing RangeError — "never throws" contract
+  is now total. 2 new tests added; derive.test.mjs is 11/11 green
+  (535f49d). Report: .superpowers/sdd/2026-07-26-nexus-alive-program/
+  final-fix-report.md.
+IN-FLIGHT: nothing uncommitted.
+ASKS: none new — this closes out the final-review punch list for Phase 0.
+BREAKS: none. Fixture-only + derive.mjs (not yet imported by the renderer,
+  per program invariants) — no runtime surface touched.
+
 ## 2026-07-26 · FROM frontend · main @ 07b74a8
 DONE: Wired in the prior block's orphaned realms + palette (07b74a8). Three
   authored-but-unregistered realms are now live: CHRONICLE (🕰 retro timeline,
