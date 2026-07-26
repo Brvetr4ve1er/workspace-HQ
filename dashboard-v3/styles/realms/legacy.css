@@ -10,24 +10,24 @@
 /* ---- PERSONAL RECORDS callout (above the charts) ------------------------- */
 .realm-legacy .pr-callout {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
-  gap: 12px; margin: 2px 0 22px;
+  gap: var(--space-3); margin: var(--space-1) 0 var(--space-5);
 }
 .realm-legacy .pr-item {
   --pc: var(--active);
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 13px 15px; background: var(--card);
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3) var(--space-4); background: var(--card);
   border: 1px solid var(--divider); border-left: 3px solid var(--pc); border-radius: 10px;
 }
-.realm-legacy .pr-ic { font-size: 15px; color: var(--pc); line-height: 1; }
+.realm-legacy .pr-ic { font-size: var(--fs-sm); color: var(--pc); line-height: 1; }
 .realm-legacy .pr-v {
-  font-family: var(--font-data, var(--mono)); font-size: 26px; font-weight: 600; line-height: 1.1;
+  font-family: var(--font-data, var(--mono)); font-size: var(--fs-xl); font-weight: 600; line-height: 1.1;
   color: var(--text);
 }
 .realm-legacy .pr-k {
-  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--muted); margin-top: 5px;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); margin-top: var(--space-2);
 }
-.realm-legacy .pr-sub { font-size: 12.5px; color: var(--faint); }
+.realm-legacy .pr-sub { font-size: var(--fs-xs); color: var(--faint); }
 
 /* ---- trend-chart hover tooltip ------------------------------------------ */
 .realm-legacy .chart { position: relative; }
@@ -44,41 +44,41 @@
   transform: translateX(-50%); min-width: 78px;
   background: var(--card-hi); border: 1px solid var(--divider); border-radius: 8px;
   box-shadow: 0 8px 22px -12px rgba(0, 0, 0, .8);
-  padding: 7px 9px;
+  padding: var(--space-2) var(--space-3);
 }
 .realm-legacy .nx-chart-tip .tp-d {
-  display: block; font-family: var(--font-data, var(--mono)); font-size: 11px;
-  color: var(--muted); margin-bottom: 5px; letter-spacing: .02em;
+  display: block; font-family: var(--font-data, var(--mono)); font-size: var(--fs-xs);
+  color: var(--muted); margin-bottom: var(--space-2); letter-spacing: .02em;
 }
 .realm-legacy .nx-chart-tip .tp-row {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12.5px; color: var(--muted); white-space: nowrap;
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--fs-xs); color: var(--muted); white-space: nowrap;
 }
 .realm-legacy .nx-chart-tip .tp-row i { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 2px; }
-.realm-legacy .nx-chart-tip .tp-row b { color: var(--text); font-family: var(--font-data, var(--mono)); margin-left: 2px; }
+.realm-legacy .nx-chart-tip .tp-row b { color: var(--text); font-family: var(--font-data, var(--mono)); margin-left: var(--space-1); }
 
 /* ---- consistency card ---------------------------------------------------- */
-.realm-legacy .bl-row { display: flex; align-items: center; gap: 12px; }
-.realm-legacy .bl-frags { font-size: 12px; letter-spacing: 3px; color: var(--active); }
-.realm-legacy .bl-num { font-family: var(--font-data, var(--mono)); font-size: 14px; color: var(--text); }
+.realm-legacy .bl-row { display: flex; align-items: center; gap: var(--space-3); }
+.realm-legacy .bl-frags { font-size: var(--fs-xs); letter-spacing: 3px; color: var(--active); }
+.realm-legacy .bl-num { font-family: var(--font-data, var(--mono)); font-size: var(--fs-sm); color: var(--text); }
 .realm-legacy .bl-buff {
-  margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  margin-left: auto; font-size: var(--fs-xs); font-weight: 600; letter-spacing: .03em;
   text-transform: uppercase; color: var(--muted);
 }
-.realm-legacy .bl-next { margin-top: 8px; font-size: 13px; color: var(--faint); }
+.realm-legacy .bl-next { margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--faint); }
 
 /* ---- trophy expand (data-expand → .nx-detail) --------------------------- */
 .realm-legacy .ach.nx-ach { cursor: pointer; }
 .realm-legacy .ach .ach-detail {
-  margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--divider);
-  text-align: left; display: flex; flex-direction: column; gap: 7px;
+  margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--divider);
+  text-align: left; display: flex; flex-direction: column; gap: var(--space-2);
 }
-.realm-legacy .ach .nxd-row { display: flex; justify-content: space-between; gap: 10px; }
+.realm-legacy .ach .nxd-row { display: flex; justify-content: space-between; gap: var(--space-3); }
 .realm-legacy .ach .nxd-k {
-  font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
   color: var(--faint); flex: 0 0 auto;
 }
-.realm-legacy .ach .nxd-v { font-size: 12.5px; color: var(--muted); text-align: right; line-height: 1.35; }
+.realm-legacy .ach .nxd-v { font-size: var(--fs-xs); color: var(--muted); text-align: right; line-height: 1.35; }
 .realm-legacy .ach .nxd-v.ok { color: var(--gold-2); }
 .realm-legacy .ach .nxd-bar { height: 7px; background: var(--ink); border: 1px solid var(--divider); border-radius: 4px; overflow: hidden; }
 .realm-legacy .ach .nxd-bar i { display: block; height: 100%; background: var(--active); }

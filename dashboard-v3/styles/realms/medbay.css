@@ -5,16 +5,16 @@
    as --oc (set from JS COL). Base tokens (--term/--mono/--frame/--card…) are
    used throughout so the panel reads correctly under every theme. */
 
-.realm-medbay { max-width: 1200px; margin: 0 auto; padding: 8px 14px 52px; }
+.realm-medbay { max-width: 1200px; margin: 0 auto; padding: var(--space-2) var(--space-4) var(--space-7); }
 
 /* --- status tally --------------------------------------------------------- */
 .realm-medbay .mb-tally {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 18px;
-  margin: 0 0 20px; font-family: var(--term); font-size: 13.5px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-5);
+  margin: 0 0 var(--space-5); font-family: var(--term); font-size: var(--fs-xs);
 }
-.realm-medbay .mbt { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.realm-medbay .mbt { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); }
 .realm-medbay .mbt::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--oc, var(--muted)); }
-.realm-medbay .mbt-when { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: 12px; }
+.realm-medbay .mbt-when { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: var(--fs-xs); }
 
 /* --- vitals: cards arranged as a body-map ---------------------------------
    head = cpu · eyes = gpu · heart = ram · veins/arms = network · immune/arm =
@@ -29,9 +29,9 @@
     "network disk    updates"
     ".       temp    ."
     "startup startup startup";
-  gap: 14px;
+  gap: var(--space-4);
   max-width: 960px;
-  margin: 4px auto 8px;
+  margin: var(--space-1) auto var(--space-2);
 }
 .realm-medbay .organ-cpu     { grid-area: cpu; }
 .realm-medbay .organ-gpu     { grid-area: gpu; }
@@ -48,7 +48,7 @@
   background: linear-gradient(168deg, var(--card-hi), var(--card));
   border: 1px solid var(--frame);
   border-radius: 12px;
-  padding: 14px 16px 15px;
+  padding: var(--space-4) var(--space-4) var(--space-4);
   box-shadow: 0 12px 30px -22px #000;
 }
 /* a thin status stripe reads calmer than an all-around glow */
@@ -59,46 +59,46 @@
 /* only the critical vitals get a quiet ring — nothing throbs */
 .realm-medbay .organ.st-blood { box-shadow: 0 12px 30px -22px #000, 0 0 0 1px var(--oc); }
 
-.realm-medbay .organ-top { display: flex; align-items: baseline; gap: 9px; }
-.realm-medbay .organ-tag { font-family: var(--term); font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-.realm-medbay .organ-name { font-family: var(--term); font-size: 15px; font-weight: 600; color: var(--text); }
+.realm-medbay .organ-top { display: flex; align-items: baseline; gap: var(--space-3); }
+.realm-medbay .organ-tag { font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.realm-medbay .organ-name { font-family: var(--term); font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 .realm-medbay .organ-status {
-  margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--term); font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--oc);
+  margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: var(--space-2);
+  font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--oc);
 }
 .realm-medbay .organ-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--oc); }
 
-.realm-medbay .organ-read { margin-top: 11px; display: flex; align-items: baseline; gap: 6px; }
-.realm-medbay .organ-read b { font-family: var(--mono); font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; letter-spacing: -.01em; }
-.realm-medbay .organ-unit { font-family: var(--term); font-size: 13px; color: var(--muted); }
-.realm-medbay .organ-spark { display: block; width: 100%; height: 26px; margin-top: 9px; opacity: .85; }
-.realm-medbay .organ-dx { margin-top: 11px; font-family: var(--term); font-size: 13.5px; line-height: 1.45; color: var(--muted); }
-.realm-medbay .organ-tx { margin-top: 6px; font-family: var(--term); font-size: 12.5px; line-height: 1.45; color: var(--faint); }
+.realm-medbay .organ-read { margin-top: var(--space-3); display: flex; align-items: baseline; gap: var(--space-2); }
+.realm-medbay .organ-read b { font-family: var(--mono); font-size: var(--fs-xl); font-weight: 600; color: var(--text); line-height: 1; letter-spacing: -.01em; }
+.realm-medbay .organ-unit { font-family: var(--term); font-size: var(--fs-xs); color: var(--muted); }
+.realm-medbay .organ-spark { display: block; width: 100%; height: 26px; margin-top: var(--space-3); opacity: .85; }
+.realm-medbay .organ-dx { margin-top: var(--space-3); font-family: var(--term); font-size: var(--fs-xs); line-height: 1.45; color: var(--muted); }
+.realm-medbay .organ-tx { margin-top: var(--space-2); font-family: var(--term); font-size: var(--fs-xs); line-height: 1.45; color: var(--faint); }
 
 /* --- empty state ---------------------------------------------------------- */
 .realm-medbay .mb-empty {
   background: linear-gradient(168deg, var(--card-hi), var(--card));
   border: 1px solid var(--frame); border-radius: 14px;
-  max-width: 700px; margin: 6px auto 22px; padding: 26px 28px 28px; text-align: center;
+  max-width: 700px; margin: var(--space-2) auto var(--space-5); padding: var(--space-6) var(--space-6) var(--space-6); text-align: center;
 }
-.realm-medbay .ekg { display: block; width: 100%; max-width: 420px; height: 30px; margin: 0 auto 16px; }
+.realm-medbay .ekg { display: block; width: 100%; max-width: 420px; height: 30px; margin: 0 auto var(--space-4); }
 .realm-medbay .ekg-base { fill: none; stroke: var(--frame); stroke-width: 2; }
 .realm-medbay .ekg-line {
   fill: none; stroke: var(--green, #3aff6e); stroke-width: 2; opacity: .8;
   stroke-dasharray: 70 500; animation: ekg-sweep 3.4s linear infinite;
 }
 @keyframes ekg-sweep { from { stroke-dashoffset: 570; } to { stroke-dashoffset: 0; } }
-.realm-medbay .mb-empty-title { font-family: var(--term); font-size: 18px; font-weight: 600; color: var(--text); }
-.realm-medbay .mb-empty-sub { font-family: var(--term); font-size: 14px; line-height: 1.55; color: var(--muted); max-width: 48ch; margin: 8px auto 0; }
-.realm-medbay .mb-scan-cta { margin-top: 18px; }
-.realm-medbay .ghost-cap { font-family: var(--term); font-size: 12.5px; color: var(--faint); text-align: center; margin: 0 0 14px; }
+.realm-medbay .mb-empty-title { font-family: var(--term); font-size: var(--fs-md); font-weight: 600; color: var(--text); }
+.realm-medbay .mb-empty-sub { font-family: var(--term); font-size: var(--fs-sm); line-height: 1.55; color: var(--muted); max-width: 48ch; margin: var(--space-2) auto 0; }
+.realm-medbay .mb-scan-cta { margin-top: var(--space-5); }
+.realm-medbay .ghost-cap { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); text-align: center; margin: 0 0 var(--space-4); }
 
 /* skeleton cards: dashed, unlit, waiting */
 .realm-medbay .organ.ghost { background: transparent; border: 1px dashed var(--frame); box-shadow: none; }
 .realm-medbay .organ.ghost::before { display: none; }
 .realm-medbay .organ.ghost .organ-tag { color: var(--faint); }
 .realm-medbay .organ.ghost .organ-name { color: var(--muted); }
-.realm-medbay .organ.ghost .organ-read b { color: var(--faint); font-size: 22px; }
+.realm-medbay .organ.ghost .organ-read b { color: var(--faint); font-size: var(--fs-lg); }
 .realm-medbay .organ.ghost .organ-dx { color: var(--faint); }
 
 /* narrow fallback: the body-map folds into a single column, head to toe */
@@ -109,32 +109,32 @@
 
 /* --- recommended fixes: real fix scripts (M2) ----------------------------- */
 .realm-medbay .mb-reexamine { margin-left: auto; }
-.realm-medbay .rx-list { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; max-width: 960px; }
+.realm-medbay .rx-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-2); max-width: 960px; }
 .realm-medbay .rx {
   background: linear-gradient(168deg, var(--card-hi), var(--card));
-  border: 1px solid var(--frame); border-radius: 12px; padding: 14px 16px;
+  border: 1px solid var(--frame); border-radius: 12px; padding: var(--space-4) var(--space-4);
   box-shadow: 0 12px 30px -22px #000;
 }
-.realm-medbay .rx-top { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
-.realm-medbay .rx-organ { font-family: var(--term); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--oc, var(--muted)); border: 1px solid var(--oc, var(--frame)); border-radius: 6px; padding: 2px 8px; }
-.realm-medbay .rx-title { font-family: var(--term); font-size: 14.5px; font-weight: 600; color: var(--text); flex: 1; }
-.realm-medbay .rx-danger { font-family: var(--term); font-size: 10px; font-weight: 600; letter-spacing: .03em; border-radius: 6px; padding: 3px 8px; }
+.realm-medbay .rx-top { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
+.realm-medbay .rx-organ { font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--oc, var(--muted)); border: 1px solid var(--oc, var(--frame)); border-radius: 6px; padding: var(--space-1) var(--space-2); }
+.realm-medbay .rx-title { font-family: var(--term); font-size: var(--fs-sm); font-weight: 600; color: var(--text); flex: 1; }
+.realm-medbay .rx-danger { font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .03em; border-radius: 6px; padding: var(--space-1) var(--space-2); }
 .realm-medbay .rx-danger.dg-safe    { color: var(--green, #86b986); background: rgba(134,185,134,.12); border: 1px solid rgba(134,185,134,.3); }
 .realm-medbay .rx-danger.dg-caution { color: var(--yellow, #d9b24a); background: rgba(217,178,74,.12); border: 1px solid rgba(217,178,74,.3); }
 .realm-medbay .rx-danger.dg-admin   { color: var(--red, #d9503f); background: rgba(217,80,63,.12); border: 1px solid rgba(217,80,63,.3); }
-.realm-medbay .rx-why { font-family: var(--term); font-size: 13px; color: var(--muted); line-height: 1.5; }
-.realm-medbay .rx-teach { font-family: var(--term); font-size: 12.5px; color: var(--faint); margin-top: 4px; line-height: 1.45; }
-.realm-medbay .rx-cmd { margin: 11px 0; background: var(--ink, #05060a); border: 1px solid var(--frame); border-radius: 8px; padding: 9px 12px; overflow-x: auto; }
-.realm-medbay .rx-cmd code { font-family: var(--mono); font-size: 12px; color: var(--muted, #cdd6e6); white-space: pre; }
-.realm-medbay .rx-act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.realm-medbay .rx-copy, .realm-medbay .rx-run { font-family: var(--term); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; cursor: pointer; border-radius: 8px; padding: 7px 13px; }
+.realm-medbay .rx-why { font-family: var(--term); font-size: var(--fs-xs); color: var(--muted); line-height: 1.5; }
+.realm-medbay .rx-teach { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); margin-top: var(--space-1); line-height: 1.45; }
+.realm-medbay .rx-cmd { margin: var(--space-3) 0; background: var(--ink, #05060a); border: 1px solid var(--frame); border-radius: 8px; padding: var(--space-3) var(--space-3); overflow-x: auto; }
+.realm-medbay .rx-cmd code { font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted, #cdd6e6); white-space: pre; }
+.realm-medbay .rx-act { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.realm-medbay .rx-copy, .realm-medbay .rx-run { font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em; cursor: pointer; border-radius: 8px; padding: var(--space-2) var(--space-3); }
 .realm-medbay .rx-copy { background: var(--card-hi); border: 1px solid var(--frame); color: var(--muted); }
 .realm-medbay .rx-copy:hover { color: var(--text); border-color: var(--active, var(--gold)); }
 .realm-medbay .rx-run { background: rgba(134,185,134,.1); color: var(--green, #86b986); border: 1px solid rgba(134,185,134,.4); }
 .realm-medbay .rx-run:hover:not(:disabled) { background: rgba(134,185,134,.18); }
 .realm-medbay .rx-run:disabled { opacity: .5; cursor: default; }
-.realm-medbay .rx-manual { font-family: var(--term); font-size: 11.5px; color: var(--faint); }
-.realm-medbay .rx-out { margin-top: 11px; background: var(--ink, #05060a); border: 1px solid var(--frame); border-radius: 8px; padding: 10px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--green, #9fd6a0); white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
+.realm-medbay .rx-manual { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); }
+.realm-medbay .rx-out { margin-top: var(--space-3); background: var(--ink, #05060a); border: 1px solid var(--frame); border-radius: 8px; padding: var(--space-3) var(--space-3); font-family: var(--mono); font-size: var(--fs-xs); color: var(--green, #9fd6a0); white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
 .realm-medbay .rx-out.err { color: var(--red, #e59a90); }
 
 @media (prefers-reduced-motion: reduce) {

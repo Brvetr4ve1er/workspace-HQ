@@ -4,11 +4,18 @@
    Below is realm-only: header total, vault grid, search launcher.
    Calm surfaces, one accent (var(--active)) used sparingly, no glow. */
 
+/* section titles get a real step over the body copy below (the realm had no
+   heading hierarchy at all — h2.sec was the same size as most labels).
+   Nexus's own h2.sec typography (cinematic.css) fixes a hardcoded 15px with
+   higher specificity than a plain realm scope, so this needs the theme
+   attribute prefix too to actually win the cascade. */
+:root[data-theme="nexus"] .realm-observatory h2.sec { font-size: var(--fs-lg); }
+
 /* header note-total — sits at the right edge of h2.sec, quiet secondary text */
 .realm-observatory .obs-insight {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-xs);
   letter-spacing: 0;
   color: var(--muted);
 }
@@ -17,11 +24,11 @@
 .realm-observatory .obs-vaults {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
-  margin-bottom: 24px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 .realm-observatory .obs-vault {
-  padding: 16px 18px;
+  padding: var(--space-4) var(--space-5);
 }
 .realm-observatory .obs-vault.primary {
   grid-column: 1 / -1;                     /* the primary vault leads, full row */
@@ -30,12 +37,12 @@
 .realm-observatory .obs-vtop {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .realm-observatory .obs-vname {
   flex: 1;
   font-family: var(--px);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   letter-spacing: 0;
   color: var(--text);
@@ -43,24 +50,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.realm-observatory .obs-vault.primary .obs-vname { color: var(--active); font-size: 15px; }
+.realm-observatory .obs-vault.primary .obs-vname { color: var(--active); font-size: var(--fs-sm); }
 .realm-observatory .pill.obs-prime { color: var(--active); border-color: var(--active); }
 .realm-observatory .obs-vnum {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   font-family: var(--term);
-  font-size: 13px;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 .realm-observatory .obs-vnum b {
   font-family: var(--mono);
-  font-size: 24px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   color: var(--text);
-  margin-right: 5px;
+  margin-right: var(--space-2);
 }
 .realm-observatory .obs-vbar {
   height: 5px;
-  margin-top: 10px;
+  margin-top: var(--space-3);
   background: rgba(255, 255, 255, .06);
   border-radius: 3px;
   overflow: hidden;
@@ -75,20 +82,20 @@
 .realm-observatory .obs-vfacts {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 12px;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
 }
-.realm-observatory .obs-fact { font-family: var(--term); font-size: 12.5px; color: var(--faint); }
+.realm-observatory .obs-fact { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); }
 .realm-observatory .obs-fact.live { color: var(--green); }
 .realm-observatory .obs-fact.stale { color: var(--orange); }
 
 /* ---------------------------------------------- Obsidian sync */
 .realm-observatory .obs-sync {
   font-family: var(--term);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--muted);
-  padding: 12px 16px;
-  margin-bottom: 24px;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
   background: var(--card);
   border: 1px solid var(--frame);
   border-radius: 10px;
@@ -97,21 +104,21 @@
 /* ---------------------------------------------- NotebookLM */
 .realm-observatory .obs-dormant {
   font-family: var(--term);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--faint);
-  padding: 14px 16px;
-  margin-bottom: 24px;
+  padding: var(--space-4) var(--space-4);
+  margin-bottom: var(--space-5);
   border: 1px dashed var(--frame);
   border-radius: 10px;
 }
-.realm-observatory .obs-shelf { margin-bottom: 10px; }
+.realm-observatory .obs-shelf { margin-bottom: var(--space-3); }
 .realm-observatory .obs-book {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 9px 4px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-1);
   border-top: 1px solid var(--frame);
-  font-size: 14.5px;
+  font-size: var(--fs-sm);
 }
 .realm-observatory .obs-book:first-child { border-top: 0; }
 .realm-observatory .obs-bt {
@@ -121,12 +128,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.realm-observatory .obs-bm { font-family: var(--term); font-size: 12.5px; color: var(--faint); white-space: nowrap; }
-.realm-observatory .obs-cap { font-family: var(--term); font-size: 12px; color: var(--faint); margin-bottom: 24px; }
+.realm-observatory .obs-bm { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; }
+.realm-observatory .obs-cap { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); margin-bottom: var(--space-5); }
 
 /* ---------------------------------------------- cross-vault search */
 .realm-observatory .obs-scry {
-  padding: 16px;
+  padding: var(--space-4);
   background: var(--card);
   border: 1px solid var(--frame);
   border-radius: 12px;
@@ -134,18 +141,18 @@
 .realm-observatory .obs-scry-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-3);
   align-items: stretch;
 }
 .realm-observatory .obs-scry-vault,
 .realm-observatory .obs-scry-q {
   font-family: var(--term);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--text);
   background: var(--bg2);
   border: 1px solid var(--frame);
   border-radius: 8px;
-  padding: 8px 11px;
+  padding: var(--space-2) var(--space-3);
   outline: none;
 }
 .realm-observatory .obs-scry-q { flex: 1; min-width: 160px; }
@@ -157,20 +164,20 @@
   display: block;
   width: 100%;
   box-sizing: border-box;
-  margin-top: 12px;
+  margin-top: var(--space-3);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   background: var(--bg2);
   border: 1px solid var(--frame);
   border-radius: 8px;
-  padding: 8px 11px;
+  padding: var(--space-2) var(--space-3);
   outline: none;
 }
 .realm-observatory .obs-scry-note {
-  margin-top: 10px;
+  margin-top: var(--space-3);
   font-family: var(--term);
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
   color: var(--faint);
 }

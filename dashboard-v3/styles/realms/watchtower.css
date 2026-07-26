@@ -7,42 +7,42 @@
 
 /* rising-trend banner */
 .wt-doom {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4);
   background: linear-gradient(160deg, rgba(255, 71, 87, .12), var(--card));
   border: 2px solid var(--ink);
   animation: wt-doom-pulse 2.4s ease-in-out infinite;
 }
-.wt-doom-k { font-family: var(--px); font-size: 8px; letter-spacing: 1px; color: var(--red); white-space: nowrap; }
-.wt-doom-t { font-family: var(--term); font-size: 17px; color: var(--text); }
+.wt-doom-k { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; color: var(--red); white-space: nowrap; }
+.wt-doom-t { font-family: var(--term); font-size: var(--fs-md); color: var(--text); }
 @keyframes wt-doom-pulse {
   0%, 100% { box-shadow: 0 0 0 2px var(--red), 0 0 16px -6px var(--red); }
   50%      { box-shadow: 0 0 0 2px var(--red), 0 0 26px -3px var(--red); }
 }
 
 /* overview row: meter · rhythm · summary */
-.wt-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: 14px; }
+.wt-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: var(--space-4); }
 .wt-panel {
   background: linear-gradient(160deg, var(--card-hi), var(--card));
   border: 2px solid var(--ink);
   box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
-  padding: 12px 14px;
+  padding: var(--space-3) var(--space-4);
 }
 .wt-panel .wt-k {
-  font-family: var(--px); font-size: 6.5px; letter-spacing: 1px;
-  color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+  font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase; margin-bottom: var(--space-3);
 }
 
 /* trend chip — captured-scan-over-scan direction, shared by the dial + cards.
    up = climbing (attention rising), down = cooling, flat = steady. Colour-only
    semantics, no moralising. */
-.wt-trend { font-family: var(--term); font-size: 13px; white-space: nowrap; }
+.wt-trend { font-family: var(--term); font-size: var(--fs-xs); white-space: nowrap; }
 .wt-trend.up   { color: var(--orange); }
 .wt-trend.down { color: var(--cyan); }
 .wt-trend.flat { color: var(--faint); }
-.wt-dial-trend { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 8px; }
-.wt-dial-trend .wt-trend { font-size: 14px; }
-.wt-trend-cap { font-family: var(--px); font-size: 6px; letter-spacing: 1px; color: var(--faint); }
+.wt-dial-trend { display: flex; align-items: baseline; justify-content: center; gap: var(--space-2); margin-top: var(--space-2); }
+.wt-dial-trend .wt-trend { font-size: var(--fs-sm); }
+.wt-trend-cap { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; color: var(--faint); }
 
 /* distraction meter — tier tints the value arc + the lit scale label */
 .wt-dial.low  { --wt-tier: var(--green); }
@@ -52,83 +52,83 @@
 .wt-arc { fill: none; stroke-width: 12; }
 .wt-arc.bg  { stroke: var(--frame); opacity: .4; }
 .wt-arc.val { stroke: var(--wt-tier, var(--cyan)); filter: drop-shadow(0 0 6px var(--wt-tier, var(--cyan))); }
-.wt-dial-num { font-family: var(--term); font-size: 36px; fill: var(--text); }
-.wt-dial-sub { font-family: var(--px); font-size: 7px; letter-spacing: 2px; fill: var(--muted); }
+.wt-dial-num { font-family: var(--term); font-size: var(--fs-2xl); fill: var(--text); }
+.wt-dial-sub { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 2px; fill: var(--muted); }
 .wt-scale {
-  display: flex; justify-content: space-between; margin-top: 8px;
-  font-family: var(--px); font-size: 6.5px; letter-spacing: 1px; color: var(--faint);
+  display: flex; justify-content: space-between; margin-top: var(--space-2);
+  font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; color: var(--faint);
 }
 .wt-scale .on { color: var(--wt-tier, var(--text)); text-shadow: 0 0 8px var(--wt-tier, transparent); }
 
 /* weekly rhythm heat strip */
-.wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.wt-wc { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-2); }
+.wt-wc { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
 .wt-wc .box { display: block; width: 100%; height: 34px; background: var(--ink); border: 1px solid var(--frame); }
 .wt-wc .box i { display: block; width: 100%; height: 100%; background: var(--cyan); }
-.wt-wc b { font-family: var(--px); font-size: 6px; color: var(--faint); font-weight: normal; }
+.wt-wc b { font-family: var(--px); font-size: var(--fs-xs); color: var(--faint); font-weight: normal; }
 
 /* summary rows */
-.wt-cen-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--term); font-size: 16px; padding: 2px 0; }
+.wt-cen-row { display: flex; justify-content: space-between; gap: var(--space-3); font-family: var(--term); font-size: var(--fs-md); padding: var(--space-1) 0; }
 .wt-cen-row span { color: var(--muted); }
 .wt-cen-row b { color: var(--text); font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* platform cards */
-.wt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 2px; }
+.wt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); margin-top: var(--space-1); }
 .wt-card {
   background: linear-gradient(160deg, var(--card-hi), var(--card));
   border: 2px solid var(--ink);
   border-left: 4px solid var(--cc, var(--frame));
   box-shadow: 0 0 0 2px var(--frame), 0 0 14px -6px rgba(90, 78, 168, .55);
-  padding: 11px 13px;
+  padding: var(--space-3) var(--space-3);
 }
-.wt-dom-row { display: flex; align-items: center; gap: 8px; }
+.wt-dom-row { display: flex; align-items: center; gap: var(--space-2); }
 .wt-dom {
-  flex: 1; font-family: var(--term); font-size: 17px; color: var(--text);
+  flex: 1; font-family: var(--term); font-size: var(--fs-md); color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .wt-chip {
-  font-family: var(--px); font-size: 6px; letter-spacing: 1px; padding: 3px 6px;
+  font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; padding: var(--space-1) var(--space-2);
   color: var(--cc, var(--muted)); border: 1px solid var(--cc, var(--frame));
   background: rgba(255, 255, 255, .03); white-space: nowrap;
 }
-.wt-total-row { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
-.wt-total { font-family: var(--term); font-size: 30px; line-height: .95; color: var(--text); margin-top: 8px; }
+.wt-total-row { display: flex; align-items: baseline; gap: var(--space-2); margin-top: var(--space-2); }
+.wt-total { font-family: var(--term); font-size: var(--fs-xl); line-height: .95; color: var(--text); margin-top: var(--space-2); }
 .wt-total-row .wt-total { margin-top: 0; }
-.wt-spark { display: block; width: 100%; height: 26px; margin-top: 6px; opacity: .9; }
-.wt-cadence { font-family: var(--term); font-size: 13px; color: var(--faint); margin-top: 4px; }
+.wt-spark { display: block; width: 100%; height: 26px; margin-top: var(--space-2); opacity: .9; }
+.wt-cadence { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); margin-top: var(--space-1); }
 
 /* expand affordance — card is clickable (data-expand); caret rotates when open.
    Cinematic theme adds the hover-lift + border glow off [data-expand]; this is
    the base-theme cursor + caret so the affordance reads under any skin. */
 .wt-card[data-expand] { cursor: pointer; }
-.wt-exp { font-family: var(--term); font-size: 12px; color: var(--faint); transition: transform .16s, color .16s; }
+.wt-exp { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); transition: transform .16s, color .16s; }
 .wt-card.open .wt-exp { transform: rotate(90deg); color: var(--cc, var(--text)); }
 
 /* inline detail — the per-day time history + summary for one platform */
 .wt-card .nx-detail {
-  margin-top: 12px; padding-top: 12px;
+  margin-top: var(--space-3); padding-top: var(--space-3);
   border-top: 1px dashed var(--frame);
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex; flex-direction: column; gap: var(--space-3);
 }
-.wt-dt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-.wt-dt-c { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wt-dt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); }
+.wt-dt-c { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .wt-dt-c.wide { grid-column: 1 / -1; }
-.wt-dt-c span { font-family: var(--px); font-size: 6px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
-.wt-dt-c b { font-family: var(--term); font-size: 15px; color: var(--text); font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wt-dt-title { font-family: var(--term); font-size: 13px; color: var(--faint); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wt-dt-k { font-family: var(--px); font-size: 6px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
-.wt-hist { display: flex; flex-direction: column; gap: 5px; }
-.wt-hrow { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 8px; }
-.wt-hd { font-family: var(--mono, var(--term)); font-size: 11px; color: var(--faint); }
+.wt-dt-c span { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+.wt-dt-c b { font-family: var(--term); font-size: var(--fs-sm); color: var(--text); font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-dt-title { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-dt-k { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+.wt-hist { display: flex; flex-direction: column; gap: var(--space-2); }
+.wt-hrow { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: var(--space-2); }
+.wt-hd { font-family: var(--mono, var(--term)); font-size: var(--fs-xs); color: var(--faint); }
 .wt-hbar { height: 10px; background: var(--ink); border: 1px solid var(--frame); overflow: hidden; }
 .wt-hbar i { display: block; height: 100%; background: var(--cc, var(--cyan)); box-shadow: 0 0 8px -3px var(--cc, var(--cyan)); transition: width .3s ease; }
-.wt-hv { font-family: var(--term); font-size: 12px; color: var(--text); white-space: nowrap; }
+.wt-hv { font-family: var(--term); font-size: var(--fs-xs); color: var(--text); white-space: nowrap; }
 .wt-hrow.zero .wt-hv { color: var(--faint); }
 
 /* empty state */
-.wt-empty { text-align: center; padding: 56px 20px; color: var(--muted); }
-.wt-empty-head { font-family: var(--px); font-size: 11px; letter-spacing: 2px; color: var(--text); margin-bottom: 10px; }
-.wt-empty-sub { font-family: var(--term); font-size: 17px; line-height: 1.45; max-width: 480px; margin: 0 auto; }
+.wt-empty { text-align: center; padding: var(--space-7) var(--space-5); color: var(--muted); }
+.wt-empty-head { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 2px; color: var(--text); margin-bottom: var(--space-3); }
+.wt-empty-sub { font-family: var(--term); font-size: var(--fs-md); line-height: 1.45; max-width: 480px; margin: 0 auto; }
 .wt-empty-sub code { color: var(--cyan); }
 
 /* ==========================================================================
@@ -139,11 +139,12 @@
    single quiet accent. Legacy pixel-font themes never see any of this.
    ========================================================================== */
 
-/* section rhythm */
-:root[data-theme="nexus"] .realm-watchtower h2.sec { margin: 30px 0 14px; }
-:root[data-theme="nexus"] .realm-watchtower h2.sec:first-child { margin-top: 6px; }
-:root[data-theme="nexus"] .wt-top { gap: 16px; }
-:root[data-theme="nexus"] .wt-grid { gap: 16px; margin-top: 2px; }
+/* section rhythm — the realm had no heading step at all (h2.sec rode the same
+   xs size as every label); give it a real step over the wt-panel/wt-card body. */
+:root[data-theme="nexus"] .realm-watchtower h2.sec { font-size: var(--fs-lg); margin: var(--space-6) 0 var(--space-4); }
+:root[data-theme="nexus"] .realm-watchtower h2.sec:first-child { margin-top: var(--space-2); }
+:root[data-theme="nexus"] .wt-top { gap: var(--space-4); }
+:root[data-theme="nexus"] .wt-grid { gap: var(--space-4); margin-top: var(--space-1); }
 
 /* surfaces — flat panel, one hairline, soft radius, no purple glow */
 :root[data-theme="nexus"] .wt-panel,
@@ -152,54 +153,54 @@
   border: 1px solid var(--frame);
   border-radius: 12px;
   box-shadow: none;
-  padding: 16px 18px;
+  padding: var(--space-4) var(--space-5);
 }
 :root[data-theme="nexus"] .wt-card { border-left: 3px solid var(--cc, var(--frame)); }
 
 /* labels — the core readability fix */
 :root[data-theme="nexus"] .wt-panel .wt-k {
-  font-size: 11px; letter-spacing: .09em; font-weight: 600; color: var(--muted); margin-bottom: 14px;
+  font-size: var(--fs-xs); letter-spacing: .09em; font-weight: 600; color: var(--muted); margin-bottom: var(--space-4);
 }
 :root[data-theme="nexus"] .wt-chip {
-  font-size: 10.5px; letter-spacing: .05em; font-weight: 600;
-  padding: 3px 8px; border-radius: 6px; background: transparent;
+  font-size: var(--fs-xs); letter-spacing: .05em; font-weight: 600;
+  padding: var(--space-1) var(--space-2); border-radius: 6px; background: transparent;
 }
-:root[data-theme="nexus"] .wt-scale { font-size: 11px; letter-spacing: .04em; font-weight: 600; margin-top: 12px; }
-:root[data-theme="nexus"] .wt-wc b { font-size: 11px; }
+:root[data-theme="nexus"] .wt-scale { font-size: var(--fs-xs); letter-spacing: .04em; font-weight: 600; margin-top: var(--space-3); }
+:root[data-theme="nexus"] .wt-wc b { font-size: var(--fs-xs); }
 :root[data-theme="nexus"] .wt-dt-c span,
-:root[data-theme="nexus"] .wt-dt-k { font-size: 10.5px; letter-spacing: .07em; font-weight: 600; }
-:root[data-theme="nexus"] .wt-trend-cap { font-size: 10px; letter-spacing: .04em; font-weight: 600; }
+:root[data-theme="nexus"] .wt-dt-k { font-size: var(--fs-xs); letter-spacing: .07em; font-weight: 600; }
+:root[data-theme="nexus"] .wt-trend-cap { font-size: var(--fs-xs); letter-spacing: .04em; font-weight: 600; }
 
 /* distraction meter — thinner, calm arc; no glow, no text-shadow */
 :root[data-theme="nexus"] .wt-arc { stroke-width: 9; }
 :root[data-theme="nexus"] .wt-arc.bg { opacity: .5; }
 :root[data-theme="nexus"] .wt-arc.val { filter: none; }
-:root[data-theme="nexus"] .wt-dial-num { font-size: 34px; font-weight: 600; }
-:root[data-theme="nexus"] .wt-dial-sub { font-size: 10.5px; letter-spacing: .12em; }
+:root[data-theme="nexus"] .wt-dial-num { font-size: var(--fs-2xl); font-weight: 600; }
+:root[data-theme="nexus"] .wt-dial-sub { font-size: var(--fs-xs); letter-spacing: .12em; }
 :root[data-theme="nexus"] .wt-scale .on { text-shadow: none; }
 
 /* weekly rhythm — softer cells */
 :root[data-theme="nexus"] .wt-wc .box { border-radius: 4px; height: 36px; }
 
 /* summary rows */
-:root[data-theme="nexus"] .wt-cen-row { font-size: 15px; padding: 4px 0; }
+:root[data-theme="nexus"] .wt-cen-row { font-size: var(--fs-sm); padding: var(--space-1) 0; }
 
 /* platform cards */
-:root[data-theme="nexus"] .wt-dom { font-size: 16px; }
-:root[data-theme="nexus"] .wt-total { font-size: 28px; }
-:root[data-theme="nexus"] .wt-cadence { font-size: 12.5px; margin-top: 8px; }
-:root[data-theme="nexus"] .wt-trend { font-size: 13px; font-weight: 600; }
+:root[data-theme="nexus"] .wt-dom { font-size: var(--fs-md); }
+:root[data-theme="nexus"] .wt-total { font-size: var(--fs-xl); }
+:root[data-theme="nexus"] .wt-cadence { font-size: var(--fs-xs); margin-top: var(--space-2); }
+:root[data-theme="nexus"] .wt-trend { font-size: var(--fs-xs); font-weight: 600; }
 
 /* detail — legible history */
-:root[data-theme="nexus"] .wt-dt-c b { font-size: 15px; }
-:root[data-theme="nexus"] .wt-dt-title { font-size: 13px; }
-:root[data-theme="nexus"] .wt-hd { font-size: 11.5px; }
-:root[data-theme="nexus"] .wt-hv { font-size: 12.5px; }
+:root[data-theme="nexus"] .wt-dt-c b { font-size: var(--fs-sm); }
+:root[data-theme="nexus"] .wt-dt-title { font-size: var(--fs-xs); }
+:root[data-theme="nexus"] .wt-hd { font-size: var(--fs-xs); }
+:root[data-theme="nexus"] .wt-hv { font-size: var(--fs-xs); }
 :root[data-theme="nexus"] .wt-hbar i { box-shadow: none; }
 
 /* rising-trend banner — a quiet notice, not a neon alarm */
 :root[data-theme="nexus"] .wt-doom {
-  gap: 12px; padding: 12px 16px; margin: 2px 0 16px;
+  gap: var(--space-3); padding: var(--space-3) var(--space-4); margin: var(--space-1) 0 var(--space-4);
   background: rgba(217, 138, 58, .09);
   border: 1px solid var(--frame);
   border-left: 3px solid var(--orange);
@@ -208,14 +209,14 @@
   animation: none;
 }
 :root[data-theme="nexus"] .wt-doom-k {
-  font-size: 11px; letter-spacing: .05em; font-weight: 600; color: var(--orange);
+  font-size: var(--fs-xs); letter-spacing: .05em; font-weight: 600; color: var(--orange);
 }
-:root[data-theme="nexus"] .wt-doom-t { font-size: 14.5px; color: var(--text); }
+:root[data-theme="nexus"] .wt-doom-t { font-size: var(--fs-sm); color: var(--text); }
 
 /* empty state — headline-led, no oversized glyph */
-:root[data-theme="nexus"] .wt-empty { padding: 60px 20px; }
-:root[data-theme="nexus"] .wt-empty-head { font-size: 17px; letter-spacing: 0; font-weight: 600; margin-bottom: 8px; }
-:root[data-theme="nexus"] .wt-empty-sub { font-size: 15px; line-height: 1.6; }
+:root[data-theme="nexus"] .wt-empty { padding: var(--space-7) var(--space-5); }
+:root[data-theme="nexus"] .wt-empty-head { font-size: var(--fs-md); letter-spacing: 0; font-weight: 600; margin-bottom: var(--space-2); }
+:root[data-theme="nexus"] .wt-empty-sub { font-size: var(--fs-sm); line-height: 1.6; }
 
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="nexus"] .wt-hbar i { transition: none; }

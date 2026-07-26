@@ -5,22 +5,29 @@
    bars, and the streak tiles. Semantic tokens only (--card/--panel/--divider/
    --text/--muted/--faint/--active/--ink), so it holds under every theme. */
 
+/* section title gets a real step over the body copy — matches the streak
+   tile numbers below so the realm has one consistent "big number" register.
+   Nexus's own h2.sec typography (cinematic.css) fixes a hardcoded 15px with
+   higher specificity than a plain realm scope, so this needs the theme
+   attribute prefix too to actually win the cascade. */
+:root[data-theme="nexus"] .realm-atlas h2.sec { font-size: var(--fs-lg); }
+
 /* header count, sits beside the "Analytics" h2 */
 .realm-atlas h2.sec .atl-insight {
-  margin-left: 10px; font-size: 12px; font-weight: 500;
+  margin-left: var(--space-3); font-size: var(--fs-xs); font-weight: 500;
   color: var(--muted); font-family: var(--font-data, var(--mono));
 }
 
 /* caption under the XP chart (level + xp-to-next) */
 .realm-atlas .atl-cap {
-  margin-top: 10px; font-size: 12.5px; color: var(--faint);
+  margin-top: var(--space-3); font-size: var(--fs-xs); color: var(--faint);
   font-family: var(--font-data, var(--mono));
 }
 
 /* shared progress bar — mirrors legacy's .nxd-bar so bars read the same */
 .realm-atlas .atl-bar {
   height: 10px; background: var(--ink); border: 1px solid var(--divider);
-  border-radius: 5px; overflow: hidden; margin: 6px 0 12px;
+  border-radius: 5px; overflow: hidden; margin: var(--space-2) 0 var(--space-3);
 }
 .realm-atlas .atl-bar i {
   display: block; height: 100%; background: var(--active);
@@ -29,26 +36,26 @@
 
 /* follow-through: resolved vs acted-on line under the bar */
 .realm-atlas .atl-ft-row {
-  display: flex; justify-content: space-between; gap: 10px;
-  font-size: 13px; color: var(--muted);
+  display: flex; justify-content: space-between; gap: var(--space-3);
+  font-size: var(--fs-xs); color: var(--muted);
 }
 .realm-atlas .atl-ft-row span:last-child { color: var(--faint); }
 
 /* scan-streak tiles */
 .realm-atlas .atl-tiles {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3);
 }
 .realm-atlas .atl-tile {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 9px 10px; text-align: center;
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3) var(--space-3); text-align: center;
   background: var(--panel, var(--card));
   border: 1px solid var(--divider); border-radius: 8px;
 }
 .realm-atlas .atl-tile b {
-  font-family: var(--font-data, var(--mono)); font-size: 20px;
+  font-family: var(--font-data, var(--mono)); font-size: var(--fs-lg);
   line-height: 1.1; color: var(--text);
 }
 .realm-atlas .atl-tile span {
-  font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase;
   color: var(--faint);
 }

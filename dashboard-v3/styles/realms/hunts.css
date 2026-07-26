@@ -4,7 +4,7 @@
    the board calm and readable — restrained columns, a quiet XP chip, legible
    buttons. Everything below is scoped to .hunts + [data-theme="nexus"] so no
    other realm or theme is touched. */
-.hunts { max-width: 1240px; margin: 0 auto; padding: 8px 12px 56px; animation: hunts-in .3s ease; }
+.hunts { max-width: 1240px; margin: 0 auto; padding: var(--space-2) var(--space-3) var(--space-7); animation: hunts-in .3s ease; }
 @keyframes hunts-in { from { opacity: 0; transform: translateY(6px); } }
 
 /* ==========================================================================
@@ -16,7 +16,7 @@
 /* ---- board grid: comfortable columns, honest gutters --------------------- */
 :root[data-theme="nexus"] .hunts .qboard {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px; align-items: start;
+  gap: var(--space-4); align-items: start;
 }
 
 /* ---- tier columns: a calm panel with one thin priority accent, no glow ---- */
@@ -25,7 +25,7 @@
   border: 1px solid var(--edge);
   border-top: 2px solid var(--qc, var(--edge));
   border-radius: 12px;
-  padding: 16px 15px 14px;
+  padding: var(--space-4) var(--space-4) var(--space-4);
   box-shadow: none;
 }
 :root[data-theme="nexus"] .hunts .qcol.red    { --qc: var(--blood); }
@@ -35,26 +35,26 @@
 
 /* column header — a readable label + a quiet count, priority dot with no halo */
 :root[data-theme="nexus"] .hunts .qcol > h3 {
-  margin: 0 0 14px;
-  font-family: var(--font-ui); font-weight: 600; font-size: 13px; letter-spacing: 0;
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-xs); letter-spacing: 0;
   line-height: 1.35; text-transform: none; color: var(--parch);
-  display: flex; align-items: center; gap: 9px;
+  display: flex; align-items: center; gap: var(--space-3);
 }
 :root[data-theme="nexus"] .hunts .qcol > h3 .dot {
   flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%;
   background: var(--qc, var(--edge)); box-shadow: none;
 }
 :root[data-theme="nexus"] .hunts .qcol > h3 .n {
-  margin-left: auto; font-family: var(--font-data); font-size: 14px; font-weight: 400; color: var(--parch-3);
+  margin-left: auto; font-family: var(--font-data); font-size: var(--fs-sm); font-weight: 400; color: var(--parch-3);
 }
 :root[data-theme="nexus"] .hunts .qcol.side > h3 .sec-n {
-  margin-left: 8px; font-family: var(--font-ui); font-size: 11px; font-weight: 600; color: var(--blood);
+  margin-left: var(--space-2); font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; color: var(--blood);
 }
 
 /* ---- task card: quiet raised surface, generous line height --------------- */
 :root[data-theme="nexus"] .hunts .quest {
-  display: flex; gap: 12px; align-items: flex-start;
-  padding: 13px; margin-bottom: 10px;
+  display: flex; gap: var(--space-3); align-items: flex-start;
+  padding: var(--space-3); margin-bottom: var(--space-3);
   background: var(--ash-2);
   border: 1px solid var(--edge); border-radius: 10px;
   box-shadow: none;
@@ -69,8 +69,8 @@
 :root[data-theme="nexus"] .hunts .quest .coin {
   flex: 0 0 auto; width: auto; height: auto; min-width: 32px; align-self: flex-start;
   display: inline-flex; align-items: center; justify-content: center;
-  margin-top: 1px; padding: 3px 9px;
-  font-family: var(--font-data); font-size: 12px; font-weight: 600; letter-spacing: 0;
+  margin-top: var(--space-1); padding: var(--space-1) var(--space-3);
+  font-family: var(--font-data); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0;
   color: var(--ember-2);
   background: rgba(232,170,90,.08);
   border: 1px solid rgba(232,170,90,.28); border-radius: 999px;
@@ -80,27 +80,27 @@
 
 :root[data-theme="nexus"] .hunts .quest .body { min-width: 0; flex: 1; }
 :root[data-theme="nexus"] .hunts .quest .t {
-  font-family: var(--font-ui); font-size: 14.5px; font-weight: 600; line-height: 1.4; color: var(--parch);
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; line-height: 1.4; color: var(--parch);
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
 }
 :root[data-theme="nexus"] .hunts .quest .t .age {
-  font-family: var(--font-data); font-size: 11px; font-weight: 400; letter-spacing: 0; line-height: 1.55;
+  font-family: var(--font-data); font-size: var(--fs-xs); font-weight: 400; letter-spacing: 0; line-height: 1.55;
   color: var(--parch-3); background: transparent;
-  border: 1px solid var(--edge); border-radius: 5px; padding: 0 6px;
+  border: 1px solid var(--edge); border-radius: 5px; padding: 0 var(--space-2);
 }
 :root[data-theme="nexus"] .hunts .quest .t .age.old { color: var(--orange); border-color: rgba(217,138,58,.45); }
 :root[data-theme="nexus"] .hunts .quest .i {
-  font-family: var(--font-ui); font-size: 13px; line-height: 1.5; color: var(--parch-2); margin-top: 4px;
+  font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; color: var(--parch-2); margin-top: var(--space-1);
 }
 :root[data-theme="nexus"] .hunts .quest .proj {
-  font-family: var(--font-data); font-size: 12px; color: var(--parch-3); margin-top: 6px;
+  font-family: var(--font-data); font-size: var(--fs-xs); color: var(--parch-3); margin-top: var(--space-2);
 }
 
 /* ---- actions: quiet ghost buttons, accent only on interaction ------------ */
-:root[data-theme="nexus"] .hunts .quest .qactions { display: flex; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
+:root[data-theme="nexus"] .hunts .quest .qactions { display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap; }
 :root[data-theme="nexus"] .hunts .qbtn {
-  font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: .02em;
-  padding: 6px 11px; border-radius: 7px;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  padding: var(--space-2) var(--space-3); border-radius: 7px;
   background: transparent; color: var(--parch-2);
   border: 1px solid var(--edge); box-shadow: none;
   transition: color .14s, border-color .14s, background .14s;
@@ -116,7 +116,7 @@
   color: var(--grace); border-color: rgba(134,185,134,.5); background: rgba(134,185,134,.1);
 }
 :root[data-theme="nexus"] .hunts .qbtn.claude {
-  background: transparent; color: var(--rune); border-color: var(--edge); padding: 6px 10px;
+  background: transparent; color: var(--rune); border-color: var(--edge); padding: var(--space-2) var(--space-3);
 }
 :root[data-theme="nexus"] .hunts .qbtn.claude:hover {
   color: var(--rune); border-color: rgba(116,168,220,.5); background: rgba(116,168,220,.1); filter: none;
@@ -126,9 +126,9 @@
    the shared sideQuestRow sets --sqc inline to the neon base palette, so the
    accents are re-declared per kind here in the theme's muted register. */
 :root[data-theme="nexus"] .hunts .sq {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 11px; align-items: start;
+  display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: start;
   background: var(--ash-2); border: 1px solid var(--edge); border-left: 3px solid var(--edge);
-  border-radius: 10px; padding: 11px 12px; margin-bottom: 9px;
+  border-radius: 10px; padding: var(--space-3) var(--space-3); margin-bottom: var(--space-3);
 }
 :root[data-theme="nexus"] .hunts .sq:hover { background: var(--ash-3); }
 :root[data-theme="nexus"] .hunts .sq.risk   { border-left-color: var(--blood); }
@@ -137,29 +137,29 @@
 :root[data-theme="nexus"] .hunts .sq.polish { border-left-color: #9a86d6; }
 :root[data-theme="nexus"] .hunts .sqk {
   align-self: center; white-space: nowrap;
-  font-family: var(--font-ui); font-size: 9.5px; font-weight: 700; letter-spacing: .06em;
-  color: var(--void); background: var(--edge); border-radius: 5px; padding: 4px 7px;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em;
+  color: var(--void); background: var(--edge); border-radius: 5px; padding: var(--space-1) var(--space-2);
 }
 :root[data-theme="nexus"] .hunts .sq.risk   .sqk { background: var(--blood); }
 :root[data-theme="nexus"] .hunts .sq.urgent .sqk { background: #d98a3a; }
 :root[data-theme="nexus"] .hunts .sq.idea   .sqk { background: var(--rune); }
 :root[data-theme="nexus"] .hunts .sq.polish .sqk { background: #9a86d6; }
 :root[data-theme="nexus"] .hunts .sqt {
-  font-family: var(--font-ui); font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--parch);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; line-height: 1.4; color: var(--parch);
 }
-:root[data-theme="nexus"] .hunts .sqp { font-family: var(--font-data); font-size: 12px; color: var(--parch-3); margin-left: 8px; }
-:root[data-theme="nexus"] .hunts .sqd { font-family: var(--font-ui); font-size: 12.5px; line-height: 1.5; color: var(--parch-2); margin-top: 4px; }
-:root[data-theme="nexus"] .hunts .sqtags .tag { font-family: var(--font-ui); font-size: 11px; color: var(--parch-3); }
+:root[data-theme="nexus"] .hunts .sqp { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--parch-3); margin-left: var(--space-2); }
+:root[data-theme="nexus"] .hunts .sqd { font-family: var(--font-ui); font-size: var(--fs-xs); line-height: 1.5; color: var(--parch-2); margin-top: var(--space-1); }
+:root[data-theme="nexus"] .hunts .sqtags .tag { font-family: var(--font-ui); font-size: var(--fs-xs); color: var(--parch-3); }
 
 /* ---- completed strip: a quiet receipt, one success hairline -------------- */
 :root[data-theme="nexus"] .hunts .qdone-strip {
-  margin-top: 16px; padding: 10px 14px; gap: 14px;
+  margin-top: var(--space-4); padding: var(--space-3) var(--space-4); gap: var(--space-4);
   background: var(--ash); border: 1px solid var(--edge); border-left: 3px solid var(--grace);
   border-radius: 10px;
 }
 :root[data-theme="nexus"] .hunts .qds-lbl {
-  font-family: var(--font-ui) !important; font-size: 11px !important; font-weight: 600; letter-spacing: .04em;
+  font-family: var(--font-ui) !important; font-size: var(--fs-xs) !important; font-weight: 600; letter-spacing: .04em;
   color: var(--grace);
 }
-:root[data-theme="nexus"] .hunts .qds-item { font-family: var(--font-ui); font-size: 13px; color: var(--parch-2); }
+:root[data-theme="nexus"] .hunts .qds-item { font-family: var(--font-ui); font-size: var(--fs-xs); color: var(--parch-2); }
 :root[data-theme="nexus"] .hunts .qds-item b { color: var(--ember-2); font-weight: 600; }

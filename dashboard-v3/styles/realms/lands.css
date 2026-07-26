@@ -5,13 +5,13 @@
    and a restrained hover. Semantic tokens only, so it holds up under every theme. */
 
 /* ---- base map ----------------------------------------------------------- */
-.realm-lands .mapwrap { padding: 2px 0 18px; }
-.realm-lands .maphead { margin-bottom: 12px; }
-.realm-lands .maplegend { gap: 8px 16px; font-size: 12.5px; color: var(--muted); }
-.realm-lands .maplegend span { gap: 6px; }
+.realm-lands .mapwrap { padding: var(--space-1) 0 var(--space-5); }
+.realm-lands .maphead { margin-bottom: var(--space-3); }
+.realm-lands .maplegend { gap: var(--space-2) var(--space-4); font-size: var(--fs-xs); color: var(--muted); }
+.realm-lands .maplegend span { gap: var(--space-2); }
 .realm-lands .mapholder {
   background: radial-gradient(120% 90% at 50% 0%, var(--card-hi), var(--card) 72%);
-  border: 1px solid var(--divider); border-radius: 12px; padding: 14px;
+  border: 1px solid var(--divider); border-radius: 12px; padding: var(--space-4);
 }
 
 /* Map text: a thin dark outline keeps labels legible over any building colour. */
@@ -23,6 +23,6 @@
 .realm-lands .isomap .bld:hover { filter: brightness(1.12); }
 
 /* ---- storage inventory -------------------------------------------------- */
-.realm-lands .invrow { padding: 9px 0; font-size: 14px; }
+.realm-lands .invrow { padding: var(--space-3) 0; font-size: var(--fs-sm); }
 .realm-lands .invrow .nm { color: var(--text); }
-.realm-lands .invrow .meta { font-size: 12.5px; }
+.realm-lands .invrow .meta { font-size: var(--fs-xs); }
