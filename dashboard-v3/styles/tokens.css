@@ -1,0 +1,29 @@
+/* tokens.css — NEXUS design-system ramp: spacing, type, and layout constants.
+   Loaded FIRST (before base.css) so every later sheet can reference these
+   custom properties. Purely additive: declares variables only — nothing in
+   this repo consumes them yet, so this file causes zero visual change. */
+
+:root {
+  /* spacing ramp */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* type ramp */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 34px;
+
+  /* layout constants */
+  --measure: 880px;
+  --tap-min: 32px;
+  --ambient-w: clamp(200px, 18vw, 264px);
+}
