@@ -1,0 +1,131 @@
+/* Command palette (Ctrl/Cmd+K). Chrome overlay, theme-aware via the shared
+   token contract only (--panel/--card/--ink/--frame/--text/--muted/--faint +
+   the accent tokens) so it rides NEXUS, DAYLIGHT, arcade and nightfall without
+   a single hardcoded structural colour. Lives under #overlays (z 100); its own
+   backdrop sits above the drawer (61) but never touches #scrim. */
+
+#palette.pal-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  background: rgba(2, 1, 8, .62);
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+#palette.pal-wrap[hidden] { display: none; }
+#palette.pal-wrap.open { opacity: 1; }
+
+.pal-panel {
+  width: min(560px, 94vw);
+  max-height: 74vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--frame), 0 24px 70px -20px rgba(0, 0, 0, .95);
+  transform: translateY(-6px);
+  transition: transform .16s ease;
+}
+#palette.pal-wrap.open .pal-panel { transform: translateY(0); }
+
+.pal-input {
+  appearance: none;
+  width: 100%;
+  padding: 15px 18px;
+  background: var(--card);
+  border: 0;
+  border-bottom: 2px solid var(--frame);
+  color: var(--text);
+  font-family: var(--term);
+  font-size: 18px;
+  letter-spacing: .3px;
+  outline: none;
+}
+.pal-input::placeholder { color: var(--faint); }
+
+.pal-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.pal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  color: var(--text);
+}
+.pal-row.sel {
+  background: var(--card-hi, var(--card));
+  border-left-color: var(--active);
+}
+
+.pal-ico {
+  flex: 0 0 auto;
+  width: 20px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--muted);
+}
+.pal-row.sel .pal-ico { color: var(--active); }
+
+.pal-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pal-hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pal-kind {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  padding: 2px 6px;
+  border: 1px solid var(--frame);
+  color: var(--muted);
+  text-transform: uppercase;
+}
+/* per-kind accents drawn ONLY from theme tokens (all have :root fallbacks) */
+.pal-kind.realm   { color: var(--active); border-color: var(--active); }
+.pal-kind.project { color: var(--cyan);   border-color: var(--cyan); }
+.pal-kind.quest   { color: var(--gold);   border-color: var(--gold); }
+.pal-kind.task    { color: var(--purple); border-color: var(--purple); }
+.pal-kind.vault   { color: var(--cyan);   border-color: var(--frame-hi); }
+.pal-kind.spell   { color: var(--faint);  border-color: var(--frame); }
+
+.pal-empty {
+  padding: 22px 16px;
+  color: var(--faint);
+  font-size: 14px;
+  text-align: center;
+}
+
+.pal-foot {
+  display: flex;
+  gap: 16px;
+  padding: 8px 14px;
+  border-top: 2px solid var(--frame);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+}

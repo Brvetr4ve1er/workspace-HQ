@@ -1,0 +1,186 @@
+/* CHRONICLE realm — every rule scoped under .realm-chronicle (leak rule).
+   A retrospective timeline: header stat strip, weekly-recap card, then a
+   vertical spine of scan nodes (newest at top). Theme-aware throughout —
+   structural chrome uses the theme vars (--card/--frame/--text/--muted/
+   --faint/--active/--mono/--term/--px); only the impact rails borrow the
+   semantic accent vars (--green/--red) which every shipping theme defines. */
+
+/* ---------------------------------------------- header stat strip */
+.realm-chronicle .cr-head { margin-bottom: 22px; }
+.realm-chronicle .cr-head-main { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.realm-chronicle .cr-xp { display: flex; align-items: baseline; gap: 7px; }
+.realm-chronicle .cr-xpn {
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+.realm-chronicle .cr-xpl { font-family: var(--px); font-size: 11px; letter-spacing: 2px; color: var(--faint); }
+.realm-chronicle .cr-range { font-family: var(--term); font-size: 14px; color: var(--muted); }
+.realm-chronicle .cr-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.realm-chronicle .cr-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 64px;
+  padding: 8px 14px;
+  background: var(--card);
+  border: 1px solid var(--frame);
+  border-radius: 10px;
+}
+.realm-chronicle .cr-chip .ck { font-family: var(--px); font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--faint); }
+.realm-chronicle .cr-chip .cv { font-family: var(--mono); font-size: 16px; color: var(--text); }
+
+/* ---------------------------------------------- weekly recap card */
+.realm-chronicle .cr-recap {
+  padding: 18px 20px;
+  margin-bottom: 26px;
+  background: var(--card);
+  border: 1px solid var(--frame);
+  border-radius: 14px;
+}
+.realm-chronicle .cr-recap-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.realm-chronicle .cr-recap-tag { font-family: var(--px); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--active); }
+.realm-chronicle .cr-recap-range { font-family: var(--term); font-size: 13.5px; color: var(--muted); }
+.realm-chronicle .cr-recap-ai {
+  margin-left: auto;
+  padding: 3px 7px;
+  font-family: var(--px);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--faint);
+  border: 1px solid var(--frame);
+  border-radius: 6px;
+}
+.realm-chronicle .cr-recap-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.realm-chronicle .cr-rchip {
+  padding: 5px 10px;
+  font-family: var(--term);
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--bg2);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+}
+.realm-chronicle .cr-rchip b { font-family: var(--mono); color: var(--text); margin-right: 3px; }
+.realm-chronicle .cr-rchip.pos b { color: var(--green); }
+.realm-chronicle .cr-rchip.neg b { color: var(--red); }
+.realm-chronicle .cr-recap-spell { margin-top: 12px; font-family: var(--term); font-size: 13px; color: var(--faint); }
+
+/* recap narrative — mdLite() output (.md-h / .md-li / .md-p), scoped here so it
+   picks up the realm's type ramp rather than the Weekly Saga block's. */
+.realm-chronicle .cr-narr {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--frame);
+  font-family: var(--term);
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.realm-chronicle .cr-narr .md-h { font-family: var(--px); font-size: 11px; letter-spacing: 1px; color: var(--text); margin: 12px 0 6px; }
+.realm-chronicle .cr-narr .md-li { margin: 3px 0 3px 10px; }
+.realm-chronicle .cr-narr .md-p { margin: 7px 0; }
+.realm-chronicle .cr-narr b { color: var(--text); }
+
+/* ---------------------------------------------- timeline spine */
+.realm-chronicle .cr-timeline { position: relative; margin-top: 8px; }
+.realm-chronicle .cr-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.realm-chronicle .cr-rail { position: relative; }
+/* connector line down the rail column — hidden on the last (oldest) node */
+.realm-chronicle .cr-rail::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 4px;
+  bottom: -16px;
+  width: 2px;
+  background: var(--frame);
+}
+.realm-chronicle .cr-node:last-child .cr-rail::before { display: none; }
+.realm-chronicle .cr-dot {
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--bg2);
+  border: 2px solid var(--muted);
+}
+.realm-chronicle .cr-node.top .cr-dot { background: var(--active); border-color: var(--active); }
+
+.realm-chronicle .cr-body { min-width: 0; }
+.realm-chronicle .cr-when {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--px);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text);
+}
+.realm-chronicle .cr-yr { font-size: 9px; color: var(--faint); }
+.realm-chronicle .cr-ago { margin-left: auto; font-family: var(--term); font-size: 12px; letter-spacing: 0; color: var(--faint); }
+.realm-chronicle .cr-node.top .cr-ago { color: var(--active); }
+
+.realm-chronicle .cr-changes { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.realm-chronicle .cr-chg {
+  position: relative;
+  padding: 8px 12px 8px 15px;
+  background: var(--card);
+  border: 1px solid var(--frame);
+  border-radius: 9px;
+  font-family: var(--term);
+  font-size: 13.5px;
+  color: var(--muted);
+}
+/* left rail carries the impact color — neutral by default */
+.realm-chronicle .cr-chg::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--faint);
+}
+.realm-chronicle .cr-chg.positive::before { background: var(--green); }
+.realm-chronicle .cr-chg.negative::before { background: var(--red); }
+.realm-chronicle .cr-ct { font-family: var(--px); font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--text); margin-right: 8px; }
+.realm-chronicle .cr-cp { font-weight: 600; color: var(--text); margin-right: 8px; }
+.realm-chronicle .cr-cd { color: var(--muted); }
+
+/* ---------------------------------------------- achievement badges */
+.realm-chronicle .cr-ach { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.realm-chronicle .cr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 7px;
+  background: var(--bg2);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  font-family: var(--term);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.realm-chronicle .cr-bico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 13px;
+  line-height: 1;
+}
+.realm-chronicle .cr-bico svg { width: 16px; height: 16px; image-rendering: pixelated; }

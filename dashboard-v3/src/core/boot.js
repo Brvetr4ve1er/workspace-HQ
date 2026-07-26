@@ -28,6 +28,13 @@ import { manifest as watchtowerM } from '../realms/watchtower/manifest.js';
 import { view as watchtowerV } from '../realms/watchtower/view.js';
 import { manifest as summoningM } from '../realms/summoning/manifest.js';
 import { view as summoningV } from '../realms/summoning/view.js';
+import { manifest as chronicleM } from '../realms/chronicle/manifest.js';
+import { view as chronicleV } from '../realms/chronicle/view.js';
+import { manifest as atlasM } from '../realms/atlas/manifest.js';
+import { view as atlasV } from '../realms/atlas/view.js';
+import { manifest as conjureM } from '../realms/conjure/manifest.js';
+import { view as conjureV } from '../realms/conjure/view.js';
+import { initPalette } from './palette.js';
 
 register(roundtableM, roundtableV);
 register(forgeM, forgeV);
@@ -39,6 +46,12 @@ register(medbayM, medbayV);
 register(observatoryM, observatoryV);
 register(watchtowerM, watchtowerV);
 register(summoningM, summoningV);
+// Charter realms 11-13 — order fields (chronicle 11, atlas 12, conjure 13) place
+// them after the existing rail; registration order here is irrelevant since the
+// registry sorts by manifest.order.
+register(chronicleM, chronicleV);
+register(atlasM, atlasV);
+register(conjureM, conjureV);
 
 // Restore the scrubbed scan + active realm across win.reload() (main reloads
 // on scan/commit/etc.) so a data refresh doesn't snap the user home.
@@ -67,6 +80,10 @@ catch (err) { console.warn('[boot] fx not ready:', err.message); }
 // ambient rail (right) — core chrome, mounts once after the shell exists
 const { initAmbient } = await import('./ambient.js');
 initAmbient();
+
+// command palette (Ctrl/Cmd+K) — core chrome; installs one window keydown and
+// builds its overlay lazily on first open. Idempotent, so safe here at boot.
+initPalette();
 
 // Debug/harness handle — the parity screenshot harness drives realm + theme
 // switches through this instead of synthesizing clicks.

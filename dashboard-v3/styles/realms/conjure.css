@@ -1,0 +1,192 @@
+/* CONJURE realm — Claude's live widget feed. Scoped to .realm-conjure so
+   nothing leaks. Semantic tokens only (--card/--panel/--ink/--divider/--text/
+   --muted/--faint/--active/--mono/--font-data) + a per-widget accent (--wac,
+   set on each card by widget.js) so every type holds under all seven themes. */
+
+.realm-conjure { padding: 4px 2px 40px; }
+
+.realm-conjure .cj-teach {
+  margin: 2px 0 16px; font-size: 13px; color: var(--muted);
+}
+.realm-conjure h2.sec .cj-count {
+  margin-left: 8px; font-size: 12px; font-weight: 500; color: var(--faint);
+  font-family: var(--font-data, var(--mono));
+}
+
+/* board switcher */
+.realm-conjure .cj-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.realm-conjure .cj-tab {
+  padding: 5px 12px; font-size: 12px; cursor: pointer;
+  color: var(--muted); background: var(--panel, var(--card));
+  border: 1px solid var(--divider); border-radius: 999px;
+  font-family: var(--font-data, var(--mono)); transition: color .15s, border-color .15s;
+}
+.realm-conjure .cj-tab:hover { color: var(--text); }
+.realm-conjure .cj-tab.active { color: var(--text); border-color: var(--active); }
+
+/* ---- the feed grid ------------------------------------------------------- */
+.realm-conjure .cj-feed {
+  display: grid; gap: 14px; align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.realm-conjure .w-wide { grid-column: 1 / -1; }
+
+/* ---- shared card chrome -------------------------------------------------- */
+.realm-conjure .w {
+  --wac: var(--active);
+  position: relative; overflow: hidden;
+  padding: 14px 15px 15px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--divider);
+  color: var(--text);
+  animation: cj-rise .28s ease both;
+}
+/* thin accent rail down the left edge, tinted by the widget's tone */
+.realm-conjure .w::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--wac); opacity: .85;
+}
+@keyframes cj-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .realm-conjure .w { animation: none; } }
+
+.realm-conjure .w-title {
+  font-size: 12.5px; font-weight: 600; letter-spacing: .01em;
+  color: var(--text); margin-bottom: 9px;
+}
+.realm-conjure .w-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; margin-bottom: 9px;
+}
+.realm-conjure .w-head .w-title { margin-bottom: 0; }
+.realm-conjure .w-empty { font-size: 12px; color: var(--faint); font-style: italic; }
+
+/* ---- stat ---------------------------------------------------------------- */
+.realm-conjure .w-stat-val {
+  font-family: var(--font-data, var(--mono));
+  font-size: 30px; line-height: 1.05; font-weight: 700; color: var(--text);
+}
+.realm-conjure .w-stat-val .w-unit {
+  font-size: 13px; font-weight: 500; color: var(--faint); margin-left: 4px;
+}
+.realm-conjure .w-stat-lbl {
+  margin-top: 5px; font-size: 11px; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--faint);
+}
+.realm-conjure .w-delta {
+  margin-top: 8px; font-size: 12px; font-weight: 600;
+  font-family: var(--font-data, var(--mono));
+}
+.realm-conjure .w-delta.up { color: #3aff6e; }
+.realm-conjure .w-delta.down { color: #ff4757; }
+.realm-conjure .w-delta.flat { color: var(--muted); }
+
+/* ---- progress ------------------------------------------------------------ */
+.realm-conjure .w-pct {
+  font-family: var(--font-data, var(--mono)); font-size: 13px; color: var(--muted);
+}
+.realm-conjure .w-bar {
+  height: 10px; background: var(--ink); border: 1px solid var(--divider);
+  border-radius: 6px; overflow: hidden;
+}
+.realm-conjure .w-bar i {
+  display: block; height: 100%; background: var(--wac);
+  border-radius: 6px 0 0 6px; transition: width .4s ease;
+}
+
+/* ---- checklist ----------------------------------------------------------- */
+.realm-conjure .w-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.realm-conjure .w-list li {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 13px; color: var(--text);
+}
+.realm-conjure .w-list li .box {
+  flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 4px;
+  border: 1.5px solid var(--divider); display: flex; align-items: center;
+  justify-content: center; font-size: 11px; line-height: 1; color: #0c0a1e;
+}
+.realm-conjure .w-list li.done .box { background: var(--wac); border-color: var(--wac); }
+.realm-conjure .w-list li.done > span:last-child { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.realm-conjure .w-meta {
+  margin-top: 10px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--faint); font-family: var(--font-data, var(--mono));
+}
+
+/* ---- callout / note ------------------------------------------------------ */
+.realm-conjure .w-callout {
+  background: color-mix(in srgb, var(--wac) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--wac) 30%, var(--divider));
+}
+.realm-conjure .w-body { font-size: 13px; line-height: 1.5; color: var(--text); }
+.realm-conjure .w-body .md-h { font-weight: 600; margin: 6px 0 3px; }
+.realm-conjure .w-body .md-li { color: var(--muted); margin: 2px 0; }
+.realm-conjure .w-body .md-p { margin: 3px 0; }
+.realm-conjure .w-body b { color: var(--text); }
+
+/* ---- table --------------------------------------------------------------- */
+.realm-conjure .w-tbl-scroll { overflow-x: auto; }
+.realm-conjure .w-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.realm-conjure .w-tbl th, .realm-conjure .w-tbl td {
+  text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+.realm-conjure .w-tbl th {
+  font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600;
+}
+.realm-conjure .w-tbl td { color: var(--text); font-family: var(--font-data, var(--mono)); }
+.realm-conjure .w-tbl tbody tr:last-child td { border-bottom: 0; }
+
+/* ---- chips --------------------------------------------------------------- */
+.realm-conjure .w-chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.realm-conjure .w-chip {
+  padding: 4px 11px; font-size: 12px; border-radius: 999px;
+  color: var(--muted); background: var(--panel, var(--ink));
+  border: 1px solid var(--divider); font-family: var(--font-data, var(--mono));
+}
+.realm-conjure .w-chip.toned {
+  color: var(--wac); border-color: color-mix(in srgb, var(--wac) 45%, var(--divider));
+  background: color-mix(in srgb, var(--wac) 12%, var(--card));
+}
+.realm-conjure .w-chip-node { padding: 12px 14px; }
+
+/* ---- spark (inline trend line) ------------------------------------------- */
+.realm-conjure .w-spark { color: var(--wac); }
+.realm-conjure .w-spark-val { font-family: var(--font-data, var(--mono)); font-size: 13px; color: var(--muted); }
+.realm-conjure .w-spark-svg { display: block; width: 100%; height: 44px; }
+.realm-conjure .w-spark-line { fill: none; stroke: var(--wac); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.realm-conjure .w-spark-area { fill: var(--wac); opacity: .12; }
+.realm-conjure .w-spark-dot { fill: var(--wac); }
+
+/* ---- bars (mini bar chart) ----------------------------------------------- */
+.realm-conjure .w-brow {
+  display: flex; align-items: flex-end; gap: 8px; height: 108px; padding-top: 4px;
+}
+.realm-conjure .w-bcol {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end; height: 100%; gap: 4px;
+}
+.realm-conjure .w-bcol i {
+  display: block; width: 100%; max-width: 34px; border-radius: 4px 4px 0 0;
+  background: var(--wac); opacity: .85; min-height: 2px; transition: height .4s ease;
+}
+.realm-conjure .w-bval { font-size: 10px; color: var(--muted); font-family: var(--font-data, var(--mono)); }
+.realm-conjure .w-blbl {
+  font-size: 10px; color: var(--faint); max-width: 100%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ---- empty state --------------------------------------------------------- */
+.realm-conjure .cj-empty {
+  max-width: 560px; margin: 24px auto; text-align: center;
+  padding: 30px 26px; border: 1px dashed var(--divider); border-radius: 14px;
+  background: var(--card);
+}
+.realm-conjure .cj-empty-glyph { font-size: 34px; color: var(--active); opacity: .8; }
+.realm-conjure .cj-empty h3 { margin: 12px 0 8px; font-size: 16px; color: var(--text); }
+.realm-conjure .cj-empty p { font-size: 13px; line-height: 1.55; color: var(--muted); margin: 8px 0; }
+.realm-conjure .cj-empty .cj-spec {
+  text-align: left; margin: 14px 0; padding: 12px 14px; overflow-x: auto;
+  font-family: var(--font-data, var(--mono)); font-size: 11.5px; line-height: 1.45;
+  color: var(--muted); background: var(--ink); border: 1px solid var(--divider); border-radius: 8px;
+}
+.realm-conjure .cj-empty .cj-vocab { font-size: 12px; color: var(--faint); }
+.realm-conjure .cj-empty .cj-vocab b { color: var(--muted); font-weight: 600; }
