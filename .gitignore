@@ -58,6 +58,11 @@ data/shard-library.json
 data/browser-activity.json
 data/.bridge-token
 
+# social bridge: scraped feeds/mentions/metrics, the post outbox, connected
+# accounts, and any cached session material — personal content, never committed
+data/social/
+data/.social/
+
 # now-brief: regenerated each run by tools/now-brief.mjs (Claude-on-tap context)
 data/now-brief.md
 

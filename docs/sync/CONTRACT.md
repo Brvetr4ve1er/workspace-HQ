@@ -46,4 +46,23 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 
 ## Pending changes
 
-_(none — structure lane: announce here before changing shapes)_
+### Social bridge sidecars (extension ⇄ app relay ⇄ MCP) — frontend lane, additive
+
+New producer/consumer pair, parallel to the browser tendril: the **WorkspaceHQ
+Bridge** extension scrapes your logged-in social sessions and the app relay
+(`dashboard/social-bridge.js`, a new tendril) writes sidecars under `data/social/`;
+the MCP server (`dashboard-v3/mcp/server.mjs`) reads them via `hq_social_*` tools.
+**Not consumed by `build-data.mjs`/the renderer** — no `latest.json` field, no
+golden fixture. All `data/social/*` is **gitignored** (personal content + session).
+
+| File | Written by | Read by | Shape |
+|---|---|---|---|
+| `data/social/inbox.json` | app relay (extension ingest) | `hq_social_feed/_mentions/_metrics` | tendril doc: `{updated, live, events[]}`; each event `{platform, kind:'feed'\|'mention'\|'notification'\|'metrics', id, ts, author?, text?, url?, uri?, counts?{likes,reposts,replies}, metrics?{followers,following,posts}}` |
+| `data/social/outbox.json` | `hq_social_post/_reply` (stage), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, result?{url,uri}, error?, by}` |
+| `data/social/accounts.json` | extension (on connect) | `hq_social_status` | `{updated, accounts[]}`; account `{platform, handle, display?, connected_at}` |
+
+**Write-gate invariant (load-bearing):** MCP `hq_social_post/_reply` only ever
+append an action with `status:"staged"`. **Nothing transitions to `sent` except by a
+human click in the extension popup** — there is deliberately NO MCP approve tool, so
+Claude can stage a post but can never publish one. Don't add a server-side or MCP
+auto-approve path without a security review here first.
