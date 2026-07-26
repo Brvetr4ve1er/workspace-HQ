@@ -334,14 +334,102 @@ export function momentum(trends, account, now) {
 
 ### Task 0.4: `derive.spellFit()` + `derive.streakRisk()` + `derive.achievementNudges()`
 
-**Files:** Modify `derive.mjs` + `derive.test.mjs`.
+**Files:** Modify `dashboard-v3/src/intel/derive.mjs` + `derive.test.mjs`. Reuse the existing `num` helper.
 
-**Interfaces:**
-- `spellFit(bundle, selected) → [{ spellId, name, forProjectId, why }]` — match `spellbook.spells` `school`+tags to project `signals` gaps (e.g. `has_tests:false` → a `restoration`/test spell).
-- `streakRisk(account, now) → { atRisk:bool, hoursLeft:number, streak:number }` from `account.streak.last_scan` + a grace window.
-- `achievementNudges(achievements) → [{ id, have, need, label }]` for any with `progress` and `have/need ≥ 0.5`.
+**Interfaces (ground-truthed 2026-07-26):**
+- `spellFit(bundle, selected) → [{ spellId, name, forProjectId, why }]`. For each project, for each `signals.<flag> === false` gap, find the first spell whose `name`+`description` (lowercased) contains the gap keyword. Reads `bundle.spellbook.spells[]` (`{id,name,description,school,…}`, 944 live) and `selected.projects[].signals`.
+- `streakRisk(streakInfo, now) → { atRisk, hoursLeft, streak }`. `streakInfo` is the `account.streak` object `{scan_days, last_scan:'YYYY-MM-DD'}`. At risk when `scan_days>0` and `last_scan !== today(now)`. `now` injected.
+- `achievementNudges(achievements) → [{ id, have, need, label }]` for locked achievements (`unlocked !== true`) with `progress.have/need ≥ 0.5`. `achievements[]` items are `{id, unlocked, progress?{have,need}}` — **no title field**, so `label` falls back to `id`.
 
-- [ ] TDD 5-step cycle as above → commit `fe: intel/derive — spellFit, streakRisk, achievementNudges`.
+- [ ] **Step 1: Write the failing tests** (append to `derive.test.mjs`)
+
+```js
+import { spellFit, streakRisk, achievementNudges } from './derive.mjs';
+
+test('spellFit: matches a signal gap to a spell by keyword, scoped to the project', () => {
+  const bundle = { spellbook:{ spells:[
+    { id:'s1', name:'test-scaffold', description:'adds a test suite' },
+    { id:'s2', name:'readme-gen', description:'writes a README' },
+  ] } };
+  const sel = { projects:[ { id:'p1', name:'A', signals:{ has_tests:false, has_readme:true } } ] };
+  const r = spellFit(bundle, sel);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].spellId, 's1');
+  assert.equal(r[0].forProjectId, 'p1');
+  assert.match(r[0].why, /test/i);
+  assert.doesNotThrow(() => spellFit({}, {}));
+});
+
+test('streakRisk: alive-but-unscanned-today is at risk; scanned-today is safe', () => {
+  const risk = streakRisk({ scan_days:4, last_scan:'2026-07-25' }, '2026-07-26T20:00:00Z');
+  assert.equal(risk.atRisk, true);
+  assert.equal(risk.streak, 4);
+  assert.ok(risk.hoursLeft > 0 && risk.hoursLeft <= 24);
+  const safe = streakRisk({ scan_days:4, last_scan:'2026-07-26' }, '2026-07-26T20:00:00Z');
+  assert.equal(safe.atRisk, false);
+  assert.doesNotThrow(() => streakRisk({}, '2026-07-26T20:00:00Z'));
+});
+
+test('achievementNudges: surfaces near-complete locked achievements only', () => {
+  const r = achievementNudges([
+    { id:'a', unlocked:true,  progress:{ have:5, need:5 } },   // unlocked → skip
+    { id:'b', unlocked:false, progress:{ have:4, need:5 } },   // 0.8 → nudge
+    { id:'c', unlocked:false, progress:{ have:1, need:8 } },   // 0.125 → skip
+    { id:'d', unlocked:false },                                // no progress → skip
+  ]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].id, 'b');
+  assert.equal(r[0].have, 4);
+  assert.equal(r[0].need, 5);
+  assert.equal(r[0].label, 'b');
+  assert.doesNotThrow(() => achievementNudges(null));
+});
+```
+
+- [ ] **Step 2: Run — FAIL** (three fns undefined).
+
+- [ ] **Step 3: Implement beside the others in `derive.mjs`**
+
+```js
+// signal flag → [human label, keyword scanned in spell name+description]
+const GAP_MAP = { has_tests:['tests','test'], has_ci:['CI','ci'], has_readme:['a README','readme'], has_license:['a license','license'] };
+
+export function spellFit(bundle, selected) {
+  const spells = bundle?.spellbook?.spells || [];
+  const out = [];
+  for (const p of (selected?.projects || [])) {
+    const sig = p.signals || {};
+    for (const [flag, [label, kw]] of Object.entries(GAP_MAP)) {
+      if (sig[flag] !== false) continue;   // only a true, present gap
+      const hit = spells.find((s) => `${s.name || ''} ${s.description || ''}`.toLowerCase().includes(kw));
+      if (hit) out.push({ spellId: hit.id, name: hit.name, forProjectId: p.id, why: `${p.name} has no ${label}` });
+    }
+  }
+  return out;
+}
+
+export function streakRisk(streakInfo, now) {
+  const streak = num(streakInfo?.scan_days);
+  const last = streakInfo?.last_scan || null;
+  const today = new Date(now).toISOString().slice(0, 10);   // YYYY-MM-DD (UTC)
+  const atRisk = streak > 0 && last !== today;
+  const hoursLeft = 24 - new Date(now).getUTCHours();        // hours to end of UTC day
+  return { atRisk, hoursLeft, streak };
+}
+
+export function achievementNudges(achievements) {
+  const out = [];
+  for (const a of (achievements || [])) {
+    if (a.unlocked === true || !a.progress) continue;
+    const have = num(a.progress.have), need = num(a.progress.need);
+    if (need > 0 && have / need >= 0.5) out.push({ id: a.id, have, need, label: a.title || a.id });
+  }
+  return out;
+}
+```
+
+- [ ] **Step 4: Run — PASS** (all tests green, pristine).
+- [ ] **Step 5: Commit** `fe: intel/derive — spellFit, streakRisk, achievementNudges`.
 
 ### Task 0.5: `core/actions.mjs` — the one dispatch path
 
