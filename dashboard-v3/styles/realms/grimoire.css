@@ -211,3 +211,46 @@
 :root[data-theme="nexus"] .spdrawer .spd-actions { gap: 10px; margin: 20px 22px 0; }
 :root[data-theme="nexus"] .spdrawer .spd-actions .spd-cast,
 :root[data-theme="nexus"] .spdrawer .spd-actions .spd-open { font-size: 12.5px; padding: 9px 18px; }
+
+/* ---- advanced filter row (kind / usage / scheduled / sort) -------------
+   Additive block, fresh class names — reuses the .seg language from the main
+   toolbar for visual consistency without overriding it. */
+:root[data-theme="nexus"] .grimoire-realm .toolbar2 {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -6px 0 18px;
+}
+:root[data-theme="nexus"] .grimoire-realm .tb2-lbl {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--parch-3);
+}
+:root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--void-2); border: 1px solid var(--edge); border-radius: 9px;
+}
+:root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg button {
+  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+  padding: 6px 12px; border-radius: 6px; color: var(--parch-3);
+  background: none; border: 0; cursor: pointer;
+}
+:root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg button:hover { color: var(--parch); }
+:root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg button.active {
+  background: rgba(232,161,60,.14); color: var(--ember-2);
+}
+:root[data-theme="nexus"] .grimoire-realm .tb2-toggle {
+  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+  padding: 7px 13px; border-radius: 999px; cursor: pointer;
+  background: var(--ash); color: var(--parch-2); border: 1px solid var(--edge);
+  transition: color .14s, border-color .14s, background .14s;
+}
+:root[data-theme="nexus"] .grimoire-realm .tb2-toggle:hover {
+  color: var(--parch); border-color: rgba(232,170,90,.38);
+}
+:root[data-theme="nexus"] .grimoire-realm .tb2-toggle.active {
+  color: var(--ember-2); background: rgba(232,161,60,.14); border-color: rgba(232,170,90,.5);
+}
+:root[data-theme="nexus"] .grimoire-realm .tb2-clear {
+  font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  padding: 6px 12px; border-radius: 8px; cursor: pointer; margin-left: auto;
+  background: none; color: var(--parch-3); border: 1px solid transparent;
+}
+:root[data-theme="nexus"] .grimoire-realm .tb2-clear:hover { color: var(--parch); border-color: var(--edge); }
+:root[data-theme="nexus"] .grimoire-realm .tb2-clear[hidden] { display: none; }

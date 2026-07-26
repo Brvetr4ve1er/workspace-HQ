@@ -28,6 +28,16 @@ const SOURCE_LABEL = {
 };
 const srcLabel = (k) => SOURCE_LABEL[k] || k;
 
+// Kind buckets for the advanced filter: collapse the internal kind ids into the
+// four plain groups the cards already label (Runnable / Interactive / Plugin).
+// `run` = one-shot scripts/tasks/chains you fire directly; `interactive` = skills
+// that open a session; `plugin` = reference-only tomes.
+const kindMatch = (s, k) =>
+  k === 'all' ||
+  (k === 'run' && (s.kind === 'castable' || s.kind === 'chain')) ||
+  (k === 'interactive' && s.kind === 'channeled') ||
+  (k === 'plugin' && s.kind === 'tome');
+
 // Usage tiers: how many distinct days an automation has been run (real signal
 // from telemetry, shown as filled/empty dots — not decoration).
 const USAGE_TIERS = [
@@ -37,6 +47,18 @@ const USAGE_TIERS = [
 // Filter/search/paging state lives at module scope like v2's closure globals:
 // it survives re-renders AND realm switches (v2's tab never unmounted).
 let spellSchool = 'all', spellSource = 'all', spellSearch = '', spellMax = 24;
+// Advanced filters (same module-scope lifetime as the above). kind bucket,
+// usage (all/used/unused), a "scheduled only" toggle, and the result sort.
+let spellKind = 'all', spellUsage = 'all', spellScheduled = false, spellSort = 'used';
+// True when any filter is off its default — drives the "Clear" reset affordance.
+const filtersDirty = () =>
+  spellSchool !== 'all' || spellSource !== 'all' || spellSearch !== '' ||
+  spellKind !== 'all' || spellUsage !== 'all' || spellScheduled || spellSort !== 'used';
+function resetFilters() {
+  spellSchool = 'all'; spellSource = 'all'; spellSearch = '';
+  spellKind = 'all'; spellUsage = 'all'; spellScheduled = false; spellSort = 'used';
+  spellMax = 24;
+}
 
 let CTX = null, sb = null;
 let offSelect = null, cdTimer = 0;
@@ -181,6 +203,21 @@ function render() {
     <span class="count" id="spcount"></span>`;
   sb.appendChild(tb);
 
+  // Advanced filter row: kind bucket + usage + "scheduled only" + sort, with a
+  // reset. Only 34 of ~944 automations are directly runnable and 16 scheduled,
+  // so these cuts are what make a catalog this size actually navigable.
+  const adv = el('div', 'toolbar2');
+  const seg = (id, cur, opts) =>
+    `<div class="seg" id="${id}">${opts.map(([v, l]) =>
+      `<button data-f="${esc(v)}" class="${cur === v ? 'active' : ''}">${esc(l)}</button>`).join('')}</div>`;
+  adv.innerHTML =
+    `<span class="tb2-lbl">Kind</span>${seg('spkind', spellKind, [['all', 'All'], ['run', 'Runnable'], ['interactive', 'Interactive'], ['plugin', 'Plugin']])}` +
+    `<span class="tb2-lbl">Usage</span>${seg('spusage', spellUsage, [['all', 'All'], ['used', 'Used'], ['unused', 'Unused']])}` +
+    `<button class="tb2-toggle${spellScheduled ? ' active' : ''}" id="spsched" title="Only automations with a schedule">⏳ Scheduled</button>` +
+    `<span class="tb2-lbl">Sort</span>${seg('spsort', spellSort, [['used', 'Most used'], ['recent', 'Recent'], ['name', 'Name']])}` +
+    `<button class="tb2-clear" id="spclear" hidden>Clear filters</button>`;
+  sb.appendChild(adv);
+
   const grid = el('div', 'spellgrid'); sb.appendChild(grid);
   const more = el('div', 'sp-more'); sb.appendChild(more);
 
@@ -190,12 +227,19 @@ function render() {
     const hits = B.spells.filter((s) =>
       (spellSchool === 'all' || s.school === spellSchool) &&
       (spellSource === 'all' || s.source === spellSource || (spellSource === 'plugin' && s.kind === 'tome')) &&
+      kindMatch(s, spellKind) &&
+      (!spellScheduled || !!s.schedule) &&
+      (spellUsage === 'all' || (spellUsage === 'used') === (usageOf(s.id).days > 0)) &&
       (!q || `${s.name} ${s.description} ${s.id}`.toLowerCase().includes(q)));
-    // Most-used first: usage tier desc, then most-recently-run — the first screen
-    // is what you actually reach for, not an alphabet of everything discovered.
+    // Sort: default is most-used-first (usage tier desc, then most-recently-run —
+    // the first screen is what you actually reach for). The advanced row can swap
+    // to most-recent or A–Z.
     const lastCast = (id) => Date.parse(CTX.data.bundle.telemetry?.rollup?.[id]?.last_cast || 0) || 0;
-    hits.sort((x, y) => (usageOf(y.id).pips - usageOf(x.id).pips) || (lastCast(y.id) - lastCast(x.id)));
+    if (spellSort === 'name') hits.sort((x, y) => x.name.localeCompare(y.name));
+    else if (spellSort === 'recent') hits.sort((x, y) => lastCast(y.id) - lastCast(x.id));
+    else hits.sort((x, y) => (usageOf(y.id).pips - usageOf(x.id).pips) || (lastCast(y.id) - lastCast(x.id)));
     tb.querySelector('#spcount').textContent = `${hits.length} match${hits.length === 1 ? '' : 'es'}`;
+    adv.querySelector('#spclear').hidden = !filtersDirty();
     hits.slice(0, spellMax).forEach((s) => grid.appendChild(spellCard(s)));
     if (hits.length > spellMax) {
       const b = el('button', 'sp-morebtn', `Show more (${hits.length - spellMax} hidden)`);
@@ -211,6 +255,24 @@ function render() {
     tb.querySelectorAll('#spseg button').forEach((x) => x.classList.toggle('active', x === b));
     draw();
   });
+
+  // Advanced row wiring: each segment just sets its state var + redraws (no full
+  // render, so the search box keeps focus). Clear resets everything via render().
+  const wireSeg = (id, set) => adv.querySelectorAll('#' + id + ' button').forEach((b) => b.onclick = () => {
+    set(b.dataset.f); spellMax = 24;
+    adv.querySelectorAll('#' + id + ' button').forEach((x) => x.classList.toggle('active', x === b));
+    draw();
+  });
+  wireSeg('spkind', (v) => spellKind = v);
+  wireSeg('spusage', (v) => spellUsage = v);
+  wireSeg('spsort', (v) => spellSort = v);
+  const schedBtn = adv.querySelector('#spsched');
+  schedBtn.onclick = () => {
+    spellScheduled = !spellScheduled; spellMax = 24;
+    schedBtn.classList.toggle('active', spellScheduled);
+    draw();
+  };
+  adv.querySelector('#spclear').onclick = () => { resetFilters(); render(); };
 
   // Connected agents (MCP servers) — reference only, not runnable.
   if (B.familiars?.length) {
