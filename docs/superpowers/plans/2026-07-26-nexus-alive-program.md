@@ -38,7 +38,7 @@
 | `dashboard-v3/src/intel/derive.mjs` | Pure derivations: `oracle`, `triage`, `forecast`, `anomalies`, `momentum`, `streakRisk`, `spellFit`, `achievementNudges`. Each `f(data,…)→plain`. | fe · no contract |
 | `dashboard-v3/src/intel/derive.test.mjs` | `node --test` suite over the golden fixture. | fe · no contract |
 | `dashboard-v3/src/core/actions.mjs` | Action registry + `dispatch()`. Wraps `switchRealm`, cast, quest-done, capture, scan-trigger. Single audited seam. | fe · reuses existing IPC |
-| `dashboard-v3/src/core/notify.mjs` | Event surface: `emit(evt)` → in-app takeover (existing fx) + guarded HTML5 `Notification`. Reads `changes_since_prev` at boot. | fe · renderer Notification API (no main change) |
+| `dashboard-v3/src/core/notify.mjs` | Event surface: `emit(evt)` routed to a guarded HTML5 `Notification` (window hidden+permitted) or an injected in-app toaster (visible). For Oracle/streak/Familiar to push messages. **Does NOT replay `changes_since_prev`** — `fx.js` already owns the scan-celebration takeover + its `hq-celebrated` dedup; duplicating it would double-fire. | fe · renderer Notification API (no main change) |
 | `dashboard-v3/src/intel/__fixtures__/sample.json` | Frozen copy of a real `latest.json` for headless tests (renderer-local, gitignored-eligible). | fe |
 
 **Key architectural facts the implementer must know:**
@@ -607,14 +607,95 @@ Expected: a line `NEXUS boot realms=13 …` and `SELFTEST combos=91 errors=0 PAS
 
 **Files:**
 - Create: `dashboard-v3/src/core/notify.mjs`
-- Test: `dashboard-v3/src/core/notify.test.mjs` (pure: event routing; DOM/Notification injected)
-- Modify: `dashboard-v3/src/core/boot.js` (init after actions; replay `changes_since_prev`)
+- Test: `dashboard-v3/src/core/notify.test.mjs` (pure routing; effects injected)
+- Modify: `dashboard-v3/src/core/boot.js` (init after actions — NO changes replay)
+
+**Scope note (ground-truth 2026-07-26):** `fx.js` already replays `changes_since_prev` into the celebration takeover (`celebrate()` + `hq-celebrated` localStorage dedup at `initFx()`). notify.mjs therefore does **not** touch celebrations — it is the forward-looking surface for the *new* channels (OS notification, later in-app toast) that Phase 1+ features emit through. The `changes_since_prev → OS notification` bridge is deferred to Epic H (#13), coordinated with fx there.
 
 **Interfaces:**
-- Produces: `emit({type,title,body,weight})`, `initNotify(deps)`. Routes: always the in-app takeover for `type ∈ {level_up,new_achievement,quest_completed}` (existing fx); additionally an OS `Notification` when `document.hidden` and permission granted.
-- Consumes: `changes_since_prev[]` from `data.bundle.latest` at boot → replays as events (dedup by a `localStorage` seen-set so a reload doesn't re-fire).
+- Produces: `route(evt, env) → { os, toast }` (pure), `emit(evt) → { os, toast }`, `initNotify(deps)`. `route`: `os = env.canNotify && env.hidden`; `toast = !env.hidden` (no in-app toast behind an OS notif). `emit` applies `route` via injected `deps = { isHidden(), canNotify(), notify(evt), toast?(evt) }`, each channel guarded so a throwing effect never escapes the caller. `emit` with no `initNotify` is a safe no-op.
 
-- [ ] TDD cycle (route table; dedup; hidden-gate) → selftest gate → commit `fe: core/notify — in-app + OS event surface`.
+- [ ] **Step 1: Write the failing test** (`dashboard-v3/src/core/notify.test.mjs`)
+
+```js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { route, emit, initNotify } from './notify.mjs';
+
+test('route: OS only when hidden+permitted; toast only when visible', () => {
+  assert.deepEqual(route({type:'x'}, { hidden:true,  canNotify:true  }), { os:true,  toast:false });
+  assert.deepEqual(route({type:'x'}, { hidden:false, canNotify:true  }), { os:false, toast:true  });
+  assert.deepEqual(route({type:'x'}, { hidden:true,  canNotify:false }), { os:false, toast:false });
+  assert.deepEqual(route(null, {}), { os:false, toast:false });
+});
+
+test('emit routes through injected effects; a throwing effect never escapes', () => {
+  const os = [], toast = [];
+  initNotify({ isHidden:()=>true, canNotify:()=>true, notify:(e)=>os.push(e.type), toast:(e)=>toast.push(e.type) });
+  emit({ type:'streak_risk', title:'t' });
+  assert.deepEqual(os, ['streak_risk']);
+  assert.deepEqual(toast, []);
+  initNotify({ isHidden:()=>false, canNotify:()=>true, notify:()=>{}, toast:()=>{ throw new Error('x'); } });
+  assert.doesNotThrow(() => emit({ type:'x' }));
+});
+
+test('emit is a safe no-op before initNotify (or after init(null))', () => {
+  initNotify(null);
+  assert.deepEqual(emit({ type:'x' }), { os:false, toast:false });
+});
+```
+
+- [ ] **Step 2: Run — FAIL.** Then implement `notify.mjs`:
+
+```js
+// core/notify.mjs — the app's event surface. Phase-1+ features (Oracle, streak
+// warnings, the proactive Familiar) call emit() to surface a message: an OS
+// Notification when the window is hidden+permitted, else an injected in-app
+// toaster. PURE routing; every effect is injected, so it's unit-testable and
+// can never crash a caller.
+// NOTE: the scan celebration takeover is OWNED by fx.js (its own
+// changes_since_prev replay + 'hq-celebrated' dedup). notify does NOT replay
+// changes, to avoid a double-fire.
+let deps = null;   // { isHidden(), canNotify(), notify(evt), toast?(evt) }
+
+export function initNotify(d) { deps = d; }
+
+export function route(evt, env) {
+  if (!evt || !evt.type) return { os: false, toast: false };
+  const hidden = !!env?.hidden;
+  return { os: !!env?.canNotify && hidden, toast: !hidden };
+}
+
+export function emit(evt) {
+  if (!deps) return { os: false, toast: false };
+  const env = { hidden: deps.isHidden?.(), canNotify: deps.canNotify?.() };
+  const r = route(evt, env);
+  if (r.os)    { try { deps.notify?.(evt); } catch (e) { console.warn('[notify] os', e); } }
+  if (r.toast) { try { deps.toast?.(evt);  } catch (e) { console.warn('[notify] toast', e); } }
+  return r;
+}
+```
+
+- [ ] **Step 3: Run the unit suite — PASS** (3/3, pristine).
+
+- [ ] **Step 4: Wire `boot.js`** — add `import { initNotify } from './notify.mjs';` beside the other core imports, and right after the `initActions({...});` call:
+
+```js
+// event surface — Phase-1+ features emit through here; fires an OS Notification
+// when the window is hidden+permitted (else an in-app toast, wired in a later
+// phase). fx.js owns the scan celebration takeover separately, so notify does
+// NOT replay changes_since_prev.
+initNotify({
+  isHidden: () => document.hidden,
+  canNotify: () => typeof Notification !== 'undefined' && Notification.permission === 'granted',
+  notify: (evt) => { try { new Notification(evt.title || 'WorkspaceHQ', { body: evt.body || '' }); } catch {} },
+  // toast: wired when the in-app toast UI lands (Epic H)
+});
+```
+
+- [ ] **Step 5: Selftest gate** — from `dashboard-v3/`: `../dashboard/node_modules/electron/dist/electron.exe dev-main.js --smoke --selftest` → `SELFTEST combos=91 errors=0 PASS`. If red, STOP and report.
+
+- [ ] **Step 6: Commit** `fe: core/notify — OS + toast event surface (fx keeps celebrations)`.
 
 **Phase 0 exit gate:** `node --test` green across `intel/` + `core/`; `SELFTEST combos=91 errors=0 PASS`; a one-off harness prints `oracle()` on the live fixture. Tag: `git commit -m "fe: NEXUS ALIVE substrate complete (derive+actions+notify)"`.
 
