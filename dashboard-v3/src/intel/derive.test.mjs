@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { oracle, triage, anomalies, momentum } from './derive.mjs';
+import { oracle, triage, anomalies, momentum, spellFit, streakRisk, achievementNudges } from './derive.mjs';
 
 const FIX = JSON.parse(readFileSync(new URL('./__fixtures__/sample.json', import.meta.url)));
 
@@ -61,4 +61,43 @@ test('momentum: positive slope → finite ETA; flat/empty → null, no div-by-ze
   const flat = momentum({ xp:[{d:'a',v:5},{d:'b',v:5}] }, { xp_to_next:50 }, '2026-07-04T12:00:00Z');
   assert.equal(flat.etaDays, null); assert.equal(flat.etaNextLevel, null);
   assert.doesNotThrow(() => momentum({}, {}, '2026-07-04T12:00:00Z'));
+});
+
+test('spellFit: matches a signal gap to a spell by keyword, scoped to the project', () => {
+  const bundle = { spellbook:{ spells:[
+    { id:'s1', name:'test-scaffold', description:'adds a test suite' },
+    { id:'s2', name:'readme-gen', description:'writes a README' },
+  ] } };
+  const sel = { projects:[ { id:'p1', name:'A', signals:{ has_tests:false, has_readme:true } } ] };
+  const r = spellFit(bundle, sel);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].spellId, 's1');
+  assert.equal(r[0].forProjectId, 'p1');
+  assert.match(r[0].why, /test/i);
+  assert.doesNotThrow(() => spellFit({}, {}));
+});
+
+test('streakRisk: alive-but-unscanned-today is at risk; scanned-today is safe', () => {
+  const risk = streakRisk({ scan_days:4, last_scan:'2026-07-25' }, '2026-07-26T20:00:00Z');
+  assert.equal(risk.atRisk, true);
+  assert.equal(risk.streak, 4);
+  assert.ok(risk.hoursLeft > 0 && risk.hoursLeft <= 24);
+  const safe = streakRisk({ scan_days:4, last_scan:'2026-07-26' }, '2026-07-26T20:00:00Z');
+  assert.equal(safe.atRisk, false);
+  assert.doesNotThrow(() => streakRisk({}, '2026-07-26T20:00:00Z'));
+});
+
+test('achievementNudges: surfaces near-complete locked achievements only', () => {
+  const r = achievementNudges([
+    { id:'a', unlocked:true,  progress:{ have:5, need:5 } },   // unlocked → skip
+    { id:'b', unlocked:false, progress:{ have:4, need:5 } },   // 0.8 → nudge
+    { id:'c', unlocked:false, progress:{ have:1, need:8 } },   // 0.125 → skip
+    { id:'d', unlocked:false },                                // no progress → skip
+  ]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].id, 'b');
+  assert.equal(r[0].have, 4);
+  assert.equal(r[0].need, 5);
+  assert.equal(r[0].label, 'b');
+  assert.doesNotThrow(() => achievementNudges(null));
 });

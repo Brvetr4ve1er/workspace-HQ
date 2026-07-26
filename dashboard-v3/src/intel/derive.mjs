@@ -92,3 +92,45 @@ export function momentum(trends, account, now) {
   }
   return { xpSlope, etaDays, etaNextLevel };
 }
+
+// signal flag → [human label, keyword scanned in spell name+description]
+const GAP_MAP = { has_tests:['tests','test'], has_ci:['CI','ci'], has_readme:['a README','readme'], has_license:['a license','license'] };
+
+// Matches each project's missing-signal gaps (tests/CI/README/license) to the
+// first spell in the spellbook whose name+description mentions the fix.
+export function spellFit(bundle, selected) {
+  const spells = bundle?.spellbook?.spells || [];
+  const out = [];
+  for (const p of (selected?.projects || [])) {
+    const sig = p.signals || {};
+    for (const [flag, [label, kw]] of Object.entries(GAP_MAP)) {
+      if (sig[flag] !== false) continue;   // only a true, present gap
+      const hit = spells.find((s) => `${s.name || ''} ${s.description || ''}`.toLowerCase().includes(kw));
+      if (hit) out.push({ spellId: hit.id, name: hit.name, forProjectId: p.id, why: `${p.name} has no ${label}` });
+    }
+  }
+  return out;
+}
+
+// Flags an about-to-break daily scan streak: alive (scan_days>0) but not yet
+// scanned today, with hours remaining in the UTC day to save it.
+export function streakRisk(streakInfo, now) {
+  const streak = num(streakInfo?.scan_days);
+  const last = streakInfo?.last_scan || null;
+  const today = new Date(now).toISOString().slice(0, 10);   // YYYY-MM-DD (UTC)
+  const atRisk = streak > 0 && last !== today;
+  const hoursLeft = 24 - new Date(now).getUTCHours();        // hours to end of UTC day
+  return { atRisk, hoursLeft, streak };
+}
+
+// Surfaces locked achievements that are ≥50% of the way to unlocking, so the
+// UI can nudge toward the closest wins instead of listing everything locked.
+export function achievementNudges(achievements) {
+  const out = [];
+  for (const a of (achievements || [])) {
+    if (a.unlocked === true || !a.progress) continue;
+    const have = num(a.progress.have), need = num(a.progress.need);
+    if (need > 0 && have / need >= 0.5) out.push({ id: a.id, have, need, label: a.title || a.id });
+  }
+  return out;
+}
