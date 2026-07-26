@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-26T12:08:01.504Z",
+  "generatedAt": "2026-07-26T12:19:50.445Z",
   "realmIds": [
     "roundtable",
     "forge",
@@ -102,7 +102,7 @@
         "headingStep": 1.1,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "forge": {
         "gapDistinct": [
@@ -203,7 +203,7 @@
         "headingStep": 1.8,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "hunts": {
         "gapDistinct": [
@@ -266,7 +266,7 @@
         "headingStep": 1,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "grimoire": {
         "gapDistinct": [
@@ -374,7 +374,7 @@
         "headingStep": 1.2,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 4
+        "overflowCount": 0
       },
       "lands": {
         "gapDistinct": [
@@ -437,7 +437,7 @@
         "headingStep": 1,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 22
+        "overflowCount": 15
       },
       "legacy": {
         "gapDistinct": [
@@ -500,7 +500,7 @@
         "headingStep": 2.3,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "medbay": {
         "gapDistinct": [
@@ -563,7 +563,7 @@
         "headingStep": 1.7,
         "railSharePct": 18.3,
         "stageBodyWidth": 2103,
-        "overflowCount": 3
+        "overflowCount": 0
       },
       "observatory": {
         "gapDistinct": [
@@ -623,7 +623,7 @@
         "headingStep": 1.6,
         "railSharePct": 18.3,
         "stageBodyWidth": 1040,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "watchtower": {
         "gapDistinct": [
@@ -685,7 +685,7 @@
         "headingStep": 1.9,
         "railSharePct": 18.3,
         "stageBodyWidth": 1040,
-        "overflowCount": 3
+        "overflowCount": 0
       },
       "summoning": {
         "gapDistinct": [
@@ -745,7 +745,7 @@
         "headingStep": 1,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "chronicle": {
         "gapDistinct": [
@@ -809,7 +809,7 @@
         "headingStep": 1.1,
         "railSharePct": 18.3,
         "stageBodyWidth": 1029,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "atlas": {
         "gapDistinct": [
@@ -871,7 +871,7 @@
         "headingStep": 1.4,
         "railSharePct": 18.3,
         "stageBodyWidth": 1040,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "conjure": {
         "gapDistinct": [
@@ -930,7 +930,7 @@
         "headingStep": 1.3,
         "railSharePct": 18.3,
         "stageBodyWidth": 1040,
-        "overflowCount": 2
+        "overflowCount": 0
       }
     },
     "1280x800": {
@@ -1013,7 +1013,7 @@
         "headingStep": 1.1,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 2
+        "overflowCount": 0
       },
       "forge": {
         "gapDistinct": [
@@ -1114,7 +1114,7 @@
         "headingStep": 1.8,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "hunts": {
         "gapDistinct": [
@@ -1177,7 +1177,7 @@
         "headingStep": 1,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "grimoire": {
         "gapDistinct": [
@@ -1285,7 +1285,7 @@
         "headingStep": 1.2,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 2
+        "overflowCount": 0
       },
       "lands": {
         "gapDistinct": [
@@ -1348,7 +1348,7 @@
         "headingStep": 1,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 17
+        "overflowCount": 15
       },
       "legacy": {
         "gapDistinct": [
@@ -1411,7 +1411,7 @@
         "headingStep": 2.3,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "medbay": {
         "gapDistinct": [
@@ -1474,7 +1474,7 @@
         "headingStep": 1.7,
         "railSharePct": 20.6,
         "stageBodyWidth": 2103,
-        "overflowCount": 3
+        "overflowCount": 0
       },
       "observatory": {
         "gapDistinct": [
@@ -1534,7 +1534,7 @@
         "headingStep": 1.6,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "watchtower": {
         "gapDistinct": [
@@ -1596,7 +1596,7 @@
         "headingStep": 1.9,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 2
+        "overflowCount": 0
       },
       "summoning": {
         "gapDistinct": [
@@ -1656,7 +1656,7 @@
         "headingStep": 1,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "chronicle": {
         "gapDistinct": [
@@ -1720,7 +1720,7 @@
         "headingStep": 1.1,
         "railSharePct": 20.6,
         "stageBodyWidth": 869,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "atlas": {
         "gapDistinct": [
@@ -1782,7 +1782,7 @@
         "headingStep": 1.4,
         "railSharePct": 20.6,
         "stageBodyWidth": 880,
-        "overflowCount": 1
+        "overflowCount": 0
       },
       "conjure": {
         "gapDistinct": [
@@ -1841,7 +1841,7 @@
         "headingStep": 1.3,
         "railSharePct": 20.6,
         "stageBodyWidth": 880,
-        "overflowCount": 2
+        "overflowCount": 0
       }
     }
   }

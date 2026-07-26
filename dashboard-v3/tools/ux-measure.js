@@ -26,11 +26,9 @@ function getArg(name, def) {
 }
 const OUT = path.resolve(process.cwd(), getArg('--out', 'tools/ux-measure-out.json'));
 
-// Interactive selector for "tiny target" checks — deliberately narrower than the general walk's
-// interactivity flag: the concrete set of clickable chrome/stage controls called out in the brief.
+// Interactive selector for "tiny target" checks — the concrete set of clickable chrome/stage
+// controls called out in the brief.
 const TINY_TARGET_SEL = 'button,a,[role=button],.sigil,.tm-nav,.am-toggle,.tab-focus,.btn';
-const GENERAL_INTERACTIVE_SEL =
-  'button,a,[onclick],[role=button],.btn,.sigil,.tm-nav,.tm-dot,.sfx,.tab-focus,input,select,textarea,.am-toggle';
 
 // Walk function, stringified and executed in-renderer. Returns the raw per-element data; all
 // metric computation happens back in Node (keeps the in-page script simple + fast).
@@ -38,7 +36,6 @@ const WALK = `(() => {
   const vw = window.innerWidth, vh = window.innerHeight;
   const roots = [document.getElementById('nexus'), document.getElementById('statusbar')].filter(Boolean);
   const out = { vw, vh, elements: [] };
-  const isInteractive = (el) => el.matches('${GENERAL_INTERACTIVE_SEL}');
   const isTinyTargetCandidate = (el) => el.matches('${TINY_TARGET_SEL}');
   const px = (v) => parseFloat(v) || 0;
   function regionOf(el){
@@ -67,7 +64,6 @@ const WALK = `(() => {
       overflowX: cs.overflowX, overflowY: cs.overflowY,
       gap: cs.gap && cs.gap !== 'normal' ? cs.gap : '',
       sw: el.scrollWidth, cw: el.clientWidth, sh: el.scrollHeight, ch: el.clientHeight,
-      interactive: isInteractive(el),
       tinySel: isTinyTargetCandidate(el),
     });
   }
@@ -108,6 +104,11 @@ function computeMetrics(data) {
   const sub12pct = textEls.length ? round1((sub12.length / textEls.length) * 100) : 0;
 
   // headingStep: largest recurring (count>=2) stage font size ÷ modal (most frequent) stage body font.
+  // NOTE: this is an approximate hierarchy proxy, not ground truth — it's false-passable: two
+  // incidental same-size badges/labels (count>=2) with no semantic "heading" role would count as
+  // "recurring" and could produce a step even where there's no real visual hierarchy. Per-realm
+  // screenshots (Task 6) are the authoritative check for whether hierarchy actually reads visually;
+  // treat this number as a cheap signal to catch regressions, not a substitute for looking.
   const stageText = elements.filter((e) => e.region === 'stage' && e.fs > 0);
   let headingStep = 1;
   if (stageText.length) {
@@ -141,7 +142,11 @@ function computeMetrics(data) {
     stageBodyWidth = contentRight - contentLeft;
   }
 
-  const overflowCount = elements.filter((e) => e.sw - e.cw > 1).length;
+  // Smell-filtered: only count elements whose content overflows AND whose overflow-x is the
+  // default 'visible' — i.e. actual unhandled layout spill, not a deliberate overflow-x:auto/
+  // hidden/scroll container (a real scroll affordance isn't a bug). Matches the scratchpad
+  // analyze.js's hOverflow filter, which excluded handled containers for the same reason.
+  const overflowCount = elements.filter((e) => e.sw - e.cw > 2 && e.overflowX === 'visible').length;
 
   return {
     gapDistinct,
