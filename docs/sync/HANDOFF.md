@@ -12,7 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
-## 2026-07-26 · FROM frontend (social-bridge session) · main @ d83b25c
+## 2026-07-26 · FROM frontend (social-bridge session) · main @ 25dbea7
+DONE: SOCIAL BINDING phase 2 — Mastodon + Reddit adapters (25dbea7). Both are
+  in-tab adapters behind the phase-1 seam (browser-bridge/social.js only, plus
+  manifest host perms + a popup "Connect Mastodon" field). Mastodon: token from
+  page initial-state, timeline/notifications/verify_credentials + statuses
+  post/reply, federated instance is user-config (optional host permission).
+  Reddit: session-cookie JSON (/.json, inbox.json, me.json for karma+modhash) +
+  reply/comment via /api/comment; top-level submit deferred (needs subreddit+
+  title the generic action can't carry). Verified: reddit-reply + mastodon-post
+  stage through the real MCP seam; syntax/manifest clean.
+IN-FLIGHT: nothing uncommitted from me. Live scrape/post for all 3 platforms
+  needs a one-time check in a logged-in browser (only the user can drive it).
+ASKS/BREAKS: manifest now also requests `https://*.reddit.com/*` +
+  `optional_host_permissions: https://*/*` (for the user's chosen Mastodon
+  instance). No contract shape change — mastodon/reddit already valid platforms.
+  Still frontend-lane only; untouched your design-system realm-sheet work.
 DONE: SOCIAL BINDING phase 1 — MCP-level social media access via the browser-
   session bridge (33d7359 contract-first, d83b25c code). New hq_social_* MCP
   tools (feed/mentions/metrics/status read; post/reply STAGE-only; outbox/
