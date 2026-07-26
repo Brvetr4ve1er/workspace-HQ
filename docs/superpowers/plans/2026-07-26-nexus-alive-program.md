@@ -438,13 +438,92 @@ export function achievementNudges(achievements) {
 - Test: `dashboard-v3/src/core/actions.test.mjs` (pure registry logic; side-effects injected)
 
 **Interfaces:**
-- Produces: `register({id,label,icon,run,enabled})`, `dispatch(id, ctx)`, `all(ctx)→[{id,label,icon,enabled}]`, `resolve(id)`.
-- `run` receives `ctx` and may call injected effect-fns; `dispatch` wraps `run` in try/catch + optional telemetry, so a bad action can never throw out of a keystroke (mirrors palette's `activate`).
+- Produces: `register({id,label,icon?,run,enabled?})`, `dispatch(id, ctx) → {ok, result?, error?}`, `all(ctx) → [{id,label,icon}]` (enabled only), `resolve(id) → action|null`, `_reset()` (test-only). `run(ctx)` may call injected effect-fns; `dispatch` wraps `run` in try/catch so a bad action never throws out of a keystroke (mirrors palette's `activate`).
 
-- [ ] **Step 1: Failing test** — `register` then `dispatch('x')` calls its run once; a throwing run is swallowed and returns `{ok:false}`; `all()` filters by `enabled(ctx)`.
-- [ ] **Step 2: Run — FAIL.**
-- [ ] **Step 3: Implement** the registry (a `Map`), `dispatch` with try/catch, `all` with enabled-filter.
-- [ ] **Step 4: Run — PASS.**
+- [ ] **Step 1: Write the failing test** (`dashboard-v3/src/core/actions.test.mjs`)
+
+```js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { register, dispatch, all, resolve, _reset } from './actions.mjs';
+
+test('dispatch runs the action once and reports ok + result', () => {
+  _reset();
+  let calls = 0;
+  register({ id:'x', label:'X', run: () => { calls++; return 42; } });
+  const r = dispatch('x', {});
+  assert.equal(calls, 1);
+  assert.equal(r.ok, true);
+  assert.equal(r.result, 42);
+});
+
+test('dispatch swallows a throwing action → {ok:false}; unknown id → {ok:false}', () => {
+  _reset();
+  register({ id:'boom', label:'B', run: () => { throw new Error('nope'); } });
+  let r;
+  assert.doesNotThrow(() => { r = dispatch('boom', {}); });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /nope/);
+  assert.equal(dispatch('missing', {}).ok, false);
+});
+
+test('all(ctx) lists only enabled actions, projected to {id,label,icon}', () => {
+  _reset();
+  register({ id:'a', label:'A', icon:'✦', run(){}, enabled: () => true });
+  register({ id:'b', label:'B', run(){}, enabled: (ctx) => ctx.allow === true });
+  assert.deepEqual(all({ allow:false }).map(x => x.id), ['a']);
+  assert.deepEqual(all({ allow:true }).map(x => x.id).sort(), ['a','b']);
+  assert.equal(resolve('a').label, 'A');
+  assert.equal(resolve('nope'), null);
+  assert.deepEqual(Object.keys(all({ allow:false })[0]).sort(), ['icon','id','label']);
+});
+```
+
+- [ ] **Step 2: Run — FAIL** (`node --test dashboard-v3/src/core/actions.test.mjs`; module missing).
+
+- [ ] **Step 3: Implement `dashboard-v3/src/core/actions.mjs`**
+
+```js
+// core/actions.mjs — the ONE audited path for every app side-effect. Buttons,
+// the command palette, the Oracle, and the Familiar all dispatch through here,
+// so there is exactly one place to guard, log, and reason about actions.
+// PURE registry: effect functions are injected at seed time (initActions),
+// never imported here — which keeps it unit-testable under node --test.
+const REG = new Map();
+
+// action: { id, label, icon?, run(ctx), enabled?(ctx) }
+export function register(action) {
+  REG.set(action.id, { icon: '', enabled: () => true, ...action });
+}
+
+export function resolve(id) { return REG.get(id) || null; }
+
+// Enabled actions projected for a menu/palette. An enabled() that throws is
+// treated as "unavailable" rather than crashing the list build.
+export function all(ctx) {
+  const out = [];
+  for (const a of REG.values()) {
+    let ok = false;
+    try { ok = a.enabled(ctx); } catch { ok = false; }
+    if (ok) out.push({ id: a.id, label: a.label, icon: a.icon });
+  }
+  return out;
+}
+
+// Single guarded invocation — a malformed/throwing action can never escape a
+// keystroke; it returns {ok:false} and logs, mirroring the palette's activate().
+export function dispatch(id, ctx) {
+  const a = REG.get(id);
+  if (!a) return { ok: false, error: 'unknown-action' };
+  try { return { ok: true, result: a.run(ctx) }; }
+  catch (err) { console.warn('[actions] dispatch', id, err); return { ok: false, error: err?.message || String(err) }; }
+}
+
+// test-only: clear the module-global registry between unit tests.
+export function _reset() { REG.clear(); }
+```
+
+- [ ] **Step 4: Run — PASS** (3/3, pristine).
 - [ ] **Step 5: Commit** `fe: core/actions — unified audited dispatch seam`.
 
 ### Task 0.6: Seed the core action set + wire boot
@@ -454,13 +533,75 @@ export function achievementNudges(achievements) {
 - Modify: `dashboard-v3/src/core/boot.js` (call `initActions()` after shell, before palette)
 
 **Interfaces:**
-- Consumes: `switchRealm` (shell), `window.hq.scanTrigger/markQuestDone/capture` (existing IPC), `castSpell` (existing).
-- Produces: registered ids `go:<realm>`, `scan:now`, `quest:done`, `capture:idea`, `cast:<spellId>` — all guarded by feature-detecting `window.hq?.…`.
+- Adds `initActions(deps)` to `actions.mjs`. `deps = { switchRealm, ordered, hq }`. Registers `go:<realm.id>` per realm plus `scan:now`, `capture:idea`, `quest:done`, `cast` — each effect optional-chain-guarded so a missing preload method degrades to a no-op (never throws). `quest:done`/`cast` read `ctx.questId`/`ctx.spellId` and are `enabled` only when that ctx field is present.
+- `boot.js` already imports `switchRealm` (shell) and `ordered` (registry) — inject them; `hq: window.hq`.
+- **Verified renderer methods** (guarded): `window.hq.snapshot()` (scan), `window.hq.capture()`, `window.hq.markQuestDone(id)`, `window.hq.castSpell(id)`. Confirm exact names against `dashboard/preload.js` while implementing; the guards mean a mismatch no-ops rather than crashing.
 
-- [ ] **Step 1:** Register defaults; guard every `window.hq` call (headless/old-preload tolerance).
-- [ ] **Step 2:** `initActions()` in boot after `initAmbient()`.
-- [ ] **Step 3:** Selftest gate — `dev-main.js --smoke --selftest` → `combos=91 errors=0 PASS`.
-- [ ] **Step 4: Commit** `fe: seed core actions + boot wiring`.
+- [ ] **Step 1: Write the failing test** (append to `actions.test.mjs`)
+
+```js
+import { initActions } from './actions.mjs';
+
+test('initActions seeds go:<realm> + core verbs from injected deps', () => {
+  _reset();
+  const switched = [];
+  initActions({ switchRealm: (id) => switched.push(id), ordered: () => [{ manifest:{ id:'forge', sigil:'⚒' } }], hq: {} });
+  assert.ok(resolve('go:forge'));
+  assert.ok(resolve('scan:now'));
+  assert.ok(resolve('quest:done'));
+  dispatch('go:forge', {});
+  assert.deepEqual(switched, ['forge']);
+  // quest:done is enabled only with a questId in ctx
+  assert.equal(all({}).find(a => a.id === 'quest:done'), undefined);
+  assert.ok(all({ questId: 'q1' }).find(a => a.id === 'quest:done'));
+  // a missing hq method must not throw when dispatched
+  assert.doesNotThrow(() => dispatch('scan:now', {}));
+});
+```
+
+- [ ] **Step 2: Run — FAIL** (`initActions` undefined). Then implement in `actions.mjs`:
+
+```js
+// Register the default app actions, wiring real effects passed in as deps so
+// this module stays import-pure. Every effect is optional-chain-guarded — a
+// missing preload method (old build / headless) degrades to a silent no-op.
+// deps: { switchRealm, ordered, hq }
+export function initActions(deps) {
+  const { switchRealm, ordered, hq } = deps || {};
+  for (const { manifest: m } of (ordered?.() || [])) {
+    register({ id: `go:${m.id}`, label: `Go: ${m.id}`, icon: m.sigil, run: () => switchRealm?.(m.id) });
+  }
+  register({ id: 'scan:now',     label: 'Scan now',       run: () => hq?.snapshot?.() });
+  register({ id: 'capture:idea', label: 'Capture idea',   run: () => hq?.capture?.() });
+  register({ id: 'quest:done',   label: 'Complete quest', run: (ctx) => hq?.markQuestDone?.(ctx?.questId), enabled: (ctx) => !!ctx?.questId });
+  register({ id: 'cast',         label: 'Cast spell',     run: (ctx) => hq?.castSpell?.(ctx?.spellId),      enabled: (ctx) => !!ctx?.spellId });
+}
+```
+
+- [ ] **Step 3: Run the unit suite — PASS** (`node --test dashboard-v3/src/core/actions.test.mjs`, 4/4 pristine).
+
+- [ ] **Step 4: Wire `boot.js`** — add a static import beside the other core imports (this is the first `.mjs` imported by the renderer — the selftest in Step 5 proves `.mjs` loads over `file://`):
+
+```js
+import { initPalette } from './palette.js';
+import { initActions } from './actions.mjs';
+```
+
+and, right after the existing `initPalette();` call:
+
+```js
+// action registry — the one audited dispatch path (buttons/palette/Oracle all
+// route through it). Seeded with real effects; guards make a missing preload
+// method a no-op. switchRealm + ordered are already imported above.
+initActions({ switchRealm, ordered, hq: window.hq });
+```
+
+- [ ] **Step 5: Selftest gate** — from `dashboard-v3/`:
+
+Run: `../dashboard/node_modules/electron/dist/electron.exe dev-main.js --smoke --selftest`
+Expected: a line `NEXUS boot realms=13 …` and `SELFTEST combos=91 errors=0 PASS` (0 mount errors; the `.mjs` import loaded cleanly in the renderer). If it prints `errors>0` or a `.mjs`/import error, STOP and report — do not commit a red selftest.
+
+- [ ] **Step 6: Commit** `fe: seed core actions + boot wiring` (`git status` shows `actions.mjs`, `actions.test.mjs`, `boot.js`).
 
 ### Task 0.7: `core/notify.mjs` — the event surface
 
