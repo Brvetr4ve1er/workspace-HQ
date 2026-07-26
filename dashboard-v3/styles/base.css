@@ -101,12 +101,12 @@ body {
 }
 .sigil:hover { color: var(--text); border-color: var(--divider); }
 .sigil.active { color: var(--active); border-color: var(--active); }
-.sigil .glyph { font-size: 18px; line-height: 1; }
-.sigil .lbl { font-size: 7px; letter-spacing: 0.04em; text-align: center; }
+.sigil .glyph { font-size: var(--fs-md); line-height: 1; }
+.sigil .lbl { font-size: var(--fs-xs); letter-spacing: 0.04em; text-align: center; }
 .sigil .badge {
   position: absolute;
   top: 2px; right: 2px;
-  font-size: 8px;
+  font-size: var(--fs-xs);
   background: var(--active);
   color: var(--bg);
   border-radius: 4px;
@@ -117,14 +117,14 @@ body {
 #topstrip { display: flex; align-items: center; gap: var(--space-3); }
 #topstrip .brand { font-weight: 700; letter-spacing: 0.06em; }
 #topstrip .brand .hq { color: var(--active); }
-#topstrip .built { color: var(--muted); font-size: 11px; flex: 1; }
+#topstrip .built { color: var(--muted); font-size: var(--fs-xs); flex: 1; }
 #topstrip .theme-cycle {
   background: none;
   border: 1px solid var(--divider);
   border-radius: 4px;
   color: var(--text);
   font-family: var(--term);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: var(--space-1) var(--space-2);
   cursor: pointer;
 }
@@ -139,27 +139,27 @@ body {
   border: none;
   color: var(--muted);
   font-family: var(--term);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   cursor: pointer;
   padding: var(--space-1) 0 var(--space-2);
 }
 .am-toggle:hover { color: var(--active); }
 .am-sec { margin-bottom: var(--space-4); }
 .am-h {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.08em;
   color: var(--muted);
   border-bottom: 1px solid var(--divider);
   padding-bottom: var(--space-1);
   margin-bottom: var(--space-2);
 }
-.am-empty { color: var(--faint, var(--muted)); font-size: 11px; }
-.am-now { font-size: 12px; }
+.am-empty { color: var(--faint, var(--muted)); font-size: var(--fs-xs); }
+.am-now { font-size: var(--fs-xs); }
 .am-domain { color: var(--text); }
-.am-dur { color: var(--muted); margin-left: var(--space-2); font-size: 11px; }
+.am-dur { color: var(--muted); margin-left: var(--space-2); font-size: var(--fs-xs); }
 .am-title {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   margin-top: var(--space-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,11 +167,11 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.am-kv { display: flex; justify-content: space-between; font-size: 11px; padding: var(--space-1) 0; }
+.am-kv { display: flex; justify-content: space-between; font-size: var(--fs-xs); padding: var(--space-1) 0; }
 .am-kv span { color: var(--muted); }
-.am-whisper { font-size: 12px; line-height: 1.4; }
+.am-whisper { font-size: var(--fs-xs); line-height: 1.4; }
 .am-whisper .am-wkind {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border: 1px solid var(--divider);
@@ -184,7 +184,7 @@ body {
 .am-tide {
   margin-top: auto;
   padding-top: var(--space-3);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-style: italic;
   color: var(--muted);
   text-align: center;
@@ -193,7 +193,7 @@ body {
 
 /* --- stub views ----------------------------------------------------------- */
 .port-pending .sec { color: var(--active); margin-bottom: var(--space-2); }
-.port-pending .muted { color: var(--muted); font-size: 12px; margin-top: var(--space-1); }
+.port-pending .muted { color: var(--muted); font-size: var(--fs-xs); margin-top: var(--space-1); }
 
 /* overlay layer sits above everything; individual overlays opt into events */
 #overlays {
