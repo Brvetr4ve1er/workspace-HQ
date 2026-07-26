@@ -22,6 +22,12 @@ export function switchRealm(id, force = false) {
   const prev = byId(activeId);
   if (prev) { try { prev.view.unmount(); } catch (err) { console.error('[shell] unmount', activeId, err); } }
   stage.innerHTML = '';
+  // The shared project/detail drawer + scrim live in #overlays (outside #stage),
+  // so clearing the stage won't dismiss them. Close on every switch, or a drawer
+  // opened in the previous realm strands itself (with its dimming scrim) over the
+  // newly-mounted realm — it otherwise only clears via Escape or a scrim click.
+  document.getElementById('drawer')?.classList.remove('open');
+  document.getElementById('scrim')?.classList.remove('open');
   activeId = id;
   try { sessionStorage.setItem('hq-active-realm', id); } catch {}   // survive win.reload()
   r.view.mount(stage, ctx());

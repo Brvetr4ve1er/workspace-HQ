@@ -272,7 +272,7 @@ function render() {
   ov.appendChild(mo);
 
   // ---- folded context: Overview (KPIs + per-project health) + changes ----
-  const avg = Math.round(S.projects.reduce((s, p) => s + p.completion.pct, 0) / S.projects.length);
+  const avg = S.projects.length ? Math.round(S.projects.reduce((s, p) => s + p.completion.pct, 0) / S.projects.length) : 0;
   const enriched = S.scan && S.scan.enriched === true;
   foldSec(ov, 'kpis', LX('pulse'), `${enriched ? '' : '~'}${avg}% avg · ${t.open_quests} open (${t.red_quests} red)`, (body) => {
     const kpis = el('div', 'kpis');
@@ -283,7 +283,7 @@ function render() {
     };
     const dq = pt ? deltaSpan(t.open_quests - pt.open_quests, true) : '';
     const dr = pt ? deltaSpan(t.red_quests - pt.red_quests, true) : '';
-    const pavg = prev ? Math.round(prev.projects.reduce((s, p) => s + p.completion.pct, 0) / prev.projects.length) : null;
+    const pavg = prev && prev.projects.length ? Math.round(prev.projects.reduce((s, p) => s + p.completion.pct, 0) / prev.projects.length) : null;
     kpis.appendChild(kpi((enriched ? '' : '~') + avg + '%', enriched ? 'Avg completion' : 'Avg completion (est.)', COL.gold || '#f5b73d', pavg != null ? deltaSpan(avg - pavg) : ''));
     kpis.appendChild(kpi(t.open_quests, 'Open tasks', COL.orange, dq));
     kpis.appendChild(kpi(t.red_quests, 'At-risk tasks', COL.red, dr));
