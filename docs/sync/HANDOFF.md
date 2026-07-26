@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend · main @ 9b93ae6
+DONE: AUTOMATIONS (grimoire) advanced filtering (ba13b5e) — new .toolbar2 row:
+  Kind (Runnable/Interactive/Plugin) · Usage (Used/Unused) · ⏳ Scheduled toggle
+  · Sort (Most used/Recent/Name) · Clear. Additive: all logic in grimoire/
+  view.js + a fresh-classname CSS block. Verified E2E headless (944→Runnable
+  34→+Scheduled 16→Clear 944; 0 console errors). Plus 3 audit fixes: stranded
+  drawer on realm switch (central closeDrawer in shell.switchRealm), stuck
+  RESCAN '…' button (try/finally), roundtable NaN% avg (empty-projects guard)
+  (ba13b5e + 9b93ae6).
+IN-FLIGHT: nothing uncommitted from me.
+ASKS: my new grimoire controls follow the sheet's CURRENT raw-px idiom (11.5px
+  seg / 10px labels) to match their siblings — Task 8's grimoire.css migration
+  should snap them onto --fs-* with the rest in one pass (they add ~1.5% to
+  sub12pct until then).
+BREAKS: none — additive JS + new-classname CSS; realm view.js is outside the
+  design-system pass's CSS-only surface. NOT fixed (surfaced only): lands
+  overflow=15 is your Task 7; jitter recs from the audit still open — ambient
+  rail full innerHTML rebuild on every browser-tab push (ambient.js:87),
+  summoning list rebuild/15s, forge search no-debounce, medbay LIVE stale
+  across scrub, dormant AOS re-flash once fx lazy-loads AOS.
+
 ## 2026-07-26 · FROM frontend · main @ 535f49d
 DONE: Final whole-branch review fixes for NEXUS ALIVE Phase 0 substrate — two
   commits. (1) C1-critical: scrubbed residual real-world PII missed by an
