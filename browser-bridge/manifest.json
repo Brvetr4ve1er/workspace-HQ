@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "WorkspaceHQ Bridge",
   "version": "0.1.0",
-  "description": "Streams what you're working on (active-tab focus) to your local WorkspaceHQ app, and gives Claude context on your browser.",
-  "permissions": ["tabs", "storage", "alarms", "idle"],
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "description": "Streams what you're working on (active-tab focus) and your logged-in social activity to your local WorkspaceHQ app, and posts on your approval.",
+  "permissions": ["tabs", "storage", "alarms", "idle", "scripting"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*", "https://bsky.app/*"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",

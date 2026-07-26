@@ -20,6 +20,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const social = require('./social-bridge');   // SOCIAL BINDING: ingest tendril + outbox routes
 
 const PORT = 47821;
 const HOST = '127.0.0.1';
@@ -97,6 +98,7 @@ const TENDRILS = [
     sanitize: sanitizeBrowser,
     // onLive comes from startBridge({ onLive }) — main.js owns the ticker.
   },
+  social.socialTendril,   // scraped feed/mention/notification/metrics -> data/social/inbox.json
 ];
 
 function startBridge({ dataDir, onLive, port = PORT } = {}) {
@@ -166,6 +168,10 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
     if (req.method === 'GET' && url === '/health') {
       return send(200, { ok: true, app: 'workspacehq', bridge: '0.1.0', needsToken: !!token });
     }
+
+    // SOCIAL BINDING outbox/accounts routes (ingest still flows through /ingest/social
+    // below). handleRoute returns true once it has answered the request.
+    if (url.startsWith('/social/') && social.handleRoute(req, res, { url, send, token, dataDir })) return;
 
     if (req.method === 'POST' && (routes.has(url) || url.startsWith('/ingest/'))) {
       const rt = routes.get(url);

@@ -9,6 +9,8 @@
 // in chrome.storage, and go back to sleep. All durable state lives in storage,
 // never in module-scope variables (those die when the worker is unloaded).
 
+importScripts('social.js');   // SOCIAL BINDING: socialTick (read) + socialSend (approved write)
+
 const DEFAULTS = { endpoint: 'http://127.0.0.1:47821', paused: false, token: '' };
 const IDLE_SECONDS = 60;      // no interaction for this long => stop counting focus
 const MIN_FOCUS_MS = 1500;    // ignore sub-1.5s tab flickers (alt-tabbing through)
@@ -74,8 +76,10 @@ chrome.runtime.onStartup.addListener(bootstrap);
 async function bootstrap() {
   try { chrome.idle.setDetectionInterval(IDLE_SECONDS); } catch { /* ignore */ }
   chrome.alarms.create('flush', { periodInMinutes: FLUSH_MINUTES });
+  chrome.alarms.create(SOCIAL_ALARM, { periodInMinutes: SOCIAL_PERIOD_MIN });   // periodic read-only social scrape
   await transition(await activeTab());
   flush();
+  socialTick().catch(() => {});
 }
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
@@ -102,7 +106,19 @@ chrome.idle.onStateChanged.addListener(async (state) => {
   else { await transition(null); flush(); }
 });
 
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'flush') flush(); });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === 'flush') flush();
+  else if (a.name === SOCIAL_ALARM) socialTick().catch(() => {});
+});
+
+// Popup-driven social actions. 'social:send' is the ONLY publish path and it is
+// only ever sent by a human clicking Approve & Send in the popup — Claude has no
+// channel to reach it. 'social:sync' forces an immediate read-only scrape.
+chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg && msg.type === 'social:send' && msg.action) { socialSend(msg.action).then(reply); return true; }
+  if (msg && msg.type === 'social:sync') { socialTick().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
+  return false;
+});
 
 // ---- flush to the app ------------------------------------------------------
 async function flush() {

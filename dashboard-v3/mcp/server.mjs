@@ -63,6 +63,56 @@ function latest() {
 const today = () => new Date().toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------------------
+// Social bridge helpers (sidecars live under data/social/, all gitignored).
+// Read side reads what the extension scraped; write side only STAGES actions —
+// nothing here can publish. See docs/sync/CONTRACT.md "Social bridge sidecars".
+// ---------------------------------------------------------------------------
+
+const SOCIAL_PLATFORMS = ['bluesky', 'mastodon', 'reddit', 'x', 'instagram', 'threads', 'facebook', 'linkedin', 'youtube'];
+const SOCIAL_TEXT_MAX = 3000;   // generous staging cap; per-platform limits enforced by the adapter at send
+
+const socialInbox = () => readJson(confined('social', 'inbox.json'), { updated: null, live: null, events: [] });
+const socialOutbox = () => {
+  const d = readJson(confined('social', 'outbox.json'), { updated: null, actions: [] });
+  if (!d || typeof d !== 'object' || !Array.isArray(d.actions)) return { updated: null, actions: [] };
+  return d;
+};
+function writeSocialOutbox(d) {
+  d.updated = new Date().toISOString();
+  const file = confined('social', 'outbox.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  writeAtomic(file, JSON.stringify(d, null, 2));
+}
+function normPlatform(p) {
+  const k = String(p || '').trim().toLowerCase();
+  if (!SOCIAL_PLATFORMS.includes(k)) throw new ToolError(`unknown platform "${p}" — one of: ${SOCIAL_PLATFORMS.join(', ')}`);
+  return k;
+}
+// Append a staged outbox action. THE ONLY write-path Claude has — status is
+// always 'staged'; a human must approve+send from the extension popup.
+function stageAction(op, args) {
+  const platform = normPlatform(args.platform);
+  const text = String(args.text || '').trim();
+  if (!text) throw new ToolError('text required');
+  if (text.length > SOCIAL_TEXT_MAX) throw new ToolError(`text too long (max ${SOCIAL_TEXT_MAX})`);
+  const reply_to = args.reply_to ? String(args.reply_to).slice(0, 500) : null;
+  if (op === 'reply' && !reply_to) throw new ToolError('reply_to required for a reply (post id/uri/url of the target)');
+  const d = socialOutbox();
+  const action = {
+    id: 'ob-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    platform, op, text: text.slice(0, SOCIAL_TEXT_MAX), reply_to,
+    status: 'staged', staged_at: new Date().toISOString(),
+    sent_at: null, result: null, error: null, by: 'mcp',
+  };
+  d.actions.push(action);
+  writeSocialOutbox(d);
+  return {
+    ok: true, id: action.id, platform, op, status: 'staged',
+    note: 'STAGED ONLY — not sent. Review and click Approve & Send in the WorkspaceHQ Bridge extension popup to publish. Claude cannot send.',
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
 
@@ -230,6 +280,157 @@ const TOOLS = [
       const child = spawn(process.execPath, [COLLECTOR], { cwd: ROOT, detached: true, stdio: 'ignore' });
       child.unref();
       return { started: true, pid: child.pid ?? null, note: 'collector detached; assemble runs on next app scan/relaunch' };
+    },
+  },
+  // ---- SOCIAL BINDING (read + confirm-gated staging) --------------------------
+  {
+    name: 'hq_social_status',
+    description: 'Social bridge overview: connected accounts (platform + handle), how fresh the scraped data is, event counts by platform, and a pending-outbox summary. Read-only. Empty/stale means the WorkspaceHQ Bridge extension is not running or no social adapter is active.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    run() {
+      const inbox = socialInbox();
+      const accts = readJson(confined('social', 'accounts.json'), { updated: null, accounts: [] });
+      const ob = socialOutbox();
+      const byPlatform = {};
+      for (const e of inbox.events || []) { const p = e.platform || '?'; byPlatform[p] = (byPlatform[p] || 0) + 1; }
+      const pending = ob.actions.filter((a) => a.status === 'staged').length;
+      return {
+        updated: inbox.updated,
+        accounts: (accts.accounts || []).map((a) => ({ platform: a.platform, handle: a.handle })),
+        events_total: (inbox.events || []).length,
+        events_by_platform: byPlatform,
+        outbox: { staged: pending, sent: ob.actions.filter((a) => a.status === 'sent').length, failed: ob.actions.filter((a) => a.status === 'failed').length },
+      };
+    },
+  },
+  {
+    name: 'hq_social_feed',
+    description: 'Recent timeline/feed posts the bridge scraped from your logged-in social sessions. Read-only. Optional platform filter and limit (default 30, max 200).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        platform: { type: 'string', description: `filter to one platform: ${SOCIAL_PLATFORMS.join(', ')}` },
+        limit: { type: 'number', description: 'max items (default 30, max 200)' },
+      },
+      additionalProperties: false,
+    },
+    run(args) {
+      const plat = args.platform ? normPlatform(args.platform) : null;
+      const lim = Math.min(200, Math.max(1, Math.round(Number(args.limit) || 30)));
+      const items = (socialInbox().events || [])
+        .filter((e) => e.kind === 'feed' && (!plat || e.platform === plat))
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .slice(0, lim);
+      return { count: items.length, items };
+    },
+  },
+  {
+    name: 'hq_social_mentions',
+    description: 'Mentions, replies and notifications directed at you, scraped from your logged-in sessions. Read-only. Optional platform filter and limit (default 30, max 200).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        platform: { type: 'string', description: `filter to one platform: ${SOCIAL_PLATFORMS.join(', ')}` },
+        limit: { type: 'number', description: 'max items (default 30, max 200)' },
+      },
+      additionalProperties: false,
+    },
+    run(args) {
+      const plat = args.platform ? normPlatform(args.platform) : null;
+      const lim = Math.min(200, Math.max(1, Math.round(Number(args.limit) || 30)));
+      const items = (socialInbox().events || [])
+        .filter((e) => (e.kind === 'mention' || e.kind === 'notification') && (!plat || e.platform === plat))
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .slice(0, lim);
+      return { count: items.length, items };
+    },
+  },
+  {
+    name: 'hq_social_metrics',
+    description: 'Latest follower/engagement metrics per platform, from the most recent metrics snapshot the bridge captured. Read-only. Optional platform filter.',
+    inputSchema: {
+      type: 'object',
+      properties: { platform: { type: 'string', description: `filter to one platform: ${SOCIAL_PLATFORMS.join(', ')}` } },
+      additionalProperties: false,
+    },
+    run(args) {
+      const plat = args.platform ? normPlatform(args.platform) : null;
+      const latestByPlatform = {};
+      for (const e of socialInbox().events || []) {
+        if (e.kind !== 'metrics') continue;
+        if (plat && e.platform !== plat) continue;
+        const cur = latestByPlatform[e.platform];
+        if (!cur || (e.ts || 0) > (cur.ts || 0)) latestByPlatform[e.platform] = e;
+      }
+      return {
+        metrics: Object.values(latestByPlatform).map((e) => ({ platform: e.platform, ts: e.ts, ...(e.metrics || {}) })),
+      };
+    },
+  },
+  {
+    name: 'hq_social_post',
+    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        platform: { type: 'string', description: `target platform: ${SOCIAL_PLATFORMS.join(', ')}` },
+        text: { type: 'string', maxLength: SOCIAL_TEXT_MAX, description: 'the post body' },
+      },
+      required: ['platform', 'text'],
+      additionalProperties: false,
+    },
+    run(args) { return stageAction('post', args); },
+  },
+  {
+    name: 'hq_social_reply',
+    description: 'STAGE a reply for review. Does NOT publish — appends a staged action; you must Approve & Send in the extension popup. reply_to is the target post id/uri/url.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        platform: { type: 'string', description: `target platform: ${SOCIAL_PLATFORMS.join(', ')}` },
+        reply_to: { type: 'string', description: 'id / at-uri / url of the post being replied to' },
+        text: { type: 'string', maxLength: SOCIAL_TEXT_MAX, description: 'the reply body' },
+      },
+      required: ['platform', 'reply_to', 'text'],
+      additionalProperties: false,
+    },
+    run(args) { return stageAction('reply', args); },
+  },
+  {
+    name: 'hq_social_outbox',
+    description: 'List outbox actions and their status (staged / sent / failed / canceled). Read-only view of what is waiting for your approval and what has gone out. Optional status filter.',
+    inputSchema: {
+      type: 'object',
+      properties: { status: { type: 'string', description: 'filter: staged | sent | failed | canceled' } },
+      additionalProperties: false,
+    },
+    run(args) {
+      const f = args.status ? String(args.status).toLowerCase() : null;
+      const actions = socialOutbox().actions
+        .filter((a) => !f || a.status === f)
+        .map((a) => ({ id: a.id, platform: a.platform, op: a.op, status: a.status, text: a.text, reply_to: a.reply_to, staged_at: a.staged_at, sent_at: a.sent_at, result: a.result, error: a.error }));
+      return { count: actions.length, actions };
+    },
+  },
+  {
+    name: 'hq_social_cancel',
+    description: 'Cancel a STAGED outbox action so it can never be sent (marks it canceled). Only staged actions can be canceled — sent posts cannot be unsent from here. Safe: never publishes anything.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'outbox action id (see hq_social_outbox)' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    run(args) {
+      const id = String(args.id || '').trim();
+      if (!id) throw new ToolError('id required');
+      const d = socialOutbox();
+      const a = d.actions.find((x) => x.id === id);
+      if (!a) throw new ToolError(`unknown outbox id "${id}"`);
+      if (a.status !== 'staged') return { ok: false, id, reason: `cannot cancel — status is "${a.status}"` };
+      a.status = 'canceled';
+      writeSocialOutbox(d);
+      return { ok: true, id, status: 'canceled' };
     },
   },
 ];

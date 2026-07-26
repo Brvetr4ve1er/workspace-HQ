@@ -22,6 +22,49 @@ async function load() {
   $('token').value = cfg.token || '';
 }
 
+// ---- social outbox (the human approval surface) ----------------------------
+function appHeaders(cfg, post) {
+  return { ...(post ? { 'Content-Type': 'application/json' } : {}), 'X-HQ-Bridge': '1', ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}) };
+}
+async function getCfg() {
+  const { hq_cfg } = await chrome.storage.local.get('hq_cfg');
+  return { ...DEFAULTS, ...(hq_cfg || {}) };
+}
+async function socialLoad() {
+  const list = $('social-list');
+  const cfg = await getCfg();
+  let data;
+  try { data = await fetch(cfg.endpoint.replace(/\/$/, '') + '/social/outbox', { headers: appHeaders(cfg, false) }).then((r) => r.json()); }
+  catch (e) { list.innerHTML = '<div class="social-empty">app link off</div>'; return; }
+  const actions = (data && data.actions) || [];
+  if (!actions.length) { list.innerHTML = '<div class="social-empty">nothing staged</div>'; return; }
+  list.innerHTML = '';
+  for (const a of actions) {
+    const row = document.createElement('div');
+    row.className = 'social-item';
+    const top = document.createElement('div'); top.className = 'si-top';
+    const plat = document.createElement('span'); plat.className = 'si-plat'; plat.textContent = a.platform || '?';
+    const op = document.createElement('span'); op.className = 'si-op'; op.textContent = (a.op || '') + (a.reply_to ? ' ↩' : '');
+    top.append(plat, op);
+    const txt = document.createElement('div'); txt.className = 'si-text';
+    txt.textContent = a.text || '';            // textContent — never render post text as HTML
+    const btn = document.createElement('button'); btn.className = 'si-send'; btn.textContent = 'Approve & Send';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = 'sending…';
+      const res = await chrome.runtime.sendMessage({ type: 'social:send', action: a });
+      btn.textContent = res && res.ok ? 'sent ✓' : ('failed: ' + ((res && res.error) || '?'));
+      setTimeout(socialLoad, 1400);
+    });
+    row.append(top, txt, btn);
+    list.appendChild(row);
+  }
+}
+$('social-sync').addEventListener('click', async () => {
+  const b = $('social-sync'); b.disabled = true; b.textContent = '…';
+  try { await chrome.runtime.sendMessage({ type: 'social:sync' }); } catch (e) { /* SW asleep */ }
+  setTimeout(() => { b.disabled = false; b.textContent = 'Sync'; socialLoad(); }, 1600);
+});
+
 $('paused').addEventListener('change', async (e) => {
   const { hq_cfg } = await chrome.storage.local.get('hq_cfg');
   await chrome.storage.local.set({ hq_cfg: { ...DEFAULTS, ...(hq_cfg || {}), paused: e.target.checked } });
@@ -37,4 +80,5 @@ $('save').addEventListener('click', async () => {
 });
 
 load();
-setInterval(load, 2000);
+socialLoad();
+setInterval(() => { load(); socialLoad(); }, 2500);
