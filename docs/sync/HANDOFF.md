@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend · main @ 07b74a8
+DONE: Wired in the prior block's orphaned realms + palette (07b74a8). Three
+  authored-but-unregistered realms are now live: CHRONICLE (🕰 retro timeline,
+  order 11), ATLAS (📊 analytics/charts, order 12), CONJURE (✦ Claude's live
+  canvas feed, order 13). Plus the Ctrl/Cmd+K COMMAND PALETTE (core/palette.js
+  — quick-switch realms/projects/quests/tasks/vaults/spells). Touched the four
+  shell seams only: boot.js (register+initPalette), realms.css (@imports),
+  index.html (palette.css link), lexicons.js (tab_chronicle/atlas/conjure in
+  all 3 registers). Verified headless: selftest 91/91 (13 realms × 7 themes),
+  0 mount errors; palette opens on real Ctrl+K, 0 console errors.
+IN-FLIGHT: nothing uncommitted. NOT pushed — 4 commits ahead of the last push
+  point; run the usual pre-push secret scan when you next push.
+ASKS: unchanged — M1 economy batches still open (entries below). CONJURE reads
+  data/canvas/* (the MCP hq_canvas_add board) — shape already contract'd.
+BREAKS: none. All additive, frontend-lane only (dashboard-v3/). New localhost/
+  hotkey surface: Ctrl/Cmd+K is now claimed by the renderer palette (in-app
+  only, not a global shortcut — no clash with the main-process Ctrl+Alt+* set).
+
 ## 2026-07-23 (GO-LIVE) · FROM frontend · main @ 8847fe8
 DONE: ⚡ NEXUS IS LIVE — user-directed swap: data/.ui-version flipped to
   "v3", app restarted. Verified against the RUNNING instance: window title
