@@ -226,16 +226,110 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 - Modify: `dashboard-v3/src/intel/derive.mjs`
 - Modify: `dashboard-v3/src/intel/derive.test.mjs`
 
-**Interfaces:**
-- Produces:
-  - `triage(selected) → [{ projectId, name, blastRadius, kind, detail }]` sorted desc by `blastRadius` (kind ∈ `'security'|'uncommitted'|'stale'|'no-tests'|'no-ci'`).
-  - `anomalies(bundle) → { clones:n, duplicates:n, empty:n, bytes:n, items:[{path,kind}] }` over `inventory`.
-  - `momentum(trends) → { xpSlope, etaNextLevel:isoString|null, stalling:[projectId] }` — least-squares slope over `trends.xp` (`[{d,v}]`).
+**Interfaces (signatures corrected to live data 2026-07-26):**
+- `triage(selected) → [{ projectId, name, blastRadius, kind, detail }]` sorted desc by `blastRadius`; `kind ∈ 'security'|'uncommitted'|'stale'|'no-tests'|'no-ci'`. One row per concern per project. Reads `project.metrics.risk_security.secrets_found`, `.git_safety.dirty`, `activity.days_since_commit`, `signals.has_tests`, `signals.has_ci`.
+- `anomalies(selected) → { clones, duplicates, empty, reclaimableBytes, items:[{label,kind}] }`. **Field ground-truth:** `selected.inventory.clones[]` items are `{name,…}`; `.duplicates[]` are `{detail,…}`; `.empty[]` are **plain strings**. Inventory items carry NO byte size — `reclaimableBytes` = Σ `selected.projects[].disk.reclaimable_bytes`.
+- `momentum(trends, account, now) → { xpSlope, etaDays:number|null, etaNextLevel:isoString|null }`. Least-squares slope over `trends.xp` (`[{d,v}]`) by sample index; `etaDays = account.xp_to_next / xpSlope` when `xpSlope>0`; `etaNextLevel = now + etaDays`. `now` injected. (No `stalling` — that concern lives in `triage`'s `stale` kind.)
 
-- [ ] **Step 1: Write failing tests** (blast-radius ordering; momentum slope sign; anomaly byte-sum). *(full assertions written inline in the executable spin-out)*
-- [ ] **Step 2: Run — FAIL.**
-- [ ] **Step 3: Implement** the three pure functions beside `oracle` (least-squares: `slope = Σ((x-x̄)(y-ȳ))/Σ(x-x̄)²`; ETA from `xp_to_next / xpSlope`).
-- [ ] **Step 4: Run — PASS.**
+- [ ] **Step 1: Write the failing tests** (append to `derive.test.mjs`)
+
+```js
+import { triage, anomalies, momentum } from './derive.mjs';
+
+test('triage: secrets outrank a dirty tree; rows sorted desc by blast radius', () => {
+  const sel = { projects: [
+    { id:'p1', name:'A', metrics:{ risk_security:{secrets_found:2}, git_safety:{dirty:0} }, signals:{has_tests:true,has_ci:true}, activity:{days_since_commit:0} },
+    { id:'p2', name:'B', metrics:{ risk_security:{secrets_found:0}, git_safety:{dirty:12} }, signals:{has_tests:true,has_ci:true}, activity:{days_since_commit:0} },
+    { id:'p3', name:'C', metrics:{ risk_security:{secrets_found:0}, git_safety:{dirty:0} }, signals:{has_tests:false,has_ci:false}, activity:{days_since_commit:40} },
+  ] };
+  const r = triage(sel);
+  assert.equal(r[0].kind, 'security');
+  assert.equal(r[0].projectId, 'p1');
+  assert.ok(r.every((x,i,a) => i===0 || a[i-1].blastRadius >= x.blastRadius));
+});
+
+test('triage: clean project → no rows; never throws on empty/null', () => {
+  assert.deepEqual(triage({ projects:[{ id:'ok', name:'ok', metrics:{risk_security:{secrets_found:0},git_safety:{dirty:0}}, signals:{has_tests:true,has_ci:true}, activity:{days_since_commit:0} }] }), []);
+  assert.doesNotThrow(() => triage({}));
+  assert.doesNotThrow(() => triage(null));
+});
+
+test('anomalies: counts buckets, normalizes heterogeneous item shapes, sums disk', () => {
+  const sel = { inventory:{ clones:[{name:'x'},{name:'y'}], duplicates:[{detail:'z mirrors w'}], empty:['e1','e2','e3'] },
+    projects:[{disk:{reclaimable_bytes:100}},{disk:{reclaimable_bytes:50}}] };
+  const a = anomalies(sel);
+  assert.equal(a.clones, 2); assert.equal(a.duplicates, 1); assert.equal(a.empty, 3);
+  assert.equal(a.reclaimableBytes, 150);
+  assert.equal(a.items.length, 6);
+  assert.ok(a.items.every(i => typeof i.label === 'string' && i.kind));
+  assert.doesNotThrow(() => anomalies({}));
+});
+
+test('momentum: positive slope → finite ETA; flat/empty → null, no div-by-zero', () => {
+  const up = momentum({ xp:[{d:'a',v:100},{d:'b',v:110},{d:'c',v:120},{d:'d',v:130}] }, { xp_to_next:50 }, '2026-07-04T12:00:00Z');
+  assert.ok(up.xpSlope > 9 && up.xpSlope < 11);
+  assert.ok(up.etaDays > 0 && isFinite(up.etaDays));
+  assert.equal(typeof up.etaNextLevel, 'string');
+  const flat = momentum({ xp:[{d:'a',v:5},{d:'b',v:5}] }, { xp_to_next:50 }, '2026-07-04T12:00:00Z');
+  assert.equal(flat.etaDays, null); assert.equal(flat.etaNextLevel, null);
+  assert.doesNotThrow(() => momentum({}, {}, '2026-07-04T12:00:00Z'));
+});
+```
+
+- [ ] **Step 2: Run — FAIL** (`node --test dashboard-v3/src/intel/derive.test.mjs`; the three fns are undefined).
+
+- [ ] **Step 3: Implement beside `oracle` in `derive.mjs`**
+
+```js
+export function triage(selected) {
+  const rows = [];
+  for (const p of (selected?.projects || [])) {
+    const sec = num(p.metrics?.risk_security?.secrets_found);
+    const dirty = num(p.metrics?.git_safety?.dirty);
+    const stale = num(p.activity?.days_since_commit);
+    const concerns = [];
+    if (sec > 0)     concerns.push({ kind:'security',    blastRadius: 100 + sec,                    detail:`${sec} exposed secret${sec>1?'s':''}` });
+    if (dirty > 0)   concerns.push({ kind:'uncommitted', blastRadius: 50 + Math.min(dirty, 40),      detail:`${dirty} uncommitted files` });
+    if (stale >= 14) concerns.push({ kind:'stale',       blastRadius: 20 + Math.min(stale, 60) / 2,  detail:`${stale} days since a commit` });
+    if (p.signals?.has_tests === false) concerns.push({ kind:'no-tests', blastRadius: 15, detail:'no tests' });
+    if (p.signals?.has_ci === false)    concerns.push({ kind:'no-ci',    blastRadius: 10, detail:'no CI' });
+    for (const c of concerns) rows.push({ projectId: p.id, name: p.name, ...c });
+  }
+  return rows.sort((a, b) => b.blastRadius - a.blastRadius);
+}
+
+export function anomalies(selected) {
+  const inv = selected?.inventory || {};
+  const items = [];
+  for (const c of (inv.clones || []))     items.push({ label: c?.name || 'clone',      kind: 'clone' });
+  for (const d of (inv.duplicates || [])) items.push({ label: d?.detail || 'duplicate', kind: 'duplicate' });
+  for (const e of (inv.empty || []))      items.push({ label: typeof e === 'string' ? e : (e?.name || 'empty'), kind: 'empty' });
+  const reclaimableBytes = (selected?.projects || []).reduce((s, p) => s + num(p.disk?.reclaimable_bytes), 0);
+  return { clones: (inv.clones||[]).length, duplicates: (inv.duplicates||[]).length, empty: (inv.empty||[]).length, reclaimableBytes, items };
+}
+
+export function momentum(trends, account, now) {
+  const xs = (trends?.xp || []).map((pt, i) => [i, num(pt?.v)]);
+  const n = xs.length;
+  let xpSlope = 0;
+  if (n >= 2) {
+    const mx = xs.reduce((s, [x]) => s + x, 0) / n;
+    const my = xs.reduce((s, [, y]) => s + y, 0) / n;
+    let numr = 0, den = 0;
+    for (const [x, y] of xs) { numr += (x - mx) * (y - my); den += (x - mx) ** 2; }
+    xpSlope = den ? numr / den : 0;
+  }
+  const toNext = num(account?.xp_to_next);
+  let etaDays = null, etaNextLevel = null;
+  if (xpSlope > 0 && toNext > 0) {
+    etaDays = toNext / xpSlope;                                  // slope is per-sample (~per-day scan)
+    etaNextLevel = new Date(new Date(now).getTime() + etaDays * 86400000).toISOString();
+  }
+  return { xpSlope, etaDays, etaNextLevel };
+}
+```
+
+- [ ] **Step 4: Run — PASS** (all tests green, output pristine).
 - [ ] **Step 5: Commit** `fe: intel/derive — triage, anomalies, momentum`.
 
 ### Task 0.4: `derive.spellFit()` + `derive.streakRisk()` + `derive.achievementNudges()`
