@@ -81,9 +81,22 @@ function buildIndex() {
   return items;
 }
 
-// Case-insensitive substring across label+hint; label-prefix ranks first, then
-// label-substring, then hint-only matches, tie-broken by kind. Empty query is
-// the quick-switcher: realms only, in their rail order.
+// Greedy subsequence match of q within s (chars in order, gaps allowed). Returns
+// the SPAN of the match (last-first+1), or -1 if q isn't a subsequence. Span is
+// the quality signal that stops a short query from matching every long title
+// equally: "grm" is tight in "grimoire" (span 4) but sprawls across a 60-char
+// quest line, so the tight match ranks first.
+function subseqSpan(q, s) {
+  let i = 0, first = -1, last = -1;
+  for (let j = 0; j < s.length && i < q.length; j++) {
+    if (s[j] === q[i]) { if (i === 0) first = j; last = j; i++; }
+  }
+  return i === q.length ? (last - first + 1) : -1;
+}
+
+// Ranking: label-prefix (0) > label-substring (1) > key-substring (2) > fuzzy
+// label (3) > fuzzy key (4), tie-broken by kind. Empty query = recency quick-
+// switcher (realms only). Fuzzy needs q.length >= 2 (1-char fuzzy is all noise).
 function refilter() {
   const q = (inputEl.value || '').trim().toLowerCase();
   if (!q) {
@@ -93,10 +106,22 @@ function refilter() {
     const rank = (it) => { const i = recent.indexOf(it.realmId); return i === -1 ? 999 : i; };
     results = realms.slice().sort((a, b) => rank(a) - rank(b)).slice(0, CAP);
   } else {
+    const fuzzy = q.length >= 2;   // 1-char fuzzy matches nearly everything — skip
     const scored = [];
     for (const it of allItems) {
-      if (!it.key.includes(q)) continue;
-      const s = it.labelLc.startsWith(q) ? 0 : it.labelLc.includes(q) ? 1 : 2;
+      let s;
+      if (it.labelLc.startsWith(q)) s = 0;
+      else if (it.labelLc.includes(q)) s = 1;
+      else if (it.key.includes(q)) s = 2;
+      else if (fuzzy) {
+        // fuzzy fallback, sub-ranked by tightness: prefer the label match, and a
+        // compact span (grm->grimoire) over a sprawling one (grm scattered across
+        // a long quest title) so short queries surface short items, not noise.
+        let span = subseqSpan(q, it.labelLc);
+        if (span < 0) span = subseqSpan(q, it.key);
+        if (span < 0) continue;
+        s = 3 + Math.min(0.999, (span - q.length) / 60);
+      } else continue;
       scored.push({ it, s });
     }
     scored.sort((a, b) => a.s - b.s || KIND_RANK[a.it.kind] - KIND_RANK[b.it.kind]);
