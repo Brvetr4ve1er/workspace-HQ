@@ -82,7 +82,7 @@ The teardown's throwaway harness becomes a committed tool so before/after is rep
 
 ## Task 6: Per-realm type + spacing + hierarchy pass (fix the flat realms)
 
-**Files:** Modify `styles/realms/*.css` (all 13), applying `--fs-*` AND `--space-*`; focus on the flat realms — `summoning`, `observatory`, `watchtower`, `atlas`, `conjure` — plus `chronicle`, `hunts`.
+**Files:** Modify `styles/realms/*.css` — the 12 realms EXCEPT `grimoire.css` (deferred to Task 8: the concurrent session is actively editing grimoire and its HANDOFF explicitly asks Task 8 to snap the new filter controls — consolidate all grimoire changes there to avoid a contested-file collision). Apply `--fs-*` AND `--space-*`; focus on the flat realms — `summoning`, `observatory`, `watchtower`, `atlas`, `conjure` — plus `chronicle`, `hunts`.
 
 - [ ] **Step 1:** In each realm sheet, snap font sizes to `--fs-*` and gap/margin/padding literals to `--space-*` (same snap map as Task 4), and ensure a real heading step: section titles at `--fs-lg`+ over `--fs-sm/md` body (target ≥1.25× step). Give the flat realms one clear focal element (model on `roundtable`'s "THE ONE THING" card scale). Add scannable anchors to `chronicle` (7-screen wall of uniform text).
 - [ ] **Step 2 (verify):** selftest green; harness → **headingStep ≥ 1.25× in every realm**, sub12pct ≈ 0 per realm, per-realm gapDistinct snapped to the scale; screenshots of all 13 reviewed against baseline — each realm now has a visible "where do I look first."
@@ -100,7 +100,7 @@ The teardown's throwaway harness becomes a committed tool so before/after is rep
 
 **Files:** Modify `styles/realms/{roundtable,forge,grimoire,lands,legacy,chronicle}.css` (measure caps), `medbay.css` (command wrap), `grimoire.css` (clamp affordance).
 
-- [ ] **Step 1:** Add `max-width: var(--measure)` (or rely on the Task-3 global cap) to the 6 uncapped realms' content wrappers; in `medbay`, soft-wrap or add a copy affordance to the 2059px fix-command `<code>` so reading needs no horizontal scroll; in `grimoire`, add an expand affordance (or clamp to 3 lines) for the 2-line-truncated descriptions + bump the 26px action buttons (covered by Task 3 tap floor — verify).
+- [ ] **Step 1:** Add `max-width: var(--measure)` to the 6 uncapped realms' content wrappers; in `medbay`, soft-wrap or add a copy affordance to the 2059px fix-command `<code>` so reading needs no horizontal scroll; **`grimoire.css` — the full deferred pass:** migrate its `font-size`→`--fs-*` and gap/margin/padding→`--space-*` (deferred from Task 6), snap the concurrent session's new `.toolbar2` filter controls (11.5px seg / 10px labels — their HANDOFF ask) onto `--fs-*`, add an expand affordance (or clamp to 3 lines) for the 2-line-truncated descriptions, and verify the 26px action buttons clear the Task-3 tap floor. (Re-check `grimoire.css` isn't mid-edit by the other session before starting; coordinate via HANDOFF if so.)
 - [ ] **Step 2 (verify):** selftest green; harness → every realm stageBodyWidth ≤ measure, medbay overflow resolved; screenshots reviewed.
 - [ ] **Step 3: Commit** `fe: design-system — measure caps + medbay/grimoire affordances`.
 
