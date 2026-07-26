@@ -4,7 +4,7 @@
 
 **Goal:** Turn NEXUS from a beautiful read-only dashboard into a console that *tells you what to do* and *does it for you* — shipping all 22 brainstormed features across four coherent phases, without ever breaking the running app or the v2 rollback path.
 
-**Architecture:** A three-module **substrate** lands first — pure `intel/derive.js` (the brain), `core/actions.js` (the one audited "do" path), `core/notify.js` (the event surface). ~85% of the 22 features are then **pure renderer-side derivations + additive UI** that consume the substrate and need **zero data-contract change and zero main-process change**. The remaining ~15% (tray HUD, real security remediation, Claude-session spawn, screenshot capture) are isolated into a late phase behind explicit CONTRACT.md / IPC-CONTRACT.md asks.
+**Architecture:** A three-module **substrate** lands first — pure `intel/derive.mjs` (the brain), `core/actions.mjs` (the one audited "do" path), `core/notify.mjs` (the event surface). ~85% of the 22 features are then **pure renderer-side derivations + additive UI** that consume the substrate and need **zero data-contract change and zero main-process change**. The remaining ~15% (tray HUD, real security remediation, Claude-session spawn, screenshot capture) are isolated into a late phase behind explicit CONTRACT.md / IPC-CONTRACT.md asks.
 
 **Tech Stack:** Electron 32 (Chromium 128, Node ~20), vanilla-JS ESM over `file://`, no build step. Tests: `node --test` (built-in) for pure modules; the in-app `?selftest` harness (`dev-main.js --smoke --selftest`) for mount integrity; struct golden fixtures for the contract.
 
@@ -23,7 +23,7 @@
 ## The Surgical Doctrine — how we never break the app
 
 1. **Purity firewall.** All intelligence is pure functions `f(bundle, selected, now) → plain object`, in `src/intel/`. No DOM, no globals, no `window.hq`. This makes the brain unit-testable headless and impossible to crash the renderer.
-2. **One dispatch path.** Every side-effect (navigate, cast, complete quest, capture, scan, spawn Claude) goes through `core/actions.js`. Buttons, palette, Oracle, and Familiar all call `dispatch(id, ctx)` — so there is exactly one place to audit, guard, and telemetry-log actions.
+2. **One dispatch path.** Every side-effect (navigate, cast, complete quest, capture, scan, spawn Claude) goes through `core/actions.mjs`. Buttons, palette, Oracle, and Familiar all call `dispatch(id, ctx)` — so there is exactly one place to audit, guard, and telemetry-log actions.
 3. **Tolerant mounts.** Every new surface renders a calm empty state when its data block is absent (the established realm pattern: `enabled: () => true` + guarded reads). A missing field never blanks the rail or throws.
 4. **Feature flags in `localStorage`.** Each epic ships behind a `hq-ff-<epic>` flag (default on once verified, but instantly killable) so a regression is a toggle away, not a revert.
 5. **Additive commits, `fe:` prefix, selftest between each.** No task lands red. Contract/IPC asks are separate, announced-first, struct/main-gated.
@@ -35,10 +35,10 @@
 
 | File | Responsibility | Lane / contract |
 |---|---|---|
-| `dashboard-v3/src/intel/derive.js` | Pure derivations: `oracle`, `triage`, `forecast`, `anomalies`, `momentum`, `streakRisk`, `spellFit`, `achievementNudges`. Each `f(data,…)→plain`. | fe · no contract |
+| `dashboard-v3/src/intel/derive.mjs` | Pure derivations: `oracle`, `triage`, `forecast`, `anomalies`, `momentum`, `streakRisk`, `spellFit`, `achievementNudges`. Each `f(data,…)→plain`. | fe · no contract |
 | `dashboard-v3/src/intel/derive.test.mjs` | `node --test` suite over the golden fixture. | fe · no contract |
-| `dashboard-v3/src/core/actions.js` | Action registry + `dispatch()`. Wraps `switchRealm`, cast, quest-done, capture, scan-trigger. Single audited seam. | fe · reuses existing IPC |
-| `dashboard-v3/src/core/notify.js` | Event surface: `emit(evt)` → in-app takeover (existing fx) + guarded HTML5 `Notification`. Reads `changes_since_prev` at boot. | fe · renderer Notification API (no main change) |
+| `dashboard-v3/src/core/actions.mjs` | Action registry + `dispatch()`. Wraps `switchRealm`, cast, quest-done, capture, scan-trigger. Single audited seam. | fe · reuses existing IPC |
+| `dashboard-v3/src/core/notify.mjs` | Event surface: `emit(evt)` → in-app takeover (existing fx) + guarded HTML5 `Notification`. Reads `changes_since_prev` at boot. | fe · renderer Notification API (no main change) |
 | `dashboard-v3/src/intel/__fixtures__/sample.json` | Frozen copy of a real `latest.json` for headless tests (renderer-local, gitignored-eligible). | fe |
 
 **Key architectural facts the implementer must know:**
@@ -47,6 +47,7 @@
 - `now-brief.mjs` (`tools/now-brief.mjs`) is a **headless Oracle prototype** already fusing browser focus + git + quests into one next-action. Port its ranking logic into `derive.oracle()` rather than reinventing.
 - Electron renderer supports the HTML5 `Notification` API directly — OS notifications need **no** main-process change.
 - `node --test` ships with Node 20 (Electron 32). Run pure suites with the app's node: `node --test dashboard-v3/src/intel/derive.test.mjs`.
+- **Dual-runtime naming rule (load-bearing):** the pure substrate modules are named `.mjs` (`derive.mjs`, `actions.mjs`, `notify.mjs`) so they are ESM in **both** the Electron renderer (imported with explicit `.mjs` extension from `.js` ESM boot/realms) **and** under `node --test`. Do NOT add `"type":"module"` to `dashboard-v3/package.json` — `dev-main.js`/`nexus-shot.js` use CommonJS `require()` and that flag would break the selftest harness. Import them with the explicit extension everywhere (`import { oracle } from '../intel/derive.mjs'`).
 
 ---
 
@@ -116,7 +117,7 @@ git commit -m "fe: freeze latest.json fixture for intel unit tests"
 ### Task 0.2: `derive.oracle()` — the single live recommendation
 
 **Files:**
-- Create: `dashboard-v3/src/intel/derive.js`
+- Create: `dashboard-v3/src/intel/derive.mjs`
 - Test: `dashboard-v3/src/intel/derive.test.mjs`
 
 **Interfaces:**
@@ -138,7 +139,7 @@ git commit -m "fe: freeze latest.json fixture for intel unit tests"
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { oracle } from './derive.js';
+import { oracle } from './derive.mjs';
 
 const FIX = JSON.parse(readFileSync(new URL('./__fixtures__/sample.json', import.meta.url)));
 
@@ -167,7 +168,7 @@ Expected: FAIL — `oracle` is not exported / file missing.
 - [ ] **Step 3: Write the minimal implementation (port now-brief ranking)**
 
 ```js
-// derive.js — pure derivations. No DOM, no globals, no Date.now().
+// derive.mjs — pure derivations. No DOM, no globals, no Date.now().
 const num = (v, d = 0) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 // Weighted "what should I do right now". Higher weight wins. Ported from
@@ -215,14 +216,14 @@ Expected: PASS (2/2).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add dashboard-v3/src/intel/derive.js dashboard-v3/src/intel/derive.test.mjs
+git add dashboard-v3/src/intel/derive.mjs dashboard-v3/src/intel/derive.test.mjs
 git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendation"
 ```
 
 ### Task 0.3: `derive.triage()` + `derive.anomalies()` + `derive.momentum()`
 
 **Files:**
-- Modify: `dashboard-v3/src/intel/derive.js`
+- Modify: `dashboard-v3/src/intel/derive.mjs`
 - Modify: `dashboard-v3/src/intel/derive.test.mjs`
 
 **Interfaces:**
@@ -239,7 +240,7 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 
 ### Task 0.4: `derive.spellFit()` + `derive.streakRisk()` + `derive.achievementNudges()`
 
-**Files:** Modify `derive.js` + `derive.test.mjs`.
+**Files:** Modify `derive.mjs` + `derive.test.mjs`.
 
 **Interfaces:**
 - `spellFit(bundle, selected) → [{ spellId, name, forProjectId, why }]` — match `spellbook.spells` `school`+tags to project `signals` gaps (e.g. `has_tests:false` → a `restoration`/test spell).
@@ -248,10 +249,10 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 
 - [ ] TDD 5-step cycle as above → commit `fe: intel/derive — spellFit, streakRisk, achievementNudges`.
 
-### Task 0.5: `core/actions.js` — the one dispatch path
+### Task 0.5: `core/actions.mjs` — the one dispatch path
 
 **Files:**
-- Create: `dashboard-v3/src/core/actions.js`
+- Create: `dashboard-v3/src/core/actions.mjs`
 - Test: `dashboard-v3/src/core/actions.test.mjs` (pure registry logic; side-effects injected)
 
 **Interfaces:**
@@ -267,7 +268,7 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 ### Task 0.6: Seed the core action set + wire boot
 
 **Files:**
-- Modify: `dashboard-v3/src/core/actions.js` (register defaults)
+- Modify: `dashboard-v3/src/core/actions.mjs` (register defaults)
 - Modify: `dashboard-v3/src/core/boot.js` (call `initActions()` after shell, before palette)
 
 **Interfaces:**
@@ -279,10 +280,10 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 - [ ] **Step 3:** Selftest gate — `dev-main.js --smoke --selftest` → `combos=91 errors=0 PASS`.
 - [ ] **Step 4: Commit** `fe: seed core actions + boot wiring`.
 
-### Task 0.7: `core/notify.js` — the event surface
+### Task 0.7: `core/notify.mjs` — the event surface
 
 **Files:**
-- Create: `dashboard-v3/src/core/notify.js`
+- Create: `dashboard-v3/src/core/notify.mjs`
 - Test: `dashboard-v3/src/core/notify.test.mjs` (pure: event routing; DOM/Notification injected)
 - Modify: `dashboard-v3/src/core/boot.js` (init after actions; replay `changes_since_prev`)
 
@@ -320,7 +321,7 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 # PHASE 2 — MAKE IT ACT (epics F1, D, E · fe + one IPC ask)
 
 ### Epic F1 · Do-Anything Palette (feature 8) — cheapest killer, build first
-- **Files:** `src/core/palette.js` (extend the existing `buildIndex()` — add `all(ctx)` from `core/actions.js` as a new `kind:'action'` with `run: () => dispatch(id, ctx)`).
+- **Files:** `src/core/palette.js` (extend the existing `buildIndex()` — add `all(ctx)` from `core/actions.mjs` as a new `kind:'action'` with `run: () => dispatch(id, ctx)`).
 - **Behavior:** Ctrl/Cmd+K now surfaces verbs (`Cast X`, `Complete quest Y`, `Scan now`, `Capture idea`, `Send Claude at Z`) alongside nav. `KIND_RANK`/`KIND_LABEL`/`KIND_ICON` gain an `action` entry. No new module — the `run()` seam already exists.
 - **Gate:** selftest + palette capture (reuse the `wire-shot` pattern) showing an action row executing.
 
@@ -343,7 +344,7 @@ git commit -m "fe: intel/derive.oracle — pure live 'do this now' recommendatio
 - **11 Sunday ritual:** an interactive pass over `weekly-recap.json` (swipe shipped items, rate, set next top-3 → written via existing quest/override path).
 
 ### Epic H · Ambient & OS (features 13, 16, 12, 15)
-- **13 OS notifications:** already in `notify.js` (renderer `Notification`) — this epic just enriches copy/sound. **No main change.**
+- **13 OS notifications:** already in `notify.mjs` (renderer `Notification`) — this epic just enriches copy/sound. **No main change.**
 - **16 browser nudge:** `derive` over `browser.by_domain` vs open red quests → one dismissible ambient nudge. Pure (data already in `latest.json.browser`).
 - **12 tray micro-HUD:** **MAIN-PROCESS ASK.** New file `dashboard/tray-hud.js` (NOT edits to `main.js`), reads `latest.json.account.health_index`, sets tray title/tooltip. IPC-CONTRACT: none (main reads the file it already reads). Gated on in-flight main work landing.
 - **15 capture-everywhere:** renderer capture variants ship in-lane; **screenshot capture + browser-extension capture are ASKS** (extension = meta lane `browser-bridge/`, screenshot = main/`desktopCapturer`). Isolate; announce.
