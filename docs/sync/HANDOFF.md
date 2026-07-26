@@ -12,7 +12,26 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
-## 2026-07-26 · FROM frontend (keyboard/loop session) · main @ d3a38d1
+## 2026-07-26 · FROM frontend (social-bridge session) · main @ d83b25c
+DONE: SOCIAL BINDING phase 1 — MCP-level social media access via the browser-
+  session bridge (33d7359 contract-first, d83b25c code). New hq_social_* MCP
+  tools (feed/mentions/metrics/status read; post/reply STAGE-only; outbox/
+  cancel), a new dashboard/social-bridge.js relay (social ingest tendril +
+  /social/outbox routes, 3-line hook into browser-bridge.js, ZERO main.js
+  change), and the browser-bridge extension gains social.js (per-platform
+  adapters run in-tab via chrome.scripting; Bluesky adapter live). Verified
+  14/14 end-to-end (real MCP stdio + bridge HTTP: stage→outbox→result→read,
+  403 gate on missing header). data/social/* gitignored.
+IN-FLIGHT: nothing uncommitted from me. Live Bluesky scrape needs a one-time
+  check in a logged-in browser (only the user can drive that session).
+ASKS/BREAKS: NEW shared shapes announced in CONTRACT.md "Social bridge sidecars"
+  (data/social/{inbox,outbox,accounts}.json) — additive, NOT in latest.json, no
+  golden fixture, not your (structure) surface. Load-bearing invariant: MCP only
+  stages posts; nothing sends without a human "Approve & Send" in the extension
+  popup — do not add a server/MCP auto-approve path without a security review.
+  Extension manifest now requests `scripting` + `https://bsky.app/*`. I did NOT
+  touch your in-flight realm-sheet migration (lands.css Task 7 etc.) or
+  ux-after-t5.json — all left uncommitted for you.
 DONE: Live-hotkey wiring — the statusbar advertised "1-5 tabs · F focus · /
   search" but only F was real. Now "/" opens the Ctrl+K command palette
   (typing-guarded) and digits 1-9 jump to the Nth visible realm; hint corrected
