@@ -1059,8 +1059,8 @@
       },
       "insights": [
         {
-          "id": "i-doctor-cherfia-1",
-          "text": "DISCREPANCY PERSISTS: ahead=5 and unpushed=true unchanged — a new build ran locally (recent_files show workbox/sw artifacts, .next grew 71MB) but push still never happened; clinic remains offline.",
+          "id": "i-project-d-1",
+          "text": "DISCREPANCY PERSISTS: ahead=5 and unpushed=true unchanged — a new build ran locally (recent_files show workbox/sw artifacts, .next grew 71MB) but push still never happened; the site remains offline.",
           "severity": "danger",
           "tags": [
             "git",
@@ -1080,7 +1080,7 @@
           ]
         },
         {
-          "id": "i-doctor-cherfia-2",
+          "id": "i-project-d-2",
           "text": "991MB reclaimable (.next 548MB + node_modules 431MB + out 10MB) — safe to purge only after pushing; deleting before push orphans artifacts from the 5 unpushed commits.",
           "severity": "info",
           "tags": [
@@ -1095,7 +1095,7 @@
       "suggestions": [
         {
           "kind": "urgent",
-          "text": "Run `git push` now — clinic has been offline 20 days, a build ran yesterday but push never followed; GitHub Pages deploys the moment this lands.",
+          "text": "Run `git push` now — the site has been offline 20 days, a build ran yesterday but push never followed; GitHub Pages deploys the moment this lands.",
           "effort": "S",
           "impact": "high",
           "linked_quest_id": "q-project-d-push"
@@ -1122,10 +1122,10 @@
           "source": "llm"
         },
         {
-          "id": "sq-project-d-llm-sug-0-run-git-push-now-clinic-has-been-offline",
+          "id": "sq-project-d-llm-sug-0-run-git-push-now-the-site-has-been-offline",
           "project_id": "project-d",
           "kind": "urgent",
-          "title": "Run `git push` now — clinic has been offline 20 days, a build ran yesterday but push never followed; GitHub Pages deploys the moment this lands.",
+          "title": "Run `git push` now — the site has been offline 20 days, a build ran yesterday but push never followed; GitHub Pages deploys the moment this lands.",
           "detail": "",
           "effort": "S",
           "impact": "high",
@@ -1296,7 +1296,7 @@
       },
       "insights": [
         {
-          "id": "i-bruns-1",
+          "id": "i-project-e-1",
           "text": "26 dirty files unversioned for 84+ days — any `git checkout .` or disk event means permanent loss; .venv (924MB) should only be purged after committing the working tree.",
           "severity": "warning",
           "tags": [
@@ -1540,7 +1540,7 @@
       },
       "insights": [
         {
-          "id": "i-hamma-1",
+          "id": "i-project-f-1",
           "text": "DISCREPANCY PERSISTS: has_remote: false — remote was never actually added; 1 local commit at total data-loss risk on disk failure.",
           "severity": "danger",
           "tags": [
@@ -1556,8 +1556,8 @@
           ]
         },
         {
-          "id": "i-hamma-2",
-          "text": "public/admin.html remains unauthenticated — deploying this IPTV checkout site exposes subscriber management to anyone who guesses the /admin.html URL.",
+          "id": "i-project-f-2",
+          "text": "public/admin.html remains unauthenticated — deploying this checkout site exposes subscriber management to anyone who guesses the /admin.html URL.",
           "severity": "warning",
           "tags": [
             "security"
@@ -1578,7 +1578,7 @@
         },
         {
           "kind": "idea",
-          "text": "Gate admin.html with server-side authentication before any live deployment — unauthenticated admin on a WhatsApp-checkout IPTV storefront is direct subscriber data exposure.",
+          "text": "Gate admin.html with server-side authentication before any live deployment — unauthenticated admin on a WhatsApp-checkout storefront is direct subscriber data exposure.",
           "effort": "S",
           "impact": "high",
           "linked_quest_id": null
@@ -1634,7 +1634,7 @@
           "id": "sq-project-f-llm-sug-1-gate-admin-html-with-server-side-authent",
           "project_id": "project-f",
           "kind": "idea",
-          "title": "Gate admin.html with server-side authentication before any live deployment — unauthenticated admin on a WhatsApp-checkout IPTV storefront is direct subscriber data exposure.",
+          "title": "Gate admin.html with server-side authentication before any live deployment — unauthenticated admin on a WhatsApp-checkout storefront is direct subscriber data exposure.",
           "detail": "",
           "effort": "S",
           "impact": "high",
@@ -1693,9 +1693,9 @@
           "loc": 11098,
           "loc_delta": 0,
           "recent_files": [
-            "etoile-de-l-st-PWA/public/workbox-c18c662b.js",
-            "etoile-de-l-st-PWA/public/sw.js",
-            "etoile-de-l-st-PWA/public/swe-worker-5c72df51bb1f6ee0.js"
+            "project-g-pwa/public/workbox-c18c662b.js",
+            "project-g-pwa/public/sw.js",
+            "project-g-pwa/public/swe-worker-5c72df51bb1f6ee0.js"
           ]
         },
         "git_safety": {
@@ -1752,7 +1752,7 @@
       },
       "insights": [
         {
-          "id": "i-etoile-1",
+          "id": "i-project-g-1",
           "text": "CRITICAL: 0 commits, no remote, 51 days since last file modification — 131-file Next.js PWA has no version history and the 'project-g' duplicate folder in discovered inventory remains unreconciled.",
           "severity": "danger",
           "tags": [
@@ -1767,14 +1767,14 @@
           "linked_quest_ids": []
         },
         {
-          "id": "i-etoile-2",
+          "id": "i-project-g-2",
           "text": "Secret hit in lib/data/mock.ts is a stub key in mock data — false positive, no rotation needed.",
           "severity": "info",
           "tags": [
             "security"
           ],
           "evidence": {
-            "file": "/path/to/project-g/etoile-de-l-st-PWA/lib/data/mock.ts",
+            "file": "/path/to/project-g/app/lib/data/mock.ts",
             "pattern": "generic_secret_assignment"
           },
           "linked_quest_ids": []
@@ -1969,7 +1969,7 @@
       },
       "insights": [
         {
-          "id": "i-intel-1",
+          "id": "i-project-h-1",
           "text": "DISCREPANCY PERSISTS: has_remote: false — remote was never actually added; 6k-LOC FastAPI+Playwright codebase still at total-loss risk.",
           "severity": "danger",
           "tags": [
@@ -1985,7 +1985,7 @@
           ]
         },
         {
-          "id": "i-intel-2",
+          "id": "i-project-h-2",
           "text": "_smoke_pr34.py in project root — moving it to tests/ flips has_tests to true and makes GitHub Actions CI immediately viable without writing a single new test.",
           "severity": "info",
           "tags": [
@@ -2479,10 +2479,10 @@
       "project_name": "/path/to/project-c"
     },
     {
-      "id": "sq-project-d-llm-sug-0-run-git-push-now-clinic-has-been-offline",
+      "id": "sq-project-d-llm-sug-0-run-git-push-now-the-site-has-been-offline",
       "project_id": "project-d",
       "kind": "urgent",
-      "title": "Run `git push` now — clinic has been offline 20 days, a build ran yesterday but push never followed; GitHub Pages deploys the moment this lands.",
+      "title": "Run `git push` now — the site has been offline 20 days, a build ran yesterday but push never followed; GitHub Pages deploys the moment this lands.",
       "detail": "",
       "effort": "S",
       "impact": "high",
@@ -2744,7 +2744,7 @@
       "id": "sq-project-f-llm-sug-1-gate-admin-html-with-server-side-authent",
       "project_id": "project-f",
       "kind": "idea",
-      "title": "Gate admin.html with server-side authentication before any live deployment — unauthenticated admin on a WhatsApp-checkout IPTV storefront is direct subscriber data exposure.",
+      "title": "Gate admin.html with server-side authentication before any live deployment — unauthenticated admin on a WhatsApp-checkout storefront is direct subscriber data exposure.",
       "detail": "",
       "effort": "S",
       "impact": "high",
@@ -4459,7 +4459,7 @@
           "v": 45
         }
       ],
-      "product-intel-wizard": [
+      "project-h": [
         {
           "d": "2026-06-05",
           "v": 50
@@ -5100,13 +5100,13 @@
       },
       {
         "name": "clone-group-1/repo-1",
-        "origin": "github.com/ComposioHQ/agent-orchestrator",
+        "origin": "github.com/example/repo-1",
         "dirty": 0,
         "diverged": false
       },
       {
         "name": "clone-group-1/repo-2",
-        "origin": "github.com/AICMO/AiCMO-Marketing-Prompt-Collection",
+        "origin": "github.com/example/repo-2",
         "dirty": 8,
         "diverged": true
       },
@@ -5118,25 +5118,25 @@
       },
       {
         "name": "clone-group-1/repo-4",
-        "origin": "github.com/affaan-m/everything-claude-code",
+        "origin": "github.com/example/repo-4",
         "dirty": 7,
         "diverged": true
       },
       {
         "name": "clone-group-1/repo-5",
-        "origin": "github.com/numman-ali/openskills",
+        "origin": "github.com/example/repo-5",
         "dirty": 1,
         "diverged": true
       },
       {
         "name": "clone-group-1/repo-6",
-        "origin": "github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+        "origin": "github.com/example/repo-6",
         "dirty": 1,
         "diverged": true
       },
       {
         "name": "clone-group-1/repo-7",
-        "origin": "github.com/nicobailon/visual-explainer",
+        "origin": "github.com/example/repo-7",
         "dirty": 0,
         "diverged": false
       }
