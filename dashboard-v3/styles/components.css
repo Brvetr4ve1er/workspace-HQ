@@ -62,17 +62,21 @@
 }
 
 /* Global tap-size floor (design-system safety fix): every clickable control
-   clears --tap-min (32px) regardless of realm/theme. min-height/min-width are
-   floors — they win over a smaller explicit height/width set elsewhere, so
-   narrow chips like .tm-nav.sm (24x24) and #tm-toggle (~85x19) grow without
-   needing per-site overrides. box-sizing:border-box is already global
-   (base.css), so padding doesn't blow past this. min-width matters only for
-   .tm-nav.sm (24px wide) — every other selector here is already >=32px wide,
-   so this is a no-op floor for the rest. */
+   clears --tap-min (32px) regardless of realm/theme. min-height is a floor —
+   it wins over a smaller explicit height set elsewhere, so narrow chips like
+   .tm-nav.sm (24x24) and #tm-toggle (~85x19) grow without needing per-site
+   overrides. box-sizing:border-box is already global (base.css). min-width
+   is scoped to .tm-nav ONLY (not the shared selector list above): .am-toggle
+   is width:100% and its container shrinks to ~18px when the ambient rail is
+   collapsed (#nexus.ambient-closed / #rail-right.closed, base.css) — a
+   blanket min-width:32px there would overflow that 18px strip. .tm-nav.sm
+   (prev/next) is the one control that's actually narrow (24px) in a
+   fixed-width toolbar row, so it alone gets the width floor. */
 button, .sigil, .tm-nav, .am-toggle, .tab-focus, [role="button"] {
   min-height: var(--tap-min);
+}
+.tm-nav {
   min-width: var(--tap-min);
-  box-sizing: border-box;
 }
 
 /* ------------------------------------------------------------- spellbook tab */
