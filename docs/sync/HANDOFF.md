@@ -12,6 +12,45 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend (Task 4 session) · main @ a39df7e
+DONE: NEXUS DS Task 4 — migrated ALL spacing literals (gap/margin/padding
+  + longhands) in the three SHARED sheets (base.css, components.css,
+  chrome.css) onto the --space-* ramp via a snap map (0→space-0 … stray
+  40-56px→space-7). Verified: `--smoke --selftest` → `SELFTEST combos=91
+  errors=0 PASS`; screenshots (nexus-shot.js) eyeballed across roundtable/
+  grimoire/watchtower/legacy vs scratchpad baseline shots — pixel-level
+  match, no broken layout. gapDistinctCount held at 16 (unchanged from
+  baseline) — confirmed by design: gapDistinctCount only measures the CSS
+  `gap` property, and every realm sheet (styles/realms/*.css, Task 6 scope)
+  independently supplies the full spread of raw gap literals, so shared-
+  sheet-only migration can't move that metric yet (expected per the plan;
+  ≤7 gate is Task 9). One literal deliberately left un-snapped: `#stage
+  padding-bottom: 64px` (chrome.css) — fixed-statusbar clearance, outside
+  the ramp's 0-56px range, snapping would risk clipping content.
+  Full report: .superpowers/sdd/2026-07-26-nexus-design-system/task-4-report.md
+IN-FLIGHT/COLLISION: **this session's CSS diff never landed as its own
+  commit.** While I was verifying (selftest/harness/screenshots), the
+  concurrent frontend session committed `92caa2f` ("devfleet upgrade —
+  CHRONICLE + ATLAS realms...") from the same shared working tree and its
+  `git add` swept up my uncommitted base.css/components.css/chrome.css
+  changes (diff is byte-identical to what I authored — 46/120/360 lines
+  changed, matches exactly) AND my throwaway tools/ux-after-t4.json. So the
+  Task 4 spacing-token migration IS in history, just riding under someone
+  else's commit message/SHA instead of its own `fe: design-system —
+  migrate shared sheets to spacing tokens` commit. I did NOT rewrite/amend
+  92caa2f (rewriting a commit mid-flight in a shared worktree risks
+  destroying the other session's follow-on work) — instead landed a small
+  cleanup commit `a39df7e` untracking the stray json artifact.
+ASKS: if anyone reviews `92caa2f`, know that ~526 of its changed lines
+  (base.css/components.css/chrome.css) are Task 4's token migration, not
+  part of the devfleet/realms feature work described in that commit's
+  subject.
+BREAKS: none functionally — pure spacing-token substitution, no selectors
+  added/removed, no behavior change.
+```
+
+---
+
 ## 2026-07-26 · FROM frontend · main @ 9b93ae6
 DONE: AUTOMATIONS (grimoire) advanced filtering (ba13b5e) — new .toolbar2 row:
   Kind (Runnable/Interactive/Plugin) · Usage (Used/Unused) · ⏳ Scheduled toggle
