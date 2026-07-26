@@ -109,21 +109,25 @@ function refilter() {
 function paint() {
   if (!results.length) {
     listEl.innerHTML = `<div class="pal-empty">No matches</div>`;
+    if (inputEl) inputEl.removeAttribute('aria-activedescendant');
     return;
   }
   // Everything interpolated is escaped: labels/hints trace back to scan data.
   listEl.innerHTML = results.map((it, i) => `
-    <div class="pal-row${i === selIndex ? ' sel' : ''}" data-i="${i}">
+    <div class="pal-row${i === selIndex ? ' sel' : ''}" role="option" id="pal-opt-${i}" aria-selected="${i === selIndex}" data-i="${i}">
       <span class="pal-ico">${esc(it.icon)}</span>
       <span class="pal-label">${esc(it.label)}</span>
       ${it.hint ? `<span class="pal-hint">${esc(it.hint)}</span>` : ''}
       <span class="pal-kind ${it.kind}">${KIND_LABEL[it.kind]}</span>
     </div>`).join('');
+  // point the combobox at the active option so screen readers announce it
+  if (inputEl) inputEl.setAttribute('aria-activedescendant', 'pal-opt-' + selIndex);
 }
 
 function highlight(scroll) {
   const rows = listEl.querySelectorAll('.pal-row');
-  rows.forEach((r, i) => r.classList.toggle('sel', i === selIndex));
+  rows.forEach((r, i) => { const sel = i === selIndex; r.classList.toggle('sel', sel); r.setAttribute('aria-selected', sel); });
+  if (inputEl) inputEl.setAttribute('aria-activedescendant', rows[selIndex] ? 'pal-opt-' + selIndex : '');
   const cur = rows[selIndex];
   if (cur && scroll) cur.scrollIntoView({ block: 'nearest' });   // keyboard nav only — never fight the mouse
 }
@@ -147,9 +151,10 @@ function ensureDom() {
   paletteEl.innerHTML = `
     <div class="pal-panel" role="document">
       <input class="pal-input" type="text" spellcheck="false" autocomplete="off"
+             role="combobox" aria-expanded="true" aria-controls="pal-listbox" aria-autocomplete="list"
              aria-label="Search realms, projects, quests, spells and vaults"
              placeholder="Jump to anything — type to search…" />
-      <div class="pal-list" role="listbox"></div>
+      <div class="pal-list" role="listbox" id="pal-listbox" aria-label="Results"></div>
       <div class="pal-foot"><span>↑↓ move</span><span>↵ open</span><span>esc close</span></div>
     </div>`;
   (document.getElementById('overlays') || document.body).appendChild(paletteEl);
