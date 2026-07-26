@@ -6,6 +6,7 @@
 import { data } from './data.js';
 import { ordered } from './registry.js';
 import { switchRealm } from './shell.js';
+import { bus } from './bus.js';
 import { LX } from './lexicon.js';
 import { el, esc } from '../ui/util.js';
 import { openDrawer, sfx } from '../ui/components.js';
@@ -23,6 +24,10 @@ let paletteEl = null, inputEl = null, listEl = null;   // lazy overlay refs
 let allItems = [];      // full searchable index for the current open
 let results = [];       // current filtered slice (what the rows show)
 let selIndex = 0;
+// realm ids in most-recently-visited order — floats the empty-query quick-switch
+// toward where you just were, so ⌘K↵ becomes "jump back". Capped; fed by bus.
+const recent = [];
+let offSwitch = null;   // realm:switched disposer (removed in teardown)
 
 // Wrap an item's action so a malformed record (e.g. an old project missing
 // metrics that openDrawer reads) can never throw out of a keystroke.
@@ -50,7 +55,9 @@ function buildIndex() {
     // alias = the realm's stable id, so "grimoire"/"hunts" find it even when the
     // active theme renames the visible label (plain theme: hunts -> "TASKS").
     push('realm', LX(m.lexKey), null, () => switchRealm(m.id), m.id);
-    items[items.length - 1].icon = m.sigil;   // realms lead with their sigil
+    const rit = items[items.length - 1];
+    rit.icon = m.sigil;      // realms lead with their sigil
+    rit.realmId = m.id;      // recency key for the empty-query quick-switch
   }
 
   const S = data.selected;
@@ -80,7 +87,11 @@ function buildIndex() {
 function refilter() {
   const q = (inputEl.value || '').trim().toLowerCase();
   if (!q) {
-    results = allItems.filter((it) => it.kind === 'realm').slice(0, CAP);
+    // empty query = quick-switcher: realms only, most-recently-visited first.
+    // Array.sort is stable in V8, so never-visited realms keep their rail order.
+    const realms = allItems.filter((it) => it.kind === 'realm');
+    const rank = (it) => { const i = recent.indexOf(it.realmId); return i === -1 ? 999 : i; };
+    results = realms.slice().sort((a, b) => rank(a) - rank(b)).slice(0, CAP);
   } else {
     const scored = [];
     for (const it of allItems) {
@@ -207,6 +218,13 @@ export function initPalette() {
   if (inited) return;   // idempotent: safe to call once at boot
   inited = true;
   window.addEventListener('keydown', onKey);
+  // track realm visits for the recency-ordered quick-switch (dedup, cap 6)
+  offSwitch = bus.on('realm:switched', ({ id }) => {
+    const i = recent.indexOf(id);
+    if (i !== -1) recent.splice(i, 1);
+    recent.unshift(id);
+    if (recent.length > 6) recent.length = 6;
+  });
 }
 
 // Exported for completeness — boot never calls it, but a full teardown keeps
@@ -215,6 +233,7 @@ export function teardownPalette() {
   if (!inited) return;
   inited = false;
   window.removeEventListener('keydown', onKey);
+  if (offSwitch) { offSwitch(); offSwitch = null; }
   if (paletteEl) { paletteEl.remove(); }
   paletteEl = inputEl = listEl = null;
   allItems = []; results = []; selIndex = 0; isOpen = false;
