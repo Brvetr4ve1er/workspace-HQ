@@ -123,6 +123,14 @@ git commit -m "fe: freeze latest.json fixture for intel unit tests"
 - Produces: `oracle(bundle, selected, now) → { action, label, reason, weight, target:{realmId, projectId?, questId?} } | null`
   where `action ∈ {'commit','quest','capture','scan','rest'}`. Pure. `now` is an ISO string or Date (injected for testability — never `Date.now()` inside).
 
+**Field ground-truth (verified against live `data/latest.json` 2026-07-26 — use these exact paths):**
+- uncommitted work → `project.metrics.git_safety.dirty` (integer). Also present: `.ahead .behind .unpushed .risk`.
+- exposed secrets → `project.metrics.risk_security.secrets_found` (integer). Also `.score`, `.flags[]`.
+- staleness → `project.activity.days_since_commit` (integer), `.state ∈ {active,…}`.
+- open quests → `quest.status === 'open'` (values seen: `'open'|'done'`), `quest.tier ∈ {red,orange,yellow}`, `quest.id`, `quest.title`, `quest.project_id`.
+- xp series → `trends.xp` = `[{d:isoDate, v:number}]`.
+- streak → `account.streak.{scan_days, longest_scan_days, last_scan:isoDate}`.
+
 - [ ] **Step 1: Write the failing test**
 
 ```js
@@ -136,8 +144,8 @@ const FIX = JSON.parse(readFileSync(new URL('./__fixtures__/sample.json', import
 
 test('oracle: uncommitted files at risk outrank a calm quest', () => {
   const sel = { ...FIX, projects: [
-    { id:'p1', name:'A', metrics:{ git_safety:{ uncommitted: 24 } }, activity:{ days_since_commit: 0 } },
-    { id:'p2', name:'B', metrics:{ git_safety:{ uncommitted: 0 } }, activity:{ days_since_commit: 1 } },
+    { id:'p1', name:'A', metrics:{ git_safety:{ dirty: 24 }, risk_security:{ secrets_found: 0 } }, activity:{ days_since_commit: 0 } },
+    { id:'p2', name:'B', metrics:{ git_safety:{ dirty: 0 }, risk_security:{ secrets_found: 0 } }, activity:{ days_since_commit: 1 } },
   ], quests: [{ id:'q1', title:'tidy', tier:'yellow', status:'open' }] };
   const r = oracle(FIX, sel, '2026-07-26T14:00:00Z');
   assert.equal(r.action, 'commit');
@@ -170,14 +178,14 @@ export function oracle(bundle, selected, now) {
   const cands = [];
 
   for (const p of sel.projects || []) {
-    const unc = num(p.metrics?.git_safety?.uncommitted);
+    const unc = num(p.metrics?.git_safety?.dirty);
     if (unc > 0) cands.push({
       action: 'commit', weight: 40 + Math.min(unc, 60),
       label: `Commit ${p.name} (${unc} uncommitted)`,
       reason: `${unc} uncommitted files at risk`,
       target: { realmId: 'forge', projectId: p.id },
     });
-    const sec = num(p.metrics?.risk_security?.exposed);
+    const sec = num(p.metrics?.risk_security?.secrets_found);
     if (sec > 0) cands.push({
       action: 'quest', weight: 90 + sec,
       label: `Rotate ${sec} exposed secret${sec > 1 ? 's' : ''} — ${p.name}`,
