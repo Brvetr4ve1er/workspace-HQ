@@ -55,14 +55,14 @@ The teardown's throwaway harness becomes a committed tool so before/after is rep
 
 ## Task 3: Global safety fixes (high-impact, low-risk — do before the big migration)
 
-**Files:** Modify `styles/base.css` (grid `--ambient-w`, stage measure), `styles/components.css`/`chrome.css` (tap-min rule), `src/core/ambient.js` (stray `)` glyph).
+**Files:** Modify `styles/base.css`/`cinematic.css`/`daylight.css` (responsive `--ambient-w`), `styles/components.css`/`chrome.css` (tap-min rule), `src/core/ambient.js` (stray `)` glyph).
+**Scope note:** the reading-**measure** cap is deliberately NOT here — a blanket `#stage` cap would wrongly narrow the intentionally-wide realms (lands' isometric map, legacy's chart grid). Measure caps are applied per-realm in Task 8, where each realm's content is known.
 
-- [ ] **Step 1 — responsive rail:** point the grid at the token — set `--ambient-w: var()` responsive value (from tokens) so the fixed `264px` in `cinematic.css:54`/`daylight.css:50` is overridden by the responsive clamp (or change those two decls to `var(--ambient-w)`).
-- [ ] **Step 2 — measure cap:** wrap/target the stage content with `max-width: var(--measure); margin-inline: auto` (add to the stage content rule at `base.css:71`; if content is a direct child of `#stage`, cap `#stage > *` or introduce a `.stage-inner` wrapper — prefer a CSS-only cap to avoid markup changes).
-- [ ] **Step 3 — tap floor:** add one rule `button, .sigil, .tm-nav, .am-toggle, .tab-focus, [role="button"] { min-height: var(--tap-min); }` with adequate inline padding so 23–26px controls clear 32px. Verify the 1280×800 FOCUS-chip clip is gone.
-- [ ] **Step 4 — stray glyph:** find the `)` emitted in the ambient-rail header (`src/core/ambient.js` header builder) and remove it.
-- [ ] **Step 5 (verify):** selftest `combos=91 errors=0 PASS`; run `tools/ux-measure.js` → **tinyTargets = 0** all realms, **railSharePct shrinks at 1280**, **stageBodyWidth ≤ measure**; capture screenshots (`tools/nexus-shot.js`) and review vs baseline shots — layout intact, rail narrower, no glyph.
-- [ ] **Step 6: Commit** `fe: design-system — responsive rail, measure cap, tap-size floor, drop stray glyph`.
+- [ ] **Step 1 — responsive rail:** make the ambient rail width the token's responsive clamp. The grid at `base.css:39` already reads `var(--ambient-w)`; the fixed `--ambient-w:264px` in `cinematic.css:54` and `daylight.css:50` overrides tokens.css's `clamp(200px,18vw,264px)` — replace those two fixed decls with `var(--ambient-w)` inheritance (delete them so tokens.css wins, or set them to the clamp). Confirm via harness that `railSharePct` shrinks at 1280×900.
+- [ ] **Step 2 — tap floor:** add one rule `button, .sigil, .tm-nav, .am-toggle, .tab-focus, [role="button"] { min-height: var(--tap-min); }` with adequate inline padding so 23–26px controls clear 32px. Verify the 1280×800 FOCUS-chip clip is gone.
+- [ ] **Step 3 — stray glyph:** find the `)` emitted in the ambient-rail header (`src/core/ambient.js` header builder) and remove it.
+- [ ] **Step 4 (verify):** selftest `combos=91 errors=0 PASS`; run `tools/ux-measure.js` → **tinyTargets = 0** all realms, **railSharePct shrinks at 1280** (vs baseline 20.6%); capture screenshots (`tools/nexus-shot.js`) and review vs baseline — layout intact, rail narrower, no glyph.
+- [ ] **Step 5: Commit** `fe: design-system — responsive rail, tap-size floor, drop stray glyph`.
 
 ## Task 4: Migrate shared-sheet SPACING to `--space-*`
 
