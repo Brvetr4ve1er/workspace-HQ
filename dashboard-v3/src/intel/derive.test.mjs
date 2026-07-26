@@ -63,6 +63,14 @@ test('momentum: positive slope → finite ETA; flat/empty → null, no div-by-ze
   assert.doesNotThrow(() => momentum({}, {}, '2026-07-04T12:00:00Z'));
 });
 
+test('momentum: invalid/undefined now never throws; etaNextLevel stays null', () => {
+  const r = momentum({ xp:[{d:'a',v:100},{d:'b',v:110},{d:'c',v:120},{d:'d',v:130}] }, { xp_to_next:50 }, undefined);
+  assert.doesNotThrow(() => momentum({ xp:[{d:'a',v:100},{d:'b',v:110}] }, { xp_to_next:50 }, undefined));
+  assert.ok(r.etaDays > 0 && isFinite(r.etaDays));   // slope still computed
+  assert.equal(r.etaNextLevel, null);
+  assert.doesNotThrow(() => momentum({ xp:[{d:'a',v:1},{d:'b',v:2}] }, { xp_to_next:50 }, 'not-a-date'));
+});
+
 test('spellFit: matches a signal gap to a spell by keyword, scoped to the project', () => {
   const bundle = { spellbook:{ spells:[
     { id:'s1', name:'test-scaffold', description:'adds a test suite' },
@@ -85,6 +93,15 @@ test('streakRisk: alive-but-unscanned-today is at risk; scanned-today is safe', 
   const safe = streakRisk({ scan_days:4, last_scan:'2026-07-26' }, '2026-07-26T20:00:00Z');
   assert.equal(safe.atRisk, false);
   assert.doesNotThrow(() => streakRisk({}, '2026-07-26T20:00:00Z'));
+});
+
+test('streakRisk: invalid/undefined now never throws; streak still returned, not at risk', () => {
+  const r = streakRisk({ scan_days: 1 });   // no `now` passed at all
+  assert.doesNotThrow(() => streakRisk({ scan_days: 1 }));
+  assert.equal(r.atRisk, false);
+  assert.equal(r.hoursLeft, 0);
+  assert.equal(r.streak, 1);
+  assert.doesNotThrow(() => streakRisk({ scan_days: 4, last_scan: '2026-07-26' }, 'not-a-date'));
 });
 
 test('achievementNudges: surfaces near-complete locked achievements only', () => {

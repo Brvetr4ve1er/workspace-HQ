@@ -88,7 +88,8 @@ export function momentum(trends, account, now) {
   let etaDays = null, etaNextLevel = null;
   if (xpSlope > 0 && toNext > 0) {
     etaDays = toNext / xpSlope;                                  // slope is per-sample (~per-day scan)
-    etaNextLevel = new Date(new Date(now).getTime() + etaDays * 86400000).toISOString();
+    const t = new Date(now);
+    if (!isNaN(t)) etaNextLevel = new Date(t.getTime() + etaDays * 86400000).toISOString();
   }
   return { xpSlope, etaDays, etaNextLevel };
 }
@@ -116,10 +117,12 @@ export function spellFit(bundle, selected) {
 // scanned today, with hours remaining in the UTC day to save it.
 export function streakRisk(streakInfo, now) {
   const streak = num(streakInfo?.scan_days);
+  const t = new Date(now);
+  if (isNaN(t)) return { atRisk: false, hoursLeft: 0, streak };
   const last = streakInfo?.last_scan || null;
-  const today = new Date(now).toISOString().slice(0, 10);   // YYYY-MM-DD (UTC)
+  const today = t.toISOString().slice(0, 10);                // YYYY-MM-DD (UTC)
   const atRisk = streak > 0 && last !== today;
-  const hoursLeft = 24 - new Date(now).getUTCHours();        // hours to end of UTC day
+  const hoursLeft = 24 - t.getUTCHours();                     // hours to end of UTC day
   return { atRisk, hoursLeft, streak };
 }
 
