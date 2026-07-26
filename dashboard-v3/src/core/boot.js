@@ -36,6 +36,7 @@ import { manifest as conjureM } from '../realms/conjure/manifest.js';
 import { view as conjureV } from '../realms/conjure/view.js';
 import { initPalette } from './palette.js';
 import { initActions } from './actions.mjs';
+import { initNotify } from './notify.mjs';
 
 register(roundtableM, roundtableV);
 register(forgeM, forgeV);
@@ -90,6 +91,17 @@ initPalette();
 // route through it). Seeded with real effects; guards make a missing preload
 // method a no-op. switchRealm + ordered are already imported above.
 initActions({ switchRealm, ordered, hq: window.hq });
+
+// event surface — Phase-1+ features emit through here; fires an OS Notification
+// when the window is hidden+permitted (else an in-app toast, wired in a later
+// phase). fx.js owns the scan celebration takeover separately, so notify does
+// NOT replay changes_since_prev.
+initNotify({
+  isHidden: () => document.hidden,
+  canNotify: () => typeof Notification !== 'undefined' && Notification.permission === 'granted',
+  notify: (evt) => { try { new Notification(evt.title || 'WorkspaceHQ', { body: evt.body || '' }); } catch {} },
+  // toast: wired when the in-app toast UI lands (Epic H)
+});
 
 // Debug/harness handle — the parity screenshot harness drives realm + theme
 // switches through this instead of synthesizing clicks.
