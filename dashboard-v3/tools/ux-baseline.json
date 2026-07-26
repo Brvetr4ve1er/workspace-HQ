@@ -1,0 +1,1848 @@
+{
+  "generatedAt": "2026-07-26T12:08:01.504Z",
+  "realmIds": [
+    "roundtable",
+    "forge",
+    "hunts",
+    "grimoire",
+    "lands",
+    "legacy",
+    "medbay",
+    "observatory",
+    "watchtower",
+    "summoning",
+    "chronicle",
+    "atlas",
+    "conjure"
+  ],
+  "sizes": [
+    "1440x900",
+    "1280x800"
+  ],
+  "gapDistinctCount": 16,
+  "fontSizeDistinctCount": 32,
+  "bySize": {
+    "1440x900": {
+      "roundtable": {
+        "gapDistinct": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          18,
+          20
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          14.5,
+          15,
+          16,
+          18,
+          19,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.sec-chip",
+            "w": 160,
+            "h": 26
+          },
+          {
+            "sel": "button.mo-tab.on",
+            "w": 65,
+            "h": 23
+          },
+          {
+            "sel": "button.mo-tab",
+            "w": 37,
+            "h": 23
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 30.3,
+        "headingStep": 1.1,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 1
+      },
+      "forge": {
+        "gapDistinct": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          15,
+          16,
+          17,
+          17.6,
+          18,
+          20,
+          21,
+          27
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.active",
+            "w": 33,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 50,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 49,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 57,
+            "h": 23
+          },
+          {
+            "sel": "button.active",
+            "w": 70,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 40,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 51,
+            "h": 23
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 29.2,
+        "headingStep": 1.8,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 1
+      },
+      "hunts": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          11,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          14.5,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 31,
+        "headingStep": 1,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 1
+      },
+      "grimoire": {
+        "gapDistinct": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          6,
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.active",
+            "w": 39,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 66,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 89,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 65,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 49,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 58,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 67,
+            "h": 26
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 34.3,
+        "headingStep": 1.2,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 4
+      },
+      "lands": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          6,
+          6.5,
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 27.1,
+        "headingStep": 1,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 22
+      },
+      "legacy": {
+        "gapDistinct": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21,
+          26,
+          34
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 22,
+        "headingStep": 2.3,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 1
+      },
+      "medbay": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14.5,
+          15,
+          16,
+          18,
+          20,
+          21,
+          26
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 27.1,
+        "headingStep": 1.7,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 2103,
+        "overflowCount": 3
+      },
+      "observatory": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21,
+          24
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 27,
+        "headingStep": 1.6,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1040,
+        "overflowCount": 1
+      },
+      "watchtower": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          15,
+          16,
+          18,
+          20,
+          21,
+          28,
+          34
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 22.6,
+        "headingStep": 1.9,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1040,
+        "overflowCount": 3
+      },
+      "summoning": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          18,
+          24
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 25.6,
+        "headingStep": 1,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 1
+      },
+      "chronicle": {
+        "gapDistinct": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          14.5,
+          15,
+          16,
+          18,
+          20,
+          21,
+          40
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 22.9,
+        "headingStep": 1.1,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1029,
+        "overflowCount": 1
+      },
+      "atlas": {
+        "gapDistinct": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 29.4,
+        "headingStep": 1.4,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1040,
+        "overflowCount": 1
+      },
+      "conjure": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          15,
+          16,
+          18,
+          20,
+          21,
+          34
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 28.8,
+        "headingStep": 1.3,
+        "railSharePct": 18.3,
+        "stageBodyWidth": 1040,
+        "overflowCount": 2
+      }
+    },
+    "1280x800": {
+      "roundtable": {
+        "gapDistinct": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          18,
+          20
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          14.5,
+          15,
+          16,
+          18,
+          19,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.sec-chip",
+            "w": 160,
+            "h": 26
+          },
+          {
+            "sel": "button.mo-tab.on",
+            "w": 65,
+            "h": 23
+          },
+          {
+            "sel": "button.mo-tab",
+            "w": 37,
+            "h": 23
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 30.3,
+        "headingStep": 1.1,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 2
+      },
+      "forge": {
+        "gapDistinct": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          15,
+          16,
+          17,
+          17.6,
+          18,
+          20,
+          21,
+          27
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.active",
+            "w": 33,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 50,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 49,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 57,
+            "h": 23
+          },
+          {
+            "sel": "button.active",
+            "w": 70,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 40,
+            "h": 23
+          },
+          {
+            "sel": "button",
+            "w": 51,
+            "h": 23
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 29.2,
+        "headingStep": 1.8,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 1
+      },
+      "hunts": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          11,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          14.5,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 31,
+        "headingStep": 1,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 1
+      },
+      "grimoire": {
+        "gapDistinct": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          6,
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.active",
+            "w": 39,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 66,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 55,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 89,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 65,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 49,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 58,
+            "h": 26
+          },
+          {
+            "sel": "button",
+            "w": 67,
+            "h": 26
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 34.3,
+        "headingStep": 1.2,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 2
+      },
+      "lands": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          6,
+          6.5,
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 27.1,
+        "headingStep": 1,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 17
+      },
+      "legacy": {
+        "gapDistinct": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21,
+          26,
+          34
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 22,
+        "headingStep": 2.3,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 1
+      },
+      "medbay": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14.5,
+          15,
+          16,
+          18,
+          20,
+          21,
+          26
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 27.1,
+        "headingStep": 1.7,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 2103,
+        "overflowCount": 3
+      },
+      "observatory": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21,
+          24
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 27,
+        "headingStep": 1.6,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 1
+      },
+      "watchtower": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          15,
+          16,
+          18,
+          20,
+          21,
+          28,
+          34
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 22.6,
+        "headingStep": 1.9,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 2
+      },
+      "summoning": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          18,
+          24
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 25.6,
+        "headingStep": 1,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 1
+      },
+      "chronicle": {
+        "gapDistinct": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          13.5,
+          14,
+          14.5,
+          15,
+          16,
+          18,
+          20,
+          21,
+          40
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 22.9,
+        "headingStep": 1.1,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 869,
+        "overflowCount": 1
+      },
+      "atlas": {
+        "gapDistinct": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          10.5,
+          11,
+          12,
+          12.5,
+          13,
+          13.3,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 29.4,
+        "headingStep": 1.4,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 880,
+        "overflowCount": 1
+      },
+      "conjure": {
+        "gapDistinct": [
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          14,
+          18
+        ],
+        "fontSizeDistinct": [
+          7,
+          8,
+          8.5,
+          9,
+          9.5,
+          10,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.3,
+          15,
+          16,
+          18,
+          20,
+          21,
+          34
+        ],
+        "tinyTargets": [
+          {
+            "sel": "button#tm-toggle.lbl",
+            "w": 85,
+            "h": 19
+          },
+          {
+            "sel": "button#tm-prev.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button#tm-next.tm-nav.sm",
+            "w": 24,
+            "h": 24
+          },
+          {
+            "sel": "button.am-toggle",
+            "w": 247,
+            "h": 26
+          }
+        ],
+        "sub12pct": 28.8,
+        "headingStep": 1.3,
+        "railSharePct": 20.6,
+        "stageBodyWidth": 880,
+        "overflowCount": 2
+      }
+    }
+  }
+}
