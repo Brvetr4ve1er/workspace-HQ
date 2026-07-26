@@ -69,8 +69,8 @@ The teardown's throwaway harness becomes a committed tool so before/after is rep
 **Files:** Modify `styles/base.css`, `styles/components.css`, `styles/chrome.css`.
 
 - [ ] **Step 1:** Replace hardcoded `gap`/`margin`/`padding` literals in the three shared sheets with the nearest `--space-*` token (snap: 2–4→`--space-1`, 5–8→`--space-2`, 9–12→`--space-3`, 14–16→`--space-4`, 18–24→`--space-5`, 26–32→`--space-6`; kill the stray `55.28px`→`--space-7`). This intentionally regularizes spacing.
-- [ ] **Step 2 (verify):** selftest green; harness → **global gapDistinct ≤ 7**; screenshots reviewed — the rhythm should read tighter/consistent, no broken layouts (watch topstrip, scrubber, cards).
-- [ ] **Step 3: Commit** `fe: design-system — migrate shared sheets to spacing tokens (16 gaps → 6)`.
+- [ ] **Step 2 (verify):** selftest green; harness → global gapDistinct **meaningfully reduced** vs the baseline 16 (realm-sheet spacing is migrated in Task 6; the hard **≤7 gate lands in Task 9** once all sheets are on the scale); screenshots reviewed — the rhythm should read tighter/consistent, no broken layouts (watch topstrip, scrubber, cards).
+- [ ] **Step 3: Commit** `fe: design-system — migrate shared sheets to spacing tokens`.
 
 ## Task 5: Migrate shared-sheet TYPE to `--fs-*`; kill sub-12px text
 
@@ -80,13 +80,13 @@ The teardown's throwaway harness becomes a committed tool so before/after is rep
 - [ ] **Step 2 (verify):** selftest green; harness → **sub12pct ≈ 0**, **fontSizeDistinct ≤ 8** global; screenshots reviewed — labels legible, no overflow from larger text (check the scrubber and rail labels most).
 - [ ] **Step 3: Commit** `fe: design-system — migrate shared sheets to type ramp; promote sub-12px text`.
 
-## Task 6: Per-realm type + hierarchy pass (fix the flat realms)
+## Task 6: Per-realm type + spacing + hierarchy pass (fix the flat realms)
 
-**Files:** Modify `styles/realms/*.css` (all 13), applying `--fs-*`; focus on the flat realms — `summoning`, `observatory`, `watchtower`, `atlas`, `conjure` — plus `chronicle`, `hunts`.
+**Files:** Modify `styles/realms/*.css` (all 13), applying `--fs-*` AND `--space-*`; focus on the flat realms — `summoning`, `observatory`, `watchtower`, `atlas`, `conjure` — plus `chronicle`, `hunts`.
 
-- [ ] **Step 1:** In each realm sheet, snap font sizes to `--fs-*` and ensure a real heading step: section titles at `--fs-lg`+ over `--fs-sm/md` body (target ≥1.25× step). Give the flat realms one clear focal element (model on `roundtable`'s "THE ONE THING" card scale). Add scannable anchors to `chronicle` (7-screen wall of uniform text).
-- [ ] **Step 2 (verify):** selftest green; harness → **headingStep ≥ 1.25× in every realm**, sub12pct ≈ 0 per realm; screenshots of all 13 reviewed against baseline — each realm now has a visible "where do I look first."
-- [ ] **Step 3: Commit** `fe: design-system — per-realm type ramp + hierarchy (fix the flat realms)`.
+- [ ] **Step 1:** In each realm sheet, snap font sizes to `--fs-*` and gap/margin/padding literals to `--space-*` (same snap map as Task 4), and ensure a real heading step: section titles at `--fs-lg`+ over `--fs-sm/md` body (target ≥1.25× step). Give the flat realms one clear focal element (model on `roundtable`'s "THE ONE THING" card scale). Add scannable anchors to `chronicle` (7-screen wall of uniform text).
+- [ ] **Step 2 (verify):** selftest green; harness → **headingStep ≥ 1.25× in every realm**, sub12pct ≈ 0 per realm, per-realm gapDistinct snapped to the scale; screenshots of all 13 reviewed against baseline — each realm now has a visible "where do I look first."
+- [ ] **Step 3: Commit** `fe: design-system — per-realm type ramp, spacing + hierarchy (fix the flat realms)`.
 
 ## Task 7: `lands` — make the tower labels readable
 
