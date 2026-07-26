@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { register, dispatch, all, resolve, _reset } from './actions.mjs';
+import { register, dispatch, all, resolve, _reset, initActions } from './actions.mjs';
 
 test('dispatch runs the action once and reports ok + result', () => {
   _reset();
@@ -31,4 +31,20 @@ test('all(ctx) lists only enabled actions, projected to {id,label,icon}', () => 
   assert.equal(resolve('a').label, 'A');
   assert.equal(resolve('nope'), null);
   assert.deepEqual(Object.keys(all({ allow:false })[0]).sort(), ['icon','id','label']);
+});
+
+test('initActions seeds go:<realm> + core verbs from injected deps', () => {
+  _reset();
+  const switched = [];
+  initActions({ switchRealm: (id) => switched.push(id), ordered: () => [{ manifest:{ id:'forge', sigil:'⚒' } }], hq: {} });
+  assert.ok(resolve('go:forge'));
+  assert.ok(resolve('scan:now'));
+  assert.ok(resolve('quest:done'));
+  dispatch('go:forge', {});
+  assert.deepEqual(switched, ['forge']);
+  // quest:done is enabled only with a questId in ctx
+  assert.equal(all({}).find(a => a.id === 'quest:done'), undefined);
+  assert.ok(all({ questId: 'q1' }).find(a => a.id === 'quest:done'));
+  // a missing hq method must not throw when dispatched
+  assert.doesNotThrow(() => dispatch('scan:now', {}));
 });

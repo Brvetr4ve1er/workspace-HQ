@@ -35,6 +35,7 @@ import { view as atlasV } from '../realms/atlas/view.js';
 import { manifest as conjureM } from '../realms/conjure/manifest.js';
 import { view as conjureV } from '../realms/conjure/view.js';
 import { initPalette } from './palette.js';
+import { initActions } from './actions.mjs';
 
 register(roundtableM, roundtableV);
 register(forgeM, forgeV);
@@ -84,6 +85,11 @@ initAmbient();
 // command palette (Ctrl/Cmd+K) — core chrome; installs one window keydown and
 // builds its overlay lazily on first open. Idempotent, so safe here at boot.
 initPalette();
+
+// action registry — the one audited dispatch path (buttons/palette/Oracle all
+// route through it). Seeded with real effects; guards make a missing preload
+// method a no-op. switchRealm + ordered are already imported above.
+initActions({ switchRealm, ordered, hq: window.hq });
 
 // Debug/harness handle — the parity screenshot harness drives realm + theme
 // switches through this instead of synthesizing clicks.
