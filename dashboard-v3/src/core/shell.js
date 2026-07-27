@@ -31,7 +31,11 @@ export function switchRealm(id, force = false) {
   activeId = id;
   try { sessionStorage.setItem('hq-active-realm', id); } catch {}   // survive win.reload()
   r.view.mount(stage, ctx());
-  document.querySelectorAll('#rail-left .sigil').forEach((b) => b.classList.toggle('active', b.dataset.realm === id));
+  document.querySelectorAll('#rail-left .sigil').forEach((b) => {
+    const on = b.dataset.realm === id;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
   bus.emit('realm:switched', { id });
 }
 
@@ -40,11 +44,15 @@ function renderRail() {
   rail.innerHTML = '';
   for (const { manifest: m } of ordered()) {
     if (!m.enabled(data)) continue;
-    const b = el('button', 'sigil', `<span class="glyph">${m.sigil}</span><span class="lbl">${LX(m.lexKey)}</span><span class="badge"></span>`);
+    // glyph is decorative (the .lbl carries the name) — hide the emoji from AT so
+    // the button reads as its realm label, not "<emoji> LABEL <count>".
+    const b = el('button', 'sigil', `<span class="glyph" aria-hidden="true">${m.sigil}</span><span class="lbl">${LX(m.lexKey)}</span><span class="badge"></span>`);
     b.dataset.realm = m.id;
     b.title = LX(m.lexKey);
     b.onclick = () => switchRealm(m.id);
-    b.classList.toggle('active', m.id === activeId);
+    const on = m.id === activeId;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page');   // SR announces the active realm
     rail.appendChild(b);
   }
   refreshBadges();
