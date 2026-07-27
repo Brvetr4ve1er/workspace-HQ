@@ -58,7 +58,7 @@ golden fixture. All `data/social/*` is **gitignored** (personal content + sessio
 | File | Written by | Read by | Shape |
 |---|---|---|---|
 | `data/social/inbox.json` | app relay (extension ingest) | `hq_social_feed/_mentions/_metrics` | tendril doc: `{updated, live, events[]}`; each event `{platform, kind:'feed'\|'mention'\|'notification'\|'metrics', id, ts, author?, text?, url?, uri?, counts?{likes,reposts,replies}, metrics?{followers,following,posts}}` |
-| `data/social/outbox.json` | `hq_social_post/_reply` (stage), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, result?{url,uri}, error?, by}` |
+| `data/social/outbox.json` | `hq_social_post/_reply` (stage), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, target?, title?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, result?{url,uri}, error?, by}`. `target`/`title` are additive optional platform routing (Reddit subreddit + title). |
 | `data/social/accounts.json` | extension (on connect) | `hq_social_status` | `{updated, accounts[]}`; account `{platform, handle, display?, connected_at}` |
 
 **Write-gate invariant (load-bearing):** MCP `hq_social_post/_reply` only ever
