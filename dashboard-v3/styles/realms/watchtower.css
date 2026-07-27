@@ -53,7 +53,9 @@
 .wt-arc.bg  { stroke: var(--frame); opacity: .4; }
 .wt-arc.val { stroke: var(--wt-tier, var(--cyan)); filter: drop-shadow(0 0 6px var(--wt-tier, var(--cyan))); }
 .wt-dial-num { font-family: var(--term); font-size: var(--fs-2xl); fill: var(--text); }
-.wt-dial-sub { font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 2px; fill: var(--muted); }
+/* SVG gauge annotation (fixed-y <text>), NOT body copy — exempt from the --fs-* floor
+   like the chart legend/axis text; --fs-xs (12px) collides with the dial number above it. */
+.wt-dial-sub { font-family: var(--px); font-size: 7px; letter-spacing: 2px; fill: var(--muted); }
 .wt-scale {
   display: flex; justify-content: space-between; margin-top: var(--space-2);
   font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; color: var(--faint);
@@ -176,7 +178,7 @@
 :root[data-theme="nexus"] .wt-arc.bg { opacity: .5; }
 :root[data-theme="nexus"] .wt-arc.val { filter: none; }
 :root[data-theme="nexus"] .wt-dial-num { font-size: var(--fs-2xl); font-weight: 600; }
-:root[data-theme="nexus"] .wt-dial-sub { font-size: var(--fs-xs); letter-spacing: .12em; }
+:root[data-theme="nexus"] .wt-dial-sub { font-size: 10.5px; letter-spacing: .12em; } /* SVG annotation — see base rule */
 :root[data-theme="nexus"] .wt-scale .on { text-shadow: none; }
 
 /* weekly rhythm — softer cells */
