@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend (social-bridge session) · main @ 15a4d85
+DONE: SOCIAL BINDING phase 3b — Instagram/Threads/Facebook/YouTube adapters
+  (15a4d85). Platform set complete: 9 adapters. IG read+metrics (private web API,
+  read-only — no text posts); Threads metrics + gated GraphQL post; FB account +
+  gated post; YouTube InnerTube (SAPISIDHASH) notifications, posting refused.
+  Fragile write mutations gated behind THREADS_CREATE_DOC_ID/FB_CREATE_DOC_ID
+  constants (empty → clear error, no silent fail). manifest gains the 5 Meta/YT
+  hosts. Verified: all 4 stage through the real MCP seam; syntax/manifest clean.
+IN-FLIGHT: nothing uncommitted. Meta/YT reads+writes need live doc_id/params
+  capture (flagged inline) — reliable wins are IG read+metrics + YT notifs.
+ASKS/BREAKS: browser-bridge/social.js + manifest.json only; no contract change
+  (all 9 platforms already in SOCIAL_PLATFORMS). Still frontend-lane only;
+  grimoire.css untouched (your Task 8 token migration of my .toolbar2 stands).
+
 ## 2026-07-26 · FROM frontend (social-bridge session) · main @ 0621e78
 DONE: SOCIAL BINDING phase 3 — X/Twitter + LinkedIn adapters + Reddit top-level
   posts (ae90ae8 contract, 0621e78 code). Additive target/title fields on the
