@@ -318,6 +318,135 @@ async function liSendInPage(action) {
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 
+// ---- Instagram (private web API; x-ig-app-id + csrftoken) ------------------
+// Read-only: IG has no text-only posts (every post needs media), so send() is a
+// clear refusal. x-ig-app-id is the public web app id.
+const IG_APP_ID = '936619743392459';
+async function igScrapeInPage() {
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1];
+  if (!csrf) return { ok: false, error: 'no Instagram session (log in at instagram.com)' };
+  const H = { 'x-ig-app-id': IG_APP_ID, 'x-csrftoken': csrf, 'x-requested-with': 'XMLHttpRequest' };
+  const base = 'https://www.instagram.com/api/v1';
+  const now = Date.now();
+  const events = [];
+  let account = null;
+  try {
+    const cu = await fetch(base + '/accounts/current_user/', { headers: H, credentials: 'include' }).then((r) => r.json());
+    const me = cu && cu.user;
+    if (me && me.username) {
+      const prof = await fetch(base + '/users/web_profile_info/?username=' + encodeURIComponent(me.username), { headers: H, credentials: 'include' }).then((r) => r.json());
+      const u = prof && prof.data && prof.data.user;
+      account = { platform: 'instagram', handle: '@' + me.username, display: (u && u.full_name) || me.username };
+      if (u) events.push({ platform: 'instagram', kind: 'metrics', id: 'metrics', ts: now, metrics: { followers: (u.edge_followed_by && u.edge_followed_by.count) || 0, following: (u.edge_follow && u.edge_follow.count) || 0, posts: (u.edge_owner_to_timeline_media && u.edge_owner_to_timeline_media.count) || 0 } });
+    }
+  } catch (e) { /* profile unavailable */ }
+  try {
+    const news = await fetch(base + '/news/inbox/', { headers: H, credentials: 'include' }).then((r) => r.json());
+    for (const s of [].concat(news.new_stories || [], news.old_stories || [])) {
+      const t = s && s.args && s.args.text;
+      if (t) events.push({ platform: 'instagram', kind: 'notification', id: (s.args && s.args.tuuid) || String(events.length), ts: s.args && s.args.timestamp ? s.args.timestamp * 1000 : now, author: '', text: t, url: 'https://www.instagram.com/', uri: '' });
+    }
+  } catch (e) { /* activity unavailable */ }
+  return { ok: true, events, account };
+}
+async function igSendInPage() {
+  return { ok: false, error: 'Instagram posts require media — text-only posting is not supported.' };
+}
+
+// ---- Threads (Meta text app; x-ig-app-id + fb_dtsg/lsd tokens) -------------
+const THREADS_APP_ID = '238260118697367';
+const THREADS_CREATE_DOC_ID = '';   // capture a "create text post" request and paste its doc_id here to enable posting
+function metaTokens() {
+  const html = document.documentElement.innerHTML;
+  return {
+    lsd: (html.match(/"LSD",\[\],\{"token":"([^"]+)"/) || [])[1] || (html.match(/name="lsd" value="([^"]+)"/) || [])[1] || '',
+    dtsg: (html.match(/"DTSGInitialData",\[\],\{"token":"([^"]+)"/) || [])[1] || (html.match(/name="fb_dtsg" value="([^"]+)"/) || [])[1] || '',
+  };
+}
+async function threadsScrapeInPage() {
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1];
+  if (!csrf) return { ok: false, error: 'no Threads session (log in at threads.net)' };
+  const H = { 'x-ig-app-id': THREADS_APP_ID, 'x-csrftoken': csrf, 'x-requested-with': 'XMLHttpRequest' };
+  const now = Date.now();
+  const events = [];
+  let account = null;
+  try {
+    const cu = await fetch('https://www.threads.net/api/v1/accounts/current_user/', { headers: H, credentials: 'include' }).then((r) => r.json());
+    const me = cu && cu.user;
+    if (me && me.username) {
+      account = { platform: 'threads', handle: '@' + me.username, display: me.full_name || me.username };
+      events.push({ platform: 'threads', kind: 'metrics', id: 'metrics', ts: now, metrics: { followers: me.follower_count || 0, following: 0, posts: me.media_count || 0 } });
+    }
+  } catch (e) { /* current_user unavailable */ }
+  return { ok: true, events, account };
+}
+async function threadsSendInPage(action) {
+  const { lsd, dtsg } = metaTokens();
+  if (!lsd && !dtsg) return { ok: false, error: 'no Threads tokens in page (log in at threads.net)' };
+  if (!THREADS_CREATE_DOC_ID) return { ok: false, error: 'Threads posting needs a doc_id — capture a create-post request and set THREADS_CREATE_DOC_ID' };
+  try {
+    const body = new URLSearchParams({ lsd: lsd, fb_dtsg: dtsg, doc_id: THREADS_CREATE_DOC_ID, variables: JSON.stringify({ text: String(action.text || '') }) });
+    const res = await fetch('https://www.threads.net/api/graphql', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-fb-lsd': lsd, 'x-ig-app-id': THREADS_APP_ID }, credentials: 'include', body: body.toString() }).then((r) => r.json());
+    if (res && res.data && !res.errors) return { ok: true, url: 'https://www.threads.net/' };
+    return { ok: false, error: 'Threads post failed (doc_id/variables likely need live capture)' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
+// ---- Facebook (GraphQL; fb_dtsg + rotating doc_id) -------------------------
+const FB_CREATE_DOC_ID = '';   // capture a ComposerStoryCreateMutation request and paste its doc_id here to enable posting
+async function fbScrapeInPage() {
+  const cuser = (document.cookie.match(/c_user=([^;]+)/) || [])[1];
+  if (!cuser) return { ok: false, error: 'no Facebook session (log in at facebook.com)' };
+  // Reading the FB feed needs rotating GraphQL doc_ids — report the account only.
+  return { ok: true, events: [], account: { platform: 'facebook', handle: 'fb:' + cuser, display: '' } };
+}
+async function fbSendInPage(action) {
+  const { dtsg } = metaTokens();
+  if (!dtsg) return { ok: false, error: 'no fb_dtsg token (log in at facebook.com)' };
+  if (!FB_CREATE_DOC_ID) return { ok: false, error: 'Facebook posting needs a doc_id — capture a ComposerStoryCreateMutation and set FB_CREATE_DOC_ID' };
+  try {
+    const body = new URLSearchParams({ fb_dtsg: dtsg, doc_id: FB_CREATE_DOC_ID, variables: JSON.stringify({ input: { message: { text: String(action.text || '') } } }) });
+    const res = await fetch('https://www.facebook.com/api/graphql/', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, credentials: 'include', body: body.toString() }).then((r) => r.text());
+    if (res && res.indexOf('"errors"') === -1) return { ok: true, url: 'https://www.facebook.com/' };
+    return { ok: false, error: 'Facebook post failed (doc_id/variables need live capture)' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
+// ---- YouTube (InnerTube; SAPISIDHASH auth + ytcfg) -------------------------
+// Reads notifications best-effort. Community posts/comments need a target +
+// params token, so send() is a clear refusal for now.
+async function ytScrapeInPage() {
+  const sapisid = (document.cookie.match(/(?:^|;\s*)(?:SAPISID|__Secure-3PAPISID)=([^;]+)/) || [])[1];
+  let cfg = null;
+  try { cfg = { key: window.ytcfg.get('INNERTUBE_API_KEY'), ctx: window.ytcfg.get('INNERTUBE_CONTEXT') }; } catch (e) { /* no ytcfg */ }
+  if (!sapisid || !cfg || !cfg.key) return { ok: false, error: 'no YouTube session/config (log in at youtube.com)' };
+  const origin = 'https://www.youtube.com';
+  const ts = Math.floor(Date.now() / 1000);
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(ts + ' ' + sapisid + ' ' + origin));
+  const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const H = { authorization: 'SAPISIDHASH ' + ts + '_' + hash, 'content-type': 'application/json', 'x-origin': origin };
+  const now = Date.now();
+  const events = [];
+  // Inline (self-contained) text + notification collectors — executeScript can't
+  // reference outer helpers.
+  const runText = (r) => !r ? '' : (r.simpleText || (r.runs ? r.runs.map((x) => x.text).join('') : ''));
+  const collect = (obj, out) => {
+    if (!obj || typeof obj !== 'object' || out.length >= 20) return;
+    if (obj.notificationRenderer && obj.notificationRenderer.shortMessage) out.push(runText(obj.notificationRenderer.shortMessage));
+    for (const k in obj) collect(obj[k], out);
+  };
+  try {
+    const r = await fetch(origin + '/youtubei/v1/notification/get_notification_menu?key=' + cfg.key, { method: 'POST', headers: H, credentials: 'include', body: JSON.stringify({ context: cfg.ctx, notificationsMenuRequestType: 'NOTIFICATIONS_MENU_REQUEST_TYPE_INBOX' }) }).then((x) => x.json());
+    const msgs = [];
+    collect(r, msgs);
+    for (const t of msgs) if (t) events.push({ platform: 'youtube', kind: 'notification', id: String(events.length), ts: now, author: '', text: t, url: 'https://www.youtube.com/', uri: '' });
+  } catch (e) { /* notifications unavailable */ }
+  return { ok: true, events, account: null };
+}
+async function ytSendInPage() {
+  return { ok: false, error: 'YouTube posting (community posts/comments) needs a target + params token — not supported yet.' };
+}
+
 // ---- adapter registry ------------------------------------------------------
 // match(url, cfg): cfg carries mastodonHost (Mastodon is federated — the user
 // grants their instance in the popup, so its host is config, not hard-coded).
@@ -327,7 +456,10 @@ const SOCIAL_ADAPTERS = {
   reddit: { match: (url) => /^https:\/\/(www\.|old\.|new\.|sh\.)?reddit\.com\//.test(url || ''), scrape: redditScrapeInPage, send: redditSendInPage },
   x: { match: (url) => /^https:\/\/(x|twitter)\.com\//.test(url || ''), scrape: xScrapeInPage, send: xSendInPage },
   linkedin: { match: (url) => /^https:\/\/([a-z]+\.)?linkedin\.com\//.test(url || ''), scrape: liScrapeInPage, send: liSendInPage },
-  // Phase 3b: youtube, instagram, threads, facebook (heaviest anti-bot — need live capture).
+  instagram: { match: (url) => /^https:\/\/(www\.)?instagram\.com\//.test(url || ''), scrape: igScrapeInPage, send: igSendInPage },
+  threads: { match: (url) => /^https:\/\/(www\.)?threads\.(net|com)\//.test(url || ''), scrape: threadsScrapeInPage, send: threadsSendInPage },
+  facebook: { match: (url) => /^https:\/\/(www\.|web\.|m\.)?facebook\.com\//.test(url || ''), scrape: fbScrapeInPage, send: fbSendInPage },
+  youtube: { match: (url) => /^https:\/\/(www\.|m\.)?youtube\.com\//.test(url || ''), scrape: ytScrapeInPage, send: ytSendInPage },
 };
 
 async function firstTabFor(adapter, cfg) {
