@@ -188,15 +188,20 @@ async function redditScrapeInPage() {
 }
 async function redditSendInPage(action) {
   const base = location.origin;
-  // Top-level Reddit posts need a subreddit + title, which the generic outbox
-  // action doesn't carry — support reply/comment (the natural social action) and
-  // reject posts with a clear message. (Top-level submit is a later phase once
-  // the action shape grows a platform target field.)
-  if (action.op !== 'reply' || !action.reply_to) return { ok: false, error: 'Reddit supports reply/comment only for now — put the target thing-id (t1_/t3_) in reply_to. Top-level posts (subreddit+title) come later.' };
+  // Both submit and comment need the modhash (Reddit's CSRF token).
   let modhash = '';
   try { const me = await fetch(base + '/api/me.json', { credentials: 'include' }).then((r) => r.json()); modhash = (me && me.data && me.data.modhash) || ''; } catch (e) { /* no modhash */ }
   if (!modhash) return { ok: false, error: 'could not get a modhash (log in; old.reddit.com is most reliable)' };
   try {
+    if (action.op === 'post') {
+      if (!action.target || !action.title) return { ok: false, error: 'Reddit post needs target (subreddit, without r/) + title' };
+      const form = new URLSearchParams({ sr: String(action.target).replace(/^\/?r\//, ''), kind: 'self', title: String(action.title), text: String(action.text || ''), uh: modhash, api_type: 'json', resubmit: 'true' });
+      const res = await fetch(base + '/api/submit', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() }).then((r) => r.json());
+      const j = res && res.json;
+      if (j && (!j.errors || !j.errors.length)) return { ok: true, url: (j.data && j.data.url) || '', uri: (j.data && j.data.name) || '' };
+      return { ok: false, error: (j && j.errors && JSON.stringify(j.errors)) || 'submit failed' };
+    }
+    if (!action.reply_to) return { ok: false, error: 'Reddit reply needs the target thing-id (t1_/t3_) in reply_to' };
     const form = new URLSearchParams({ thing_id: String(action.reply_to), text: String(action.text || ''), uh: modhash, api_type: 'json' });
     const res = await fetch(base + '/api/comment', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString() }).then((r) => r.json());
     const j = res && res.json;
@@ -208,6 +213,111 @@ async function redditSendInPage(action) {
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 
+// ---- X / Twitter (public web bearer + ct0 cookie; GraphQL) -----------------
+// Auth is stable: the bearer is a public constant in the web app and the CSRF
+// token is the ct0 cookie. The FRAGILE part is GraphQL — per-operation query IDs
+// and the `features` object rotate. If a call fails, read the current id from the
+// Network tab (x.com/i/api/graphql/<ID>/<Op>) and update X_QID / X_FEATURES.
+const X_QID = { HomeTimeline: 'HJFjzBgCs16TqxewQOeLbg', CreateTweet: 'a1p9RWpkYKBjWv_I3WzS-A' };
+const X_FEATURES = {};   // CreateTweet requires a populated feature-flag map; fill from a live request if posts 400.
+function xAuth() {
+  const ct0 = (document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/) || [])[1];
+  if (!ct0) return null;
+  return { ct0, bearer: 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs=1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA' };
+}
+function xHeaders(a, post) {
+  return { authorization: 'Bearer ' + a.bearer, 'x-csrf-token': a.ct0, 'x-twitter-active-user': 'yes', 'x-twitter-auth-type': 'OAuth2Session', ...(post ? { 'content-type': 'application/json' } : {}) };
+}
+async function xScrapeInPage() {
+  const a = xAuth();
+  if (!a) return { ok: false, error: 'no X session (log in at x.com)' };
+  const now = Date.now();
+  const events = [];
+  const api = 'https://x.com/i/api';
+  try {
+    const vars = encodeURIComponent(JSON.stringify({ count: 20, includePromotedContent: false, withCommunity: false }));
+    const r = await fetch(api + '/graphql/' + X_QID.HomeTimeline + '/HomeTimeline?variables=' + vars + '&features=' + encodeURIComponent(JSON.stringify(X_FEATURES)), { headers: xHeaders(a), credentials: 'include' }).then((x) => x.json());
+    const instr = (((r.data || {}).home || {}).home_timeline_urt || {}).instructions || [];
+    for (const ins of instr) for (const e of (ins.entries || [])) {
+      const res = ((((e.content || {}).itemContent || {}).tweet_results || {}).result) || null;
+      const legacy = res && res.legacy;
+      const user = res && res.core && res.core.user_results && res.core.user_results.result && res.core.user_results.result.legacy;
+      if (!legacy) continue;
+      events.push({ platform: 'x', kind: 'feed', id: legacy.id_str || e.entryId, ts: Date.parse(legacy.created_at) || now, author: '@' + ((user && user.screen_name) || ''), text: legacy.full_text || '', url: 'https://x.com/i/status/' + (legacy.id_str || ''), uri: legacy.id_str || '', counts: { likes: legacy.favorite_count || 0, reposts: legacy.retweet_count || 0, replies: legacy.reply_count || 0 } });
+    }
+  } catch (e) { /* timeline unavailable — HomeTimeline queryId likely stale */ }
+  let account = null;
+  try {
+    const st = await fetch(api + '/1.1/account/settings.json', { headers: xHeaders(a), credentials: 'include' }).then((x) => x.json());
+    if (st && st.screen_name) {
+      account = { platform: 'x', handle: '@' + st.screen_name, display: st.screen_name };
+      try {
+        const u = await fetch(api + '/1.1/users/show.json?screen_name=' + encodeURIComponent(st.screen_name), { headers: xHeaders(a), credentials: 'include' }).then((x) => x.json());
+        if (u && u.followers_count != null) events.push({ platform: 'x', kind: 'metrics', id: 'metrics', ts: now, metrics: { followers: u.followers_count, following: u.friends_count || 0, posts: u.statuses_count || 0 } });
+      } catch (e) { /* users/show gated */ }
+    }
+  } catch (e) { /* settings unavailable */ }
+  return { ok: true, events, account };
+}
+async function xSendInPage(action) {
+  const a = xAuth();
+  if (!a) return { ok: false, error: 'no X session' };
+  const variables = { tweet_text: String(action.text || ''), dark_request: false, media: { media_entities: [], possibly_sensitive: false }, semantic_annotation_ids: [] };
+  if (action.op === 'reply' && action.reply_to) variables.reply = { in_reply_to_tweet_id: String(action.reply_to).split('/').pop(), exclude_reply_user_ids: [] };
+  try {
+    const res = await fetch('https://x.com/i/api/graphql/' + X_QID.CreateTweet + '/CreateTweet', { method: 'POST', headers: xHeaders(a, true), credentials: 'include', body: JSON.stringify({ variables, features: X_FEATURES, queryId: X_QID.CreateTweet }) }).then((x) => x.json());
+    const id = (((((res.data || {}).create_tweet || {}).tweet_results || {}).result) || {}).rest_id;
+    if (id) return { ok: true, uri: id, url: 'https://x.com/i/status/' + id };
+    return { ok: false, error: (res.errors && JSON.stringify(res.errors)) || 'CreateTweet failed — queryId/features may be stale (see X_QID/X_FEATURES)' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
+// ---- LinkedIn (Voyager API; JSESSIONID is the CSRF token) ------------------
+// Auth is stable (csrf = JSESSIONID cookie). Voyager endpoints + request bodies
+// are versioned and drift — treat reads/writes as best-effort.
+function liCsrf() {
+  const j = (document.cookie.match(/JSESSIONID="?([^";]+)"?/) || [])[1];
+  return j || null;
+}
+function liHeaders(csrf, post) {
+  return { 'csrf-token': csrf, accept: 'application/vnd.linkedin.normalized+json+2.1', 'x-restli-protocol-version': '2.0.0', ...(post ? { 'content-type': 'application/json; charset=UTF-8' } : {}) };
+}
+async function liScrapeInPage() {
+  const csrf = liCsrf();
+  if (!csrf) return { ok: false, error: 'no LinkedIn session (log in at linkedin.com)' };
+  const base = 'https://www.linkedin.com/voyager/api';
+  const now = Date.now();
+  const events = [];
+  let account = null;
+  try {
+    const me = await fetch(base + '/me', { headers: liHeaders(csrf), credentials: 'include' }).then((r) => r.json());
+    const mp = (me.included && me.included.find((x) => x.firstName)) || (me.data && me.data.miniProfile) || null;
+    if (mp) {
+      const name = ((mp.firstName || '') + ' ' + (mp.lastName || '')).trim();
+      if (name) account = { platform: 'linkedin', handle: mp.publicIdentifier ? ('in/' + mp.publicIdentifier) : name, display: name };
+    }
+  } catch (e) { /* me unavailable */ }
+  try {
+    const nt = await fetch(base + '/voyagerIdentityDashNotificationCards?count=20&q=notifications', { headers: liHeaders(csrf), credentials: 'include' }).then((r) => r.json());
+    for (const el of (nt.included || [])) {
+      const txt = (el.headline && el.headline.text) || (el.subHeadline && el.subHeadline.text);
+      if (txt) events.push({ platform: 'linkedin', kind: 'notification', id: el.entityUrn || String(events.length), ts: now, author: '', text: txt, url: 'https://www.linkedin.com/notifications/', uri: el.entityUrn || '' });
+    }
+  } catch (e) { /* notifications shape varies */ }
+  return { ok: true, events, account };
+}
+async function liSendInPage(action) {
+  const csrf = liCsrf();
+  if (!csrf) return { ok: false, error: 'no LinkedIn session' };
+  if (action.op === 'reply') return { ok: false, error: 'LinkedIn replies (comments) not supported yet — post a share instead' };
+  const body = { visibleToConnectionsOnly: false, externalAudienceProviders: [], commentaryV2: { text: String(action.text || ''), attributes: [] }, origin: 'FEED', allowedCommentersScope: 'ALL', postState: 'PUBLISHED', media: [] };
+  try {
+    const res = await fetch('https://www.linkedin.com/voyager/api/contentcreation/normShares', { method: 'POST', headers: liHeaders(csrf, true), credentials: 'include', body: JSON.stringify(body) });
+    if (res.ok) { let j = {}; try { j = await res.json(); } catch (e) { /* empty body ok */ } const urn = (j.data && j.data.urn) || j.urn || ''; return { ok: true, uri: urn, url: urn ? ('https://www.linkedin.com/feed/update/' + urn) : 'https://www.linkedin.com/feed/' }; }
+    return { ok: false, error: 'normShares HTTP ' + res.status + ' (endpoint/body may have changed)' };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
 // ---- adapter registry ------------------------------------------------------
 // match(url, cfg): cfg carries mastodonHost (Mastodon is federated — the user
 // grants their instance in the popup, so its host is config, not hard-coded).
@@ -215,7 +325,9 @@ const SOCIAL_ADAPTERS = {
   bluesky: { match: (url) => /^https:\/\/bsky\.app\//.test(url || ''), scrape: bskyScrapeInPage, send: bskySendInPage },
   mastodon: { match: (url, cfg) => !!(cfg && cfg.mastodonHost) && (url || '').indexOf(cfg.mastodonHost) === 0, scrape: mastoScrapeInPage, send: mastoSendInPage },
   reddit: { match: (url) => /^https:\/\/(www\.|old\.|new\.|sh\.)?reddit\.com\//.test(url || ''), scrape: redditScrapeInPage, send: redditSendInPage },
-  // Phase 3: x, linkedin, youtube, instagram, threads, facebook.
+  x: { match: (url) => /^https:\/\/(x|twitter)\.com\//.test(url || ''), scrape: xScrapeInPage, send: xSendInPage },
+  linkedin: { match: (url) => /^https:\/\/([a-z]+\.)?linkedin\.com\//.test(url || ''), scrape: liScrapeInPage, send: liSendInPage },
+  // Phase 3b: youtube, instagram, threads, facebook (heaviest anti-bot — need live capture).
 };
 
 async function firstTabFor(adapter, cfg) {

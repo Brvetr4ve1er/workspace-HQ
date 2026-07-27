@@ -97,10 +97,15 @@ function stageAction(op, args) {
   if (text.length > SOCIAL_TEXT_MAX) throw new ToolError(`text too long (max ${SOCIAL_TEXT_MAX})`);
   const reply_to = args.reply_to ? String(args.reply_to).slice(0, 500) : null;
   if (op === 'reply' && !reply_to) throw new ToolError('reply_to required for a reply (post id/uri/url of the target)');
+  // Optional platform-specific routing: `target` = destination (e.g. a Reddit
+  // subreddit, without the r/), `title` = a post title where the platform needs
+  // one (Reddit). Ignored by platforms that don't use them.
+  const target = args.target ? String(args.target).slice(0, 120) : null;
+  const title = args.title ? String(args.title).slice(0, 300) : null;
   const d = socialOutbox();
   const action = {
     id: 'ob-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    platform, op, text: text.slice(0, SOCIAL_TEXT_MAX), reply_to,
+    platform, op, text: text.slice(0, SOCIAL_TEXT_MAX), reply_to, target, title,
     status: 'staged', staged_at: new Date().toISOString(),
     sent_at: null, result: null, error: null, by: 'mcp',
   };
@@ -369,12 +374,14 @@ const TOOLS = [
   },
   {
     name: 'hq_social_post',
-    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it.',
+    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it. Reddit top-level posts require target (subreddit, without r/) + title.',
     inputSchema: {
       type: 'object',
       properties: {
         platform: { type: 'string', description: `target platform: ${SOCIAL_PLATFORMS.join(', ')}` },
         text: { type: 'string', maxLength: SOCIAL_TEXT_MAX, description: 'the post body' },
+        target: { type: 'string', description: 'platform destination — e.g. a Reddit subreddit (without the r/). Ignored where not applicable.' },
+        title: { type: 'string', description: 'post title — required for a Reddit top-level post; ignored where the platform has no title.' },
       },
       required: ['platform', 'text'],
       additionalProperties: false,
@@ -408,7 +415,7 @@ const TOOLS = [
       const f = args.status ? String(args.status).toLowerCase() : null;
       const actions = socialOutbox().actions
         .filter((a) => !f || a.status === f)
-        .map((a) => ({ id: a.id, platform: a.platform, op: a.op, status: a.status, text: a.text, reply_to: a.reply_to, staged_at: a.staged_at, sent_at: a.sent_at, result: a.result, error: a.error }));
+        .map((a) => ({ id: a.id, platform: a.platform, op: a.op, status: a.status, text: a.text, reply_to: a.reply_to, target: a.target, title: a.title, staged_at: a.staged_at, sent_at: a.sent_at, result: a.result, error: a.error }));
       return { count: actions.length, actions };
     },
   },
