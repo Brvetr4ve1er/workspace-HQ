@@ -16,19 +16,28 @@ function shade(hex, amt) {            // amt<0 darkens, amt>0 lightens
   const c = (v) => Math.max(0, Math.min(255, Math.round(v * f + add))).toString(16).padStart(2, '0');
   return '#' + c(r) + c(gg) + c(b);
 }
+function bHeight(p) { return 16 + (p.completion?.pct ?? 0) * 0.85; }
+// Standing colour incl. decay tint — shared by the building and its label so
+// the % reads in the same colour as its tower.
+function standing(p) {
+  const g = p.metrics.git_safety, ch = p.metrics.code_health;
+  const comp = p.completion?.pct ?? 0;
+  const riskHigh = g.risk === 'high' || ch.build === 'red';
+  let base = riskHigh ? COL.red : comp < 40 ? COL.orange : comp < 75 ? COL.yellow : COL.green;
+  const dsc = p.activity?.days_since_commit ?? 0;
+  const decayK = Math.min(1, dsc / 90) * 0.65;
+  if (decayK > 0) base = shade(base, -decayK * 0.5);
+  return base;
+}
+function idleStr(dsc) { return dsc >= 60 ? Math.round(dsc / 30) + 'mo' : dsc + 'd'; }
 function isoGround(cx, cy, fx, fy) {
   const pts = [[cx, cy - fy], [cx + fx, cy], [cx, cy + fy], [cx - fx, cy]].map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ');
   return `<polygon points="${pts}" fill="#0e0b22" stroke="#241d44" stroke-width="0.7"/>`;
 }
 function isoBuilding(p, cx, cy, fx, fy, openQ, sqN) {
-  const comp = p.completion?.pct ?? 0, h = 16 + comp * 0.85;
-  const g = p.metrics.git_safety, ch = p.metrics.code_health, rs = p.metrics.risk_security;
-  const riskHigh = g.risk === 'high' || ch.build === 'red';
-  let base = riskHigh ? COL.red : comp < 40 ? COL.orange : comp < 75 ? COL.yellow : COL.green;
-  // Decay tint: fade toward grey as days_since_commit grows. 0d full color, 90d+ ~grey.
-  const dsc = p.activity?.days_since_commit ?? 0;
-  const decayK = Math.min(1, dsc / 90) * 0.65;
-  if (decayK > 0) base = shade(base, -decayK * 0.5);
+  const h = bHeight(p);
+  const rs = p.metrics.risk_security;
+  const base = standing(p);
   const top = base, left = shade(base, -0.40), right = shade(base, -0.20);
   const N = [cx, cy - fy - h], E = [cx + fx, cy - h], Sp = [cx, cy + fy - h], W = [cx - fx, cy - h];
   const Sg = [cx, cy + fy], Eg = [cx + fx, cy], Wg = [cx - fx, cy];
@@ -47,15 +56,24 @@ function isoBuilding(p, cx, cy, fx, fy, openQ, sqN) {
   s += poly([N, E, Sp, W], top, 'stroke="#0c0a1e" stroke-width="0.7"');
   if (openQ) s += `<g transform="translate(${f1(cx)},${f1(cy - fy - h - 7)})"><line x1="0" y1="-7" x2="0" y2="6" stroke="#d9d6ff" stroke-width="1"/><polygon points="0,-7 12,-4 0,-1" fill="${COL.red}"/><text x="3.5" y="-2.6" font-size="6" fill="#fff" font-family="monospace">${openQ}</text></g>`;
   if ((rs.secrets_found || 0) > 0) s += `<text x="${f1(cx + fx - 6)}" y="${f1(cy - h + 2)}" font-size="10" fill="${COL.gold}">⚠</text>`;
-  // Idle marker: time since last commit on each building; dormant (60d+) faded.
-  if (dsc >= 14) {
-    const dormant = dsc >= 60;
-    const idle = dormant ? Math.round(dsc / 30) + 'mo' : dsc + 'd';
-    s += `<text class="bidle${dormant ? ' dormant' : ''}" x="${f1(cx - fx + 3)}" y="${f1(cy - h + 4)}" font-size="6.5" fill="#8c85a8" opacity="${dormant ? 0.75 : 0.95}" font-family="monospace">${idle}</text>`;
-  }
-  const nm = p.name.length > 14 ? p.name.slice(0, 13) + '…' : p.name;
-  s += `<text class="bpct" x="${f1(cx)}" y="${f1(cy - fy - h - 1.5)}" text-anchor="middle" font-size="7" fill="${base}" font-family="monospace">${comp}%</text>`;
-  s += `<text class="blab" x="${f1(cx)}" y="${f1(cy + fy + 13)}" text-anchor="middle" font-size="6.5" fill="#cfcaf5">${esc(nm)}</text>`;
+  return s + '</g>';
+}
+// Labels draw in a SEPARATE pass ON TOP of every building (see renderBaseMap) so a
+// front tower can never occlude a back tower's label. Anchored above each roof apex,
+// with a dark halo (paint-order:stroke) so the text reads over anything behind it.
+// name (line 1) + completion% · idle (line 2); truncation relaxed to 20 chars.
+function isoLabel(p, cx, cy, fx, fy) {
+  const comp = p.completion?.pct ?? 0;
+  const apexY = cy - fy - bHeight(p);
+  const base = standing(p);
+  const dsc = p.activity?.days_since_commit ?? 0;
+  const name = p.name.length > 20 ? p.name.slice(0, 19) + '…' : p.name;
+  const meta = comp + '%' + (dsc >= 14 ? '  ' + idleStr(dsc) : '');
+  const f1 = (v) => v.toFixed(1);
+  const halo = 'stroke="#0c0a1e" stroke-width="2.6" paint-order="stroke" stroke-linejoin="round"';
+  let s = `<g class="blabel" pointer-events="none">`;
+  s += `<text x="${f1(cx)}" y="${f1(apexY - 27)}" text-anchor="middle" font-size="11" font-weight="700" fill="#f2f0ff" ${halo}>${esc(name)}</text>`;
+  s += `<text x="${f1(cx)}" y="${f1(apexY - 15)}" text-anchor="middle" font-size="10" font-weight="700" fill="${base}" ${halo} font-family="monospace">${meta}</text>`;
   return s + '</g>';
 }
 function mapLegend() {
@@ -72,17 +90,18 @@ function renderBaseMap(bm, S, prevProj, data, LX) {
   (S.quests || []).filter((q) => q.status === 'open' || q.status === 'in_progress').forEach((q) => { openByProj[q.project_id] = (openByProj[q.project_id] || 0) + 1; });
   (S.side_quests || []).forEach((sq) => { sqByProj[sq.project_id] = (sqByProj[sq.project_id] || 0) + 1; });
   const n = projs.length, cols = Math.ceil(Math.sqrt(n));
-  const tileW = 104, tileH = 52, fx = 32, fy = 16;
+  const tileW = 150, tileH = 74, fx = 32, fy = 16;   // roomier grid so towers + their labels don't crowd
   const cells = projs.map((p, i) => { const gx = i % cols, gy = Math.floor(i / cols); return { p, gx, gy, cx: (gx - gy) * tileW / 2, cy: (gx + gy) * tileH / 2 }; });
   const hMax = 16 + 100 * 0.85;
   const xs = cells.map((c) => c.cx), ys = cells.map((c) => c.cy);
   const minX = Math.min(...xs) - fx - 16, maxX = Math.max(...xs) + fx + 16;
-  const minY = Math.min(...ys) - fy - hMax - 18, maxY = Math.max(...ys) + fy + 24;
+  const minY = Math.min(...ys) - fy - hMax - 48, maxY = Math.max(...ys) + fy + 16;
   cells.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy) || a.cx - b.cx);   // painter's: back-to-front
   let svg = `<svg class="isomap" viewBox="${f(minX)} ${f(minY)} ${f(maxX - minX)} ${f(maxY - minY)}" preserveAspectRatio="xMidYMid meet">`;
   function f(v) { return Number(v).toFixed(1); }
   cells.forEach((c) => { svg += isoGround(c.cx, c.cy, fx, fy); });
   cells.forEach((c) => { svg += isoBuilding(c.p, c.cx, c.cy, fx, fy, openByProj[c.p.id] || 0, sqByProj[c.p.id] || 0); });
+  cells.forEach((c) => { svg += isoLabel(c.p, c.cx, c.cy, fx, fy); });   // labels on top of ALL buildings
   svg += '</svg>';
   const wrap = el('div', 'mapwrap');
   wrap.appendChild(el('div', 'maphead', `<h2 class="sec">${LX('basemap_head')} · ${n} ${LX('buildings')}</h2><div class="maplegend">${mapLegend()}</div>`));
