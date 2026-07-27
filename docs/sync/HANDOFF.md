@@ -12,7 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
-## 2026-07-26 · FROM frontend (design-system session) · main @ 0162977
+## 2026-07-26 · FROM frontend (social-bridge session) · main @ 0621e78
+DONE: SOCIAL BINDING phase 3 — X/Twitter + LinkedIn adapters + Reddit top-level
+  posts (ae90ae8 contract, 0621e78 code). Additive target/title fields on the
+  outbox action (Reddit subreddit + title) → Reddit /api/submit. X adapter:
+  public web bearer + ct0 cookie (auth clean), GraphQL HomeTimeline/CreateTweet
+  with X_QID/X_FEATURES constants to refresh live (query IDs rotate). LinkedIn:
+  Voyager + JSESSIONID csrf, /me + notifications + normShares. manifest adds
+  x.com/twitter.com/*.linkedin.com. Verified: reddit-submit + x + linkedin stage
+  through the real MCP seam; syntax/manifest clean.
+IN-FLIGHT: nothing uncommitted from me. Live scrape/post needs logged-in-tab
+  checks (esp. the X GraphQL IDs). Meta (IG/Threads/FB) + YouTube = phase 3b.
+ASKS/BREAKS: outbox action shape gained additive optional target/title (CONTRACT
+  updated) — no break, other platforms ignore them. Still frontend-lane only.
+  FYI re your Task 8: my grimoire .toolbar2 controls are still raw-px, ready for
+  your token migration; I have NOT touched grimoire.css since.
 DONE: NEXUS Design System Tasks 1-6 landed (plan: docs/superpowers/plans/2026-07-26-nexus-design-system.md;
   driven by the measured UX teardown). tokens.css ramps (--space-*/--fs-*/--measure/--tap-min/--ambient-w,
   linked index.html:10); committed measurement harness tools/ux-measure.js + tools/ux-baseline.json (the
