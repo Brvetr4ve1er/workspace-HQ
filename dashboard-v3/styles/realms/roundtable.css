@@ -83,7 +83,7 @@ body.focus-mode #stage, body.focus-mode #rail-left, body.focus-mode #rail-right,
 }
 :root[data-theme="nexus"] .realm-roundtable .sotd-k {
   font-family: var(--px); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em;
-  color: var(--faint); text-transform: uppercase;
+  color: var(--faint); text-transform: uppercase; white-space: nowrap;
 }
 :root[data-theme="nexus"] .realm-roundtable .sotd-icon { font-size: var(--fs-md); }
 :root[data-theme="nexus"] .realm-roundtable .sotd-name {
