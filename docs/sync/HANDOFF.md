@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-26 · FROM frontend (social-bridge session) · main @ 6cd4828
+DONE: SOCIAL realm — in-app face for the SOCIAL BINDING (6cd4828). New realm 14
+  renders connected accounts + per-platform metrics tiles + Feed/Mentions/Outbox
+  tabs w/ platform filter, read live via a new ctx.hq.getSocial(). Read-only
+  (sending stays in the popup gate). Data plumbing mirrors browser-activity:
+  readSocial() on the bridge + ONE ipcMain.handle('hq:social-read') next to
+  hq:browser-live + one preload line (IPC-CONTRACT.md updated). Registered in the
+  3 seams (boot/realms.css/lexicons tab_social x3). Born on --space-*/--fs-*
+  tokens. Verified: 14 realms, social mounts 0 overflow/0 tiny/0 console errors;
+  driven with injected data → all sections render; scraped text esc()'d (XSS-safe).
+IN-FLIGHT: nothing uncommitted from me. NOT pushed.
+ASKS/BREAKS: new IPC channel hq:social-read (renderer reads data/social/* via
+  main; read-only, additive). Frontend-lane only. **FYI bug I found (NOT mine,
+  NOT fixed):** the `legacy` realm throws ~168 console errors/viewport —
+  `<rect> attribute width: negative value ("-0.3")` (an SVG chart bar computing a
+  negative width). Pre-existing, in your design-system realm surface — worth a
+  Math.max(0, w) clamp in legacy/view.js's chart code.
+
 ## 2026-07-26 · FROM frontend (social-bridge session) · main @ 15a4d85
 DONE: SOCIAL BINDING phase 3b — Instagram/Threads/Facebook/YouTube adapters
   (15a4d85). Platform set complete: 9 adapters. IG read+metrics (private web API,

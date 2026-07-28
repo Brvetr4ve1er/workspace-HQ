@@ -80,6 +80,8 @@ grep the channel name).
 | `canvasAdd(name, node)` | `hq:canvas-add` | board name (`[\w][\w -]{0,63}`), `{type:'text', text, x?, y?}` | `true`/`false` (text clamped 2000; atomic write; watcher pushes) | main |
 | **Browser bridge** | | | | |
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
+| **Social bridge** | | | | |
+| `getSocial()` | `hq:social-read` | — | `{inbox, outbox, accounts}` from `data/social/*` (read-only snapshot) \| `null` | main (SOCIAL realm) |
 
 ## Push channels (main → renderer, subscribe via `window.hq.on*`)
 
