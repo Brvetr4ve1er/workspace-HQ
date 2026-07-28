@@ -34,6 +34,8 @@ import { manifest as atlasM } from '../realms/atlas/manifest.js';
 import { view as atlasV } from '../realms/atlas/view.js';
 import { manifest as conjureM } from '../realms/conjure/manifest.js';
 import { view as conjureV } from '../realms/conjure/view.js';
+import { manifest as socialM } from '../realms/social/manifest.js';
+import { view as socialV } from '../realms/social/view.js';
 import { initPalette } from './palette.js';
 import { initActions } from './actions.mjs';
 import { initNotify } from './notify.mjs';
@@ -54,6 +56,7 @@ register(summoningM, summoningV);
 register(chronicleM, chronicleV);
 register(atlasM, atlasV);
 register(conjureM, conjureV);
+register(socialM, socialV);
 
 // Restore the scrubbed scan + active realm across win.reload() (main reloads
 // on scan/commit/etc.) so a data refresh doesn't snap the user home.

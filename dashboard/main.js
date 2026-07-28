@@ -50,6 +50,10 @@ function pushBrowserTab(live) {
 // several bridge flushes have already landed).
 ipcMain.handle('hq:browser-live', () => (bridge ? bridge.readActivity()?.live || null : null));
 
+// SOCIAL BINDING: the renderer's SOCIAL realm reads the scraped sidecars (feed/
+// mentions/metrics/outbox/accounts) on demand. Read-only — the extension writes.
+ipcMain.handle('hq:social-read', () => (bridge ? bridge.readSocial() : null));
+
 // Project paths in the data are already absolute (e.g. C:\Users\...\alliance travel);
 // only fall back to joining DOCS_ROOT for legacy relative paths. Reject anything that
 // escapes DOCS_ROOT after resolution.

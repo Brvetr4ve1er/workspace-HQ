@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('hq', {
   healthScan: () => ipcRenderer.invoke('hq:health-scan'),
   healthFix: (command) => ipcRenderer.invoke('hq:health-fix', command),
   // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
+  getSocial: () => ipcRenderer.invoke('hq:social-read'),
+
   getCanvas: () => ipcRenderer.invoke('hq:canvas-read'),
   canvasAdd: (name, node) => ipcRenderer.invoke('hq:canvas-add', name, node),
   onCanvas: (callback) => {
