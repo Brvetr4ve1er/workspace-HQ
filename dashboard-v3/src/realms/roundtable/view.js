@@ -13,6 +13,8 @@ import {
 import { switchRealm } from '../../core/shell.js';
 import { computeOneThing } from './one-thing.js';
 import { ensureFocusOverlay, enterOneThing } from './focus.js';
+import { oracle } from '../../intel/derive.mjs';
+import { buildOracleCard, buildRestCard, oracleFlagOn } from './oracle-card.js';
 
 let rootEl = null, ctxRef = null, offData = null;
 
@@ -235,18 +237,28 @@ function render() {
     ov.appendChild(d3);
   }
 
-  // The One Thing: the single highest-leverage move, one click from focus.
-  const otAction = (typeof computeOneThing === 'function' && isLatest) ? computeOneThing(S) : null;
-  if (otAction) {
-    const otc = el('div', 'onething-card');
-    otc.innerHTML = `<div class="otc-eyebrow">◎ THE ONE THING · everything else can wait</div>
-      <div class="otc-title">${esc(otAction.title)}</div>
-      ${otAction.project_name ? `<div class="otc-proj">↳ ${esc(otAction.project_name)}</div>` : ''}
-      <div class="otc-reason">${esc(otAction.reason)}</div>
-      <div class="otc-actions"><button class="otc-focus">◎ FOCUS</button></div>`;
-    otc.querySelector('.otc-focus').onclick = () => enterOneThing(otAction);
-    aos(otc, 'fade-up');
-    ov.appendChild(otc);
+  // The Oracle — the single live "do this now", from the tested pure brain
+  // (derive.oracle) and routed through dispatch(). Flag hq-ff-oracle OFF falls
+  // back to the legacy One-Thing hero (unchanged), so this is a one-flip revert.
+  if (oracleFlagOn()) {
+    const o = isLatest ? oracle(D, S, new Date().toISOString()) : null;
+    const hero = o ? buildOracleCard(o, ctx) : buildRestCard(new Date().toISOString());
+    aos(hero, 'fade-up');
+    ov.appendChild(hero);
+  } else {
+    // legacy One-Thing hero (v2 computeOneThing truth) — kept intact behind the flag
+    const otAction = (typeof computeOneThing === 'function' && isLatest) ? computeOneThing(S) : null;
+    if (otAction) {
+      const otc = el('div', 'onething-card');
+      otc.innerHTML = `<div class="otc-eyebrow">◎ THE ONE THING · everything else can wait</div>
+        <div class="otc-title">${esc(otAction.title)}</div>
+        ${otAction.project_name ? `<div class="otc-proj">↳ ${esc(otAction.project_name)}</div>` : ''}
+        <div class="otc-reason">${esc(otAction.reason)}</div>
+        <div class="otc-actions"><button class="otc-focus">◎ FOCUS</button></div>`;
+      otc.querySelector('.otc-focus').onclick = () => enterOneThing(otAction);
+      aos(otc, 'fade-up');
+      ov.appendChild(otc);
+    }
   }
 
   // Suggested automation — a slim, optional bonus ribbon under the decision surface.

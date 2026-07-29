@@ -204,3 +204,40 @@ body.focus-mode #stage, body.focus-mode #rail-left, body.focus-mode #rail-right,
 :root[data-theme="nexus"] .realm-roundtable .saga-stats { font-family: var(--px); font-size: var(--fs-xs); font-weight: 600; color: var(--gold-2); }
 :root[data-theme="nexus"] .realm-roundtable .saga-toggle { font-family: var(--px); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .03em; padding: var(--space-2) var(--space-3); }
 :root[data-theme="nexus"] .realm-roundtable .saga-body { font-size: var(--fs-sm); line-height: 1.55; }
+
+/* ==== THE ORACLE — the single "do this now" hero (Epic A) =================
+   Sits where the One-Thing card did (after daily3). Built on the shared
+   spacing/type tokens; the accent seam borrows the semantic --active. */
+.realm-roundtable .oracle-card {
+  margin: var(--space-2) 0 var(--space-5);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  background: linear-gradient(168deg, var(--card-hi), var(--card));
+  border: 1px solid var(--frame);
+  border-left: 3px solid var(--active, var(--gold));
+  border-radius: 14px;
+  box-shadow: 0 16px 40px -28px #000;
+}
+.realm-roundtable .oracle-card .oc-eyebrow {
+  font-family: var(--term); font-size: var(--fs-xs); font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+}
+.realm-roundtable .oracle-card .oc-label {
+  font-family: var(--term); font-size: var(--fs-lg); font-weight: 600;
+  color: var(--text); line-height: 1.25; margin-top: var(--space-2);
+}
+.realm-roundtable .oracle-card .oc-reason {
+  font-family: var(--term); font-size: var(--fs-sm); color: var(--muted);
+  line-height: 1.5; margin-top: var(--space-1);
+}
+.realm-roundtable .oracle-card .oc-act { margin-top: var(--space-4); }
+.realm-roundtable .oracle-card .oc-go {
+  font-family: var(--term); font-size: var(--fs-sm); font-weight: 600;
+  letter-spacing: .02em; cursor: pointer; min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4); border-radius: 8px;
+  color: var(--ink, #05060a); background: var(--active, var(--gold));
+  border: 1px solid var(--active, var(--gold));
+}
+.realm-roundtable .oracle-card .oc-go:hover { filter: brightness(1.08); }
+/* rest state: no accent bar, calmer */
+.realm-roundtable .oracle-card.rest { border-left-color: var(--frame); }
+.realm-roundtable .oracle-card.rest .oc-label { color: var(--muted); }
