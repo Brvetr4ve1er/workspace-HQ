@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-29 · FROM frontend (nexus-alive Epic A session) · main @ 75843b6
+DONE: NEXUS ALIVE Epic A — The Oracle (93c7c6e oracle-logic, 4402233 hero card,
+  e308641 ambient mirror, 75843b6 drawer fix). Home realm now leads with the single
+  live "do this now" from the tested pure derive.oracle(), routed through the audited
+  dispatch() path; one-line echo in the ambient rail ("DO NOW"). Flag hq-ff-oracle
+  (default on) — OFF restores the legacy computeOneThing hero byte-for-byte. Night/rest
+  empty state. No contract/IPC/main change; all under dashboard-v3/. Verified: 20 unit
+  tests green, selftest combos=98 errors=0 PASS, live screenshot (Oracle correctly
+  surfaced "Rotate 4 exposed secrets — Crucix" above all commits/quests), adversarial
+  code review found 0 real bugs. Plan:
+  docs/superpowers/plans/2026-07-29-nexus-alive-epic-a-oracle.md.
+IN-FLIGHT: nothing uncommitted from me. NOT pushed.
+ASKS/BREAKS: none. **NOTE for whoever builds Epic B (War Room):** the nexus-alive
+  program plan's realm-count math is STALE — it says 13 realms → 14 after War Room
+  (98 combos). But SOCIAL (realm 14) already landed (6cd4828), so the app is ALREADY
+  at 14 realms × 7 = 98 combos NOW. War Room makes it 15 realms → selftest target
+  becomes 105, NOT 98. Fix the plan's gate when you spin Epic B.
+
 ## 2026-07-29 · FROM frontend (design-system session) · main @ 591418d
 DONE: NEXUS Design System Tasks 8+9 COMPLETE (591418d). Per-realm measure caps
   (--measure 880px): roundtable/forge/chronicle cap the reading column; lands/legacy
