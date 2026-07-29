@@ -7,6 +7,16 @@
    Semantic tokens only (--active/--divider/--card/--text…), so it holds up under
    every theme. */
 
+/* ==== READING MEASURE — cap the text/card columns, NOT the chart grid =====
+   Cap the personal-records callout, the consistency card, the trophy grid and
+   their section headers to a readable width and centre them. The trend .charts
+   grid is intentionally wide (multi-column) and is deliberately left uncapped
+   so it keeps its full span. (NEXUS design-system Task 8: per-realm measure caps.) */
+.realm-legacy > h2.sec,
+.realm-legacy .pr-callout,
+.realm-legacy .blessing,
+.realm-legacy .ach-grid { max-width: var(--measure); margin-inline: auto; }
+
 /* ---- PERSONAL RECORDS callout (above the charts) ------------------------- */
 .realm-legacy .pr-callout {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));

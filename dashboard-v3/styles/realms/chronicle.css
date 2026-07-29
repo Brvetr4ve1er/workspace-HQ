@@ -5,6 +5,12 @@
    --faint/--active/--mono/--term/--px); only the impact rails borrow the
    semantic accent vars (--green/--red) which every shipping theme defines. */
 
+/* ==== READING MEASURE — cap the timeline column ===========================
+   The whole realm is text (header stat strip, weekly recap, timeline spine)
+   inside this one .realm-chronicle wrapper — no wide viz — so cap + centre the
+   wrapper. (NEXUS design-system Task 8: per-realm measure caps.) */
+.realm-chronicle { max-width: var(--measure); margin-inline: auto; }
+
 /* ---------------------------------------------- header stat strip */
 .realm-chronicle .cr-head { margin-bottom: var(--space-5); }
 .realm-chronicle .cr-head-main { display: flex; align-items: baseline; gap: var(--space-4); flex-wrap: wrap; }

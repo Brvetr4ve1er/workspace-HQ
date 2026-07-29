@@ -125,7 +125,10 @@
 .realm-medbay .rx-why { font-family: var(--term); font-size: var(--fs-xs); color: var(--muted); line-height: 1.5; }
 .realm-medbay .rx-teach { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); margin-top: var(--space-1); line-height: 1.45; }
 .realm-medbay .rx-cmd { margin: var(--space-3) 0; background: var(--ink, #05060a); border: 1px solid var(--frame); border-radius: 8px; padding: var(--space-3) var(--space-3); overflow-x: auto; }
-.realm-medbay .rx-cmd code { font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted, #cdd6e6); white-space: pre; }
+/* the fix scripts are long PowerShell one-liners (~2000px) — soft-wrap inside
+   the card so reading needs no horizontal scroll; overflow-wrap breaks the rare
+   unbroken token (long paths/URLs). Stays monospace + readable. */
+.realm-medbay .rx-cmd code { font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted, #cdd6e6); white-space: pre-wrap; overflow-wrap: anywhere; }
 .realm-medbay .rx-act { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .realm-medbay .rx-copy, .realm-medbay .rx-run { font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em; cursor: pointer; border-radius: 8px; padding: var(--space-2) var(--space-3); }
 .realm-medbay .rx-copy { background: var(--card-hi); border: 1px solid var(--frame); color: var(--muted); }

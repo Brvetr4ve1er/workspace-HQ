@@ -4,6 +4,16 @@
    rules add what those sheets can't reach: legible map labels, a calmer holder,
    and a restrained hover. Semantic tokens only, so it holds up under every theme. */
 
+/* ==== READING MEASURE — cap the storage column, NOT the map ===============
+   .realm-lands is the #stage element itself, and it holds the intentionally
+   wide isometric base map (.mapwrap) alongside the storage inventory. Cap only
+   the text/card column — the warehouse section header + .invwrap grid — and
+   centre it; the map keeps full width. Direct-child (>) on the header so the
+   nested basemap <h2.sec> inside .mapwrap is untouched.
+   (NEXUS design-system Task 8: per-realm measure caps.) */
+.realm-lands > h2.sec,
+.realm-lands > .invwrap { max-width: var(--measure); margin-inline: auto; }
+
 /* ---- base map ----------------------------------------------------------- */
 .realm-lands .mapwrap { padding: var(--space-1) 0 var(--space-5); }
 .realm-lands .maphead { margin-bottom: var(--space-3); }

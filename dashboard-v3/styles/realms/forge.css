@@ -4,6 +4,17 @@
    bar, and the inline .nx-detail "peek". Never re-declare shared selectors
    (last-loaded wins and drifts other realms). */
 
+/* ==== READING MEASURE — cap the forge column ==============================
+   Forge appends its content (browser-focus card, PRODUCTS header, toolbar,
+   product grid) straight into #stage with NO realm wrapper, so there is no
+   single element to cap. The `#stage:has(> .forge-grid)` guard matches the
+   stage only while forge is mounted — no other realm puts a .forge-grid child
+   in #stage — letting us cap + centre every forge block uniformly, emulating
+   the missing wrapper without a JS/markup change. Forge has no intentionally
+   wide viz (no map/chart), so every direct child caps safely.
+   (NEXUS design-system Task 8: per-realm measure caps.) */
+#stage:has(> .forge-grid) > * { max-width: var(--measure); margin-inline: auto; }
+
 /* cards size to their own content so one expanded peek never stretches its
    row-mates (forge-owned class added alongside the shared .grid). */
 .forge-grid { align-items: start; }

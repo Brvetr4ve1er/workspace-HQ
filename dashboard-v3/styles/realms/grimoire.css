@@ -7,17 +7,31 @@
    equal-specificity rules would lose. Every rule here is therefore scoped
    `:root[data-theme="nexus"] .grimoire-realm …` (and `.spdrawer …` for the
    out-of-realm detail drawer) to clear cinematic on specificity. Other themes
-   are untouched. components.css / cinematic.css stay frozen. */
+   are untouched. components.css / cinematic.css stay frozen.
+
+   Design-system pass (tokens.css): every font-size is snapped to the nearest
+   `--fs-*` with nothing left below 12px, and every gap/margin/padding is on the
+   `--space-*` ramp. Kept nexus-scoped so the ramp migration doesn't disturb the
+   other themes' grimoire, which the shared sheets own. */
+
+/* ---- reading measure: cap the realm's content column so descriptions and
+   the catalog grid never run to a 120ch line. Nexus-scoped to match this
+   file's contract (other themes' grimoire width stays owned by the shared
+   sheets). The grid's card min is nudged just under 300px below so three
+   columns still fit inside the cap — the dense catalog stays dense. */
+:root[data-theme="nexus"] .grimoire-realm {
+  max-width: var(--measure);
+}
 
 /* ---- grid: a touch more air, comfortable card width -------------------- */
 :root[data-theme="nexus"] .grimoire-realm .spellgrid {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
 }
 
 /* ---- card: calmer padding + a subtle category seam --------------------- */
 :root[data-theme="nexus"] .grimoire-realm .spellcard {
-  padding: 15px 16px;
+  padding: var(--space-4);
   overflow: hidden;
 }
 :root[data-theme="nexus"] .grimoire-realm .spellcard::before {
@@ -25,49 +39,56 @@
   background: var(--sch, var(--edge)); opacity: .7; border-radius: 3px 0 0 3px;
 }
 
-:root[data-theme="nexus"] .grimoire-realm .sp-top { gap: 9px; }
-:root[data-theme="nexus"] .grimoire-realm .sp-icon { font-size: 18px; opacity: .92; }
+:root[data-theme="nexus"] .grimoire-realm .sp-top { gap: var(--space-3); }
+:root[data-theme="nexus"] .grimoire-realm .sp-icon { font-size: var(--fs-lg); opacity: .92; }
 :root[data-theme="nexus"] .grimoire-realm .sp-name {
-  font-family: var(--font-ui); font-size: 14px; font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
   letter-spacing: 0; color: var(--parch);
 }
 :root[data-theme="nexus"] .grimoire-realm .pips {
-  font-size: 9px; letter-spacing: 2px; color: var(--ember); opacity: .85;
+  font-size: var(--fs-xs); letter-spacing: 2px; color: var(--ember); opacity: .85;
 }
 
 /* meta row: category (coloured) + source, both legible */
 :root[data-theme="nexus"] .grimoire-realm .sp-meta {
-  gap: 10px; margin-top: 8px; align-items: center;
+  gap: var(--space-3); margin-top: var(--space-2); align-items: center;
 }
 :root[data-theme="nexus"] .grimoire-realm .sp-src {
-  font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
   letter-spacing: .02em; color: var(--parch-3);
 }
 
-/* description: real body text, clamped to two clean lines */
+/* description: real body text, clamped to three clean lines. The native
+   -webkit-line-clamp ellipsis is the truncation cue (a bottom fade can't tell
+   truncated from short text in pure CSS, so it would falsely veil one-liners);
+   the full text is one click away in the detail drawer's .spd-tip. */
 :root[data-theme="nexus"] .grimoire-realm .sp-desc {
-  font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5;
-  color: var(--parch-2); margin-top: 10px; max-height: none;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.5;
+  color: var(--parch-2); margin-top: var(--space-3); max-height: none;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 
 /* footer: schedule + kind chip + the one obvious action */
-:root[data-theme="nexus"] .grimoire-realm .sp-foot { gap: 8px; margin-top: 12px; }
+:root[data-theme="nexus"] .grimoire-realm .sp-foot { gap: var(--space-2); margin-top: var(--space-3); }
 :root[data-theme="nexus"] .grimoire-realm .sp-cd {
-  font-family: var(--font-data); font-size: 11.5px; color: var(--rune);
+  font-family: var(--font-data); font-size: var(--fs-xs); color: var(--rune);
 }
 :root[data-theme="nexus"] .grimoire-realm .sp-kind {
-  font-family: var(--font-ui); font-size: 10.5px; font-weight: 600; letter-spacing: .03em;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .03em;
   color: var(--parch-3); background: var(--ash-2); border: 1px solid var(--edge);
-  border-radius: 6px; padding: 2px 8px;
+  border-radius: 6px; padding: var(--space-1) var(--space-2);
 }
 
 /* RUN: the primary action — same restrained ember language as the app's
-   other primary buttons (.ab-btn / .qbtn), not a filled neon block. */
+   other primary buttons (.ab-btn / .qbtn), not a filled neon block.
+   min-height pins it above the --tap-min (32px) floor so the ~26px control is
+   comfortably clickable (the shared floor already does this globally; pinned
+   here too so it holds regardless of cascade). */
 :root[data-theme="nexus"] .grimoire-realm .sp-cast,
 :root[data-theme="nexus"] .spdrawer .spd-cast {
-  margin-left: auto; font-family: var(--font-ui); font-weight: 600; font-size: 12px;
-  letter-spacing: .04em; padding: 7px 16px; border-radius: 8px; cursor: pointer;
+  margin-left: auto; font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-xs);
+  letter-spacing: .04em; padding: var(--space-2) var(--space-4); border-radius: 8px; cursor: pointer;
+  min-height: var(--tap-min);
   background: linear-gradient(180deg, rgba(232,161,60,.16), rgba(232,161,60,.05));
   color: var(--ember-2); border: 1px solid rgba(232,170,90,.42);
   box-shadow: none; transition: box-shadow .18s, background .18s, transform .1s;
@@ -85,26 +106,27 @@
 /* "Show more" + drawer "Open file": quiet secondary buttons */
 :root[data-theme="nexus"] .grimoire-realm .sp-morebtn,
 :root[data-theme="nexus"] .spdrawer .spd-open {
-  font-family: var(--font-ui); font-weight: 600; font-size: 12px; letter-spacing: .02em;
-  padding: 8px 16px; border-radius: 8px; cursor: pointer; margin-left: 0;
+  font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-xs); letter-spacing: .02em;
+  padding: var(--space-2) var(--space-4); border-radius: 8px; cursor: pointer; margin-left: 0;
+  min-height: var(--tap-min);
   background: var(--ash-2); color: var(--parch-2); border: 1px solid var(--edge); box-shadow: none;
 }
 :root[data-theme="nexus"] .grimoire-realm .sp-morebtn:hover,
 :root[data-theme="nexus"] .spdrawer .spd-open:hover {
   color: var(--parch); border-color: rgba(232,170,90,.4);
 }
-:root[data-theme="nexus"] .grimoire-realm .sp-more { margin: 20px 0 4px; }
+:root[data-theme="nexus"] .grimoire-realm .sp-more { margin: var(--space-5) 0 var(--space-1); }
 
 /* ---- category filter chips (were 7px pixel-font) ----------------------- */
-:root[data-theme="nexus"] .grimoire-realm .sch-chips { gap: 8px; margin-bottom: 18px; }
+:root[data-theme="nexus"] .grimoire-realm .sch-chips { gap: var(--space-2); margin-bottom: var(--space-5); }
 :root[data-theme="nexus"] .grimoire-realm .sch-chip {
-  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
-  padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  padding: var(--space-2) var(--space-3); border-radius: 999px; cursor: pointer;
   background: var(--ash); color: var(--parch-2); border: 1px solid var(--edge);
   transition: color .14s, border-color .14s, background .14s;
 }
 :root[data-theme="nexus"] .grimoire-realm .sch-chip b {
-  font-family: var(--font-data); font-weight: 600; color: var(--parch-3); margin-left: 7px;
+  font-family: var(--font-data); font-weight: 600; color: var(--parch-3); margin-left: var(--space-2);
 }
 :root[data-theme="nexus"] .grimoire-realm .sch-chip:hover {
   color: var(--parch); border-color: rgba(232,170,90,.38);
@@ -116,37 +138,37 @@
 :root[data-theme="nexus"] .grimoire-realm .sch-chip.active b { color: var(--parch); }
 
 /* ---- toolbar: search + source segments --------------------------------- */
-:root[data-theme="nexus"] .grimoire-realm .toolbar { gap: 12px; margin-bottom: 18px; }
+:root[data-theme="nexus"] .grimoire-realm .toolbar { gap: var(--space-3); margin-bottom: var(--space-5); }
 :root[data-theme="nexus"] .grimoire-realm .toolbar input {
-  font-family: var(--font-ui); font-size: 14px; width: 260px; padding: 9px 13px;
+  font-family: var(--font-ui); font-size: var(--fs-sm); width: 260px; padding: var(--space-3);
   background: var(--void-2); border: 1px solid var(--edge); border-radius: 8px; color: var(--parch);
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar input:focus {
   border-color: rgba(232,170,90,.55); box-shadow: 0 0 0 3px rgba(232,161,60,.12);
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar .seg {
-  background: var(--void-2); border: 1px solid var(--edge); border-radius: 9px; padding: 3px; gap: 2px;
+  background: var(--void-2); border: 1px solid var(--edge); border-radius: 9px; padding: var(--space-1); gap: var(--space-1);
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar .seg button {
-  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
-  padding: 6px 12px; border-radius: 6px; color: var(--parch-3);
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  padding: var(--space-2) var(--space-3); border-radius: 6px; color: var(--parch-3);
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar .seg button:hover { color: var(--parch); }
 :root[data-theme="nexus"] .grimoire-realm .toolbar .seg button.active {
   background: rgba(232,161,60,.14); color: var(--ember-2);
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar .count {
-  font-family: var(--font-data); font-size: 12px; color: var(--parch-3);
+  font-family: var(--font-data); font-size: var(--fs-xs); color: var(--parch-3);
 }
 
 /* ---- coverage meter ---------------------------------------------------- */
 :root[data-theme="nexus"] .grimoire-realm .collmeter {
-  gap: 16px; padding: 12px 15px; margin-bottom: 18px;
+  gap: var(--space-4); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5);
   background: linear-gradient(168deg, rgba(28,33,48,.6), rgba(18,22,33,.7));
   border: 1px solid var(--edge); border-radius: 12px; box-shadow: none;
 }
 :root[data-theme="nexus"] .grimoire-realm .cm-lbl {
-  font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .14em;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .14em;
   color: var(--parch-3);
 }
 :root[data-theme="nexus"] .grimoire-realm .cm-bar {
@@ -156,35 +178,35 @@
   background: linear-gradient(90deg, var(--ember-deep), var(--ember-2));
 }
 :root[data-theme="nexus"] .grimoire-realm .cm-num {
-  font-family: var(--font-data); font-size: 12.5px; color: var(--parch-2);
+  font-family: var(--font-data); font-size: var(--fs-xs); color: var(--parch-2);
 }
 :root[data-theme="nexus"] .grimoire-realm .cm-mini { width: 34px; height: 6px; border-radius: 3px; }
 
 /* ---- connected agents shelf -------------------------------------------- */
 :root[data-theme="nexus"] .grimoire-realm .famshelf {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--space-3);
 }
 :root[data-theme="nexus"] .grimoire-realm .familiar {
-  gap: 11px; padding: 12px 14px;
+  gap: var(--space-3); padding: var(--space-3) var(--space-4);
   background: linear-gradient(168deg, rgba(28,33,48,.7), rgba(18,22,33,.8));
   border: 1px solid var(--edge); border-radius: 12px; box-shadow: none;
 }
-:root[data-theme="nexus"] .grimoire-realm .fam-eye { color: var(--sch, var(--rune)); font-size: 14px; }
+:root[data-theme="nexus"] .grimoire-realm .fam-eye { color: var(--sch, var(--rune)); font-size: var(--fs-sm); }
 :root[data-theme="nexus"] .grimoire-realm .fam-name {
-  font-family: var(--font-ui); font-size: 13.5px; font-weight: 600; color: var(--parch);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--parch);
 }
 :root[data-theme="nexus"] .grimoire-realm .fam-sub {
-  font-family: var(--font-data); font-size: 11.5px; color: var(--parch-3); margin-top: 3px;
+  font-family: var(--font-data); font-size: var(--fs-xs); color: var(--parch-3); margin-top: var(--space-1);
 }
 
 /* ---- detail drawer (lives outside .grimoire-realm) --------------------- */
-:root[data-theme="nexus"] .spdrawer .spd-head { gap: 13px; padding: 20px 22px 15px; }
-:root[data-theme="nexus"] .spdrawer .spd-icon { font-size: 26px; }
+:root[data-theme="nexus"] .spdrawer .spd-head { gap: var(--space-3); padding: var(--space-5) var(--space-5) var(--space-4); }
+:root[data-theme="nexus"] .spdrawer .spd-icon { font-size: var(--fs-xl); }
 :root[data-theme="nexus"] .spdrawer .spd-name {
-  font-family: var(--font-display); font-weight: 400; font-size: 20px; color: var(--parch);
+  font-family: var(--font-display); font-weight: 400; font-size: var(--fs-lg); color: var(--parch);
 }
 :root[data-theme="nexus"] .spdrawer .spd-sub {
-  font-family: var(--font-ui); font-size: 12.5px; color: var(--parch-3); margin-top: 5px;
+  font-family: var(--font-ui); font-size: var(--fs-xs); color: var(--parch-3); margin-top: var(--space-2);
 }
 :root[data-theme="nexus"] .spdrawer .spd-close {
   width: 30px; height: 30px; border-radius: 7px; background: var(--ash-2);
@@ -192,43 +214,43 @@
 }
 :root[data-theme="nexus"] .spdrawer .spd-close:hover { color: var(--parch); border-color: rgba(232,170,90,.4); }
 :root[data-theme="nexus"] .spdrawer .spd-tip {
-  font-family: var(--font-ui); font-size: 14.5px; line-height: 1.55; color: var(--parch); padding: 16px 22px 4px;
+  font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.55; color: var(--parch); padding: var(--space-4) var(--space-5) var(--space-1);
 }
 :root[data-theme="nexus"] .spdrawer .spd-sec {
-  font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .14em;
-  color: var(--parch-3); margin: 18px 22px 7px;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .14em;
+  color: var(--parch-3); margin: var(--space-5) var(--space-5) var(--space-2);
 }
 :root[data-theme="nexus"] .spdrawer .spd-cmd {
-  font-family: var(--font-data); font-size: 12.5px; line-height: 1.5; color: var(--grace);
-  background: var(--void-2); border: 1px solid var(--edge); border-radius: 8px; padding: 11px 12px;
+  font-family: var(--font-data); font-size: var(--fs-xs); line-height: 1.5; color: var(--grace);
+  background: var(--void-2); border: 1px solid var(--edge); border-radius: 8px; padding: var(--space-3);
 }
 :root[data-theme="nexus"] .spdrawer .spd-body {
-  border-radius: 8px; font-family: var(--font-data); font-size: 12.5px; line-height: 1.5;
+  border-radius: 8px; font-family: var(--font-data); font-size: var(--fs-xs); line-height: 1.5;
 }
 :root[data-theme="nexus"] .spdrawer .spd-kv {
-  font-family: var(--font-data); font-size: 12px; color: var(--parch-3); margin-top: 9px;
+  font-family: var(--font-data); font-size: var(--fs-xs); color: var(--parch-3); margin-top: var(--space-3);
 }
-:root[data-theme="nexus"] .spdrawer .spd-actions { gap: 10px; margin: 20px 22px 0; }
+:root[data-theme="nexus"] .spdrawer .spd-actions { gap: var(--space-3); margin: var(--space-5) var(--space-5) 0; }
 :root[data-theme="nexus"] .spdrawer .spd-actions .spd-cast,
-:root[data-theme="nexus"] .spdrawer .spd-actions .spd-open { font-size: 12.5px; padding: 9px 18px; }
+:root[data-theme="nexus"] .spdrawer .spd-actions .spd-open { font-size: var(--fs-xs); padding: var(--space-3) var(--space-5); }
 
 /* ---- advanced filter row (kind / usage / scheduled / sort) -------------
    Additive block, fresh class names — reuses the .seg language from the main
    toolbar for visual consistency without overriding it. */
 :root[data-theme="nexus"] .grimoire-realm .toolbar2 {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -6px 0 18px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: calc(var(--space-2) * -1) 0 var(--space-5);
 }
 :root[data-theme="nexus"] .grimoire-realm .tb2-lbl {
-  font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .12em;
   text-transform: uppercase; color: var(--parch-3);
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg {
-  display: inline-flex; gap: 2px; padding: 3px;
+  display: inline-flex; gap: var(--space-1); padding: var(--space-1);
   background: var(--void-2); border: 1px solid var(--edge); border-radius: 9px;
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg button {
-  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
-  padding: 6px 12px; border-radius: 6px; color: var(--parch-3);
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  padding: var(--space-2) var(--space-3); border-radius: 6px; color: var(--parch-3);
   background: none; border: 0; cursor: pointer;
 }
 :root[data-theme="nexus"] .grimoire-realm .toolbar2 .seg button:hover { color: var(--parch); }
@@ -236,8 +258,8 @@
   background: rgba(232,161,60,.14); color: var(--ember-2);
 }
 :root[data-theme="nexus"] .grimoire-realm .tb2-toggle {
-  font-family: var(--font-ui); font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
-  padding: 7px 13px; border-radius: 999px; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  padding: var(--space-2) var(--space-3); border-radius: 999px; cursor: pointer;
   background: var(--ash); color: var(--parch-2); border: 1px solid var(--edge);
   transition: color .14s, border-color .14s, background .14s;
 }
@@ -248,8 +270,8 @@
   color: var(--ember-2); background: rgba(232,161,60,.14); border-color: rgba(232,170,90,.5);
 }
 :root[data-theme="nexus"] .grimoire-realm .tb2-clear {
-  font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: .02em;
-  padding: 6px 12px; border-radius: 8px; cursor: pointer; margin-left: auto;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  padding: var(--space-2) var(--space-3); border-radius: 8px; cursor: pointer; margin-left: auto;
   background: none; color: var(--parch-3); border: 1px solid transparent;
 }
 :root[data-theme="nexus"] .grimoire-realm .tb2-clear:hover { color: var(--parch); border-color: var(--edge); }

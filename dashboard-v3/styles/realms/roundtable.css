@@ -13,6 +13,14 @@
 body.focus-mode #stage, body.focus-mode #rail-left, body.focus-mode #rail-right, body.focus-mode #topstrip {
   filter: grayscale(1) brightness(.38); pointer-events: none; transition: filter .3s; }
 
+/* ==== READING MEASURE — cap the home column ===============================
+   All home content lives in this single .realm-roundtable <section> and there
+   is no intentionally-wide element here (no map/chart), so capping the wrapper
+   caps the whole stage body at a comfortable reading width without touching
+   #stage. Centred because the stage otherwise left-aligns.
+   (NEXUS design-system Task 8: per-realm measure caps.) */
+.realm-roundtable { max-width: var(--measure); margin-inline: auto; }
+
 /* ==== TODAY — PICK ONE: the primary decision surface ======================= */
 .realm-roundtable .daily3 {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-4); margin: var(--space-2) 0 var(--space-5);
