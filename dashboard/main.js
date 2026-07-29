@@ -296,9 +296,34 @@ function notifyForLatest() {
   fs.writeFileSync(NOTIFY_STATE, JSON.stringify({ last_notified: s.scan.id }));
 }
 
+// ---- safe read for a persisted JSON store that gets MODIFIED and written back.
+// A read-modify-write on an unparseable file would OVERWRITE (destroy) it with the
+// empty default — silently erasing the user's accreted history (quests, notes,
+// ideas, learnings). Instead: quarantine the bad file to <file>.corrupt so nothing
+// is lost, and hand back a FRESH empty (makeEmpty() — never a shared reference).
+// Generalizes the readActedOn() pattern below to every write-back store.
+//   ENOENT        -> empty (a first run with no file yet is correct)
+//   real IO error -> rethrow (never mask a disk/permission failure by resetting)
+//   unparseable / wrong shape -> quarantine + log + empty (recoverable, not gone)
+function readJsonStore(file, makeEmpty, ok) {
+  let raw;
+  try { raw = fs.readFileSync(file, 'utf8'); }
+  catch (e) { if (e.code === 'ENOENT') return makeEmpty(); throw e; }
+  try {
+    const v = JSON.parse(raw);
+    if (ok && !ok(v)) throw new Error('unexpected shape');
+    return v;
+  } catch (e) {
+    try { fs.renameSync(file, file + '.corrupt'); } catch { /* best effort — never throw from a read */ }
+    console.error(`[store] corrupt ${path.basename(file)} quarantined to ${path.basename(file)}.corrupt — ${e.message}`);
+    return makeEmpty();
+  }
+}
+const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
 // ---- quest completion (shared by the in-app DONE button and the Obsidian sync) ----
 function readOverrides() {
-  try { return JSON.parse(fs.readFileSync(path.join(DATA, 'quest-overrides.json'), 'utf8')); } catch { return {}; }
+  return readJsonStore(path.join(DATA, 'quest-overrides.json'), () => ({}), isPlainObj);
 }
 // Mark one or more quest / side-quest ids done in quest-overrides.json, then recompute
 // the CURRENT scan (same date) so XP/quests reflect the closure, and refresh the UI.
@@ -470,7 +495,7 @@ ipcMain.handle('hq:capture-save', (_e, text) => {
   if (captureWin && !captureWin.isDestroyed()) captureWin.close();
   if (!t) return false;
   const f = path.join(DATA, 'brain-dump.json');
-  let arr = []; try { arr = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  const arr = readJsonStore(f, () => [], Array.isArray);
   arr.push({ id: `${Date.now().toString(36)}`, ts: new Date().toISOString(), text: t });
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(arr, null, 2));
   if (Notification.isSupported()) new Notification({ title: '🧠 Captured', body: t.slice(0, 90), icon: path.join(DIR, 'icon.png') }).show();
@@ -493,7 +518,7 @@ const SHARDS_FILE = path.join(DATA, 'shards.json');
 const shards = new Map();   // id -> { win, cfg }
 let summonWin = null, summonAt = null;
 
-function readShardsFile() { try { return JSON.parse(fs.readFileSync(SHARDS_FILE, 'utf8')); } catch { return []; } }
+function readShardsFile() { return readJsonStore(SHARDS_FILE, () => [], Array.isArray); }
 function persistShards() {
   const keep = [...shards.values()].map(({ cfg, win }) => {
     if (!cfg.persist || !win || win.isDestroyed()) return null;
@@ -568,7 +593,7 @@ function topQuestPayload() {
 // matching prompt re-spawns instantly from cache instead of re-generating.
 const LIB_FILE = path.join(DATA, 'shard-library.json');
 const normPrompt = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-function readLibrary() { try { return JSON.parse(fs.readFileSync(LIB_FILE, 'utf8')); } catch { return []; } }
+function readLibrary() { return readJsonStore(LIB_FILE, () => [], Array.isArray); }
 function saveLibrary(items) { try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(LIB_FILE, JSON.stringify(items, null, 2)); } catch {} }
 function libUpsert(prompt, html) {
   const items = readLibrary();
@@ -788,7 +813,7 @@ ipcMain.handle('hq:log-decision', (_e, projId, text) => {
 const LEARNINGS = path.join(DATA, 'learnings.json');
 ipcMain.handle('hq:learn', (_e, projId, text) => {
   const t = String(text || '').trim(); if (!t) return false;
-  let arr = []; try { arr = JSON.parse(fs.readFileSync(LEARNINGS, 'utf8')); } catch {}
+  const arr = readJsonStore(LEARNINGS, () => [], Array.isArray);
   arr.push({ id: Date.now().toString(36), ts: new Date().toISOString(), project_id: projId || null, text: t });
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(LEARNINGS, JSON.stringify(arr, null, 2));
   // mirror to vault: a "What I Learned.md" log in 30_Areas
@@ -810,7 +835,7 @@ ipcMain.handle('hq:learn', (_e, projId, text) => {
 // ---- Graveyard verbs (Wave 5): Archive / Revive a project via overrides ----
 ipcMain.handle('hq:archive-project', (_e, projId) => {
   const f = path.join(DATA, 'project-overrides.json');
-  let o = {}; try { o = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  const o = readJsonStore(f, () => ({}), isPlainObj);
   o[projId] = { status: 'archived', archived: new Date().toISOString().slice(0, 10) };
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2));
   const s = latest();
@@ -820,7 +845,7 @@ ipcMain.handle('hq:archive-project', (_e, projId) => {
 });
 ipcMain.handle('hq:revive-project', (_e, projId) => {
   const f = path.join(DATA, 'project-overrides.json');
-  let o = {}; try { o = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
+  const o = readJsonStore(f, () => ({}), isPlainObj);
   delete o[projId];
   fs.writeFileSync(f, JSON.stringify(o, null, 2));
   const s = latest();
@@ -1297,8 +1322,7 @@ ipcMain.handle('hq:dev-stop', (_e, id) => {
 
 ipcMain.handle('hq:note-save', (_e, id, note) => {
   const notesFile = path.join(DATA, 'project-notes.json');
-  let notes = {};
-  try { notes = JSON.parse(fs.readFileSync(notesFile, 'utf8')); } catch {}
+  const notes = readJsonStore(notesFile, () => ({}), isPlainObj);
   if (!notes[id]) notes[id] = [];
   notes[id].push({ id: Date.now().toString(), date: new Date().toISOString(), text: note, completed: false });
   fs.writeFileSync(notesFile, JSON.stringify(notes, null, 2));
