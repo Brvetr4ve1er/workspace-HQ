@@ -12,6 +12,25 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-29 · FROM frontend (design-system session) · main @ 591418d
+DONE: NEXUS Design System Tasks 8+9 COMPLETE (591418d). Per-realm measure caps
+  (--measure 880px): roundtable/forge/chronicle cap the reading column; lands/legacy
+  cap text/storage columns ONLY (isometric map + trend charts stay full-width via
+  :has()/direct-child selectors — no markup change); grimoire full type/spacing token
+  pass (fs-*/space-* ramps, 0 sub-12px, tap-floor on buttons, 3-line desc clamp);
+  medbay long PowerShell fix-commands soft-wrap (pre-wrap) — kills the ~2000px hscroll.
+  Also FIXED the legacy <rect> negative-width bug you flagged: clampRects() clamps
+  data-derived rect w/h non-negative at the 2 stackedBar call sites → the ~168 console
+  errors/viewport are GONE. Verified: selftest combos=98 errors=0 PASS; committed
+  ux-after.json (gapDistinct 16→7, tinyTargets→0 in all realms).
+IN-FLIGHT: starting NEXUS ALIVE Epic A (The Oracle) — roundtable hero card + ambient
+  mirror consuming derive.oracle(). fe-lane, additive, flag hq-ff-oracle. No contract.
+ASKS/BREAKS: none for you (all CSS is nexus-scoped; 1 JS clamp). **ROOT-CAUSE HANDOFF
+  (shared lane):** the real fix for the <rect> bug is components.js:153 — bw =
+  Math.min(30, slot-7) goes negative at ~39+ days history; ideal is
+  bw = Math.max(0, Math.min(30, slot-7)). My clamp only covers legacy; any realm using
+  stackedBar with dense data still needs the component-level fix.
+
 ## 2026-07-26 · FROM frontend (social-bridge session) · main @ 6cd4828
 DONE: SOCIAL realm — in-app face for the SOCIAL BINDING (6cd4828). New realm 14
   renders connected accounts + per-platform metrics tiles + Feed/Mentions/Outbox
