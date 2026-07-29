@@ -8,6 +8,7 @@ import { data } from './data.js';
 import { LX } from './lexicon.js';
 import { el, esc } from '../ui/util.js';
 import { fmtDur, deriveScanContext } from '../ui/components.js';
+import { oracle } from '../intel/derive.mjs';
 
 let liveTab = null;      // latest hq:browser-tab payload (live app only)
 let machine = null;      // latest hq:machine payload (live app only)
@@ -41,6 +42,18 @@ function whisperHtml(S) {
     <span class="am-wkind">${esc(pick.kind || 'idea')}</span> ${esc(pick.title || '')}</div>`;
 }
 
+// One-line Oracle mirror. Flag-gated (hq-ff-oracle, default on) and latest-only.
+// Returns '' when off / not latest / nothing actionable, so the section is
+// suppressed entirely rather than showing a hollow slot. Reads the flag inline
+// (ambient is a core module and must not depend on a realm file).
+function oracleHtml(S) {
+  let on = true; try { on = localStorage.getItem('hq-ff-oracle') !== 'off'; } catch {}
+  if (!on || !S || !data.isLatest) return '';
+  let o = null; try { o = oracle(data.bundle, S, new Date().toISOString()); } catch {}
+  if (!o) return '';
+  return `<div class="am-next">${esc(o.label)}</div>`;
+}
+
 function render() {
   const rail = document.getElementById('rail-right');
   const isNight = document.documentElement.getAttribute('data-theme') === 'nightfall';
@@ -70,6 +83,8 @@ function render() {
     rail.appendChild(s);
   };
   sec(`◉ ${LX('working_now')}`, `<div class="am-now">${nowHtml(cur)}</div>`);
+  const oh = oracleHtml(S);
+  if (oh) sec(LX('amb_next'), oh);
   sec(LX('amb_machine'), machineHtml());
   sec(LX('amb_whisper'), whisperHtml(S));
   // Familiar presence: inert until the M3 session registry wires hq sessions

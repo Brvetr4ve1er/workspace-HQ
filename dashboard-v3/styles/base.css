@@ -181,6 +181,12 @@ body {
   margin-right: var(--space-1);
 }
 .am-whisper.risk .am-wkind { color: var(--red, #ff4757); border-color: var(--red, #ff4757); }
+/* Oracle one-line mirror (Epic A): the rail's echo of the home hero — reads at
+   full strength (not muted) with a quiet accent bar to mark it as the priority. */
+.am-next {
+  font-size: var(--fs-xs); line-height: 1.4; color: var(--text); font-weight: 600;
+  border-left: 2px solid var(--active, var(--gold)); padding-left: var(--space-2);
+}
 .am-tide {
   margin-top: auto;
   padding-top: var(--space-3);
