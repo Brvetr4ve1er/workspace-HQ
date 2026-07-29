@@ -24,8 +24,11 @@ export function buildOracleCard(oracle, ctx) {
   card.querySelector('.oc-go').onclick = () => {
     const id = oracleActionId(oracle);
     if (id) dispatch(id, ctx);                       // audited nav / side-effect
-    // commit points at a project — open its drawer so the commit UI is one motion.
-    if (oracle.action === 'commit' && oracle.target?.projectId) {
+    // Any PROJECT-scoped recommendation (a commit, or a project concern like
+    // exposed secrets — both carry target.projectId) opens that project's drawer
+    // so acting is one motion. Task-scoped quests carry target.questId instead
+    // (no projectId) and just navigate to the hunts board.
+    if (oracle.target?.projectId) {
       const { projById, prevProj } = deriveScanContext(ctx.data);
       const p = projById[oracle.target.projectId];
       if (p) openDrawer(p, prevProj[oracle.target.projectId], ctx.data);
