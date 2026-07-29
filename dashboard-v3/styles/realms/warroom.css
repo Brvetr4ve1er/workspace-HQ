@@ -20,3 +20,67 @@
 .realm-warroom .wr-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4); }
 .realm-warroom .wr-title { font-family: var(--term); font-size: var(--fs-lg); font-weight: 700; letter-spacing: .18em; color: var(--wr-violet-hi); text-shadow: 0 0 12px rgba(167,139,250,.5); }
 .realm-warroom .wr-sub { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--wr-dim); text-transform: uppercase; }
+
+/* Task 4 (3D radar) populates this slot — Task 3 only reserves the space,
+   right-aligned in the head row, so the board layout never has to shift. */
+.realm-warroom .wr-radar { margin-left: auto; }
+
+/* ------------------------------------------------------------- the board */
+.realm-warroom .wr-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.realm-warroom .wr-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-4);
+  background: linear-gradient(160deg, var(--wr-panel-hi), var(--wr-panel));
+  border: 1px solid var(--wr-line);
+  border-left: 3px solid var(--wr-dim);
+  border-radius: 4px;
+}
+.realm-warroom .wr-card[data-sev="red"]    { border-left-color: var(--wr-red);    box-shadow: 0 0 26px -14px var(--wr-red); }
+.realm-warroom .wr-card[data-sev="orange"] { border-left-color: var(--wr-amber);  box-shadow: 0 0 26px -16px var(--wr-amber); }
+.realm-warroom .wr-card[data-sev="yellow"] { border-left-color: var(--wr-yellow); box-shadow: 0 0 22px -18px var(--wr-yellow); }
+.realm-warroom .wr-card[data-sev="dim"]    { border-left-color: var(--wr-dim); }
+
+.realm-warroom .wr-card-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.realm-warroom .wr-badge {
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .08em;
+  padding: 1px var(--space-2); border-radius: 3px; text-transform: uppercase;
+  border: 1px solid var(--wr-dim); color: var(--wr-dim); white-space: nowrap;
+}
+.realm-warroom .wr-badge[data-sev="red"]    { color: var(--wr-red);    border-color: var(--wr-red); }
+.realm-warroom .wr-badge[data-sev="orange"] { color: var(--wr-amber);  border-color: var(--wr-amber); }
+.realm-warroom .wr-badge[data-sev="yellow"] { color: var(--wr-yellow); border-color: var(--wr-yellow); }
+
+.realm-warroom .wr-name { font-size: var(--fs-md); font-weight: 600; color: #e9e6f5; }
+.realm-warroom .wr-detail { font-size: var(--fs-sm); color: var(--wr-dim); }
+
+.realm-warroom .wr-hp { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
+.realm-warroom .wr-hp > i { display: block; height: 100%; width: 0%; background: var(--wr-dim); }
+.realm-warroom .wr-card[data-sev="red"]    .wr-hp > i { background: var(--wr-red); }
+.realm-warroom .wr-card[data-sev="orange"] .wr-hp > i { background: var(--wr-amber); }
+.realm-warroom .wr-card[data-sev="yellow"] .wr-hp > i { background: var(--wr-yellow); }
+
+.realm-warroom .wr-actions { display: flex; gap: var(--space-2); margin-top: auto; padding-top: var(--space-1); }
+.realm-warroom .wr-act, .realm-warroom .wr-claude {
+  min-height: var(--tap-min); padding: 0 var(--space-3);
+  border-radius: 3px; border: 1px solid var(--wr-violet); background: transparent;
+  color: var(--wr-violet-hi); font-family: var(--term); font-size: var(--fs-xs);
+  letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+}
+.realm-warroom .wr-act:hover { background: rgba(167,139,250,.14); }
+.realm-warroom .wr-claude { border-color: var(--wr-line); color: var(--wr-dim); }
+.realm-warroom .wr-claude:disabled { cursor: not-allowed; opacity: .55; }
+
+/* ------------------------------------------------------------- empty state */
+.realm-warroom .wr-empty {
+  padding: var(--space-7) var(--space-4);
+  text-align: center; font-family: var(--term); letter-spacing: .08em;
+}
+.realm-warroom .wr-empty-glyph { font-size: var(--fs-2xl); color: var(--wr-violet); margin-bottom: var(--space-2); text-shadow: 0 0 16px rgba(167,139,250,.5); }
+.realm-warroom .wr-empty-title { font-size: var(--fs-lg); font-weight: 700; color: var(--wr-violet-hi); }
+.realm-warroom .wr-empty-sub { font-size: var(--fs-xs); color: var(--wr-dim); text-transform: uppercase; margin-top: var(--space-1); }
