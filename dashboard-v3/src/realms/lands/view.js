@@ -176,6 +176,7 @@ export const view = {
     rootEl = root;
     root.classList.add('realm-lands');          // scope realm-local CSS (map + storage)
     const paint = () => {
+      if (!ctx.data.selected) { root.innerHTML = ''; return; }   // empty/first-run bundle: render nothing rather than crash
       const { S, prevProj } = deriveScanContext(ctx.data);
       renderBaseMap(root, S, prevProj, ctx.data, ctx.LX);
       renderInventory(root, S, ctx.LX, ctx.hq);

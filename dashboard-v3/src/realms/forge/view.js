@@ -259,6 +259,7 @@ function paintBrowserLive(root) {
 
 function render(root, ctx) {
   root.innerHTML = '';
+  if (!ctx.data.selected) return;   // empty/first-run bundle (no scans yet): render nothing rather than crash in deriveScanContext
   const { S, prevProj } = deriveScanContext(ctx.data);
 
   renderBrowserFocus(root, S, ctx);
