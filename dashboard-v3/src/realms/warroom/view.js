@@ -39,17 +39,16 @@ async function drainHp(sec) {
   }
 }
 
-function threatCard(t, ctx, projById, prevProj) {
+function threatCard(t, ctx, projById, prevProj, dispOn) {
   const card = el('div', 'wr-card');
   card.setAttribute('data-sev', t.sev);
-  const dispOn = dispatchFlagOn();
   card.innerHTML = `
     <div class="wr-card-head">
       <span class="wr-badge" data-sev="${esc(t.sev)}">${esc(KIND_LABEL[t.kind] || String(t.kind || '').toUpperCase())}</span>
       <span class="wr-name">${esc(t.name)}</span>
     </div>
     <div class="wr-detail">${esc(t.detail)}</div>
-    <span class="wr-hp"><i data-hp="${t.hpPct}" style="width:0%"></i></span>
+    <span class="wr-hp"><i data-hp="${esc(String(t.hpPct))}" style="width:0%"></i></span>
     <div class="wr-actions">
       <button class="wr-act" type="button">Remediate</button>
       <button class="wr-claude" type="button" ${dispOn ? '' : 'disabled'}
@@ -78,7 +77,7 @@ function render() {
   sec.innerHTML = `<div class="wr-frame">
     <div class="wr-head">
       <span class="wr-title">SITROOM</span>
-      <span class="wr-sub">${threats.length ? `·· ${threats.length} ACTIVE THREATS` : 'standing by…'}</span>
+      <span class="wr-sub">${threats.length ? `·· ${esc(String(threats.length))} ACTIVE THREATS` : 'standing by…'}</span>
       <div class="wr-radar"></div>
     </div>
   </div>`;
@@ -94,8 +93,9 @@ function render() {
     return;
   }
 
+  const dispOn = dispatchFlagOn();   // read once per render, not once per card
   const board = el('div', 'wr-board');
-  threats.forEach((t) => board.appendChild(threatCard(t, ctx, projById, prevProj)));
+  threats.forEach((t) => board.appendChild(threatCard(t, ctx, projById, prevProj, dispOn)));
   frame.appendChild(board);
   root.appendChild(sec);
 
