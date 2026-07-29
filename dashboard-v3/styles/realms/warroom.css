@@ -1,0 +1,22 @@
+/* WAR ROOM — SITROOM tactical board in the Solo Leveling "System" HUD skin.
+   Realm-scoped (never touches the shared theme system). Violet neon on black,
+   hexagon-cut frame, scanline grid. Promote to a full "SYSTEM" theme later. */
+.realm-warroom {
+  --wr-violet: #a78bfa; --wr-violet-hi: #c4b5fd; --wr-ink: #0d0b16;
+  --wr-panel: #16122a; --wr-panel-hi: #1d1836; --wr-line: #3a2f6b;
+  --wr-red: #f2555a; --wr-amber: #f2a33c; --wr-yellow: #e6c34a; --wr-dim: #6b6390;
+  max-width: var(--measure); margin-inline: auto; color: #e9e6f5;
+}
+.realm-warroom .wr-frame {
+  position: relative; padding: var(--space-5);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167,139,250,.03) 3px 4px),
+    linear-gradient(180deg, var(--wr-panel-hi), var(--wr-panel));
+  border: 1px solid var(--wr-line);
+  /* hexagon-cut corners = the summoned "System" window */
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 0 0 1px rgba(167,139,250,.15), 0 24px 60px -34px #000;
+}
+.realm-warroom .wr-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4); }
+.realm-warroom .wr-title { font-family: var(--term); font-size: var(--fs-lg); font-weight: 700; letter-spacing: .18em; color: var(--wr-violet-hi); text-shadow: 0 0 12px rgba(167,139,250,.5); }
+.realm-warroom .wr-sub { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--wr-dim); text-transform: uppercase; }

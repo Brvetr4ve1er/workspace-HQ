@@ -22,6 +22,7 @@ export const LEXICONS = {
     amb_familiar_idle: 'no sessions running',
     tab_medbay: 'SYSTEM', tab_observatory: 'NOTES', tab_watchtower: 'SCREEN TIME', tab_summoning: 'ASSISTANT',
     tab_chronicle: 'TIMELINE', tab_atlas: 'ANALYTICS', tab_conjure: 'CANVAS', tab_social: 'SOCIAL',
+    tab_warroom: 'ON FIRE',
   },
   default: {
     tab_overview: 'BASE', tab_quests: 'QUESTS', tab_spellbook: 'SPELLBOOK', tab_trends: 'STATS', tab_basemap: 'MAP',
@@ -39,6 +40,7 @@ export const LEXICONS = {
     amb_familiar_idle: 'no sessions running',
     tab_medbay: 'MED-BAY', tab_observatory: 'OBSERVATORY', tab_watchtower: 'WATCHTOWER', tab_summoning: 'SUMMONING',
     tab_chronicle: 'CHRONICLE', tab_atlas: 'ATLAS', tab_conjure: 'CONJURE', tab_social: 'SOCIAL',
+    tab_warroom: 'WAR ROOM',
   },
   nightfall: {
     tab_overview: 'ROUNDTABLE', tab_quests: 'HUNTS', tab_spellbook: 'GRIMOIRE', tab_trends: 'LEGACY', tab_basemap: 'LANDS BETWEEN',
@@ -56,5 +58,6 @@ export const LEXICONS = {
     amb_familiar_idle: 'unbound — the bell is silent',
     tab_medbay: 'THE WARD', tab_observatory: 'OBSERVATORY', tab_watchtower: 'THE SPIRE', tab_summoning: 'THE CIRCLE',
     tab_chronicle: 'THE CHRONICLE', tab_atlas: 'THE ATLAS', tab_conjure: 'THE CONJURING', tab_social: 'THE HERALD',
+    tab_warroom: 'THE MUSTER',
   },
 };
