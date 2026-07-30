@@ -6,8 +6,9 @@ import { sfx, openDrawer, deriveScanContext, aosKids } from '../../ui/components
 import { dispatch } from '../../core/actions.mjs';
 import { triage } from '../../intel/derive.mjs';
 import { buildBoardModel } from './warroom-model.mjs';
+import { mountRadar } from './warroom-radar.js';
 
-let rootEl = null, ctxRef = null, offData = null;
+let rootEl = null, ctxRef = null, offData = null, radarDispose = null;
 
 const KIND_LABEL = {
   security: 'SECURITY', uncommitted: 'UNCOMMITTED', stale: 'STALE',
@@ -64,6 +65,10 @@ function threatCard(t, ctx, projById, prevProj, dispOn) {
 }
 
 function render() {
+  // render() re-runs on data:select while mounted — tear down any live radar
+  // (WebGL or Canvas2D) BEFORE rebuilding, or contexts stack up across scrubs.
+  radarDispose?.(); radarDispose = null;
+
   const root = rootEl; if (!root) return;
   const ctx = ctxRef;
   root.innerHTML = '';
@@ -82,6 +87,10 @@ function render() {
     </div>
   </div>`;
   const frame = sec.querySelector('.wr-frame');
+  root.appendChild(sec);   // connect to the live DOM first so the radar slot has real layout dimensions
+
+  const radarSlot = sec.querySelector('.wr-radar');
+  if (radarSlot) radarDispose = mountRadar(radarSlot, model.radar);
 
   if (!threats.length) {
     const empty = el('div', 'wr-empty');
@@ -89,7 +98,6 @@ function render() {
       <div class="wr-empty-title">AREA SECURE</div>
       <div class="wr-empty-sub">no active threats</div>`;
     frame.appendChild(empty);
-    root.appendChild(sec);
     return;
   }
 
@@ -97,7 +105,6 @@ function render() {
   const board = el('div', 'wr-board');
   threats.forEach((t) => board.appendChild(threatCard(t, ctx, projById, prevProj, dispOn)));
   frame.appendChild(board);
-  root.appendChild(sec);
 
   aosKids(board, 'fade-up', 60);
   drainHp(sec);
@@ -105,5 +112,9 @@ function render() {
 
 export const view = {
   mount(root, ctx) { rootEl = root; ctxRef = ctx; offData = ctx.bus.on('data:select', render); render(); },
-  unmount() { if (offData) { offData(); offData = null; } rootEl = null; ctxRef = null; },
+  unmount() {
+    radarDispose?.(); radarDispose = null;   // before nulling refs, per the lifecycle contract
+    if (offData) { offData(); offData = null; }
+    rootEl = null; ctxRef = null;
+  },
 };

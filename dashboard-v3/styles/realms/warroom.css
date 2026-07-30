@@ -22,8 +22,14 @@
 .realm-warroom .wr-sub { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--wr-dim); text-transform: uppercase; }
 
 /* Task 4 (3D radar) populates this slot — Task 3 only reserves the space,
-   right-aligned in the head row, so the board layout never has to shift. */
-.realm-warroom .wr-radar { margin-left: auto; }
+   right-aligned in the head row, so the board layout never has to shift.
+   Fixed compact box: the mounted <canvas> (three.js OR the Canvas2D degrade)
+   fills it via inset:0 — see warroom-radar.js. Ambient accent only, deliberately
+   small and low-opacity so it never competes with the threat board for focus. */
+.realm-warroom .wr-radar {
+  position: relative; margin-left: auto; flex: 0 0 auto;
+  width: 96px; height: 96px;
+}
 
 /* ------------------------------------------------------------- the board */
 .realm-warroom .wr-board {
