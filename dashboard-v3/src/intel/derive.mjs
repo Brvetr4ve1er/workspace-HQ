@@ -16,7 +16,7 @@ export function oracle(bundle, selected, now) {
     if (unc > 0) cands.push({
       action: 'commit', weight: 40 + Math.min(unc, 60),
       label: `Commit ${p.name} (${unc} uncommitted)`,
-      reason: `${unc} uncommitted files at risk`,
+      reason: `${unc} uncommitted file${unc > 1 ? 's' : ''} at risk`,
       target: { realmId: 'forge', projectId: p.id },
     });
     const sec = num(p.metrics?.risk_security?.secrets_found);
@@ -50,7 +50,7 @@ export function triage(selected) {
     const stale = num(p.activity?.days_since_commit);
     const concerns = [];
     if (sec > 0)     concerns.push({ kind:'security',    blastRadius: 100 + sec,                    detail:`${sec} exposed secret${sec>1?'s':''}` });
-    if (dirty > 0)   concerns.push({ kind:'uncommitted', blastRadius: 50 + Math.min(dirty, 40),      detail:`${dirty} uncommitted files` });
+    if (dirty > 0)   concerns.push({ kind:'uncommitted', blastRadius: 50 + Math.min(dirty, 40),      detail:`${dirty} uncommitted file${dirty > 1 ? 's' : ''}` });
     if (stale >= 14) concerns.push({ kind:'stale',       blastRadius: 20 + Math.min(stale, 60) / 2,  detail:`${stale} days since a commit` });
     if (p.signals?.has_tests === false) concerns.push({ kind:'no-tests', blastRadius: 15, detail:'no tests' });
     if (p.signals?.has_ci === false)    concerns.push({ kind:'no-ci',    blastRadius: 10, detail:'no CI' });
