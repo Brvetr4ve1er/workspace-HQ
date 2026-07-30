@@ -17,7 +17,9 @@
   clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
   box-shadow: 0 0 0 1px rgba(167,139,250,.15), 0 24px 60px -34px #000;
 }
-.realm-warroom .wr-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4); }
+/* center, not baseline: the 96px radar sets the row height, and baseline-aligning
+   against it dropped the title to the row's bottom edge with dead space above. */
+.realm-warroom .wr-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
 .realm-warroom .wr-title { font-family: var(--term); font-size: var(--fs-lg); font-weight: 700; letter-spacing: .18em; color: var(--wr-violet-hi); text-shadow: 0 0 12px rgba(167,139,250,.5); }
 .realm-warroom .wr-sub { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--wr-dim); text-transform: uppercase; }
 
