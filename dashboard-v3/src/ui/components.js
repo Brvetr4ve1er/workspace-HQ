@@ -150,7 +150,9 @@ export function stackedBar(rows0, keys, colors, curDate) {
   const rows = rows0.filter((r) => r.d <= curDate);
   const W = 320, H = 130, pad = 26;
   if (!rows.length) return '<svg viewBox="0 0 320 130"></svg>';
-  const slot = (W - pad * 2) / rows.length, bw = Math.min(30, slot - 7);
+  // Bar width floor of 1: past ~39 rows the slot drops below 7 and slot-7 goes
+  // negative — a negative <rect> width is an SVG error on every bar.
+  const slot = (W - pad * 2) / rows.length, bw = Math.max(1, Math.min(30, slot - 7));
   const totals = rows.map((r) => keys.reduce((s, k) => s + (r[k] || 0), 0));
   const max = Math.max(1, ...totals);
   const sx = (i) => pad + i * slot + (slot - bw) / 2;

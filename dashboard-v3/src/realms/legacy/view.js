@@ -147,17 +147,6 @@ function attachBarTip(chartEl, rows0, keys, colors, cd, labels = {}) {
 }
 
 // ------------------------------------------------------------------- charts
-// stackedBar() (ui/components.js) sizes each bar as `Math.min(30, slot - 7)`, where the
-// per-day slot is `(320 - 52) / rows.length`. Once the trend history is dense enough
-// (~39+ days) the slot drops below 7px and that bar width goes NEGATIVE, so every emitted
-// <rect> triggers a "<rect> attribute width: negative value" console error (~168/viewport
-// across the two stacked charts). We render that shared component but don't own it, so
-// clamp the data-derived rect dimensions non-negative in the returned markup before it is
-// inserted — a 0-width/height rect draws nothing (identical to the already-invisible
-// negative bars) but throws no error. width = Math.max(0, computedWidth).
-const clampRects = (svg) => svg.replace(/<rect\b[^>]*>/g, (tag) =>
-  tag.replace(/\b(width|height)="(-?[\d.]+)"/g, (_m, attr, v) => `${attr}="${Math.max(0, parseFloat(v)).toFixed(1)}"`));
-
 function renderTrends(tc, S) {
   renderRecords(tc, S);
   const tr = S.trends || {}; const cd = S.scan.id;
@@ -191,13 +180,13 @@ function renderTrends(tc, S) {
   if (tr.open_quests_by_tier) {
     const colors = { red: COL.red, orange: COL.orange, yellow: COL.yellow };
     const tierLbl = { red: 'critical', orange: 'important', yellow: 'housekeeping' };
-    const cc = chartCard('Open tasks by priority', null, clampRects(stackedBar(tr.open_quests_by_tier, ['red', 'orange', 'yellow'], colors, cd)));
+    const cc = chartCard('Open tasks by priority', null, stackedBar(tr.open_quests_by_tier, ['red', 'orange', 'yellow'], colors, cd));
     cc.insertAdjacentHTML('beforeend', legend([{ c: COL.red, l: 'critical' }, { c: COL.orange, l: 'important' }, { c: COL.yellow, l: 'housekeeping' }]));
     charts.appendChild(cc); attachBarTip(cc, tr.open_quests_by_tier, ['red', 'orange', 'yellow'], colors, cd, tierLbl);
   }
   if (tr.git_risk) {
     const colors = { high: COL.red, medium: COL.orange, low: COL.green };
-    const cc = chartCard('Git-safety risk', null, clampRects(stackedBar(tr.git_risk, ['high', 'medium', 'low'], colors, cd)));
+    const cc = chartCard('Git-safety risk', null, stackedBar(tr.git_risk, ['high', 'medium', 'low'], colors, cd));
     cc.insertAdjacentHTML('beforeend', legend([{ c: COL.red, l: 'high' }, { c: COL.orange, l: 'medium' }, { c: COL.green, l: 'low' }]));
     charts.appendChild(cc); attachBarTip(cc, tr.git_risk, ['high', 'medium', 'low'], colors, cd);
   }
