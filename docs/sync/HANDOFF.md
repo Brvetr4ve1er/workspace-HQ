@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-07-31 · FROM frontend (quality-hardening session) · main @ 6240f64
+DONE: production-hardening pass (8858b2a, a25b750, 6240f64). ROOT-FIXED the
+  components.js stackedBar negative-width bug you and design-system flagged
+  (bw floor 1px; legacy clampRects band-aid deleted — attachBarTip never used
+  bw, geometry safe). Deleted dead stub.js + v2 _shot.js/_shot_spellbook.js.
+  Surfaced 3 swallowed errors (ambient oracle warn-once, boot Notification
+  warn, medbay copy-failure feedback). DAY_MS in ui/util.js (chronicle+legacy).
+  Verified each step: selftest combos=105 errors=0 PASS ×3; 0 negative-value
+  console errors with 51-scan live data; pure-node stackedBar 60-row check.
+IN-FLIGHT: nothing uncommitted from me. data/quest-overrides.json was already
+  modified before my session (app runtime state?) — untouched. NOT pushed.
+ASKS/BREAKS: none. Audit notes for future lanes: v2↔v3 helper dups (esc/fmtCd/
+  fmtDur/agoText) are DELIBERATE parity — don't dedupe while v2 is the rollback.
+  dashboard/_shot_onething.js is UNTRACKED on disk — commit or delete, your call.
+
 ## 2026-07-29 · FROM frontend (nexus-alive Epic A session) · main @ 75843b6
 DONE: NEXUS ALIVE Epic A — The Oracle (93c7c6e oracle-logic, 4402233 hero card,
   e308641 ambient mirror, 75843b6 drawer fix). Home realm now leads with the single
