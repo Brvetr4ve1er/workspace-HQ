@@ -49,7 +49,13 @@ function whisperHtml(S) {
 function oracleHtml(S) {
   let on = true; try { on = localStorage.getItem('hq-ff-oracle') !== 'off'; } catch {}
   if (!on || !S || !data.isLatest) return '';
-  let o = null; try { o = oracle(data.bundle, S, new Date().toISOString()); } catch {}
+  let o = null;
+  try { o = oracle(data.bundle, S, new Date().toISOString()); }
+  catch (err) {
+    // Surface once — render() re-runs on every data:select and a broken
+    // derive would otherwise spam identical warnings.
+    if (!oracleHtml.warned) { oracleHtml.warned = true; console.warn('[ambient] oracle derive failed', err); }
+  }
   if (!o) return '';
   return `<div class="am-next">${esc(o.label)}</div>`;
 }

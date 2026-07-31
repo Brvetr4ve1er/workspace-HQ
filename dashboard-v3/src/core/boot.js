@@ -105,7 +105,10 @@ initActions({ switchRealm, ordered, hq: window.hq });
 initNotify({
   isHidden: () => document.hidden,
   canNotify: () => typeof Notification !== 'undefined' && Notification.permission === 'granted',
-  notify: (evt) => { try { new Notification(evt.title || 'WorkspaceHQ', { body: evt.body || '' }); } catch {} },
+  notify: (evt) => {
+    try { new Notification(evt.title || 'WorkspaceHQ', { body: evt.body || '' }); }
+    catch (err) { console.warn('[notify] OS notification failed', err); }
+  },
   // toast: wired when the in-app toast UI lands (Epic H)
 });
 

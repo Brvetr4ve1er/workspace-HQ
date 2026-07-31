@@ -3,7 +3,7 @@
 // progress: newest scan at top, each node carrying that day's notable change(s)
 // plus any achievements that unlocked in its window. Re-anchors on data:select
 // so scrubbing to an old snapshot rewinds the whole story to that point.
-import { el, esc, fmt, mdLite } from '../../ui/util.js';
+import { el, esc, fmt, mdLite, DAY_MS } from '../../ui/util.js';
 import { aosKids, aosRefresh, ACH, countUp } from '../../ui/components.js';
 
 let root = null, ctx = null, offSelect = null;
@@ -24,7 +24,7 @@ const yearOf = (id) => parts(id)[0] || '';
 function daysBetween(a, b) {
   const [ay, am, ad] = parts(a), [by, bm, bd] = parts(b);
   if (!am || !bm) return 0;
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 864e5);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / DAY_MS);
 }
 function rangeStr(first, cur) {
   const yf = yearOf(first), yc = yearOf(cur);

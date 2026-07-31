@@ -19,6 +19,8 @@ export const mdLite = (md) => esc(md)
   .join('')
   .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 
+export const DAY_MS = 86400000;
+
 export const COL = { red: '#ff4757', orange: '#ffa502', yellow: '#ffe14d', green: '#3aff6e', blue: '#4d9fff', purple: '#b14aff', cyan: '#00f0ff', pink: '#ff6bcb', gold: '#ffd23f', low: '#3aff6e', medium: '#ffa502', high: '#ff4757' };
 
 // thousands-separated integer: 12345 -> "12,345"

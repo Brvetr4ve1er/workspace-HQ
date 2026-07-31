@@ -2,7 +2,7 @@
 // hover tooltips (value + date at the snapped point), a consistency card, and
 // clickable trophy cards that unfold their unlock criteria / progress.
 // Render order: records → charts → consistency → milestones grid.
-import { el, esc, COL, fmt } from '../../ui/util.js';
+import { el, esc, COL, fmt, DAY_MS } from '../../ui/util.js';
 import { lineChart, stackedBar, legend, chartCard, aosKids, aosRefresh, deriveScanContext, sfx, ACH, PX } from '../../ui/components.js';
 
 // Consistency levels: a cosmetic streak signal, off the XP ledger. Derived at
@@ -24,7 +24,7 @@ const openAch = new Set();
 const peak = (pts) => { let b = null; for (const p of pts) if (b === null || p.v > b.v) b = p; return b; };
 const longestDailyRun = (pts) => {
   if (!pts.length) return null;
-  const day = (d) => Math.floor(Date.parse(d + 'T00:00:00Z') / 86400000);
+  const day = (d) => Math.floor(Date.parse(d + 'T00:00:00Z') / DAY_MS);
   let best = 1, cur = 1, endI = 0;
   for (let i = 1; i < pts.length; i++) {
     if (day(pts[i].d) - day(pts[i - 1].d) === 1) { cur++; if (cur > best) { best = cur; endI = i; } } else cur = 1;

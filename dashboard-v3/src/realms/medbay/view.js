@@ -233,7 +233,9 @@ function fixCard(fix, organ) {
     <pre class="rx-out" hidden></pre>`;
   const out = card.querySelector('.rx-out');
   card.querySelector('.rx-copy').onclick = async (e) => {
-    try { await navigator.clipboard.writeText(fix.command); e.target.textContent = '✓ COPIED'; setTimeout(() => (e.target.textContent = '⧉ COPY'), 1400); } catch {}
+    try { await navigator.clipboard.writeText(fix.command); e.target.textContent = '✓ COPIED'; }
+    catch { e.target.textContent = '✗ COPY FAILED'; }
+    setTimeout(() => (e.target.textContent = '⧉ COPY'), 1400);
   };
   const runBtn = card.querySelector('.rx-run');
   if (runBtn) runBtn.onclick = async () => {
