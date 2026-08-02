@@ -23,6 +23,7 @@ import { el, esc, fmt, COL } from '../../ui/util.js';
 import { lineChart, stackedBar, legend, chartCard, aosKids, aosRefresh } from '../../ui/components.js';
 import { momentum } from '../../intel/derive.mjs';
 import { forecastLine } from '../../intel/foresight.mjs';
+import { buildNudgeStrip } from '../../ui/nudge.js';
 
 let root = null, ctx = null, offSelect = null;
 
@@ -68,12 +69,19 @@ function forecastCard(S, now) {
   const sign = f.slopePerDay > 0 ? '+' : '';
   const slopeTxt = `${sign}${f.slopePerDay} XP/scan`;
   const target = num(S.account?.level) + 1;
+  // Honesty fix: the slope/ETA above is a least-squares fit over the WHOLE
+  // trend series, which can read more confident than a short recent run of
+  // scans supports. A subtle "based on N scans" line states the sample size
+  // it's actually fit over, without changing derive.momentum()/foresight.mjs.
+  const sampleN = (S.trends?.xp || []).length;
+  const basisLine = `<div class="atl-fc-basis">based on ${esc(String(sampleN))} scan${sampleN === 1 ? '' : 's'}</div>`;
   const inner = `
     <div class="atl-forecast">
       <div class="atl-fc-slope">${esc(slopeTxt)}</div>
       ${flat
         ? `<div class="atl-fc-note">Not enough forward motion to project a date.</div>`
         : `<div class="atl-fc-eta">${esc(f.etaLabel)} to L${fmt(target)}</div>`}
+      ${basisLine}
     </div>`;
   return chartCard('Momentum forecast', esc(TREND_LABEL[f.trend] || f.trend), inner);
 }
@@ -171,6 +179,10 @@ function render() {
   grid.appendChild(followCard(bundle, cd));
   grid.appendChild(streakCard(S, scans, cd));
   root.appendChild(grid);
+
+  const nudge = buildNudgeStrip(S.achievements);
+  if (nudge) root.appendChild(nudge);
+
   aosKids(grid, 'zoom-in', 60);
   aosRefresh();
 }

@@ -913,3 +913,35 @@ h2.sec.sec-fold:hover { color: var(--text); }
   background: rgba(255,210,63,.12); color: var(--gold, #ffd23f);
   border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--gold, #ffd23f); }
 .otc-focus:hover { background: rgba(255,210,63,.24); }
+
+/* -------------------------------------------------- achievement nudge strip
+   "Almost there" — locked achievements >= 50% complete (ui/nudge.js). Shared
+   component (any realm can mount it), so class names are prefixed distinctly
+   from the trophy-room .ach/.pbar rules above. Deliberately calm/compact — a
+   secondary surface that must not outshout its host card grid. */
+.nudge-strip {
+  background: var(--card); border: 1px solid var(--frame); border-radius: 6px;
+  padding: var(--space-3) var(--space-4); margin: var(--space-4) 0;
+}
+.nudge-h {
+  font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase; margin-bottom: var(--space-3);
+}
+.nudge-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.nudge-row + .nudge-row { border-top: 1px dashed var(--frame); }
+.nudge-ic { flex: none; display: inline-flex; align-items: center; font-size: var(--fs-md); }
+.nudge-ic .px-ico { width: 18px; height: 18px; image-rendering: pixelated; display: block; filter: none; }
+.nudge-l {
+  flex: 1; min-width: 0; font-family: var(--term); font-size: var(--fs-sm); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* progress bar mirrors the .atl-bar idiom (realms/atlas.css) so bars read the same everywhere */
+.nudge-bar {
+  flex: none; width: 90px; height: 7px; background: var(--ink); border: 1px solid var(--frame);
+  border-radius: 4px; overflow: hidden;
+}
+.nudge-bar i { display: block; height: 100%; background: var(--gold, #ffd23f); transition: width .35s ease; }
+.nudge-n { flex: none; font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; }

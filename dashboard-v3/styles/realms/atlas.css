@@ -40,6 +40,14 @@
   font-family: var(--font-data, var(--mono));
 }
 
+/* honesty-fix qualifier: states the sample size the slope/ETA above is fit
+   over, so a short recent run doesn't read as more confident than the data
+   supports. Subtler than atl-fc-eta/note (lower opacity, no fs step). */
+.realm-atlas .atl-fc-basis {
+  margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--faint);
+  opacity: .7; font-family: var(--font-data, var(--mono));
+}
+
 /* shared progress bar — mirrors legacy's .nxd-bar so bars read the same */
 .realm-atlas .atl-bar {
   height: 10px; background: var(--ink); border: 1px solid var(--divider);
