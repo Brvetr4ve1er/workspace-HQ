@@ -24,6 +24,22 @@
   font-family: var(--font-data, var(--mono));
 }
 
+/* momentum forecast: slope headline (the card's one big number, echoing the
+   streak tiles' register) plus a caption line for the ETA — or, when the
+   slope doesn't clear the noise floor, a calm no-fake-date note in its place.
+   Both captions share atl-cap's weight so the flat state reads as informative,
+   not alarming. */
+.realm-atlas .atl-forecast { margin-top: var(--space-2); }
+.realm-atlas .atl-fc-slope {
+  font-size: var(--fs-lg); font-weight: 600; color: var(--text);
+  font-family: var(--font-data, var(--mono));
+}
+.realm-atlas .atl-fc-eta,
+.realm-atlas .atl-fc-note {
+  margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--faint);
+  font-family: var(--font-data, var(--mono));
+}
+
 /* shared progress bar — mirrors legacy's .nxd-bar so bars read the same */
 .realm-atlas .atl-bar {
   height: 10px; background: var(--ink); border: 1px solid var(--divider);

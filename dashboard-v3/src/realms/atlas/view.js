@@ -1,22 +1,28 @@
-// ATLAS realm — the data/analytics room the app lacked. Four cards, all built
+// ATLAS realm — the data/analytics room the app lacked. Five cards, all built
 // from the shared chart helpers (never hand-rolled SVG) and all reacting to
 // 'data:select' (curDate = the selected scan's day, so the time-machine scrubber
 // time-travels every card):
 //   1. Account XP over time        — lineChart built straight from ctx.data.scans
 //      (each scan's account.xp), not the trend sidecar, so it stands even on a
 //      scan whose trends block is thin.
-//   2. Automation runs by outcome  — stackedBar of telemetry.casts bucketed per
+//   2. Momentum forecast           — intel/derive.momentum + intel/foresight.
+//      forecastLine over S.trends.xp: a least-squares slope turned into a trend
+//      word and an ETA to the next level. Calm "not enough motion" note instead
+//      of a fake date when the slope doesn't clear the noise floor.
+//   3. Automation runs by outcome  — stackedBar of telemetry.casts bucketed per
 //      day, split resolved / fizzled / … (outcomes are read from the data, not
 //      assumed), with a legend.
-//   3. Follow-through              — actedOn.entries: how many prompted actions
+//   4. Follow-through              — actedOn.entries: how many prompted actions
 //      were resolved vs merely acted on (a rate, so a plain bar, not an SVG).
-//   4. Scan streak                 — S.account.streak: current vs longest run of
+//   5. Scan streak                 — S.account.streak: current vs longest run of
 //      scan-days, plus a snapshot count.
 // Every source is feature-detected: absent/empty renders a calm empty-note card,
 // never a throw. Numbers interpolated into innerHTML pass through num()+fmt();
 // every string goes through esc().
 import { el, esc, fmt, COL } from '../../ui/util.js';
 import { lineChart, stackedBar, legend, chartCard, aosKids, aosRefresh } from '../../ui/components.js';
+import { momentum } from '../../intel/derive.mjs';
+import { forecastLine } from '../../intel/foresight.mjs';
 
 let root = null, ctx = null, offSelect = null;
 
@@ -47,7 +53,32 @@ function xpCard(scans, cd, S) {
   return card;
 }
 
-// ---- 2. Automation runs by outcome -----------------------------------------
+// ---- 2. Momentum forecast ----------------------------------------------------
+// derive.momentum() fits a least-squares slope over S.trends.xp, then
+// foresight.forecastLine() turns that into a display-ready trend word + ETA.
+// `now` is threaded in from render()'s call site (never computed in here or in
+// the pure intel modules), so this card time-travels correctly under the
+// time-machine scrubber same as its neighbours.
+const TREND_LABEL = { rising: 'Rising', falling: 'Falling', flat: 'Flat' };
+
+function forecastCard(S, now) {
+  const m = momentum(S.trends, S.account, now);
+  const f = forecastLine(m);
+  const flat = f.trend === 'flat' || f.etaLabel === '—';
+  const sign = f.slopePerDay > 0 ? '+' : '';
+  const slopeTxt = `${sign}${f.slopePerDay} XP/scan`;
+  const target = num(S.account?.level) + 1;
+  const inner = `
+    <div class="atl-forecast">
+      <div class="atl-fc-slope">${esc(slopeTxt)}</div>
+      ${flat
+        ? `<div class="atl-fc-note">Not enough forward motion to project a date.</div>`
+        : `<div class="atl-fc-eta">${esc(f.etaLabel)} to L${fmt(target)}</div>`}
+    </div>`;
+  return chartCard('Momentum forecast', esc(TREND_LABEL[f.trend] || f.trend), inner);
+}
+
+// ---- 3. Automation runs by outcome -----------------------------------------
 // telemetry.casts → one bar per day, stacked by the outcome strings actually
 // present (resolved / fizzled / channeled / …). Colors are assigned from a known
 // map with a palette fallback so an unseen outcome still renders.
@@ -78,7 +109,7 @@ function castsCard(bundle, cd) {
   return card;
 }
 
-// ---- 3. Follow-through ------------------------------------------------------
+// ---- 4. Follow-through ------------------------------------------------------
 // actedOn.entries clipped to curDate. resolved := resolved || marked_done (the
 // ledger grew a marked_done field mid-life; older rows only carry resolved).
 function followCard(bundle, cd) {
@@ -96,7 +127,7 @@ function followCard(bundle, cd) {
   return chartCard('Follow-through', rate + '%', inner);
 }
 
-// ---- 4. Scan streak ---------------------------------------------------------
+// ---- 5. Scan streak ---------------------------------------------------------
 // Off the selected scan's account.streak (present per-scan, so it time-travels).
 // The bar reads current against longest; the tiles add a snapshot count clipped
 // to curDate.
@@ -127,6 +158,7 @@ function render() {
   const cd = S.scan?.id || '';
   const scans = ctx.data.scans || [];
   const bundle = ctx.data.bundle || {};
+  const now = new Date().toISOString();   // injected here, never inside intel/*.mjs (they stay pure)
 
   const head = el('h2', 'sec', 'Analytics');
   head.appendChild(el('span', 'atl-insight', `${fmt(scans.length)} snapshots`));
@@ -134,6 +166,7 @@ function render() {
 
   const grid = el('div', 'charts');
   grid.appendChild(xpCard(scans, cd, S));
+  grid.appendChild(forecastCard(S, now));
   grid.appendChild(castsCard(bundle, cd));
   grid.appendChild(followCard(bundle, cd));
   grid.appendChild(streakCard(S, scans, cd));
