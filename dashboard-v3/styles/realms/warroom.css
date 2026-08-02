@@ -35,6 +35,7 @@
 
 /* ------------------------------------------------------------- the board */
 .realm-warroom .wr-board {
+  position: relative;   /* anchors the absolutely-positioned .wr-vectors overlay (Task 5) */
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--space-4);
@@ -48,11 +49,29 @@
   border: 1px solid var(--wr-line);
   border-left: 3px solid var(--wr-dim);
   border-radius: 4px;
+  transition: transform 160ms ease;   /* hover lift */
 }
-.realm-warroom .wr-card[data-sev="red"]    { border-left-color: var(--wr-red);    box-shadow: 0 0 26px -14px var(--wr-red); }
-.realm-warroom .wr-card[data-sev="orange"] { border-left-color: var(--wr-amber);  box-shadow: 0 0 26px -16px var(--wr-amber); }
-.realm-warroom .wr-card[data-sev="yellow"] { border-left-color: var(--wr-yellow); box-shadow: 0 0 22px -18px var(--wr-yellow); }
-.realm-warroom .wr-card[data-sev="dim"]    { border-left-color: var(--wr-dim); }
+.realm-warroom .wr-card:hover { transform: translateY(-3px); }
+.realm-warroom .wr-card[data-sev="red"]    { --wr-accent: var(--wr-red);    border-left-color: var(--wr-red);    box-shadow: 0 0 26px -14px var(--wr-red); }
+.realm-warroom .wr-card[data-sev="orange"] { --wr-accent: var(--wr-amber);  border-left-color: var(--wr-amber);  box-shadow: 0 0 26px -16px var(--wr-amber); }
+.realm-warroom .wr-card[data-sev="yellow"] { --wr-accent: var(--wr-yellow); border-left-color: var(--wr-yellow); box-shadow: 0 0 22px -18px var(--wr-yellow); }
+.realm-warroom .wr-card[data-sev="dim"]    { --wr-accent: var(--wr-dim);    border-left-color: var(--wr-dim);    box-shadow: 0 0 20px -18px var(--wr-dim); }
+
+/* top (most dangerous) card — a gentle sev-colored breathing glow, never a
+   flash. Reuses each card's own --wr-accent (set per data-sev above) so the
+   pulse always matches that card's severity color. */
+.realm-warroom .wr-card.top-threat { animation: wr-top-pulse 2.8s ease-in-out infinite; }
+@keyframes wr-top-pulse {
+  0%, 100% { box-shadow: 0 0 22px -16px var(--wr-accent); }
+  50%      { box-shadow: 0 0 34px -8px  var(--wr-accent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .realm-warroom .wr-card.top-threat { animation: none; }
+}
+
+/* card is part of a multi-front attack vector (see .wr-vectors below) — a
+   quiet violet ring, independent of the sev glow so both read at once. */
+.realm-warroom .wr-card.linked { outline: 1px dashed var(--wr-violet); outline-offset: 3px; }
 
 /* Badge ABOVE the target name, always. A wrapping row put the name inline on
    short names and pushed it to its own line on long ones, so every grid row
@@ -60,8 +79,10 @@
 .realm-warroom .wr-card-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
 .realm-warroom .wr-badge {
   font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .08em;
-  padding: 1px var(--space-2); border-radius: 3px; text-transform: uppercase;
+  padding: 1px var(--space-2) 1px calc(var(--space-2) + 4px); text-transform: uppercase;
   border: 1px solid var(--wr-dim); color: var(--wr-dim); white-space: nowrap;
+  /* System-HUD hexagon pip — echoes the .wr-frame corner cut at badge scale */
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 6px 100%, 0 50%);
 }
 .realm-warroom .wr-badge[data-sev="red"]    { color: var(--wr-red);    border-color: var(--wr-red); }
 .realm-warroom .wr-badge[data-sev="orange"] { color: var(--wr-amber);  border-color: var(--wr-amber); }
@@ -86,6 +107,32 @@
 .realm-warroom .wr-act:hover { background: rgba(167,139,250,.14); }
 .realm-warroom .wr-claude { border-color: var(--wr-line); color: var(--wr-dim); }
 .realm-warroom .wr-claude:disabled { cursor: not-allowed; opacity: .55; }
+
+/* ------------------------------------------------ threat vectors (Task 5) */
+/* Absolutely positioned to fill .wr-board (position:relative, above) so
+   coordinates painted in JS (board-relative, not viewport-relative) line up
+   exactly; pointer-events:none so the overlay can never intercept clicks on
+   the Remediate/Send Claude buttons underneath. viewBox is set in JS to the
+   board's pixel rect 1:1, so path coordinates need no extra scaling. */
+.realm-warroom .wr-vectors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.realm-warroom .wr-vector-path {
+  fill: none; stroke: var(--wr-violet); stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; opacity: .6;
+  filter: drop-shadow(0 0 4px rgba(167,139,250,.55));
+}
+@media (prefers-reduced-motion: reduce) {
+  /* anime.js drives stroke-dashoffset via inline style each frame; !important
+     is what lets this rule win over that inline style every frame, so the
+     line renders solid and fully drawn from the first paint. */
+  .realm-warroom .wr-vector-path { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
+}
+
+.realm-warroom .wr-front-pip {
+  position: absolute; top: -8px; right: var(--space-3);
+  font-family: var(--term); font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  padding: 1px 6px; color: var(--wr-ink); background: var(--wr-violet);
+  border-radius: 2px; pointer-events: none;
+}
 
 /* ------------------------------------------------------------- empty state */
 .realm-warroom .wr-empty {
