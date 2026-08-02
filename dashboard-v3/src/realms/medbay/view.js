@@ -281,9 +281,26 @@ function anomalyRow(item) {
     <button class="an-note"${canCapture ? '' : ' disabled title="Needs the live app — capture is unavailable in this preview"'}>Note for cleanup</button>`;
   if (canCapture) {
     const btn = row.querySelector('.an-note');
-    btn.onclick = () => {
-      const r = dispatch('capture:note', { text: `Clean up: ${item.label}` });
-      if (r.ok) { btn.disabled = true; btn.textContent = 'Noted'; }
+    // dispatch()'s synchronous {ok:true} only means the IPC call was SENT —
+    // captureSave() returns the ipcRenderer.invoke() promise as `result`, and
+    // main's fs.writeFileSync can still reject it (permissions/disk/etc). Await
+    // the real outcome before claiming success, mirroring scanButton/rx-run's
+    // disable → await → settle idiom above; a rejection re-enables the button
+    // so the user can retry instead of a permanently-lying "Noted".
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const prev = btn.textContent;
+      btn.textContent = 'Noting…';
+      try {
+        const r = dispatch('capture:note', { text: `Clean up: ${item.label}` });
+        if (!r.ok) throw new Error(r.error || 'dispatch failed');
+        await Promise.resolve(r.result);
+        btn.textContent = 'Noted';
+      } catch (err) {
+        console.warn('[medbay] capture:note failed', err);
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
     };
   }
   return row;
@@ -291,7 +308,12 @@ function anomalyRow(item) {
 
 function renderAnomalies(parent, S) {
   const ag = anomalyGroups(anomalies(S));
-  parent.appendChild(el('h2', 'sec', `Cleanup — ${fmt(ag.total)} item${ag.total === 1 ? '' : 's'} · ~${esc(ag.reclaimableLabel)} reclaimable`));
+  // zero case: a bare "Cleanup" heading — pairing it with "0 items · ~0 B
+  // reclaimable" above "Nothing to clean up." would say the same thing twice.
+  const head = ag.total
+    ? `Cleanup — ${fmt(ag.total)} item${ag.total === 1 ? '' : 's'} · ~${esc(ag.reclaimableLabel)} reclaimable`
+    : 'Cleanup';
+  parent.appendChild(el('h2', 'sec', head));
   if (!ag.total) { parent.appendChild(el('div', 'an-empty', 'Nothing to clean up.')); return; }
   const wrap = el('div', 'an-groups');
   ag.groups.forEach((g) => {
