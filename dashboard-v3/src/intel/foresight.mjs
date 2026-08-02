@@ -7,18 +7,29 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // A slope is "moving" only past ±0.5 XP/scan — below that it's sampling noise
 // on a 44-point series and calling it a trend would be a lie.
+//
+// UNITS — read this before renaming anything back. derive.momentum() fits the
+// slope over TREND SAMPLES (one sample per scan), so `xpSlope` is XP-per-scan
+// and `etaDays` is really "scans to the next level" wearing a days-shaped name.
+// Scans are not daily (the live series is 44 samples over 58 days ≈ 0.76
+// scans/day), so calling that number "days" understates the calendar wait by
+// ~25%. derive.mjs is the struct lane's file and its field names are contract;
+// this adapter is the fe lane's, so the honest unit is applied HERE: the
+// exported field is slopePerScan and the ETA reads "~N scans". Anything that
+// wants calendar days must first divide by the observed scans-per-day rate —
+// which nothing computes today, so nothing may claim days.
 export function forecastLine(m) {
   const slope = num(m?.xpSlope);
   const trend = slope > 0.5 ? 'rising' : slope < -0.5 ? 'falling' : 'flat';
-  const eta = num(m?.etaDays, 0);
+  const eta = num(m?.etaDays, 0);   // derive's name; the value is per-scan
   let etaLabel = '—';
   if (eta > 0) {
     const n = Math.ceil(eta);
-    etaLabel = `~${n} day${n === 1 ? '' : 's'}`;
+    etaLabel = `~${n} scan${n === 1 ? '' : 's'}`;
   }
   return {
     trend,
-    slopePerDay: Math.round(slope * 10) / 10,
+    slopePerScan: Math.round(slope * 10) / 10,
     etaLabel,
     etaISO: m?.etaNextLevel || null,
   };

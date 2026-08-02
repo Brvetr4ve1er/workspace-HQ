@@ -282,24 +282,44 @@ function anomalyRow(item) {
   if (canCapture) {
     const btn = row.querySelector('.an-note');
     // dispatch()'s synchronous {ok:true} only means the IPC call was SENT —
-    // captureSave() returns the ipcRenderer.invoke() promise as `result`, and
-    // main's fs.writeFileSync can still reject it (permissions/disk/etc). Await
-    // the real outcome before claiming success, mirroring scanButton/rx-run's
-    // disable → await → settle idiom above; a rejection re-enables the button
-    // so the user can retry instead of a permanently-lying "Noted".
+    // captureSave() returns the ipcRenderer.invoke() promise as `result`. That
+    // promise can REJECT (fs.writeFileSync: permissions/disk, or no handler
+    // registered on the other end) and it can also RESOLVE FALSY: main's
+    // hq:capture-save returns `false` outright when the trimmed text is empty.
+    // So awaiting settlement is not enough — the resolved VALUE decides, and a
+    // `false` is funnelled into the same catch as a rejection so one path
+    // re-enables the button instead of rendering a lie.
+    //
+    // WHY THERE IS NO SUCCESS STATE: verified live against the real bridge —
+    // main's handler (dashboard/main.js hq:capture-save) ends with
+    // spawnSync(assemble.mjs) → rebuildData() → win.reload(), and `win` is THIS
+    // window. The reload tears the renderer down while we are still awaiting, so
+    // the label below is never painted; what the user actually sees is the
+    // in-flight 'Saving…' followed by a whole-dashboard reload back into Med-Bay
+    // (realm restored from sessionStorage, scroll position lost). That reload
+    // belongs to the shared capture pipeline — a main/struct-lane concern, not
+    // this view's — so do NOT "fix" the missing confirmation here by adding a
+    // toast or delaying the await: the honest fe-lane move is to promise only
+    // the in-flight state, which is the one state that can actually be seen.
     btn.onclick = async () => {
       btn.disabled = true;
-      const prev = btn.textContent;
-      btn.textContent = 'Noting…';
+      btn.title = '';
+      btn.textContent = 'Saving…';   // set BEFORE the await — see note above
       try {
         const r = dispatch('capture:note', { text: `Clean up: ${item.label}` });
         if (!r.ok) throw new Error(r.error || 'dispatch failed');
-        await Promise.resolve(r.result);
-        btn.textContent = 'Noted';
+        const ok = await Promise.resolve(r.result);
+        if (ok === false) throw new Error('capture refused');
+        btn.textContent = 'Noted';   // usually preempted by main's win.reload()
       } catch (err) {
+        // Visible, not just console-visible: a silent snap-back to the original
+        // label is indistinguishable from a mis-click. Mirrors rx-run pushing
+        // its error into .rx-out — here the row has no output slot, so the
+        // button itself carries the verdict and the title carries the detail.
         console.warn('[medbay] capture:note failed', err);
         btn.disabled = false;
-        btn.textContent = prev;
+        btn.title = `Not saved — ${String(err?.message || err)}. Click to retry.`;
+        btn.textContent = '✗ Not saved — retry';
       }
     };
   }
@@ -307,14 +327,38 @@ function anomalyRow(item) {
 }
 
 function renderAnomalies(parent, S) {
-  const ag = anomalyGroups(anomalies(S));
-  // zero case: a bare "Cleanup" heading — pairing it with "0 items · ~0 B
-  // reclaimable" above "Nothing to clean up." would say the same thing twice.
-  const head = ag.total
-    ? `Cleanup — ${fmt(ag.total)} item${ag.total === 1 ? '' : 's'} · ~${esc(ag.reclaimableLabel)} reclaimable`
-    : 'Cleanup';
+  const an = anomalies(S);
+  const ag = anomalyGroups(an);
+  // TWO DIFFERENT CLAIMS, TWO DIFFERENT LINES — do not re-merge them with a '·'.
+  // The item count and the reclaimable byte count come from disjoint sources and
+  // describe disjoint work:
+  //   · the rows are inventory.clones / .duplicates / .empty. Clone entries are
+  //     {name, origin, dirty, diverged} and empty entries are bare strings —
+  //     NEITHER carries a size field. There is no per-row byte figure to show.
+  //   · the bytes are Σ projects[].disk.reclaimable_bytes — build artifacts in a
+  //     handful of PRODUCTS, none of which appear in the rows below, freed by a
+  //     different control entirely (the per-project purge button, hq.reclaim()).
+  // Composed into one sentence they read as "work these rows, reclaim that much",
+  // which is false: clearing all the rows frees ~0 bytes.
+  const head = ag.total ? `Cleanup — ${fmt(ag.total)} item${ag.total === 1 ? '' : 's'}` : 'Cleanup';
   parent.appendChild(el('h2', 'sec', head));
-  if (!ag.total) { parent.appendChild(el('div', 'an-empty', 'Nothing to clean up.')); return; }
+
+  // Secondary, muted, and explicitly about something else. Omitted entirely when
+  // there is nothing to reclaim. `products` is counted here rather than in
+  // derive.anomalies() — that function is the struct lane's and its return shape
+  // is contract; this is a view-local presentation detail.
+  const bytes = Number(an.reclaimableBytes) || 0;
+  const products = (S?.projects || [])
+    .filter((p) => Number(p?.disk?.reclaimable_bytes) > 0).length;
+  if (bytes > 0 && products > 0) {
+    parent.appendChild(el('div', 'ghost-cap an-reclaim',
+      `Separately: ~${esc(ag.reclaimableLabel)} of build artifacts reclaimable across ${fmt(products)} product${products === 1 ? '' : 's'} — freed per project, not from this list.`));
+  }
+
+  // Scoped to what the list is actually about. A bare "Nothing to clean up."
+  // would contradict the reclaimable line directly above it whenever the rows
+  // are empty but build artifacts are not.
+  if (!ag.total) { parent.appendChild(el('div', 'an-empty', 'No clones, duplicates or empty folders to clear.')); return; }
   const wrap = el('div', 'an-groups');
   ag.groups.forEach((g) => {
     const block = el('div', 'an-group');

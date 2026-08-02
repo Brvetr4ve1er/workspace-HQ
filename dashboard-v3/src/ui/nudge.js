@@ -8,7 +8,12 @@ import { achievementNudges } from '../intel/derive.mjs';
 import { nudgeRows } from '../intel/foresight.mjs';
 
 export function buildNudgeStrip(achievements) {
-  const rows = nudgeRows(achievementNudges(achievements), (id) => ACH[id]);
+  // Object.hasOwn, not a bare ACH[id]: the id comes from scan data, and a plain
+  // object literal inherits Object.prototype, so ids like 'constructor',
+  // 'toString' or '__proto__' would resolve to an inherited function/object and
+  // render nonsense ("Object") as an achievement name. Own-key only; anything
+  // else falls through to nudgeRows' raw-id fallback.
+  const rows = nudgeRows(achievementNudges(achievements), (id) => (Object.hasOwn(ACH, id) ? ACH[id] : null));
   if (!rows.length) return null;
   const wrap = el('div', 'nudge-strip');
   // r.icon is a trusted static string from our own ACH map (PX.* SVG markup or

@@ -7,8 +7,10 @@
 //      scan whose trends block is thin.
 //   2. Momentum forecast           — intel/derive.momentum + intel/foresight.
 //      forecastLine over S.trends.xp: a least-squares slope turned into a trend
-//      word and an ETA to the next level. Calm "not enough motion" note instead
-//      of a fake date when the slope doesn't clear the noise floor.
+//      word and an ETA to the next level, counted in SCANS (the slope is fit per
+//      trend sample, and samples are scans, not days). Calm "not enough motion"
+//      note instead of a fake date when the slope doesn't clear the noise floor;
+//      a separate, blunter line when the trend is actually falling.
 //   3. Automation runs by outcome  — stackedBar of telemetry.casts bucketed per
 //      day, split resolved / fizzled / … (outcomes are read from the data, not
 //      assumed), with a legend.
@@ -65,22 +67,32 @@ const TREND_LABEL = { rising: 'Rising', falling: 'Falling', flat: 'Flat' };
 function forecastCard(S, now) {
   const m = momentum(S.trends, S.account, now);
   const f = forecastLine(m);
-  const flat = f.trend === 'flat' || f.etaLabel === '—';
-  const sign = f.slopePerDay > 0 ? '+' : '';
-  const slopeTxt = `${sign}${f.slopePerDay} XP/scan`;
   const target = num(S.account?.level) + 1;
+  // UNITS: the fit is per trend SAMPLE — one sample per scan, and scans are not
+  // daily — so foresight.forecastLine() reports slopePerScan and an ETA counted
+  // in scans. The headline number and the ETA now speak the same unit; do not
+  // relabel either as days without first dividing by an observed scans/day rate.
+  const sign = f.slopePerScan > 0 ? '+' : '';
+  const slopeTxt = `${sign}${f.slopePerScan} XP/scan`;
   // Honesty fix: the slope/ETA above is a least-squares fit over the WHOLE
   // trend series, which can read more confident than a short recent run of
   // scans supports. A subtle "based on N scans" line states the sample size
   // it's actually fit over, without changing derive.momentum()/foresight.mjs.
   const sampleN = (S.trends?.xp || []).length;
   const basisLine = `<div class="atl-fc-basis">based on ${esc(String(sampleN))} scan${sampleN === 1 ? '' : 's'}</div>`;
+  // Three distinct states, three distinct sentences. 'falling' used to inherit
+  // the flat copy ("not enough forward motion"), which reads as "nearly there"
+  // over a badge that says Falling — the one case where the user most needs a
+  // straight answer. A negative slope has no crossing with the next level, so
+  // there is no ETA to project and the card says exactly that.
+  let body;
+  if (f.trend === 'falling') body = `<div class="atl-fc-note">XP is trending down — no level ETA.</div>`;
+  else if (f.trend === 'flat' || f.etaLabel === '—') body = `<div class="atl-fc-note">Not enough forward motion to project a date.</div>`;
+  else body = `<div class="atl-fc-eta">${esc(f.etaLabel)} to L${fmt(target)}</div>`;
   const inner = `
     <div class="atl-forecast">
       <div class="atl-fc-slope">${esc(slopeTxt)}</div>
-      ${flat
-        ? `<div class="atl-fc-note">Not enough forward motion to project a date.</div>`
-        : `<div class="atl-fc-eta">${esc(f.etaLabel)} to L${fmt(target)}</div>`}
+      ${body}
       ${basisLine}
     </div>`;
   return chartCard('Momentum forecast', esc(TREND_LABEL[f.trend] || f.trend), inner);
