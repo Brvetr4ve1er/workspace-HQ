@@ -49,7 +49,7 @@ export function anomalyGroups(a) {
 // module must not import — importing DOM-adjacent code would break purity).
 export function nudgeRows(nudges, labelFor) {
   const out = [];
-  for (const n of (nudges || [])) {
+  for (const n of (Array.isArray(nudges) ? nudges : [])) {
     const meta = (typeof labelFor === 'function' ? labelFor(n?.id) : null) || {};
     const have = num(n?.have), need = num(n?.need);
     out.push({

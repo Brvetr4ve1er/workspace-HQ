@@ -49,4 +49,6 @@ test('nudgeRows: injected labels, pct, sorted desc; unknown id falls back to the
   assert.equal(rows[1].label, 'secret_free');          // no entry -> raw id
   assert.equal(rows[1].icon, '');
   assert.doesNotThrow(() => nudgeRows(null, () => undefined));
+  assert.deepEqual(nudgeRows({}, () => undefined), []);
+  assert.deepEqual(nudgeRows(undefined, () => undefined), []);
 });
