@@ -56,6 +56,11 @@ export function initActions(deps) {
   }
   register({ id: 'scan:now',     label: 'Scan now',       run: () => hq?.runScan?.() });
   register({ id: 'capture:idea', label: 'Capture idea',   run: () => hq?.capture?.() });
+  // Real capture seam: preload exposes captureSave(text) (capture:idea's
+  // hq.capture() does not exist — see the note above). Text-carrying callers
+  // (the Med-Bay cleanup panel) dispatch through here so the write stays on the
+  // one audited path.
+  register({ id: 'capture:note', label: 'Capture note', run: (ctx) => hq?.captureSave?.(ctx?.text), enabled: (ctx) => !!ctx?.text });
   register({ id: 'quest:done',   label: 'Complete quest', run: (ctx) => hq?.markQuestDone?.(ctx?.questId), enabled: (ctx) => !!ctx?.questId });
   register({ id: 'cast',         label: 'Cast spell',     run: (ctx) => hq?.castSpell?.(ctx?.spellId),      enabled: (ctx) => !!ctx?.spellId });
 }

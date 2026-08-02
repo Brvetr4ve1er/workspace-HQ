@@ -23,6 +23,9 @@
 // Unknown organ ids still render (fallback tag, auto grid slot) — additive-safe.
 import { el, esc, COL, fmt } from '../../ui/util.js';
 import { aosKids, aosRefresh } from '../../ui/components.js';
+import { anomalies } from '../../intel/derive.mjs';
+import { anomalyGroups } from '../../intel/foresight.mjs';
+import { dispatch } from '../../core/actions.mjs';
 
 // The data contract keeps the grace/ember/blood keys; the display word is plain.
 const STATUS = {
@@ -262,12 +265,54 @@ function renderTreatments(parent, ph) {
   parent.appendChild(list);
 }
 
+// ---- anomaly cleanup: filesystem clutter (clones/duplicates/empty folders)
+// derived straight from the scan's inventory — independent of pc-health.json's
+// scan gate, so this shows real content even before any health scan has run.
+// Each row's "Note for cleanup" is the ONE working control: it dispatches the
+// real capture:note action (window.hq.captureSave under the hood). No preload
+// in the dev harness -> render disabled, never a silently-dead button.
+const GROUP_LABEL = { clone: 'Cloned repos', duplicate: 'Duplicates', empty: 'Empty folders' };
+
+function anomalyRow(item) {
+  const canCapture = !!CTX.hq?.captureSave;
+  const row = el('div', 'an-item');
+  row.innerHTML = `
+    <span class="an-label">${esc(item.label)}</span>
+    <button class="an-note"${canCapture ? '' : ' disabled title="Needs the live app — capture is unavailable in this preview"'}>Note for cleanup</button>`;
+  if (canCapture) {
+    const btn = row.querySelector('.an-note');
+    btn.onclick = () => {
+      const r = dispatch('capture:note', { text: `Clean up: ${item.label}` });
+      if (r.ok) { btn.disabled = true; btn.textContent = 'Noted'; }
+    };
+  }
+  return row;
+}
+
+function renderAnomalies(parent, S) {
+  const ag = anomalyGroups(anomalies(S));
+  parent.appendChild(el('h2', 'sec', `Cleanup — ${fmt(ag.total)} item${ag.total === 1 ? '' : 's'} · ~${esc(ag.reclaimableLabel)} reclaimable`));
+  if (!ag.total) { parent.appendChild(el('div', 'an-empty', 'Nothing to clean up.')); return; }
+  const wrap = el('div', 'an-groups');
+  ag.groups.forEach((g) => {
+    const block = el('div', 'an-group');
+    block.appendChild(el('h3', 'an-group-h', `${esc(GROUP_LABEL[g.kind] || g.kind)} · ${fmt(g.count)}`));
+    const list = el('div', 'an-list');
+    g.items.forEach((item) => list.appendChild(anomalyRow(item)));
+    block.appendChild(list);
+    wrap.appendChild(block);
+  });
+  aosKids(wrap, 'fade-up', 30);
+  parent.appendChild(wrap);
+}
+
 function render() {
   if (!root || !CTX) return;
   root.innerHTML = '';
   const ph = LIVE || CTX.data.bundle.pcHealth;
   if (ph && Array.isArray(ph.organs) && ph.organs.length) { renderAnatomy(root, ph); renderTreatments(root, ph); }
   else renderTriage(root);
+  renderAnomalies(root, CTX.data.selected);
   aosRefresh();
 }
 

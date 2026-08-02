@@ -140,6 +140,33 @@
 .realm-medbay .rx-out { margin-top: var(--space-3); background: var(--ink, #05060a); border: 1px solid var(--frame); border-radius: 8px; padding: var(--space-3) var(--space-3); font-family: var(--mono); font-size: var(--fs-xs); color: var(--green, #9fd6a0); white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
 .realm-medbay .rx-out.err { color: var(--red, #e59a90); }
 
+/* --- anomaly cleanup: clones/duplicates/empty folders (Epic C #4) --------- */
+.realm-medbay .an-empty {
+  font-family: var(--term); font-size: var(--fs-sm); color: var(--muted);
+  max-width: 960px; margin: var(--space-2) auto var(--space-2); padding: var(--space-4);
+  text-align: center; border: 1px dashed var(--frame); border-radius: 12px;
+}
+.realm-medbay .an-groups { display: flex; flex-direction: column; gap: var(--space-4); max-width: 960px; margin: var(--space-2) auto var(--space-2); }
+.realm-medbay .an-group-h {
+  font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--faint); margin: 0 0 var(--space-2);
+}
+.realm-medbay .an-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.realm-medbay .an-item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  background: linear-gradient(168deg, var(--card-hi), var(--card));
+  border: 1px solid var(--frame); border-radius: 10px;
+  padding: var(--space-3) var(--space-3);
+}
+.realm-medbay .an-label { font-family: var(--term); font-size: var(--fs-xs); color: var(--text); line-height: 1.45; word-break: break-word; }
+.realm-medbay .an-note {
+  flex: none; font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  cursor: pointer; border-radius: 8px; padding: var(--space-2) var(--space-3); min-height: var(--tap-min);
+  background: var(--card-hi); border: 1px solid var(--frame); color: var(--muted);
+}
+.realm-medbay .an-note:hover:not(:disabled) { color: var(--text); border-color: var(--active, var(--gold)); }
+.realm-medbay .an-note:disabled { opacity: .5; cursor: default; }
+
 @media (prefers-reduced-motion: reduce) {
   .realm-medbay .ekg-line { animation: none; }
 }

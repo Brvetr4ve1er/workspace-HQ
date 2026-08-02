@@ -48,3 +48,15 @@ test('initActions seeds go:<realm> + core verbs from injected deps', () => {
   // a missing hq method must not throw when dispatched
   assert.doesNotThrow(() => dispatch('scan:now', {}));
 });
+
+test('capture:note passes ctx.text to hq.captureSave and needs text to enable', () => {
+  _reset();
+  const saved = [];
+  initActions({ switchRealm: () => {}, ordered: () => [], hq: { captureSave: (t) => saved.push(t) } });
+  assert.ok(resolve('capture:note'));
+  assert.equal(all({}).find((a) => a.id === 'capture:note'), undefined);       // no text -> disabled
+  assert.ok(all({ text: 'x' }).find((a) => a.id === 'capture:note'));
+  dispatch('capture:note', { text: 'Clean up: playwright' });
+  assert.deepEqual(saved, ['Clean up: playwright']);
+  assert.doesNotThrow(() => { _reset(); initActions({ ordered: () => [], hq: {} }); dispatch('capture:note', { text: 'y' }); });
+});
