@@ -60,3 +60,20 @@ test('capture:note passes ctx.text to hq.captureSave and needs text to enable', 
   assert.deepEqual(saved, ['Clean up: playwright']);
   assert.doesNotThrow(() => { _reset(); initActions({ ordered: () => [], hq: {} }); dispatch('capture:note', { text: 'y' }); });
 });
+
+test('claude:dispatch forwards path+prompt to hq.claudeQuest and needs both to enable', () => {
+  _reset();
+  const calls = [];
+  initActions({ switchRealm: () => {}, ordered: () => [], hq: { claudeQuest: (p, t) => { calls.push([p, t]); return true; } } });
+  assert.ok(resolve('claude:dispatch'));
+  assert.equal(all({}).find((a) => a.id === 'claude:dispatch'), undefined);                      // neither
+  assert.equal(all({ projectPath: 'A' }).find((a) => a.id === 'claude:dispatch'), undefined);    // prompt missing
+  assert.ok(all({ projectPath: 'A', prompt: 'do it' }).find((a) => a.id === 'claude:dispatch')); // both
+  const r = dispatch('claude:dispatch', { projectPath: 'A', prompt: 'do it' });
+  assert.deepEqual(calls, [['A', 'do it']]);
+  assert.equal(r.ok, true);
+  // a missing preload method must no-op, not throw
+  _reset();
+  initActions({ ordered: () => [], hq: {} });
+  assert.doesNotThrow(() => dispatch('claude:dispatch', { projectPath: 'A', prompt: 'x' }));
+});

@@ -61,6 +61,10 @@ export function initActions(deps) {
   // (the Med-Bay cleanup panel) dispatch through here so the write stays on the
   // one audited path.
   register({ id: 'capture:note', label: 'Capture note', run: (ctx) => hq?.captureSave?.(ctx?.text), enabled: (ctx) => !!ctx?.text });
+  // Hands a task to Claude INSIDE the target project: hq:claude-quest resolves
+  // the project dir and opens a terminal running `claude "<prompt>"` there. The
+  // channel already exists (IPC-CONTRACT.md) — this is only the audited wrapper.
+  register({ id: 'claude:dispatch', label: 'Send Claude', run: (ctx) => hq?.claudeQuest?.(ctx?.projectPath, ctx?.prompt), enabled: (ctx) => !!ctx?.projectPath && !!ctx?.prompt });
   register({ id: 'quest:done',   label: 'Complete quest', run: (ctx) => hq?.markQuestDone?.(ctx?.questId), enabled: (ctx) => !!ctx?.questId });
   register({ id: 'cast',         label: 'Cast spell',     run: (ctx) => hq?.castSpell?.(ctx?.spellId),      enabled: (ctx) => !!ctx?.spellId });
 }
