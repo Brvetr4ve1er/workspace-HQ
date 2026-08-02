@@ -19,6 +19,38 @@
    row-mates (forge-owned class added alongside the shared .grid). */
 .forge-grid { align-items: start; }
 
+/* ---- Suggested actions strip (Epic D #5/#7) -------------------------------
+   Secondary, below the product grid, deliberately quiet: same token vocabulary
+   as Med-Bay's cleanup-panel rows (an-item/an-note in medbay.css) rather than
+   a bespoke look — one more list of calm rows, not a second hero surface. No
+   [data-theme="nexus"] re-skin block: like medbay's an-item/an-note, this
+   relies entirely on the base token ramp (--frame/--card/--muted/--faint/etc.)
+   already remapped per theme, so it reads correctly under every theme without
+   per-theme duplication. */
+#stage:has(> .forge-grid) .forge-actions { margin-top: var(--space-2); }
+#stage:has(> .forge-grid) .fa-list { display: flex; flex-direction: column; gap: var(--space-2); }
+#stage:has(> .forge-grid) .fa-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  flex-wrap: wrap; padding: var(--space-3) var(--space-3);
+  background: linear-gradient(168deg, var(--card-hi), var(--card));
+  border: 1px solid var(--frame); border-radius: 10px;
+}
+#stage:has(> .forge-grid) .fa-info { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+#stage:has(> .forge-grid) .fa-proj { font-family: var(--term); font-size: var(--fs-sm); color: var(--text); word-break: break-word; }
+#stage:has(> .forge-grid) .fa-gap { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); }
+#stage:has(> .forge-grid) .fa-btns { display: flex; gap: var(--space-2); flex: none; flex-wrap: wrap; }
+#stage:has(> .forge-grid) .fa-btn {
+  font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
+  cursor: pointer; border-radius: 8px; padding: var(--space-2) var(--space-3); min-height: var(--tap-min);
+  background: var(--card-hi); border: 1px solid var(--frame); color: var(--muted);
+}
+#stage:has(> .forge-grid) .fa-btn:hover:not(:disabled) { color: var(--text); border-color: var(--active, var(--gold)); }
+#stage:has(> .forge-grid) .fa-btn:disabled { opacity: .5; cursor: default; }
+#stage:has(> .forge-grid) .fa-more {
+  font-family: var(--term); font-size: var(--fs-xs); color: var(--faint);
+  padding: var(--space-2) 0 0 var(--space-1);
+}
+
 /* sort segment — mirrors the .toolbar .seg filter control, with a lead label */
 .toolbar .sortseg { align-items: center; }
 .toolbar .sortseg .seg-lbl {

@@ -6,7 +6,9 @@
 // browser dwell) without opening the full drawer — the drawer stays one click
 // away via the card's Open button.
 import { el, esc, COL } from '../../ui/util.js';
-import { aos, aosRefresh, deltaSpan, deriveScanContext, devState, fmtDur, openDrawer, sfx } from '../../ui/components.js';
+import { aos, aosKids, aosRefresh, deltaSpan, deriveScanContext, devState, fmtDur, openDrawer, sfx } from '../../ui/components.js';
+import { agencyProposals } from '../../intel/agency.mjs';
+import { dispatch } from '../../core/actions.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -257,6 +259,115 @@ function paintBrowserLive(root) {
   if (node) node.innerHTML = bfNowHtml(liveBrowserTab);
 }
 
+// --------------------------------------------------------- suggested actions
+// A secondary strip surfacing agencyProposals() (real signal gaps: no tests /
+// CI / README / license) as two REAL actions per row — no invented IPC, both
+// already registered in core/actions.mjs. Copy is deliberately honest about
+// what each button actually does (see the two side-effect notes below); this
+// is a quiet, load-bearing strip, not a headline feature — it must not
+// outshout the product grid above it (Epic D #5/#7).
+const AGENCY_CAP = 8;
+
+// `claude:dispatch` shells to `start` a NEW TERMINAL WINDOW running
+// `claude "<prompt>"` cd'd into the project (dashboard/main.js hq:claude-quest).
+// spawnSync('start', ...) returns almost immediately — nothing here waits on
+// Claude finishing — so the only honest confirmation is "a terminal opened",
+// never "done"/"fixed". The handler resolves `false` when the project path
+// can't be resolved to a cwd; that is a real failure, not a refusal to show.
+function sendClaudeButton(p) {
+  const btn = el('button', 'fa-btn fa-send', 'Send Claude');
+  if (!window.hq?.claudeQuest) {
+    btn.disabled = true;
+    btn.title = 'Needs the live app — Claude dispatch is unavailable in this preview';
+    return btn;
+  }
+  btn.title = 'Opens a new terminal window running Claude in this project — does not run automatically';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.title = '';
+    try {
+      const r = dispatch('claude:dispatch', { projectPath: p.projectPath, prompt: p.seedPrompt });
+      if (!r.ok) throw new Error(r.error || 'dispatch failed');
+      const ok = await Promise.resolve(r.result);
+      if (ok === false) throw new Error("couldn't resolve the project path");
+      btn.textContent = 'Opened ▸';
+      btn.title = 'A terminal window opened running Claude in this project';
+      // stays disabled: re-clicking would spawn a second terminal
+    } catch (err) {
+      console.warn('[forge] claude:dispatch failed', err);
+      btn.disabled = false;
+      btn.textContent = '✗ Not opened — retry';
+      btn.title = `Not opened — ${String(err?.message || err)}. Click to retry.`;
+    }
+  };
+  return btn;
+}
+
+// `capture:note` writes the note, then main's hq:capture-save handler runs a
+// BLOCKING spawnSync (re-assemble) followed by win.reload() — the app freezes
+// briefly and the whole dashboard hard-reloads. The note only becomes a real
+// side-quest after the next scan. Handling mirrors Med-Bay's cleanup panel
+// (realms/medbay/view.js anomalyRow) exactly: in-flight label set BEFORE the
+// await, the resolved VALUE (not just settlement) decides success, and a
+// visible failure state that re-enables — never a silent reset. There is
+// deliberately no persistent success state: win.reload() usually tears this
+// view down before 'Noted' would ever be seen.
+function addIdeaButton(p) {
+  const btn = el('button', 'fa-btn fa-idea', 'Add to ideas');
+  if (!window.hq?.captureSave) {
+    btn.disabled = true;
+    btn.title = 'Needs the live app — capture is unavailable in this preview';
+    return btn;
+  }
+  btn.title = 'Adds to your Ideas feed — appears after the next scan; the dashboard will refresh';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.title = '';
+    btn.textContent = 'Saving…';   // set BEFORE the await — see note above
+    try {
+      const r = dispatch('capture:note', { text: p.captureText });
+      if (!r.ok) throw new Error(r.error || 'dispatch failed');
+      const ok = await Promise.resolve(r.result);
+      if (ok === false) throw new Error('capture refused');
+      btn.textContent = 'Noted';   // usually preempted by main's win.reload()
+    } catch (err) {
+      console.warn('[forge] capture:note failed', err);
+      btn.disabled = false;
+      btn.title = `Not saved — ${String(err?.message || err)}. Click to retry.`;
+      btn.textContent = '✗ Not saved — retry';
+    }
+  };
+  return btn;
+}
+
+function actionRow(p) {
+  const row = el('div', 'fa-row');
+  row.innerHTML = `
+    <div class="fa-info">
+      <span class="fa-proj">${esc(p.projectName)}</span>
+      <span class="fa-gap">${esc(p.label)}</span>
+    </div>
+    <div class="fa-btns"></div>`;
+  const btns = row.querySelector('.fa-btns');
+  btns.appendChild(sendClaudeButton(p));
+  btns.appendChild(addIdeaButton(p));
+  return row;
+}
+
+// Empty state is "render nothing" (no proposals -> no section at all), so this
+// returns null rather than an empty wrapper — the caller checks before append.
+function buildActionsStrip(S) {
+  const proposals = agencyProposals(S);
+  if (!proposals.length) return null;
+  const wrap = el('div', 'forge-actions');
+  wrap.appendChild(el('h2', 'sec', 'Suggested actions'));
+  const list = el('div', 'fa-list');
+  proposals.slice(0, AGENCY_CAP).forEach((p) => list.appendChild(actionRow(p)));
+  wrap.appendChild(list);
+  if (proposals.length > AGENCY_CAP) wrap.appendChild(el('div', 'fa-more', `+${proposals.length - AGENCY_CAP} more`));
+  return wrap;
+}
+
 function render(root, ctx) {
   root.innerHTML = '';
   if (!ctx.data.selected) return;   // empty/first-run bundle (no scans yet): render nothing rather than crash in deriveScanContext
@@ -305,6 +416,14 @@ function render(root, ctx) {
     tb.querySelectorAll('#psort button').forEach((x) => x.classList.toggle('active', x === b));
     drawCards(false);
   });
+
+  // secondary strip, below the grid — quiet by design, see buildActionsStrip()
+  const strip = buildActionsStrip(S);
+  if (strip) {
+    root.appendChild(strip);
+    aosKids(strip.querySelector('.fa-list'), 'fade-up', 40);
+    aosRefresh();
+  }
 }
 
 export const view = {
