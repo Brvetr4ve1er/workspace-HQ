@@ -4,8 +4,16 @@
 .realm-warroom {
   --wr-violet: #a78bfa; --wr-violet-hi: #c4b5fd; --wr-ink: #0d0b16;
   --wr-panel: #16122a; --wr-panel-hi: #1d1836; --wr-line: #3a2f6b;
-  --wr-red: #f2555a; --wr-amber: #f2a33c; --wr-yellow: #e6c34a; --wr-dim: #6b6390;
-  max-width: var(--measure); margin-inline: auto; color: #e9e6f5;
+  --wr-red: #f2555a; --wr-amber: #f2a33c; --wr-yellow: #e6c34a;
+  /* TWO dim tokens, deliberately. --wr-dim is CHROME ONLY (borders, HP track,
+     rules): it measures 3.1:1 on the card gradient, under the 4.5:1 WCAG AA
+     floor for text. Every run of DIM TEXT uses --wr-text-dim (5.96:1) instead.
+     Don't collapse them back into one. */
+  --wr-dim: #6b6390; --wr-text-dim: #9b93c4;
+  /* No max-width here: --measure caps LINE LENGTH for prose, and a card grid
+     has no such constraint — capping it wasted ~215px and pushed most of the
+     board below the fold. */
+  color: #e9e6f5;
 }
 .realm-warroom .wr-frame {
   position: relative; padding: var(--space-5);
@@ -17,27 +25,58 @@
   clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
   box-shadow: 0 0 0 1px rgba(167,139,250,.15), 0 24px 60px -34px #000;
 }
+
+/* ---------------------------------------------------------------- header */
 /* center, not baseline: the 96px radar sets the row height, and baseline-aligning
    against it dropped the title to the row's bottom edge with dead space above. */
-.realm-warroom .wr-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
-.realm-warroom .wr-title { font-family: var(--term); font-size: var(--fs-lg); font-weight: 700; letter-spacing: .18em; color: var(--wr-violet-hi); text-shadow: 0 0 12px rgba(167,139,250,.5); }
-.realm-warroom .wr-sub { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--wr-dim); text-transform: uppercase; }
+.realm-warroom .wr-head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-5); }
+.realm-warroom .wr-headline { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+/* "SITROOM" is a room name, not a finding — it's the eyebrow. The COUNT is the
+   headline, because the count is the thing that changed. */
+.realm-warroom .wr-eyebrow {
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .22em;
+  color: var(--wr-text-dim); text-transform: uppercase;
+}
+.realm-warroom .wr-count-row { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.realm-warroom .wr-count {
+  font-family: var(--term); font-size: var(--fs-2xl); font-weight: 700; line-height: 1;
+  color: var(--wr-violet-hi); text-shadow: 0 0 12px currentColor;
+}
+.realm-warroom .wr-count[data-sev="red"]    { color: var(--wr-red); }
+.realm-warroom .wr-count[data-sev="orange"] { color: var(--wr-amber); }
+.realm-warroom .wr-count[data-sev="yellow"] { color: var(--wr-yellow); }
+.realm-warroom .wr-count[data-sev="dim"]    { color: var(--wr-text-dim); text-shadow: none; }
+.realm-warroom .wr-sub { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--wr-text-dim); text-transform: uppercase; }
+/* the shape of the threat load, so the count has composition as well as size */
+.realm-warroom .wr-shape { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .08em; color: var(--wr-text-dim); text-transform: uppercase; }
 
-/* Task 4 (3D radar) populates this slot — Task 3 only reserves the space,
-   right-aligned in the head row, so the board layout never has to shift.
-   Fixed compact box: the mounted <canvas> (three.js OR the Canvas2D degrade)
-   fills it via inset:0 — see warroom-radar.js. Ambient accent only, deliberately
-   small and low-opacity so it never competes with the threat board for focus. */
+/* The 3D radar slot (warroom-radar.js mounts a <canvas> filling it via inset:0).
+   Fixed compact box, right-aligned in the head row, so the board layout never
+   shifts. Ambient accent only — deliberately small and low-opacity so it never
+   competes with the threat board for focus. */
 .realm-warroom .wr-radar {
   position: relative; margin-left: auto; flex: 0 0 auto;
   width: 96px; height: 96px;
 }
 
+/* -------------------------------------------------------------- sections */
+/* triage() sorts by blastRadius and the per-kind blast bands never overlap, so
+   the rows already arrive contiguous by kind — sectioning costs no reordering. */
+.realm-warroom .wr-sec + .wr-sec { margin-top: var(--space-5); }
+.realm-warroom .wr-sec-head {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-family: var(--term); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--wr-violet-hi);
+}
+.realm-warroom .wr-sec-head::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--wr-line), transparent); }
+.realm-warroom .wr-sec-n { font-weight: 400; color: var(--wr-text-dim); }
+
 /* ------------------------------------------------------------- the board */
 .realm-warroom .wr-board {
-  position: relative;   /* anchors the absolutely-positioned .wr-vectors overlay (Task 5) */
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: var(--space-4);
 }
 
@@ -69,9 +108,11 @@
   .realm-warroom .wr-card.top-threat { animation: none; }
 }
 
-/* card is part of a multi-front attack vector (see .wr-vectors below) — a
-   quiet violet ring, independent of the sev glow so both read at once. */
-.realm-warroom .wr-card.linked { outline: 1px dashed var(--wr-violet); outline-offset: 3px; }
+/* Hovering/focusing one threat rings the OTHER rows of the same project — a
+   zero-cost affordance replacing the deleted SVG vector overlay. Listed after
+   the [data-sev] rules on purpose: equal specificity, so source order wins. */
+.realm-warroom .wr-card.sibling,
+.realm-warroom .wr-row.sibling { box-shadow: inset 0 0 0 1px var(--wr-violet); }
 
 /* Badge ABOVE the target name, always. A wrapping row put the name inline on
    short names and pushed it to its own line on long ones, so every grid row
@@ -87,9 +128,11 @@
 .realm-warroom .wr-badge[data-sev="red"]    { color: var(--wr-red);    border-color: var(--wr-red); }
 .realm-warroom .wr-badge[data-sev="orange"] { color: var(--wr-amber);  border-color: var(--wr-amber); }
 .realm-warroom .wr-badge[data-sev="yellow"] { color: var(--wr-yellow); border-color: var(--wr-yellow); }
+/* text token, not the chrome one — the border stays --wr-dim */
+.realm-warroom .wr-badge[data-sev="dim"]    { color: var(--wr-text-dim); }
 
 .realm-warroom .wr-name { font-size: var(--fs-md); font-weight: 600; color: #e9e6f5; }
-.realm-warroom .wr-detail { font-size: var(--fs-sm); color: var(--wr-dim); }
+.realm-warroom .wr-detail { font-size: var(--fs-sm); color: var(--wr-text-dim); }
 
 .realm-warroom .wr-hp { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
 .realm-warroom .wr-hp > i { display: block; height: 100%; width: 0%; background: var(--wr-dim); }
@@ -104,34 +147,37 @@
   color: var(--wr-violet-hi); font-family: var(--term); font-size: var(--fs-xs);
   letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
 }
-.realm-warroom .wr-act:hover { background: rgba(167,139,250,.14); }
-.realm-warroom .wr-claude { border-color: var(--wr-line); color: var(--wr-dim); }
-.realm-warroom .wr-claude:disabled { cursor: not-allowed; opacity: .55; }
+.realm-warroom .wr-act:hover, .realm-warroom .wr-claude:hover { background: rgba(167,139,250,.14); }
 
-/* ------------------------------------------------ threat vectors (Task 5) */
-/* Absolutely positioned to fill .wr-board (position:relative, above) so
-   coordinates painted in JS (board-relative, not viewport-relative) line up
-   exactly; pointer-events:none so the overlay can never intercept clicks on
-   the Remediate/Send Claude buttons underneath. viewBox is set in JS to the
-   board's pixel rect 1:1, so path coordinates need no extra scaling. */
-.realm-warroom .wr-vectors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.realm-warroom .wr-vector-path {
-  fill: none; stroke: var(--wr-violet); stroke-width: 1.5;
-  stroke-linecap: round; stroke-linejoin: round; opacity: .6;
-  filter: drop-shadow(0 0 4px rgba(167,139,250,.55));
+/* ------------------------------------------------- STALE: compact one-liners */
+/* Same data as a card at a fifth of the vertical budget — stale repos are a
+   condition, not an incident. */
+.realm-warroom .wr-rows { display: flex; flex-direction: column; gap: var(--space-2); }
+.realm-warroom .wr-row {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(160deg, var(--wr-panel-hi), var(--wr-panel));
+  border: 1px solid var(--wr-line); border-left: 3px solid var(--wr-yellow);
+  border-radius: 4px;
 }
-@media (prefers-reduced-motion: reduce) {
-  /* anime.js drives stroke-dashoffset via inline style each frame; !important
-     is what lets this rule win over that inline style every frame, so the
-     line renders solid and fully drawn from the first paint. */
-  .realm-warroom .wr-vector-path { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
-}
+.realm-warroom .wr-row .wr-name { font-size: var(--fs-sm); }
+.realm-warroom .wr-row .wr-detail { flex: 1 1 auto; }
+.realm-warroom .wr-row .wr-act { flex: 0 0 auto; }
 
-.realm-warroom .wr-front-pip {
-  position: absolute; top: -8px; right: var(--space-3);
-  font-family: var(--term); font-size: 9px; font-weight: 700; letter-spacing: .06em;
-  padding: 1px 6px; color: var(--wr-ink); background: var(--wr-violet);
-  border-radius: 2px; pointer-events: none;
+/* ------------------------------------------ HYGIENE: one roll-up, not N cards */
+.realm-warroom .wr-rollup {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; width: 100%;
+  min-height: var(--tap-min); padding: var(--space-2) var(--space-3);
+  text-align: left; cursor: pointer;
+  background: linear-gradient(160deg, var(--wr-panel-hi), var(--wr-panel));
+  border: 1px solid var(--wr-line); border-left: 3px solid var(--wr-dim);
+  border-radius: 4px; color: #e9e6f5; font: inherit; font-size: var(--fs-sm);
+}
+.realm-warroom .wr-rollup:hover { background: rgba(167,139,250,.1); }
+.realm-warroom .wr-rollup-sub { color: var(--wr-text-dim); font-size: var(--fs-xs); }
+.realm-warroom .wr-rollup-go {
+  margin-left: auto; color: var(--wr-violet-hi);
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .06em;
 }
 
 /* ------------------------------------------------------------- empty state */
@@ -141,4 +187,4 @@
 }
 .realm-warroom .wr-empty-glyph { font-size: var(--fs-2xl); color: var(--wr-violet); margin-bottom: var(--space-2); text-shadow: 0 0 16px rgba(167,139,250,.5); }
 .realm-warroom .wr-empty-title { font-size: var(--fs-lg); font-weight: 700; color: var(--wr-violet-hi); }
-.realm-warroom .wr-empty-sub { font-size: var(--fs-xs); color: var(--wr-dim); text-transform: uppercase; margin-top: var(--space-1); }
+.realm-warroom .wr-empty-sub { font-size: var(--fs-xs); color: var(--wr-text-dim); text-transform: uppercase; margin-top: var(--space-1); }

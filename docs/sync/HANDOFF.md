@@ -12,6 +12,31 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-02 · FROM frontend (nexus-alive Epic B session) · main @ a6d8016
+DONE: NEXUS ALIVE Epic B — WAR ROOM / SITROOM, realm #15 (a6d8016 + this fix
+  wave). Renders derive.triage() as a sectioned threat board: full cards for
+  SECURITY/UNCOMMITTED, compact rows for STALE, one roll-up for HYGIENE, hero
+  count + shape line, tilted 3D radar in the header. **Selftest gate moved
+  98 → 105 combos** (15 realms × 7 themes) — update any script still asserting 98.
+  Fix wave applied both reviews: deleted the SVG threat-vector/N-FRONT system
+  (fired on ~100% of cards = zero signal), HP bar denominator re-anchored to a
+  per-kind ABSOLUTE ceiling so bars are comparable across time-machine snapshots,
+  WCAG AA text token split (--wr-text-dim 5.96:1; --wr-dim is chrome-only now),
+  generation-token guard on the post-await anime path, radar framing + reduced
+  motion + Remediate aria-labels, badge returns null not 0.
+IN-FLIGHT: nothing uncommitted from me. NOT pushed.
+BREAKS/NOTES: **712KB of vendored third-party code added and TRACKED** —
+  dashboard-v3/vendor/three.module.js (670KB, v0.160.0) and anime.es.js (42KB,
+  v3.2.2). Local ESM is CSP-required (default-src 'self' blocks CDN); both load
+  via lazy dynamic import, so non-WAR-ROOM realms pay nothing at boot. Two new
+  localStorage flags: hq-ff-warroom-3d (default ON, 'off' → Canvas2D degrade)
+  and hq-ff-dispatch (default OFF). No contract / IPC / main-process change —
+  everything is under dashboard-v3/.
+ASKS: none. **STILL OPEN:** the "Send Claude" button (behind hq-ff-dispatch) has
+  no backend — it needs the Phase-2 `hq:spawn-session` IPC before it can do
+  anything. It is not rendered at all while the flag is off; with the flag on it
+  console.warns instead of pretending to work.
+
 ## 2026-07-31 · FROM frontend (quality-hardening session) · main @ 6240f64
 DONE: production-hardening pass (8858b2a, a25b750, 6240f64). ROOT-FIXED the
   components.js stackedBar negative-width bug you and design-system flagged

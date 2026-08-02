@@ -36,6 +36,22 @@ test('triage: secrets outrank a dirty tree; rows sorted desc by blast radius', (
   assert.ok(r.every((x,i,a) => i===0 || a[i-1].blastRadius >= x.blastRadius));
 });
 
+test('triage: blast radius is capped per kind — the ceilings warroom-model KIND_MAX mirrors', () => {
+  // The WAR ROOM HP bar divides blastRadius by a per-kind ABSOLUTE ceiling so a
+  // bar stays comparable across time-machine snapshots. Those denominators are
+  // copied from the formulas below; this test fails loudly if they drift.
+  const sel = { projects: [
+    { id:'p1', name:'A', metrics:{ risk_security:{secrets_found:5}, git_safety:{dirty:400} },
+      signals:{has_tests:false, has_ci:false}, activity:{days_since_commit:900} },
+  ] };
+  const by = Object.fromEntries(triage(sel).map((r) => [r.kind, r.blastRadius]));
+  assert.equal(by.security, 105);        // 100 + secrets, at the 5-secret mark
+  assert.equal(by.uncommitted, 90);      // 50 + min(dirty, 40)      — hard cap
+  assert.equal(by.stale, 50);            // 20 + min(days, 60) / 2   — hard cap
+  assert.equal(by['no-tests'], 15);      // fixed
+  assert.equal(by['no-ci'], 10);         // fixed
+});
+
 test('triage: clean project → no rows; never throws on empty/null', () => {
   assert.deepEqual(triage({ projects:[{ id:'ok', name:'ok', metrics:{risk_security:{secrets_found:0},git_safety:{dirty:0}}, signals:{has_tests:true,has_ci:true}, activity:{days_since_commit:0} }] }), []);
   assert.doesNotThrow(() => triage({}));

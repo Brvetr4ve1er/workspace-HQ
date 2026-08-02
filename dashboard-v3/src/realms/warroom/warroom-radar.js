@@ -19,8 +19,25 @@ const VIOLET = 0xa78bfa, VIOLET_HI = 0xc4b5fd;
 const RING_RADII = [0.35, 0.6, 0.85, 1];
 const SWEEP_SPEED = (Math.PI * 2) / 6.5;   // one revolution per ~6.5s — slow, ambient
 
+// Framing: the disc has world radius 1 and the outermost blip adds ~0.05, so
+// the camera has to see at least ~1.05 units of half-width or the rim and the
+// outer blips clip against the 96px box. At fov 34 the visible half-extent is
+// dist * tan(17deg) = dist * 0.3057, so dist must be >= ~3.44. The base eye
+// vector (0, 1.3, 1.05) has length 1.671; scaling it keeps the tilt bit-for-bit
+// identical while pushing the distance to ~3.76 — the rim lands at ~0.87 NDC,
+// a comfortable margin inside the frame.
+const CAM_PULLBACK = 2.25;
+
 function flag3dOn() {
   try { return localStorage.getItem('hq-ff-warroom-3d') !== 'off'; } catch { return true; }
+}
+
+// The sweep is an INFINITE rAF; a CSS media query can't reach it. Under
+// prefers-reduced-motion both renderers draw exactly ONE static frame and the
+// loop never starts — the disc, rings and blips (the actual information) all
+// still render, only the animation is dropped.
+function reduceMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
 }
 
 function boxSize(el) {
@@ -42,7 +59,7 @@ function mountThreeRadar(THREE, el, radar) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, (w / h) || 1, 0.1, 10);
-    camera.position.set(0, 1.3, 1.05);
+    camera.position.set(0, 1.3 * CAM_PULLBACK, 1.05 * CAM_PULLBACK);
     camera.lookAt(0, 0, 0);
 
     // Flat shapes are baked flat (rotateX bakes into the vertex buffer, not the
@@ -89,10 +106,11 @@ function mountThreeRadar(THREE, el, radar) {
       sweep.rotation.y += dt * SWEEP_SPEED;
       renderer.render(scene, camera);
     };
-    rafId = requestAnimationFrame(tick);
+    if (reduceMotion()) renderer.render(scene, camera);   // one static frame, no loop
+    else rafId = requestAnimationFrame(tick);
 
     return function dispose() {
-      cancelAnimationFrame(rafId);
+      cancelAnimationFrame(rafId);   // rafId stays 0 under reduced motion — cancelling 0 is a no-op
       scene.traverse((obj) => {
         if (obj.geometry) obj.geometry.dispose();
         if (obj.material) (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((m) => m.dispose());
@@ -129,11 +147,7 @@ function mountCanvasRadar(el, radar) {
   const cx = w / 2, cy = h / 2, R = Math.max(1, Math.min(w, h) / 2 - 4);
   let angle = 0, last = performance.now(), rafId = 0;
 
-  const frame = (now) => {
-    rafId = requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    angle += dt * SWEEP_SPEED;
+  const draw = () => {
     ctx.clearRect(0, 0, w, h);
 
     ctx.strokeStyle = 'rgba(167,139,250,.28)';
@@ -158,10 +172,18 @@ function mountCanvasRadar(el, radar) {
       ctx.fill();
     });
   };
-  rafId = requestAnimationFrame(frame);
+  const frame = (now) => {
+    rafId = requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    angle += dt * SWEEP_SPEED;
+    draw();
+  };
+  if (reduceMotion()) draw();   // one static frame, no loop
+  else rafId = requestAnimationFrame(frame);
 
   return function dispose() {
-    cancelAnimationFrame(rafId);
+    cancelAnimationFrame(rafId);   // rafId stays 0 under reduced motion — cancelling 0 is a no-op
     canvas.remove();
   };
 }
