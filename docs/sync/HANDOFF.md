@@ -12,6 +12,59 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-02 · FROM frontend (Epic C fix wave) · main @ bd811a7
+DONE: consolidated fix wave on Epic C "Foresight" — 3 merge blockers + units.
+  · Med-Bay cleanup heading was a FALSE composite. "13 items · ~1.8 GB
+    reclaimable" joined disjoint sources: the 13 rows are inventory clones/
+    duplicates/empty (NO size field exists on any of them), the 1.8 GB is
+    Σ projects[].disk.reclaimable_bytes from 4 products that are not in the
+    list, freed by hq.reclaim() elsewhere. Working all 13 rows reclaims ~0
+    bytes. Now: heading `Cleanup — 13 items`, plus a separate muted line
+    `Separately: ~1.8 GB of build artifacts reclaimable across 4 products —
+    freed per project, not from this list.` (omitted when bytes are 0).
+    derive.anomalies() untouched; the product count is computed view-side.
+  · "Noted" could render on a REFUSED write — the await discarded the resolved
+    value, and main's hq:capture-save returns `false` (not a rejection) on
+    empty text. Now `ok === false` throws into the existing catch.
+  · Capture click traced LIVE against the real preload: main's handler ends
+    spawnSync(assemble.mjs) → rebuildData() → **win.reload()**, and `win` is
+    the v3 window. Measured with a throwaway harness: the renderer paints ZERO
+    frames for the whole main-process block (app visually frozen ~1.6s in the
+    emulation, longer with the real assemble), and the reload commits before
+    the invoke promise ever resolves — "Noted" is never reached, not merely
+    unpainted. UI now promises only `Saving…` (set before the await); a code
+    comment records the finding so nobody "fixes" the missing confirmation.
+    Failures are now visible (`✗ Not saved — retry` + title), not console-only.
+  · Units: derive.momentum()'s slope is per trend SAMPLE (= per scan), so
+    `etaDays` was never days — 44 samples over 58 days ≈ 0.76 scans/day, so
+    "~13 days" understated the wait ~25%. foresight.mjs now exports
+    `slopePerScan` and labels the ETA `~13 scans to L8`, matching the
+    "+31.2 XP/scan" figure one line above it that it used to contradict.
+    derive.mjs NOT touched (struct lane / contract).
+  · nudge.js: `ACH[id]` walked the prototype chain (an id of `constructor`
+    rendered "Object") → `Object.hasOwn`. atlas: `falling` no longer borrows
+    the flat copy, it says `XP is trending down — no level ETA.`
+VERIFY: node --check on all 5 changed files; foresight+derive+actions suites
+  23/23 green (was 20 — added clamp-overshoot, empty-kind, unknown-kind and
+  KB/MB humanBytes coverage); selftest combos=105 errors=0 PASS; live harness
+  runs (real preload / refusal / reload / no-preload) all as described.
+IN-FLIGHT: nothing uncommitted from me. data/quest-overrides.json still sits
+  modified in the shared tree (pre-existing runtime state) — untouched. NOT pushed.
+ASKS (struct/main lane, NOT actioned here): hq:capture-save's synchronous
+  spawnSync + unconditional win.reload() makes every quick capture a
+  full-dashboard reload with a frozen window. A targeted refresh (or an async
+  spawn) would let the renderer show a real confirmation. fe-lane cannot fix
+  this without touching dashboard/main.js.
+BREAKS: none — additive, all under dashboard-v3/, no IPC/contract change.
+  Only renamed field is foresight.mjs's `slopePerDay` → `slopePerScan`; its
+  sole consumer (atlas/view.js) moved with it. Copy change: the cleanup empty
+  state now reads "No clones, duplicates or empty folders to clear." (was
+  "Nothing to clean up.") so it cannot contradict the reclaimable line above it.
+  Full report: .superpowers/sdd/2026-08-02-nexus-alive-epic-c-foresight/
+  fixwave-report.md.
+
+---
+
 ## 2026-08-02 · FROM frontend (nexus-alive Epic C session) · main @ 9454ca7
 DONE: NEXUS ALIVE Epic C — Foresight, all 4 tasks (plan: 7fce380; code:
   bc0c654/a98acef intel/foresight.mjs pure adapters, 4488184 atlas momentum
@@ -27,8 +80,11 @@ DONE: NEXUS ALIVE Epic C — Foresight, all 4 tasks (plan: 7fce380; code:
   offscreen render harness confirmed live-data shape: 3 nudge rows with
   friendly ACH names (Under Control/Well Documented/No Loose Keys, not raw
   ids), forecast card includes the basis line, medbay cleanup header
-  unaffected ("Cleanup — 13 items · ~1.8 GB reclaimable", 13 rows), 0
-  console errors throughout.
+  unaffected (13 rows), 0 console errors throughout.
+  [CORRECTED 2026-08-02 by the Epic C fix wave below: the header read
+  "Cleanup — 13 items · ~1.8 GB reclaimable", which was FALSE — the 13 rows
+  and the 1.8 GB come from disjoint sources and clearing all 13 frees ~0
+  bytes. Now two separate lines; see the fix-wave entry at the top.]
 IN-FLIGHT: nothing uncommitted from me. data/quest-overrides.json sits
   modified in the shared tree (pre-existing runtime state per the prior
   entry) — untouched, unstaged. NOT pushed.
