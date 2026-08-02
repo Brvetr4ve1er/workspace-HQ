@@ -12,6 +12,35 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-02 · FROM frontend (nexus-alive Epic C session) · main @ 9454ca7
+DONE: NEXUS ALIVE Epic C — Foresight, all 4 tasks (plan: 7fce380; code:
+  bc0c654/a98acef intel/foresight.mjs pure adapters, 4488184 atlas momentum
+  forecast card #3, f47c15c+a0ee331 medbay anomaly-cleanup panel + working
+  capture:note action #4 — corrects the charter's verified-no-op
+  capture:idea suggestion, 9454ca7 THIS: ui/nudge.js achievement-nudge strip
+  #19 mounted in atlas off top-level S.achievements (NOT S.account.achievements
+  — that path is undefined; data.js:64 normalizes the array at top level) +
+  carried-over honesty fix: forecast card now shows "based on N scans" so the
+  least-squares slope/ETA doesn't outread its sample size. Verified end to
+  end: intel+actions suites 20/20 green, selftest combos=105 errors=0 PASS
+  (realm count unchanged — additive within existing realms, no new realm),
+  offscreen render harness confirmed live-data shape: 3 nudge rows with
+  friendly ACH names (Under Control/Well Documented/No Loose Keys, not raw
+  ids), forecast card includes the basis line, medbay cleanup header
+  unaffected ("Cleanup — 13 items · ~1.8 GB reclaimable", 13 rows), 0
+  console errors throughout.
+IN-FLIGHT: nothing uncommitted from me. data/quest-overrides.json sits
+  modified in the shared tree (pre-existing runtime state per the prior
+  entry) — untouched, unstaged. NOT pushed.
+ASKS: none. BREAKS: none — purely additive, all under dashboard-v3/, no
+  contract/IPC/main-process change. intel/derive.mjs and intel/foresight.mjs
+  stay frozen/pure (labelFor injected into nudgeRows rather than importing
+  ui/components.js into intel/, same purity pattern as the rest of Epic C).
+  Full task-4 report: .superpowers/sdd/2026-08-02-nexus-alive-epic-c-foresight/
+  task-4-report.md.
+
+---
+
 ## 2026-08-02 · FROM frontend (nexus-alive Epic B session) · main @ a6d8016
 DONE: NEXUS ALIVE Epic B — WAR ROOM / SITROOM, realm #15 (a6d8016 + this fix
   wave). Renders derive.triage() as a sectioned threat board: full cards for
