@@ -44,11 +44,14 @@ export function createQueueRail(api) {
   const countEl = root.querySelector('[data-count]');
 
   // Re-derived from the DOM after every clear, so the header can never drift
-  // from what is actually on screen.
+  // from what is actually on screen. The total takes the colour of the WORST
+  // severity still present — a violet/red total over a queue of nothing but
+  // ideas would be an alarm the data does not justify.
   function recount() {
     const n = bodyEl.querySelectorAll('.q-item').length;
     countEl.textContent = String(n);
-    countEl.dataset.sev = n === 0 ? 'dim' : 'red';
+    const worst = ['red', 'orange', 'yellow'].find((s) => bodyEl.querySelector(`.q-item[data-sev="${s}"]`));
+    countEl.dataset.sev = n === 0 ? 'dim' : (worst || 'dim');
     for (const head of bodyEl.querySelectorAll('.q-group')) {
       const left = head.querySelectorAll('.q-item').length;
       head.querySelector('.q-group-n').textContent = String(left);

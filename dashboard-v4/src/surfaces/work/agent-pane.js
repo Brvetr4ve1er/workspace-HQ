@@ -44,7 +44,7 @@ export function createAgentPane(api) {
   let sessions = [];                 // last known registry list
   let selected = null;               // jobId
   let stuck = true;                  // stick-to-bottom
-  let lastOut = '';                  // what the <pre> currently shows
+  let lastOut = null;                // what the <pre> shows; null = unknown, forces the next write
   let lastPulse = 0;
   const cwdByJob = new Map();        // only sessions THIS pane started
   const diffByJob = new Map();       // jobId -> {state, files, stat, error}
@@ -86,7 +86,10 @@ export function createAgentPane(api) {
           <span class="spacer"></span>
           <span data-outmeta></span>
         </div>
-        <div class="out-scroll scroll" data-scroll><pre class="term" data-out></pre></div>
+        <div class="out-scroll scroll" data-scroll>
+          <div class="empty" data-outhint hidden></div>
+          <pre class="term" data-out></pre>
+        </div>
         <div class="out-foot" data-foot></div>
       </div>
       <div class="chg" data-chg></div>
@@ -105,6 +108,7 @@ export function createAgentPane(api) {
   const outMetaEl = q('[data-outmeta]');
   const scrollEl = q('[data-scroll]');
   const outEl = q('[data-out]');
+  const outHintEl = q('[data-outhint]');
   const footEl = q('[data-foot]');
   const chgEl = q('[data-chg]');
 
@@ -186,7 +190,9 @@ export function createAgentPane(api) {
     card.innerHTML = `
       <span class="sess-label">${esc(s.label || s.jobId)}</span>
       <span class="sess-meta" data-elapsed></span>`;
-    card.title = `${s.jobId} · started ${esc(s.startedAt || '?')}`;
+    // .title is a PROPERTY assignment, not innerHTML — esc() here would show
+    // the entity text to the user instead of the character.
+    card.title = `${s.jobId} · started ${s.startedAt || '?'}`;
     card.setAttribute('aria-label', `Session ${s.label || s.jobId}, ${s.status}`);
     card.onclick = () => select(s.jobId);
     return card;
@@ -210,7 +216,7 @@ export function createAgentPane(api) {
     if (selected === jobId) return;
     selected = jobId;
     stuck = true;
-    lastOut = ' ';                     // force the next renderOutput to write
+    lastOut = null;                    // unknown -> the next renderOutput always writes
     for (const c of stripEl.querySelectorAll('.sess-card')) c.classList.toggle('is-active', c.dataset.job === jobId);
     renderOutput(); renderFoot(); renderChanges();
   }
@@ -228,6 +234,13 @@ export function createAgentPane(api) {
     return { text: '', source: 'none' };
   }
 
+  // The hint lives OUTSIDE the <pre>, styled as a dashed empty box, so it can
+  // never be mistaken for something the agent printed.
+  function setHint(text) {
+    outHintEl.textContent = text || '';
+    outHintEl.hidden = !text;
+  }
+
   function renderOutput() {
     if (!selected) {
       outNameEl.textContent = 'no session selected';
@@ -235,6 +248,9 @@ export function createAgentPane(api) {
       dotEl.dataset.live = 'none';
       dotEl.title = 'No session selected.';
       outEl.textContent = '';
+      setHint(canDispatch
+        ? 'No session selected. Dispatch a task above, or pick a session card.'
+        : 'No session selected, and this preview cannot start one.');
       lastOut = '';
       return;
     }
@@ -246,6 +262,11 @@ export function createAgentPane(api) {
     outMetaEl.textContent = source === 'tail'
       ? `${text.length} chars · registry tail (this window was not listening while it ran)`
       : `${text.length} chars${source === 'none' ? ' · nothing received yet' : ''}`;
+    setHint(source === 'none'
+      ? (s?.status === 'running'
+        ? 'Session is running — nothing has been printed yet.'
+        : 'This session produced no output that reached this window.')
+      : '');
     if (text === lastOut) return;
     lastOut = text;
     outEl.textContent = text;                       // UNTRUSTED — textContent only
