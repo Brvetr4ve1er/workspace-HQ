@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- no eval, no remote origins; unsafe-inline styles allowed because views
+       set style attributes (same trade v3/index.html + shard.html make) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>WorkspaceHQ — v4</title>
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/base.css" />
+  <link rel="stylesheet" href="./styles/shell.css" />
+</head>
+<body>
+  <!-- scanline atmosphere (pure CSS, pointer-events none) -->
+  <div id="scan-atmo" aria-hidden="true"></div>
+
+  <div id="v4">
+    <aside id="rail" aria-label="surfaces"></aside>
+    <div id="stage-wrap">
+      <header id="topstrip"></header>
+      <main id="stage"></main>
+    </div>
+  </div>
+
+  <!-- the v2 data bundle, read-only (window.DATA) — same seam v3 uses -->
+  <script src="../dashboard/data.js"></script>
+  <!-- ESM boot: nested relative module imports over file:// (proven in v3) -->
+  <script type="module" src="./src/core/boot.js"></script>
+</body>
+</html>

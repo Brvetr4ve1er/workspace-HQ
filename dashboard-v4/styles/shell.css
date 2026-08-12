@@ -1,0 +1,67 @@
+/* shell.css — rail buttons, topstrip chrome, and the shared HUD frame the
+   surfaces mount into. The hexagon-cut ".hud-frame" is the promoted form of
+   warroom.css's .wr-frame — the summoned "System" window, now app-wide. */
+
+/* --- rail ------------------------------------------------------------- */
+.rail-btn {
+  width: 64px;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-1);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--hud-text-dim);
+  font-family: var(--term);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+.rail-btn:hover { color: var(--hud-text); border-color: var(--hud-line); }
+.rail-btn.active {
+  color: var(--hud-violet-hi);
+  border-color: var(--hud-violet);
+  box-shadow: 0 0 14px -6px var(--hud-violet);
+  text-shadow: 0 0 10px var(--hud-glow);
+}
+.rail-btn .glyph { font-size: var(--fs-lg); line-height: 1; }
+.rail-btn .lbl { font-size: var(--fs-xs); letter-spacing: .08em; }
+
+/* --- topstrip --------------------------------------------------------- */
+#topstrip .brand {
+  font-weight: 700; letter-spacing: .08em; font-size: var(--fs-md);
+  color: var(--hud-text);
+}
+#topstrip .brand .hq { color: var(--hud-violet-hi); text-shadow: 0 0 10px var(--hud-glow); }
+#topstrip .snapshot {
+  color: var(--hud-text-dim); font-size: var(--fs-xs);
+  letter-spacing: .1em; text-transform: uppercase;
+}
+
+/* --- HUD frame (shared panel) ----------------------------------------- */
+.hud-frame {
+  position: relative;
+  padding: var(--space-5);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .03) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  /* hexagon-cut corners = the summoned "System" window */
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 24px 60px -34px #000;
+}
+.hud-eyebrow {
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .22em;
+  color: var(--hud-text-dim); text-transform: uppercase;
+}
+.hud-title {
+  font-family: var(--term); font-size: var(--fs-2xl); font-weight: 700; line-height: 1.1;
+  color: var(--hud-violet-hi); text-shadow: 0 0 12px currentColor;
+  margin-top: var(--space-1);
+}
+.hud-line { font-size: var(--fs-sm); color: var(--hud-text); margin-top: var(--space-3); }
+.hud-dim { color: var(--hud-text-dim); }
+
+/* --- placeholder surfaces (the five v4.1 stubs) ------------------------ */
+.placeholder .hud-title { color: var(--hud-text-dim); text-shadow: none; }
