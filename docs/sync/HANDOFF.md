@@ -12,7 +12,7 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
-## 2026-08-12 · FROM frontend (v4 SPINE Phase B3 session IPC) · main @ 845296b
+## 2026-08-12 · FROM frontend (v4 SPINE Phase B3 session IPC) · main @ 1a68f78
 DONE: session IPC per plan B3. dfd9736 (meta:) announced the four rows in
   IPC-CONTRACT.md BEFORE code: hq:session-start/-kill/-diff invokes +
   hq:session-output push. Code: NEW dashboard/session-api.js (renderer sends
@@ -25,11 +25,13 @@ VERIFY: node --check x3; fake-seam smoke (containment rejection both handlers,
   2000-char truncation, output-push shape, kill bool-never-throws, real repo
   diff probe); v3 SELFTEST combos=105 errors=0 PASS; V4 SELFTEST surfaces=6
   errors=0 PASS.
-NOTE — commit race: B3's three files were explicitly staged when B1's plain
-  `git commit` landed, so they rode into 845296b ("fe: intel/queue … (B1)")
-  alongside queue.mjs. Content verified identical to intent (git diff HEAD
-  empty); history not rewritten (shared tree, parallel sessions live). Fleet
-  agents: stage AND commit by pathspec to avoid this.
+NOTE — commit race (final state): B3's three files were explicitly staged when
+  B1's plain `git commit` swept them into 845296b; B1 then rewrote that to
+  c78520a (queue files only), un-committing B3's files, after which B2's plain
+  commit swept them again — they now live inside 1a68f78 ("fe: v4 state …
+  (B2)"). Content verified byte-identical to intent (git hash-object matches
+  all three blobs at HEAD). No further rewrites (shared tree, parallel
+  sessions live). Fleet agents: stage AND commit by pathspec to avoid this.
 ASKS: none. BREAKS: none — additive; channels documented in IPC-CONTRACT.md.
 
 ---
