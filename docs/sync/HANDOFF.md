@@ -12,6 +12,39 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-12 · FROM frontend (v4 SPINE Phase C — WORK surface, AUDIT + VERIFY) · main @ b1d4d9c
+DONE: Phase C landed across c7e442b (System-HUD component language + workbench
+  CSS + motion), b9c026e (QUEUE rail: one item component, four real verbs,
+  drawer-lite), 4ec88ec (AGENT pane stream/kill/changes + TRUTH rail + mount),
+  99841d8 (honest empty output state, severity-true total). A prior agent
+  committed those then died pre-verification; this block AUDITED them against
+  the plan and ran the verification. No behavioural defect found — the only new
+  commit is b1d4d9c, a COMMENT recording that the data:select handler rebuilds
+  the queue only (unreachable in v4.0: nothing calls data.select(), v4 has no
+  scrubber; the v4.1 scrubber must make it a full re-mount).
+VERIFY: node --check 29/29. v4 unit tests BY FILE 55/55 pass. V4 SELFTEST
+  surfaces=6 errors=0 PASS (re-run after the edit). v3 regression SELFTEST
+  combos=105 errors=0 PASS. Two throwaway offscreen harnesses (deleted):
+  console errors=0; queue DOM 23/3/18/19 total 63 matches Node-computed
+  buildQueue(latest.json) exactly; verbs Dispatch 63/63 disabled, Done 3/3,
+  Note 18/18, Open 26 enabled — every disabled control carries its reason;
+  form select/textarea/Dispatch all disabled with the no-bridge title; Kill
+  "Select a session first."; output element is <pre> with innerHTML length 0;
+  vendored anime.es.js dynamic import resolves (default is a function, so
+  motion is real, not silently degraded); drawer opens inside .work-root,
+  Esc closes, surface unmount removes it (0 leaked scrims); emulated
+  prefers-reduced-motion flips matchMedia and collapses transitions to 0s.
+ASKS (main lane, non-blocking): the TRUTH rail cannot show real machine vitals.
+  main.js pushMachine() sends hq:machine to miniWin only, and preload exposes
+  no pull method — so the tile states that fact instead of a permanent
+  "waiting…". An additive hq:machine-sample invoke (or pushMachine also
+  targeting the main window) would light it up; the tile already renders a real
+  payload if one ever arrives, so it degrades correctly either way.
+BREAKS: none — additive, dashboard-v4/ only. .ui-version still "v3".
+  data/quest-overrides.json untouched (still modified pre-existing in the tree).
+
+---
+
 ## 2026-08-12 · FROM frontend (v4 SPINE Phase B3 session IPC) · main @ 1a68f78
 DONE: session IPC per plan B3. dfd9736 (meta:) announced the four rows in
   IPC-CONTRACT.md BEFORE code: hq:session-start/-kill/-diff invokes +
