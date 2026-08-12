@@ -1,0 +1,199 @@
+/* work.css — the WORKBENCH. Three columns at the 1440×900 primary size:
+
+     QUEUE (decide)  |  AGENT (act)  |  TRUTH (sense)
+
+   The middle column is the widest and the only .panel--focal one, because the
+   agent pane is where the work happens — v3's failure was that every panel had
+   equal weight, so nothing read as the place to look.
+
+   Layout invariants (each guards a real bug):
+   - .work is height:100% of #stage's content box, and EVERY column and scroller
+     in the chain carries min-height:0 — one missing and the inner scroller grows
+     instead of scrolling, pushing the workbench off-screen.
+   - the output <pre> scrolls in its own box; nothing above it may grow
+     unboundedly, or the stick-to-bottom logic fights the page scroll. */
+
+.work {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr) 300px;
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+}
+.work > * { min-width: 0; min-height: 0; }
+
+/* Narrow windows: truth rail drops under the two working columns rather than
+   crushing them. (The app opens at 1440×900; this is for a resized window.) */
+@media (max-width: 1240px) {
+  .work {
+    grid-template-columns: 340px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: auto;
+    min-height: 100%;
+  }
+  .work-truth { grid-column: 1 / -1; }
+}
+
+/* ============================================================ QUEUE rail */
+.q-total { display: flex; align-items: baseline; gap: var(--space-2); }
+
+.q-group + .q-group { margin-top: var(--space-4); }
+.q-group-head {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--hud-violet-hi);
+}
+.q-group-head::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--hud-line), transparent); }
+.q-group-n { font-weight: 400; color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+
+/* THE one item component. Every queue row in the app is this element — the
+   design's structural fix for "everything is a card": hierarchy is designed
+   once here instead of drifting across surfaces. */
+.q-item {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--hud-dim);
+  border-radius: 3px;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+.q-item + .q-item { margin-top: var(--space-2); }
+.q-item:hover { transform: translateX(2px); }
+.q-item[data-sev="red"]    { border-left-color: var(--hud-red);    box-shadow: 0 0 26px -18px var(--hud-red); }
+.q-item[data-sev="orange"] { border-left-color: var(--hud-amber);  box-shadow: 0 0 26px -20px var(--hud-amber); }
+.q-item[data-sev="yellow"] { border-left-color: var(--hud-yellow); box-shadow: 0 0 22px -20px var(--hud-yellow); }
+.q-item[data-sev="dim"]    { border-left-color: var(--hud-dim); }
+.q-item.is-seeded { border-color: var(--hud-violet); box-shadow: inset 0 0 0 1px var(--hud-glow); }
+
+.q-title { font-size: var(--fs-md); line-height: 1.25; color: var(--hud-text); }
+.q-sub   { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.q-verbs { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-top: var(--space-1); }
+.q-note  { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+
+/* ============================================================ AGENT pane */
+/* The agent pane does NOT scroll as a whole: the form/strip block scrolls if it
+   must, and the output block takes the rest and scrolls on its own. One page
+   scroller wrapping a live stream would fight the stick-to-bottom logic. */
+.agent-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  overflow: hidden;
+}
+.agent-top { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+.chg { flex: 0 0 auto; max-height: 34%; overflow-y: auto; }
+.chg .panel-title { display: block; margin-bottom: var(--space-2); }
+
+.agent-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.agent-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: end; }
+.agent-warn {
+  font-size: var(--fs-xs); color: var(--hud-amber);
+  border: 1px dashed #6b4a24; border-radius: 3px;
+  padding: var(--space-2);
+}
+.agent-status { font-size: var(--fs-xs); color: var(--hud-text-dim); min-height: 16px; }
+.agent-status[data-tone="bad"]  { color: var(--hud-red); }
+.agent-status[data-tone="good"] { color: var(--hud-violet-hi); }
+
+/* running/finished sessions — a strip of selectable cards above the output */
+.sess-strip { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.sess-card {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  min-width: 168px; max-width: 260px;
+  text-align: left;
+  font-family: var(--term);
+  color: var(--hud-text);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--hud-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sess-card:hover { border-color: var(--hud-violet); }
+.sess-card:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
+.sess-card.is-active { border-color: var(--hud-violet); box-shadow: 0 0 22px -12px var(--hud-violet); }
+.sess-card[data-status="running"] { border-left-color: var(--hud-violet); }
+.sess-card[data-status="done"]    { border-left-color: #3aff6e; }
+.sess-card[data-status="failed"]  { border-left-color: var(--hud-red); }
+.sess-label { font-size: var(--fs-sm); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess-meta  { font-size: var(--fs-xs); color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+
+/* output block: the one scroller with stick-to-bottom */
+.out-wrap {
+  display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
+  border: 1px solid var(--hud-line); border-radius: 3px;
+  background: #0b0916;
+}
+.out-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--hud-line);
+  font-size: var(--fs-xs); letter-spacing: .12em; text-transform: uppercase; color: var(--hud-text-dim);
+}
+.out-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; padding: var(--space-2); }
+.out-foot {
+  flex: 0 0 auto; display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2); border-top: 1px solid var(--hud-line);
+}
+.out-unstuck {                      /* only shown when the user scrolled up */
+  font-size: var(--fs-xs); color: var(--hud-violet-hi);
+}
+
+/* CHANGES panel — what the session actually did to the working tree */
+.chg-list { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-2); }
+.chg-row { display: flex; gap: var(--space-2); font-size: var(--fs-xs); }
+.chg-status {
+  flex: 0 0 auto; width: 22px; text-align: center;
+  color: var(--hud-amber); font-weight: 700;
+}
+.chg-path { color: var(--hud-text); word-break: break-all; }
+.chg-stat { margin-top: var(--space-2); color: var(--hud-text-dim); }
+
+/* ============================================================ TRUTH rail */
+.truth-tile { padding: var(--space-3) 0; }
+.truth-tile + .truth-tile { border-top: 1px solid var(--hud-line); }
+.truth-head { display: flex; align-items: center; gap: var(--space-2); }
+.truth-name { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--hud-text); }
+.truth-age  { margin-left: auto; font-size: var(--fs-xs); color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+.truth-body { margin-top: var(--space-2); }
+.truth-kv   { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-xs); }
+.truth-kv .k { color: var(--hud-text-dim); text-transform: uppercase; letter-spacing: .1em; }
+.truth-kv .v { color: var(--hud-text); font-variant-numeric: tabular-nums; }
+.truth-figs { display: flex; gap: var(--space-4); align-items: baseline; }
+.truth-fig  { display: flex; flex-direction: column; gap: 2px; }
+
+/* meter: a bar whose width is a REAL percentage, never a decorative fill */
+.meter { height: 4px; background: #241f3d; border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.meter > i { display: block; height: 100%; background: var(--hud-violet); box-shadow: 0 0 10px var(--hud-violet); }
+
+/* ============================================================ drawer-lite */
+/* Project detail, from the SNAPSHOT (labeled as such). Overlays the workbench
+   inside the surface — it is a child of the surface root, so unmount()
+   removing the root removes the drawer with it. */
+.drawer-scrim {
+  position: absolute; inset: 0; z-index: 5;
+  background: rgba(6, 4, 14, .62);
+  display: flex; justify-content: flex-end;
+}
+.drawer {
+  width: min(460px, 92%);
+  height: 100%;
+  display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  border-left: 1px solid var(--hud-violet);
+  box-shadow: -30px 0 70px -40px #000, inset 1px 0 0 var(--hud-glow);
+}
+.drawer-head {
+  flex: 0 0 auto; display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-4); border-bottom: 1px solid var(--hud-line);
+}
+.drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--space-4); }
+.drawer-title { font-size: var(--fs-lg); color: var(--hud-violet-hi); text-shadow: 0 0 12px currentColor; }
+.drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3); }
+
+/* The surface root is the positioning context for the drawer scrim. */
+.work-root { position: relative; height: 100%; min-height: 0; }
