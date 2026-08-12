@@ -36,6 +36,15 @@ contextBridge.exposeInMainWorld('hq', {
   },
   // MA: Claude session presence (registry in claude-sessions.js)
   getSessions: () => ipcRenderer.invoke('hq:sessions-list'),
+  // v4 SPINE B3: session dispatch/kill/diff + output stream (session-api.js)
+  sessionStart: (opts) => ipcRenderer.invoke('hq:session-start', opts),
+  sessionKill: (jobId) => ipcRenderer.invoke('hq:session-kill', jobId),
+  sessionDiff: (opts) => ipcRenderer.invoke('hq:session-diff', opts),
+  onSessionOutput: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:session-output', handler);
+    return () => ipcRenderer.removeListener('hq:session-output', handler);
+  },
   onClaudeSessions: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('hq:claude-sessions', handler);

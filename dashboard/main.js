@@ -975,6 +975,7 @@ function castSend(channel, payload) {
 // list is pollable (IPC-CONTRACT: hq:claude-sessions push / hq:sessions-list)
 claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessions));
 ipcMain.handle('hq:sessions-list', () => claudeSessions.list());
+require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
 
 // ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
 // fs-watched so both the Warden and the Familiar (via the MCP server writing
