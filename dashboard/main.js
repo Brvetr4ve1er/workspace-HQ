@@ -145,9 +145,12 @@ function createWindow(show = true) {
     icon: path.join(DIR, 'icon.png'), show,
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
   });
-  win.loadFile(uiVersion() === 'v3'
-    ? path.join(DIR, '..', 'dashboard-v3', 'index.html')
-    : path.join(DIR, 'index.html'));
+  const uiv = uiVersion();   // "v4" → dashboard-v4, "v3" → dashboard-v3, anything else → v2
+  win.loadFile(uiv === 'v4'
+    ? path.join(DIR, '..', 'dashboard-v4', 'index.html')
+    : uiv === 'v3'
+      ? path.join(DIR, '..', 'dashboard-v3', 'index.html')
+      : path.join(DIR, 'index.html'));
   // Close-to-tray: keep the app (and tray) alive when the user closes the window,
   // unless they explicitly quit. The dead app.isQuitting flag now drives this.
   win.on('close', (e) => {
