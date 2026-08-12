@@ -12,6 +12,28 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-12 · FROM frontend (v4 SPINE Phase B3 session IPC) · main @ 845296b
+DONE: session IPC per plan B3. dfd9736 (meta:) announced the four rows in
+  IPC-CONTRACT.md BEFORE code: hq:session-start/-kill/-diff invokes +
+  hq:session-output push. Code: NEW dashboard/session-api.js (renderer sends
+  only {cwd,task,label} — no command/args passthrough; cwd containment under
+  Documents root mirroring resolveProjectPath; task capped 2000; 15-min
+  main-side timeout; git probe spawnSync shell:false; handlers settle, never
+  throw), preload.js one additive block (sessionStart/sessionKill/sessionDiff/
+  onSessionOutput), main.js ONE hook line after the claude-sessions wiring.
+VERIFY: node --check x3; fake-seam smoke (containment rejection both handlers,
+  2000-char truncation, output-push shape, kill bool-never-throws, real repo
+  diff probe); v3 SELFTEST combos=105 errors=0 PASS; V4 SELFTEST surfaces=6
+  errors=0 PASS.
+NOTE — commit race: B3's three files were explicitly staged when B1's plain
+  `git commit` landed, so they rode into 845296b ("fe: intel/queue … (B1)")
+  alongside queue.mjs. Content verified identical to intent (git diff HEAD
+  empty); history not rewritten (shared tree, parallel sessions live). Fleet
+  agents: stage AND commit by pathspec to avoid this.
+ASKS: none. BREAKS: none — additive; channels documented in IPC-CONTRACT.md.
+
+---
+
 ## 2026-08-12 · FROM frontend (v4 SPINE Phase A scaffold) · main @ 22ba562
 DONE: dashboard-v4/ exists (v4.0 SPINE plan, Phase A). 1721240 substrate copied
   byte-identical from v3 (intel derive/foresight/agency + actions/notify/bus/
