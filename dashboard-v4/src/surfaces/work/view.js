@@ -133,6 +133,16 @@ export const view = {
     teardown.push(closeDrawer);
 
     // Scrubbing the time machine changes which snapshot the queue describes.
+    //
+    // KNOWN BOUNDARY (audited, deliberately not "fixed" here): this rebuilds the
+    // QUEUE only. The agent pane's project list, the drawer's metric lookup and
+    // the truth rail's Snapshot tile all close over the MOUNT-TIME scan, so after
+    // a scrub the Snapshot tile would name an older scan than the topstrip.
+    // That is unreachable in v4.0 — data.select() is never called: v4's shell has
+    // no time-machine scrubber (shell.js renders rail + topstrip only), so this
+    // handler is forward-compat and nothing can currently observe the skew.
+    // WHOEVER ADDS THE SCRUBBER (v4.1) must make this a full re-mount instead of
+    // a queue rebuild, or the rail starts lying about which photograph it is.
     teardown.push(ctx.bus.on('data:select', () => {
       if (!alive()) return;
       const next = ctx.data.selected;
