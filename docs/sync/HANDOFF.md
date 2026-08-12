@@ -12,6 +12,26 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-12 · FROM frontend (v4 SPINE Phase A scaffold) · main @ 22ba562
+DONE: dashboard-v4/ exists (v4.0 SPINE plan, Phase A). 1721240 substrate copied
+  byte-identical from v3 (intel derive/foresight/agency + actions/notify/bus/
+  data/util + tests + fixture + vendor/anime.es.js, NO three.js; 29/29 by-file).
+  c959b33 scaffold: 6-surface shell (WORK·PROJECTS·SYSTEM·MIND·AUTOMATE·
+  LOOKBACK; only WORK real-module, rest honest "Built in v4.1" one-liners,
+  zero controls), dev-main.js mirroring v3 (--smoke/--selftest, scratch
+  userData, HQ_V4_PRELOAD=v2 → real dashboard/preload.js), System-HUD tokens
+  (warroom --wr-* promoted to --hud-*). 22ba562 main.js: v4 branch in the
+  .ui-version ternary — the ONLY main.js edit.
+VERIFY: node --check 15/15; V4 SELFTEST surfaces=6 errors=0 PASS; real-preload
+  smoke boots; v3 regression SELFTEST combos=105 errors=0 PASS after the edit.
+IN-FLIGHT: nothing uncommitted from me. data/quest-overrides.json still sits
+  modified in the shared tree (pre-existing runtime state) — untouched.
+ASKS: none this block (Phase B3 will announce session IPC in IPC-CONTRACT.md
+  BEFORE handlers, per plan).
+BREAKS: none — additive. .ui-version stays "v3"; flipping to "v4" is opt-in.
+
+---
+
 ## 2026-08-02 · FROM frontend (Epic C fix wave) · main @ bd811a7
 DONE: consolidated fix wave on Epic C "Foresight" — 3 merge blockers + units.
   · Med-Bay cleanup heading was a FALSE composite. "13 items · ~1.8 GB
