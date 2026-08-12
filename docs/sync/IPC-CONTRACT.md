@@ -78,6 +78,10 @@ grep the channel name).
 | **The Canvas (M3)** | | | | |
 | `getCanvas()` | `hq:canvas-read` | — | `[{name, nodes, edges}]` (JSON Canvas boards from `data/canvas/`) | main |
 | `canvasAdd(name, node)` | `hq:canvas-add` | board name (`[\w][\w -]{0,63}`), `{type:'text', text, x?, y?}` | `true`/`false` (text clamped 2000; atomic write; watcher pushes) | main |
+| **Claude sessions (v4 SPINE B3, `dashboard/session-api.js`)** | | | | |
+| `sessionStart(opts)` | `hq:session-start` | `{cwd, task, label?}` — cwd containment-checked under the Documents root (same rule as `resolveProjectPath`), task truncated at 2,000 chars, label defaults from task; NO command/args passthrough; headless print mode (`claude -p`, task via stdin), main-side 15-min timeout | `{jobId}` \| `{error}` | v4 WORK |
+| `sessionKill(jobId)` | `hq:session-kill` | jobId | `true`/`false` (never throws) | v4 WORK |
+| `sessionDiff(opts)` | `hq:session-diff` | `{cwd}` (containment-checked as above) | `{files:[{path,status}], stat}` (git `status --porcelain` + `diff --stat`, no shell) \| `{error}` | v4 WORK |
 | **Browser bridge** | | | | |
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 | **Social bridge** | | | | |
@@ -100,6 +104,7 @@ realm switches is the #1 porting hazard).
 | `onBrowserTab(cb)` | `hq:browser-tab` | active-tab event | bridge extension reports focus |
 | `onClaudeSessions(cb)` | `hq:claude-sessions` | full sessions list | any registry change (start/stream-end/linger-expiry) |
 | `onCanvas(cb)` | `hq:canvas` | full boards list | any `.canvas` file change in `data/canvas/` (300ms debounce) |
+| `onSessionOutput(cb)` | `hq:session-output` | `{jobId, chunk}` (chunk is untrusted text — render via `textContent`/`esc()` only) | a `sessionStart` session emits stdout/stderr |
 
 ## Rules
 
