@@ -81,7 +81,24 @@ grep the channel name).
 | **Claude sessions (v4 SPINE B3, `dashboard/session-api.js`)** | | | | |
 | `sessionStart(opts)` | `hq:session-start` | `{cwd, task, label?}` — cwd containment-checked under the Documents root (same rule as `resolveProjectPath`), task truncated at 2,000 chars, label defaults from task; NO command/args passthrough; headless print mode (`claude -p`, task via stdin), main-side 15-min timeout | `{jobId}` \| `{error}` | v4 WORK |
 | `sessionKill(jobId)` | `hq:session-kill` | jobId | `true`/`false` (never throws) | v4 WORK |
-| `sessionDiff(opts)` | `hq:session-diff` | `{cwd}` (containment-checked as above) | `{files:[{path,status}], stat}` (git `status --porcelain` + `diff --stat`, no shell) \| `{error}` | v4 WORK |
+| `sessionDiff(opts)` | `hq:session-diff` | `{cwd, jobId?}` (containment-checked as above; `jobId` optional — pass it to get the dispatch-time baseline) | `{files:[{path,status}], stat, baseline}` (git `status --porcelain` + `diff --stat`, no shell) \| `{error}` | v4 WORK |
+
+**`hq:session-diff` baseline (added 2026-08-13, additive).** `hq:session-start`
+records a **dispatch-time working-tree snapshot** as a side effect: it runs the
+same `git status --porcelain` in the contained `cwd` *before* spawning the
+session, and keys the resulting path set by `jobId` (LRU-capped, in memory,
+never persisted). `hq:session-diff` echoes it back so a renderer can tell the
+session's work apart from dirt that was already there:
+
+| `baseline` value | Meaning |
+|---|---|
+| `{state:'captured', paths:[…]}` | Paths dirty in that cwd at dispatch. Anything in `files` but not in `paths` changed **after** dispatch (by the session or by anything else touching the tree in that window). |
+| `{state:'unavailable', error}` | Baseline probe failed at dispatch (not a git repo, git missing). Attribution is unknown — callers MUST NOT present `files` as the session's work. |
+| `{state:'none'}` | No `jobId` supplied, or the job is not one this main process started/still remembers. Same rule: attribution unknown. |
+
+`stat` stays **whole-working-tree** `git diff --stat` output — it is NOT split by
+the baseline; label it as such wherever it is rendered. A main process older than
+this row omits `baseline` entirely; treat a missing field as `{state:'none'}`.
 | **Browser bridge** | | | | |
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 | **Social bridge** | | | | |
