@@ -12,6 +12,32 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-13 · FROM frontend (v4 SPINE D2 FIX WAVE — CHANGES attribution) · main @ aefd10a
+DONE: fixed the one D2 finding (important): the AGENT pane's CHANGES panel
+  billed the WHOLE working tree to the session that had just settled — probe()
+  ran `git status --porcelain` only AFTER the session ended, so a session that
+  changed nothing rendered "<n> files touched in <cwd>" over the user's own
+  pre-existing dirt. a400f30 (meta, doc-before-handlers) + aefd10a (fe).
+  hq:session-start now snapshots the contained cwd's dirty set BEFORE spawning,
+  keyed by jobId (FIFO cap 100, in-memory, never persisted); hq:session-diff
+  takes an optional jobId and returns `baseline` =
+  {state:'captured',paths}|{state:'unavailable',error}|{state:'none'}. New pure
+  dashboard-v4/src/surfaces/work/changes-core.mjs splits into "changed since
+  dispatch" / "already dirty at dispatch"; with no baseline it REFUSES to split
+  and states the working-tree scope. `git diff --stat` is now labelled whole-tree.
+VERIFY: unit tests BY FILE 8 files 71/71 pass (new changes-core.test.mjs 16/16).
+  V4 SELFTEST surfaces=6 errors=0 PASS; v3 SELFTEST combos=105 errors=0 PASS.
+  node --check on session-api/preload/main + the three ESM files. Fake-seam
+  smoke over a REAL git repo (Documents/hq-v4-baseline-scratch, deleted):
+  "BASELINE SMOKE checks=14 errors=0 PASS" — a no-op session yields "Nothing
+  changed … since this session was dispatched. 2 files were already dirty at
+  dispatch." Offscreen Chromium DOM harness confirms both rendered branches.
+ASKS: none.
+BREAKS: **struct/other consumers — additive IPC only.** dashboard/main.js,
+  preload.js and claude-sessions.js are UNCHANGED (sessionDiff already passes
+  opts through verbatim). A caller that omits jobId gets `baseline:{state:'none'}`
+  and the old {files,stat} fields untouched. data/quest-overrides.json untouched.
+
 ## 2026-08-13 · FROM frontend (v4 SPINE Phase D1 VERIFY — the loop closes) · main @ c8fda29
 DONE: v4.0 spine VERIFIED end-to-end; no feature code, docs+.gitignore only.
   IPC added by the spine (rows already in IPC-CONTRACT.md): hq:session-start /
