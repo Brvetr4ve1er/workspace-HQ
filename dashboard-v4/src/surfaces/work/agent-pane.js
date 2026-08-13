@@ -21,6 +21,7 @@ import { el, esc, dur } from '../../ui/util.js';
 import { dispatch } from '../../core/actions.mjs';
 import { getOutput } from '../../state/live.js';
 import { sessionAppeared, sessionSettled, outputArrived } from './motion.js';
+import { splitChanges, summarize, BASELINE_KNOWN } from './changes-core.mjs';
 
 const STICK_SLACK = 24;     // px from the bottom still counted as "at the bottom"
 const PULSE_MS = 400;       // output-arrival pulse throttle
@@ -338,17 +339,28 @@ export function createAgentPane(api) {
   }
 
   // --------------------------------------------------------------- changes
+  // ATTRIBUTION: `git status` describes the whole working tree, so the raw file
+  // list is NOT "what the agent did" — the repo can be dirty before dispatch.
+  // session-api.js snapshots the dirty set BEFORE spawning and returns it as
+  // `baseline` (IPC-CONTRACT.md); splitChanges() subtracts it. When no baseline
+  // exists (older main, non-repo cwd, a session this process did not start) the
+  // panel says so and scopes the list to the working tree instead of guessing.
   function probe(job) {
     const cwd = cwdByJob.get(job);
     if (!canDiff || !cwd) return;
     diffByJob.set(job, { state: 'loading' });
     renderChanges();
-    Promise.resolve(hq.sessionDiff({ cwd }))
+    Promise.resolve(hq.sessionDiff({ cwd, jobId: job }))
       .then((res) => {
         if (!api.alive()) return;
         if (!res || typeof res !== 'object') diffByJob.set(job, { state: 'error', error: 'no reply from the main process' });
         else if (res.error) diffByJob.set(job, { state: 'error', error: String(res.error) });
-        else diffByJob.set(job, { state: 'done', files: Array.isArray(res.files) ? res.files : [], stat: String(res.stat || '') });
+        else diffByJob.set(job, {
+          state: 'done',
+          files: Array.isArray(res.files) ? res.files : [],
+          stat: String(res.stat || ''),
+          baseline: res.baseline,
+        });
         renderChanges();
       })
       .catch((err) => {
@@ -356,6 +368,23 @@ export function createAgentPane(api) {
         diffByJob.set(job, { state: 'error', error: String(err?.message || err) });
         renderChanges();
       });
+  }
+
+  // One attribution group: a counted heading, the sentence explaining exactly
+  // what the grouping can and cannot claim, and the rows. Every git-derived
+  // string goes through esc() on its way into innerHTML.
+  function group(heading, why, files) {
+    const box = el('div', 'chg-group');
+    box.appendChild(el('div', 'chg-group-head', `${esc(heading)} · ${files.length}`));
+    box.appendChild(el('div', 'chg-group-why', esc(why)));
+    const list = el('div', 'chg-list');
+    for (const f of files) {
+      const row = el('div', 'chg-row');
+      row.innerHTML = `<span class="chg-status">${esc(f.status || '?')}</span><span class="chg-path">${esc(f.path || '')}</span>`;
+      list.appendChild(row);
+    }
+    box.appendChild(list);
+    return box;
   }
 
   function renderChanges() {
@@ -384,15 +413,35 @@ export function createAgentPane(api) {
       say('no changes detected — git reports a clean working tree in this project.');
       if (d.stat) chgEl.appendChild(el('div', 'chg-stat meta', esc(d.stat)));
     } else {
-      const list = el('div', 'chg-list');
-      for (const f of d.files) {
-        const row = el('div', 'chg-row');
-        row.innerHTML = `<span class="chg-status">${esc(f.status || '?')}</span><span class="chg-path">${esc(f.path || '')}</span>`;
-        list.appendChild(row);
+      const split = splitChanges(d.files, d.baseline);
+      // The headline never says "touched": it states the window (since dispatch)
+      // or the scope (whole working tree) that git actually answered for.
+      chgEl.appendChild(el('div', 'meta', esc(summarize(split, cwd))));
+
+      if (split.mode === BASELINE_KNOWN) {
+        if (split.since.length) {
+          chgEl.appendChild(group(
+            'changed since dispatch',
+            'Not dirty when this session started, dirty now. This session is the likely author — but so is anything else that wrote to the tree in that window (your editor, another agent, the time since you last probed).',
+            split.since));
+        }
+        if (split.preexisting.length) {
+          chgEl.appendChild(group(
+            'already dirty at dispatch',
+            'These were uncommitted before this session started. It may have edited them further — git cannot tell the two apart, and neither can this panel.',
+            split.preexisting));
+        }
+      } else {
+        chgEl.appendChild(group(
+          'working tree (unattributed)',
+          `Every uncommitted change in ${cwd}, not just this session's — ${split.reason}.`,
+          split.all));
       }
-      chgEl.appendChild(el('div', 'meta', `${d.files.length} file${d.files.length === 1 ? '' : 's'} touched in ${esc(cwd)}`));
-      chgEl.appendChild(list);
+
       if (d.stat) {
+        // `git diff --stat` is whole-tree and is NOT split by the baseline —
+        // say so, or this element re-tells the lie the headline just avoided.
+        chgEl.appendChild(el('div', 'meta', 'git diff --stat, whole working tree (tracked files, unsplit):'));
         const stat = el('pre', 'term chg-stat');
         stat.textContent = d.stat;                     // git output: textContent
         chgEl.appendChild(stat);

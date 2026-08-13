@@ -143,7 +143,15 @@
   font-size: var(--fs-xs); color: var(--hud-violet-hi);
 }
 
-/* CHANGES panel — what the session actually did to the working tree */
+/* CHANGES panel — the working tree, split by the dispatch-time baseline.
+   The group heading + its "why" line are load-bearing honesty, not decoration:
+   they state which window each list covers. Never style the "why" away. */
+.chg-group { margin-top: var(--space-3); border-left: 2px solid var(--hud-line); padding-left: var(--space-2); }
+.chg-group-head {
+  font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--hud-violet-hi);
+}
+.chg-group-why { font-size: var(--fs-xs); color: var(--hud-text-dim); margin-top: 2px; }
 .chg-list { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-2); }
 .chg-row { display: flex; gap: var(--space-2); font-size: var(--fs-xs); }
 .chg-status {
