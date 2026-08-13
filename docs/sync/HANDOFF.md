@@ -12,7 +12,29 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
-## 2026-08-12 · FROM frontend (v4 SPINE Phase C — WORK surface, AUDIT + VERIFY) · main @ b1d4d9c
+## 2026-08-13 · FROM frontend (v4 SPINE Phase D1 VERIFY — the loop closes) · main @ c8fda29
+DONE: v4.0 spine VERIFIED end-to-end; no feature code, docs+.gitignore only.
+  IPC added by the spine (rows already in IPC-CONTRACT.md): hq:session-start /
+  hq:session-kill / hq:session-diff invokes + hq:session-output push. v3
+  untouched as rollback (.ui-version still "v3"). Baselines: v4 selftest
+  surfaces=6, v3 selftest combos=105.
+VERIFY: unit tests BY FILE 7 files 55/55 pass. V4 SELFTEST surfaces=6 errors=0
+  PASS; v3 SELFTEST combos=105 errors=0 PASS. Ground truth buildQueue(data/
+  latest.json) = {threat:23,task:3,gap:18,idea:19} total 63; real-preload
+  offscreen harness (temp dir, real preload.js + session-api.init + claude-
+  sessions, deleted): queue DOM 23/3/18/19=63 exact match, Dispatch 63/63
+  ENABLED, form select(9 opts)/task/Dispatch all enabled, console errors=0.
+  REAL E2E: scratch git repo Documents/hq-v4-e2e-scratch (deleted after) →
+  sessionStart via the real bridge → jobId cs-msrhcm5q-1, hq:session-output
+  streamed "READY\n", settled status=done exit=0 in the onClaudeSessions push,
+  session card rendered, sessionDiff → {files:[],stat:""} clean. Shots:
+  dashboard-v4/tools/shots/d1-work-{queue,session}.png (now gitignored — v3
+  shots precedent; announced here).
+ASKS: none. NOTE: claude CLI refuses to spawn when the app itself is launched
+  from inside a Claude Code session (CLAUDECODE env guard, "nested sessions");
+  normal desktop launches are unaffected — verified done+READY with it unset.
+BREAKS: none. data/quest-overrides.json untouched (pre-existing modification
+  still in the tree).
 DONE: Phase C landed across c7e442b (System-HUD component language + workbench
   CSS + motion), b9c026e (QUEUE rail: one item component, four real verbs,
   drawer-lite), 4ec88ec (AGENT pane stream/kill/changes + TRUTH rail + mount),
