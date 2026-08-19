@@ -12,6 +12,44 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.1 S6 — SOUL: wiring + game layer) · main @ a4d122f
+DONE: the five surfaces are WIRED and the soul is back. 08d9f11 boot.js swaps
+  projects/system/mind/automate/lookback off placeholderView onto the real
+  views. 248004a WARDEN PLATE in the top strip (LV/rank, XP + to-next bar,
+  HEALTH with v3's <40 crit / 40-69 strained bands and the fell-since-last-paint
+  flash, STREAK) ported field-for-field from v3 chrome.js paintWarden(), plus
+  new core/scrubber.js — prev/next/LATEST driving data.select(i), snapshot id,
+  n/58 position, LATEST-vs-PAST badge, vs-previous health/xp deltas, and
+  off-latest as a MODE (#topstrip[data-past=yes] amber underline). 2025e52 +
+  a4d122f the COMMAND PALETTE (Ctrl+K, "/" too): v3's mechanics verbatim over a
+  v4 index — GO (go:* from actions.mjs) · DO · QUEUE (buildQueue items) · SPELL
+  (977, quota-capped at 5/8 rows so they cannot bury the queue).
+  BOUNDARY b1d4d9c HONOURED: the shell answers data:select with a FULL
+  unmount+mount of the active surface, never a partial refresh.
+VERIFY: node --check on all 6 touched JS. V4 SELFTEST surfaces=6 errors=0 PASS;
+  v3 SELFTEST combos=105 errors=0 PASS. Unit tests BY FILE 11 files 108/108.
+  Offscreen harness (scratch profile, deleted) over the real index.html on live
+  data, BOTH preloads: 32/32 checks, 0 console errors. Warden reads LV 7
+  Overseer · XP 2,081 (319 to L8, bar 46.8%) · HEALTH 21 crit · STREAK 3.
+  Scrub prev and LATEST each yield a FRESH connected stage node with the old one
+  detached (also on LOOKBACK), and the WORK truth rail's Snapshot tile follows
+  the scrub — the exact skew b1d4d9c warned about is gone. Palette opens,
+  focuses, filters, seeds the WORK form, closes on Esc; scan:now shows only
+  under the real preload; capture:idea never listed (dead seam).
+IN-FLIGHT: none.
+ASKS: none.
+BREAKS: **two edits outside S6's stated ownership, both disclosed.**
+  (1) `dashboard-v4/index.html` — links the five new sheets and adds
+  `<div id="overlays">`; S1 and S2 both filed this as an S6 ASK and no Phase-1
+  agent owned the file. system.css/lookback.css self-injectors now no-op.
+  S1's "promote .drawer*/.truth-kv/.meter into components.css" ask is DECLINED:
+  work.css is document-wide, the classes already resolve, a move is pure churn.
+  (2) `dashboard-v4/src/surfaces/work/view.js` — +11 lines, a `work:seed` bus
+  subscriber so the palette can seed the dispatch form; it runs the identical
+  agent.seed + markSeeded path as the rail's own dispatch verb. No IPC, no
+  main-process edits, no contract change; data/quest-overrides.json untouched.
+  Phase 3 (main-lane) is unaffected.
+
 ## 2026-08-19 · FROM frontend (v4.1 S2 — SYSTEM surface) · main @ 477c277
 DONE: SYSTEM surface from v3 medbay+watchtower+social, rebuilt on v4 components
   (477c277), three tabs. MACHINE: 8 pc-health vitals (status word, focal
