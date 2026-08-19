@@ -12,6 +12,36 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.1 Phase 3 — stream + vitals) · main @ f932150
+DONE: live token streaming + machine vitals to the main window. 46fd3b1 (meta)
+  IPC-CONTRACT: hq:session-output note BEFORE code — same channel, same
+  {jobId, chunk} shape; chunk is now PARSED text. 4ec4987 NEW pure CommonJS
+  dashboard/stream-parse.js (parseChunk(buffered, chunk) -> {text, rest}):
+  assistant text passes through, tool_use becomes one-line [tool: Name hint],
+  malformed COMPLETE lines pass through raw (never throw/never drop), PARTIAL
+  lines wait in rest; system/user/result protocol events filtered by design
+  (result would double-print the answer). session-api.js passes fixed args
+  ['-p','--output-format','stream-json','--verbose'] to claudeSessions.start
+  and parses every onOutput chunk before pushing; onDone flushes a trailing
+  unterminated line. claude-sessions.js UNTOUCHED. f932150 main.js
+  pushMachine(): samples once, sends to miniWin (visible-gated, as before)
+  AND to the main window — the v4 truth rail's Machine tile goes live.
+VERIFY: node --test dashboard/stream-parse.test.mjs 13/13. node --check on all
+  3 touched JS. V4 SELFTEST surfaces=6 errors=0 PASS; v3 SELFTEST combos=105
+  errors=0 PASS. Fake-seam smoke (scratchpad, deleted): real hq:session-start
+  handler + scripted fake claudeSessions — argv asserted, split-mid-line push
+  clean, raw stderr passes through, zero JSON leaked to the push.
+IN-FLIGHT: none.
+ASKS (v4 lane): dashboard-v4/src/surfaces/work/truth-rail.js MACHINE_NOTE
+  (~line 20) says main pushes hq:machine to the mini HUD only — stale copy
+  now; the tile itself already renders arriving payloads, so this is cosmetic.
+BREAKS: none — additive only. Presence consumers of claude-sessions `tail`
+  (hq:sessions-list / hq:claude-sessions) now see raw stream-json in the tail
+  (cosmetic; registry deliberately untouched — the renderer view goes through
+  hq:session-output, which is filtered). Other start()/run() callers pass no
+  args and keep the default ['-p']: main.js:642 conjure (start, no args),
+  main.js:760 draft-commit (run, no args) — verified unaffected.
+
 ## 2026-08-19 · FROM frontend (v4.1 S6 — SOUL: wiring + game layer) · main @ a4d122f
 DONE: the five surfaces are WIRED and the soul is back. 08d9f11 boot.js swaps
   projects/system/mind/automate/lookback off placeholderView onto the real
