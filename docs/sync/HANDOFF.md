@@ -12,6 +12,39 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.1 Phase 4 — D2 FIX WAVE) · main @ 00912cb
+DONE: both Important review findings, contract-first. 061e5b4 (meta)
+  IPC-CONTRACT rows BEFORE the handlers. cbeaf77 stream-parse: textFromEvent
+  dropped EVERY `result` event; the "it duplicates the assistant text"
+  justification only holds for subtype:'success', so error_max_turns /
+  error_during_execution / refusals were silently discarded — a red
+  "Failed · exit N" chip and an empty pane. Failed results now emit
+  `[error: <subtype>]` + the result string when present (never gated on it);
+  benign unknown subtypes stay unannounced (`/^error/`, not `!== 'success'`).
+  718b6bc the registry `tail` the panes DISPLAY: Phase 3 called a stream-json
+  tail "cosmetic" — it is not (v4 agent-pane.js:234, v4 sessions.js:60, v3
+  summoning:43 render it verbatim, and capture-save/scan reload the window,
+  wiping the live buffer mid-linger). NEW dashboard/session-tails.js records
+  the parsed text session-api already pushes; main.js swaps it into `tail` on
+  BOTH channels. Zero renderer changes — v3 benefits too.
+VERIFY: 13 test files by file, 141/141, fail 0 (new session-tails 13, stream-
+  parse 20). V4 SELFTEST surfaces=6 errors=0 PASS; v3 combos=105 errors=0 PASS.
+  Real-registry harness (REAL claude-sessions.js + a REAL child process, only
+  the exe overridden via its documented `command` test hook): registry tail
+  stays raw JSON, `withTails(list())` returns "Checking the collector
+  fixtures. / [tool: Grep parseChunk] / Ran out of turns. / [error:
+  error_max_turns]" — main.js's exact expression, 9/9 asserts.
+IN-FLIGHT: none.
+ASKS: none.
+BREAKS: **main.js edited** (3 lines at the session-presence block, one hunk):
+  `hq:sessions-list` + the `hq:claude-sessions` push now return
+  `sessionTails.withTails(...)`. `dashboard/claude-sessions.js` untouched
+  (READ-ONLY constraint honored — `git status` clean on it). `tail` keeps its
+  string shape; an older main returns the raw tail exactly as before. main.js
+  is `node --check`-verified only: booting it would raise a second app beside
+  the user's live one (global hotkeys, tray), so the D1 wiring-inspection
+  precedent applies.
+
 ## 2026-08-19 · FROM frontend (v4.1 Phase 4 — VERIFY) · main @ faeee2f
 DONE: **v4.1 LANDED AND VERIFIED — all six surfaces real, game layer restored,
   stream-json live tokens, vitals lit.** Unit tests BY FILE: 12 files (11 v4 +
