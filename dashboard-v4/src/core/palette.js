@@ -159,6 +159,30 @@ function subseqSpan(q, s) {
   return i === q.length ? (last - first + 1) : -1;
 }
 
+// The one deliberate DEVIATION from v3's palette, and the reason is arithmetic:
+// v3 kept spells out of the way with KIND_RANK alone, which only breaks TIES.
+// This workspace carries 977 spells against ~63 queue items, so any query that
+// is a common prefix among skill names ("sec", "test", "git") fills all eight
+// rows with spells at score 0 and the threats and quests never appear at all.
+// So: when non-spell rows matched, reserve up to RESERVE slots for them. Order
+// is untouched — this only decides which of the already-sorted rows get shown.
+const RESERVE = 3;
+function capSpells(sorted) {
+  const others = sorted.reduce((n, it) => n + (it.kind === 'spell' ? 0 : 1), 0);
+  const spellCap = CAP - Math.min(others, RESERVE);
+  const out = [];
+  let spells = 0;
+  for (const it of sorted) {
+    if (it.kind === 'spell') {
+      if (spells >= spellCap) continue;
+      spells++;
+    }
+    out.push(it);
+    if (out.length === CAP) break;
+  }
+  return out;
+}
+
 // Ranking: label-prefix (0) > label-substring (1) > key-substring (2) > fuzzy
 // label (3) > fuzzy key (4), tie-broken by kind. Empty query = recency quick-
 // switcher. Fuzzy needs q.length >= 2 (1-char fuzzy is all noise).
@@ -198,7 +222,7 @@ function refilter() {
       scored.push({ it, s });
     }
     scored.sort((a, b) => a.s - b.s || KIND_RANK[a.it.kind] - KIND_RANK[b.it.kind]);
-    results = scored.slice(0, CAP).map((x) => x.it);
+    results = capSpells(scored.map((x) => x.it));
   }
   selIndex = 0;
   paint();
