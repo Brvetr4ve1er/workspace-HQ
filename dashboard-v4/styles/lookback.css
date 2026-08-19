@@ -1,0 +1,258 @@
+/* lookback.css — the REVIEW ROOM.
+
+   Loaded by src/surfaces/lookback/view.js (which links this sheet itself,
+   because index.html belongs to no Phase-1 agent). Every selector is prefixed
+   `.lb-` or scoped under `.lb-root`, so a sheet that stays in <head> after the
+   surface unmounts cannot bleed into another surface.
+
+   COMPOSITION, NOT REDEFINITION. The v4 rule is that a new surface adds no new
+   button/panel/chip styles — it composes styles/components.css. Every card here
+   IS a `.panel`; every number IS a `.figure`; every bar IS a `.meter`; the tabs
+   ARE `.btn`s. What this sheet adds is only what components.css has no opinion
+   about: the chart tile internals, the trophy grid, the timeline rail, and the
+   hover-tooltip rig.
+
+   Layout invariant: #stage is the scroller (base.css). .lb-root therefore flows
+   normally and does NOT create a second scrollport — two nested scrollers is
+   what makes a sticky tab bar stick to the wrong box. */
+
+.lb-root { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* ------------------------------------------------------------------- tabs */
+/* Sticky at the scrollport's top edge: the timeline is 58 nodes long and losing
+   the section switcher at node 12 is how a review room becomes a maze. Opaque
+   ground, or the content would read through it while scrolling. */
+.lb-tabs {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; gap: var(--space-2);
+  padding: var(--space-2) 0;
+  background: var(--hud-ink);
+  border-bottom: 1px solid var(--hud-line);
+}
+.lb-tab.is-on {
+  color: var(--hud-violet-hi);
+  border-color: var(--hud-violet);
+  box-shadow: 0 0 20px -10px var(--hud-violet);
+}
+
+.lb-body { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* section headings — the one text style this surface adds */
+.lb-sec {
+  display: flex; align-items: baseline; gap: var(--space-3);
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--hud-violet-hi);
+}
+.lb-sec::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--hud-line), transparent); }
+.lb-sec-note { letter-spacing: .1em; text-transform: none; font-weight: 400; }
+
+/* --------------------------------------------------------- personal records */
+.lb-records {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+.lb-rec {
+  --pc: var(--hud-violet);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "ic v" "ic k" "ic sub";
+  align-items: baseline;
+  gap: 0 var(--space-3);
+  padding: var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--pc);
+  border-radius: 3px;
+}
+.lb-rec-ic { grid-area: ic; font-size: var(--fs-lg); color: var(--pc); align-self: center; }
+.lb-rec-v  { grid-area: v; font-size: var(--fs-xl); color: var(--pc); }
+.lb-rec-k  { grid-area: k; font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--hud-text); }
+.lb-rec-sub{ grid-area: sub; }
+
+/* --------------------------------------------------------------- chart grid */
+.lb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-4); }
+
+/* .lb-card is a .panel; these are the internals components.css has no view on. */
+.lb-card { position: relative; }
+.lb-card-body { padding: var(--space-3) var(--space-4); }
+.lb-card svg { display: block; width: 100%; height: auto; }
+/* the head numeral: a .figure, stepped down — 34px over a 130px chart would
+   out-shout the chart it labels. */
+.lb-now { font-size: var(--fs-lg); }
+.lb-cap { padding: 0 var(--space-4) var(--space-3); font-size: var(--fs-xs); color: var(--hud-text-dim); }
+
+.lb-legend {
+  display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: var(--fs-xs); color: var(--hud-text-dim);
+}
+.lb-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.lb-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ----------------------------------------------------------- chart tooltips */
+/* The guide/dot/tip trio is absolutely positioned inside the card. Hidden by
+   default; `.tip-on` is added by the pointer handler in charts.js. */
+.lb-tip-guide, .lb-tip-dot, .lb-tip { position: absolute; pointer-events: none; opacity: 0; transition: opacity 120ms ease; }
+.lb-card.tip-on .lb-tip-guide, .lb-card.tip-on .lb-tip-dot, .lb-card.tip-on .lb-tip { opacity: 1; }
+.lb-tip-guide { width: 1px; background: var(--hud-violet); opacity: 0; }
+.lb-card.tip-on .lb-tip-guide { opacity: .45; }
+.lb-tip-dot { width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; display: none; }
+.lb-tip {
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--space-1) var(--space-2);
+  background: #100d1e;
+  border: 1px solid var(--hud-violet);
+  border-radius: 3px;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  z-index: 2;
+  box-shadow: 0 10px 30px -18px #000;
+}
+.lb-tp-d { color: var(--hud-text-dim); letter-spacing: .08em; }
+.lb-tp-row { display: inline-flex; align-items: center; gap: 5px; color: var(--hud-text); }
+.lb-tp-row i { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+
+/* ------------------------------------------------------- forecast / streak */
+.lb-forecast { display: flex; flex-direction: column; gap: var(--space-2); }
+.lb-fc-slope { font-family: var(--term); font-size: var(--fs-xl); color: var(--hud-violet-hi); font-variant-numeric: tabular-nums; }
+.lb-fc-eta   { font-size: var(--fs-sm); color: var(--hud-text); }
+.lb-fc-note  { font-size: var(--fs-sm); color: var(--hud-text-dim); }
+/* the sample-size line is load-bearing honesty about the fit, not a footnote —
+   never style it out of existence. */
+.lb-fc-basis { letter-spacing: .08em; }
+
+.lb-streak, .lb-ft { display: flex; flex-direction: column; gap: var(--space-3); }
+.lb-tiles { display: flex; gap: var(--space-5); }
+.lb-tile  { display: flex; flex-direction: column; gap: 2px; }
+.lb-tile .figure { font-size: var(--fs-xl); }
+.lb-ft-row { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--hud-text-dim); }
+
+/* ------------------------------------------------------------- consistency */
+.lb-con-row { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.lb-con-pips { color: var(--hud-violet); letter-spacing: 3px; }
+.lb-con-n { font-size: var(--fs-xl); }
+.lb-con-next { margin-top: var(--space-2); }
+
+/* ----------------------------------------------------------- nudge strip */
+.lb-nudges { display: flex; flex-direction: column; gap: var(--space-2); }
+.lb-nudge {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) 120px auto;
+  align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hud-line); border-radius: 3px;
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+}
+.lb-nudge-ic { display: flex; align-items: center; justify-content: center; }
+.lb-nudge-l  { font-size: var(--fs-sm); color: var(--hud-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-nudge-bar { margin-top: 0; }
+.lb-nudge-n  { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------------------- trophies */
+.lb-px { width: 26px; height: 26px; }
+.lb-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-3); }
+.lb-ach {
+  /* a real <button>: unfolds the unlock criteria. Reset the UA button look, then
+     wear the item language. */
+  font-family: var(--term); font-size: var(--fs-sm); text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
+  padding: var(--space-3);
+  color: var(--hud-text);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.lb-ach:hover { border-color: var(--hud-violet); }
+.lb-ach:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
+.lb-ach.open { border-color: var(--hud-violet); box-shadow: inset 0 0 0 1px var(--hud-glow); }
+/* locked trophies are visibly dimmed — the grid must read "7 of 22" at a glance */
+.lb-ach:not(.unlocked) .lb-ach-ic { filter: grayscale(1); opacity: .45; }
+.lb-ach.unlocked { border-color: #4a3f7d; box-shadow: 0 0 26px -20px var(--hud-violet); }
+.lb-ach-ic   { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; min-height: 28px; }
+.lb-ach-name { font-size: var(--fs-sm); color: var(--hud-text); }
+.lb-ach-desc { line-height: 1.35; }
+.lb-ach-foot { font-variant-numeric: tabular-nums; }
+.lb-ach .meter { width: 100%; }
+
+.lb-ach-detail {
+  width: 100%; margin-top: var(--space-2); padding-top: var(--space-2);
+  border-top: 1px dashed var(--hud-line);
+  display: flex; flex-direction: column; gap: var(--space-1);
+  text-align: left;
+}
+.lb-kv { display: flex; gap: var(--space-2); font-size: var(--fs-xs); }
+.lb-kv .k { flex: 0 0 66px; color: var(--hud-text-dim); text-transform: uppercase; letter-spacing: .1em; }
+.lb-kv .v { color: var(--hud-text); }
+.lb-kv .v.ok { color: #6ee7a8; }
+
+/* ---------------------------------------------------------------- header */
+.lb-head-body { display: flex; align-items: flex-end; gap: var(--space-5); flex-wrap: wrap; }
+.lb-head-main { display: flex; flex-direction: column; gap: 2px; }
+.lb-head-range { margin-top: var(--space-1); }
+.lb-head-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-left: auto; }
+
+/* ------------------------------------------------------------ weekly recap */
+.lb-recap-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.lb-rchip b { font-variant-numeric: tabular-nums; }
+.lb-rchip.pos { color: #6ee7a8; border-color: #2f6b4a; }
+.lb-rchip.neg { color: var(--hud-red); border-color: #6b2f3a; }
+.lb-recap-runs { margin-top: var(--space-2); }
+.lb-narr { margin-top: var(--space-3); font-size: var(--fs-sm); line-height: 1.55; color: var(--hud-text); }
+/* mdLite() output — the only markup it can emit (it escapes first, then rebuilds
+   these three from the escaped text). */
+.lb-narr .md-h  { font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase; color: var(--hud-violet-hi); margin-top: var(--space-3); }
+.lb-narr .md-li { padding-left: var(--space-2); color: var(--hud-text-dim); }
+.lb-narr .md-p  { margin-top: var(--space-2); }
+
+/* --------------------------------------------------------------- timeline */
+.lb-timeline { display: flex; flex-direction: column; }
+.lb-node { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--space-3); }
+.lb-rail { position: relative; display: flex; justify-content: center; }
+/* the connecting line: drawn on the rail column, stopped short on the last node */
+.lb-rail::before { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--hud-line); }
+.lb-node:last-child .lb-rail::before { bottom: auto; height: 14px; }
+.lb-dot {
+  position: relative; z-index: 1; margin-top: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--hud-dim);
+}
+.lb-node.top .lb-dot { background: var(--hud-violet); box-shadow: 0 0 10px var(--hud-violet); }
+.lb-node-body { padding-bottom: var(--space-4); min-width: 0; }
+.lb-when { display: flex; align-items: baseline; gap: var(--space-2); font-size: var(--fs-sm); color: var(--hud-text); }
+.lb-yr  { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.lb-ago { margin-left: auto; }
+.lb-changes { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-2); }
+.lb-chg {
+  display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-xs);
+  border-left: 2px solid var(--hud-dim);
+  background: linear-gradient(90deg, rgba(29, 24, 54, .6), transparent);
+}
+.lb-chg.positive { border-left-color: #3aff6e; }
+.lb-chg.negative { border-left-color: var(--hud-red); }
+.lb-chg-t { color: var(--hud-violet-hi); letter-spacing: .08em; text-transform: uppercase; }
+.lb-chg-p { color: var(--hud-text); }
+.lb-chg-d { color: var(--hud-text-dim); }
+.lb-chg-d.solo { color: var(--hud-text); }
+
+.lb-badges { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.lb-badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 2px var(--space-2);
+  font-size: var(--fs-xs); color: var(--hud-text);
+  border: 1px solid #4a3f7d; border-radius: 2px;
+  background: rgba(167, 139, 250, .07);
+}
+.lb-badge-ic { display: inline-flex; align-items: center; }
+.lb-badge-ic .lb-px { width: 14px; height: 14px; }
+
+/* Narrow window: the record/chart grids already auto-fill; the header chips
+   stop pushing to the right edge so they don't strand the XP figure. */
+@media (max-width: 900px) {
+  .lb-head-chips { margin-left: 0; }
+  .lb-nudge { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .lb-nudge-bar { display: none; }        /* the have/need numerals still carry the fact */
+}
