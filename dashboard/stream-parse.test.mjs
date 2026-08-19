@@ -72,7 +72,7 @@ test('multiple events in one chunk, mixed with tool notices', () => {
   assert.equal(r.text, 'Looking at the file.\n[tool: Read b.md]\nDone.\n');
 });
 
-test('system init, user tool-result echoes, and final result are filtered', () => {
+test('system init, user tool-result echoes, and a SUCCESSFUL result are filtered', () => {
   const chunk =
     line({ type: 'system', subtype: 'init', model: 'claude-x' }) +
     line({ type: 'user', message: { role: 'user', content: [] } }) +
@@ -80,6 +80,57 @@ test('system init, user tool-result echoes, and final result are filtered', () =
   const r = parseChunk('', chunk);
   assert.equal(r.text, '');       // result duplicates assistant text: by-design filter
   assert.equal(r.rest, '');
+});
+
+// --- failed result events: the run's only structured diagnostic -------------
+// The success filter above must NOT swallow these. A failed run prints no
+// assistant text for the result to duplicate, so dropping it left the pane
+// empty behind a red "Failed · exit N" chip — told THAT it failed, never WHY.
+
+test('a failed result with a message emits the notice AND the message', () => {
+  const r = parseChunk('', line({
+    type: 'result', subtype: 'error_during_execution', is_error: true,
+    result: 'Credit balance is too low to continue.', total_cost_usd: 0,
+  }));
+  assert.equal(r.text, '[error: error_during_execution]\nCredit balance is too low to continue.\n');
+});
+
+test('a failed result with NO result field still emits its subtype', () => {
+  // error_max_turns carries no `result` string — the notice IS the diagnostic.
+  const r = parseChunk('', line({ type: 'result', subtype: 'error_max_turns', is_error: true, num_turns: 40 }));
+  assert.equal(r.text, '[error: error_max_turns]\n');
+});
+
+test('an error subtype without the is_error flag is still surfaced', () => {
+  const r = parseChunk('', line({ type: 'result', subtype: 'error_during_execution' }));
+  assert.equal(r.text, '[error: error_during_execution]\n');
+});
+
+test('is_error with no subtype falls back to a generic notice', () => {
+  const r = parseChunk('', line({ type: 'result', is_error: true, result: 'refused' }));
+  assert.equal(r.text, '[error: result]\nrefused\n');
+});
+
+test('a benign unknown subtype is NOT announced as an error', () => {
+  // Guards the deliberate choice of /^error/ over `subtype !== 'success'`:
+  // inventing an error for a future subtype would be its own lie.
+  const r = parseChunk('', line({ type: 'result', subtype: 'partial_success', is_error: false, result: 'x' }));
+  assert.equal(r.text, '');
+});
+
+test('a failed result after real assistant text appends, never replaces', () => {
+  const chunk =
+    line(assistant({ type: 'text', text: 'Starting the refactor.' })) +
+    line({ type: 'result', subtype: 'error_max_turns', is_error: true });
+  const r = parseChunk('', chunk);
+  assert.equal(r.text, 'Starting the refactor.\n[error: error_max_turns]\n');
+});
+
+test('a hostile result payload cannot throw or leak a non-string', () => {
+  assert.doesNotThrow(() => parseChunk('', line({ type: 'result', is_error: true, subtype: { x: 1 }, result: { y: 2 } })));
+  const r = parseChunk('', line({ type: 'result', is_error: true, subtype: { x: 1 }, result: { y: 2 } }));
+  assert.equal(r.text, '[error: result]\n');
+  assert.equal(typeof r.text, 'string');
 });
 
 test('empty and whitespace-only lines are skipped', () => {

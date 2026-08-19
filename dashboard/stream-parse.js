@@ -15,9 +15,15 @@
 //   next chunk can complete it; keeping malformed lines in `rest` instead
 //   would poison the buffer forever, so only incomplete lines wait there.
 // - Known protocol events with no user-facing text are filtered BY DESIGN,
-//   not dropped data: `system` init, `user` tool-result echoes, and the final
-//   `result` event (it duplicates the assistant text already emitted —
-//   rendering it would double-print every answer).
+//   not dropped data: `system` init and `user` tool-result echoes.
+// - The final `result` event is filtered only when the run SUCCEEDED (it
+//   duplicates the assistant text already emitted — rendering it would
+//   double-print every answer). A FAILED result is emitted as an
+//   `[error: <subtype>]` notice: the "duplicate" justification does not hold
+//   there, because a run that dies on max-turns / a refusal / an execution
+//   error printed no assistant text for it to duplicate. Filtering it left the
+//   user with a red "Failed · exit N" chip and no reason — exactly the silent
+//   drop this parser is not allowed to do.
 const HINT_KEYS = ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'prompt', 'description'];
 const HINT_MAX = 80;
 
@@ -63,7 +69,24 @@ function textFromEvent(ev) {
     if (d && d.type === 'text_delta' && typeof d.text === 'string') return d.text;
     return '';
   }
-  return '';   // system / user / result / unknown protocol events: no text
+  // The run's verdict. Success duplicates what the assistant already said, so
+  // it stays filtered; failure is the run's ONLY structured diagnostic, so it
+  // is surfaced. `is_error` is authoritative; the `error*` subtype test is a
+  // belt-and-braces fallback for a payload that carries one without the flag.
+  // Deliberately NOT `subtype !== 'success'`: a future benign subtype must not
+  // be announced to the user as an error.
+  if (ev.type === 'result') {
+    const sub = typeof ev.subtype === 'string' && ev.subtype ? ev.subtype : '';
+    if (ev.is_error !== true && !/^error/i.test(sub)) return '';
+    let out = `[error: ${sub || 'result'}]\n`;
+    // `result` is absent on some failures (max-turns) — the notice above is
+    // the diagnostic in that case, so never gate the whole branch on it.
+    if (typeof ev.result === 'string' && ev.result.trim()) {
+      out += ev.result.endsWith('\n') ? ev.result : ev.result + '\n';
+    }
+    return out;
+  }
+  return '';   // system / user / unknown protocol events: no text
 }
 
 function parseChunk(buffered, chunk) {
