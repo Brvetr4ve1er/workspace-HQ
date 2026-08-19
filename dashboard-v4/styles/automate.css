@@ -1,0 +1,210 @@
+/* automate.css — the AUTOMATE surface (v4.1 S4). Two columns at 1440×900:
+
+     ARSENAL (find)  |  DETAIL · RUN LOG · SESSIONS
+
+   The arsenal is the focal panel: ~970 automations behind a search input and
+   a capped list — the count line, not a card wall, states the catalog's size.
+   Composes components.css (panels/buttons/chips/term/field); this sheet adds
+   layout and the surface's list/seg/log dressing only.
+
+   Same layout invariants as work.css: every column and scroller in the chain
+   carries min-height:0 or an inner scroller grows instead of scrolling. */
+
+.automate-root { position: relative; height: 100%; min-height: 0; }
+
+.automate {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr);
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+}
+.automate > * { min-width: 0; min-height: 0; }
+
+/* the right column stacks three panels; each scrolls inside itself */
+.automate-side {
+  display: flex; flex-direction: column; gap: var(--space-4);
+  min-height: 0;
+}
+.automate-detail   { flex: 1.2 1 0; min-height: 120px; }
+.automate-log      { flex: 1 1 0;   min-height: 100px; }
+.automate-sessions { flex: 1 1 0;   min-height: 100px; }
+
+@media (max-width: 1240px) {
+  .automate {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
+    height: auto;
+    min-height: 100%;
+  }
+}
+
+/* ============================================================== ARSENAL */
+.ars-body { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* coverage — a REAL percentage bar, never decorative fill */
+.ars-cover { display: flex; flex-direction: column; gap: var(--space-2); }
+.ac-main { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.ac-bar { flex: 1 1 120px; }
+.ars-meter { height: 4px; min-width: 46px; background: #241f3d; border-radius: 2px; overflow: hidden; }
+.ars-meter > i { display: block; height: 100%; background: var(--hud-violet); box-shadow: 0 0 10px var(--hud-violet); }
+.ac-cats { display: flex; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.ac-cat { display: flex; align-items: center; gap: var(--space-1); }
+.ac-lbl { font-size: var(--fs-xs); color: var(--hud-text-dim); letter-spacing: .08em; text-transform: uppercase; }
+
+/* search first — the front door to the catalog */
+.ars-tools { display: flex; align-items: center; gap: var(--space-3); }
+.ars-search {
+  flex: 1 1 auto; min-width: 0;
+  font-family: var(--term); font-size: var(--fs-sm);
+  color: var(--hud-text);
+  background: #100d1e;
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+  padding: var(--space-2) var(--space-3);
+}
+.ars-search:focus { outline: none; border-color: var(--hud-violet); box-shadow: 0 0 18px -10px var(--hud-violet); }
+.ars-count { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+/* filter segments */
+.ars-filters { display: flex; flex-direction: column; gap: var(--space-2); }
+.ars-filter-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.ars-flabel { flex: 0 0 64px; }
+.ars-seg { display: inline-flex; gap: 2px; flex-wrap: wrap; }
+.seg-btn {
+  font-family: var(--term); font-size: var(--fs-xs);
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px var(--space-2);
+  color: var(--hud-text-dim);
+  background: none;
+  border: 1px solid var(--hud-line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.seg-btn b { font-weight: 400; color: var(--hud-dim); }
+.seg-btn:hover { color: var(--hud-violet-hi); border-color: var(--hud-violet); }
+.seg-btn:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 1px; }
+.seg-btn[aria-pressed="true"] {
+  color: var(--hud-violet-hi);
+  border-color: var(--hud-violet);
+  box-shadow: 0 0 12px -6px var(--hud-violet);
+}
+.seg-btn[aria-pressed="true"] b { color: var(--hud-text-dim); }
+
+/* the capped list — one row per automation */
+.ars-list { display: flex; flex-direction: column; gap: var(--space-1); }
+.ars-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--hud-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ars-row:hover { border-color: var(--hud-violet); }
+.ars-row.is-selected { border-left-color: var(--hud-violet); box-shadow: 0 0 22px -14px var(--hud-violet); }
+.ars-main { flex: 1 1 auto; min-width: 0; }
+.ars-name {
+  font-size: var(--fs-sm); color: var(--hud-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ars-icon { margin-right: var(--space-1); }
+.ars-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pips { color: var(--hud-violet); font-size: var(--fs-xs); letter-spacing: 1px; }
+.ars-star {
+  flex: 0 0 auto;
+  font-size: var(--fs-sm); line-height: 1;
+  color: var(--hud-text-dim);
+  background: none; border: none; cursor: pointer;
+  padding: var(--space-1);
+}
+.ars-star:hover { color: var(--hud-violet-hi); }
+.ars-star.is-fav { color: var(--hud-yellow); text-shadow: 0 0 10px currentColor; }
+.ars-star:disabled { color: var(--hud-dim); cursor: not-allowed; }
+.ars-run { flex: 0 0 auto; }
+.ars-more { display: flex; justify-content: center; }
+.ars-more-btn { width: 100%; }
+
+/* connected agents shelf (reference only) */
+.ars-agents { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.ars-agents-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* ============================================================== DETAIL */
+.det-head { display: flex; align-items: center; gap: var(--space-2); }
+.det-icon { font-size: var(--fs-lg); }
+.det-name { font-size: var(--fs-md); color: var(--hud-violet-hi); }
+.det-desc { margin-top: var(--space-2); }
+.det-body {
+  margin-top: var(--space-2);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 180px; overflow-y: auto;
+  border-left: 2px solid var(--hud-line); padding-left: var(--space-2);
+}
+.det-sec { margin-top: var(--space-3); }
+.det-cmd {
+  margin-top: var(--space-1);
+  background: #0b0916; border: 1px solid var(--hud-line); border-radius: 3px;
+  padding: var(--space-2);
+}
+.det-kv { margin-top: var(--space-1); }
+.det-kv b { color: var(--hud-text-dim); text-transform: uppercase; letter-spacing: .1em; font-weight: 400; margin-right: var(--space-1); }
+.det-src { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
+.det-src .mono-path { flex: 1 1 auto; min-width: 0; }
+.det-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+
+/* ============================================================= RUN LOG */
+.automate-log-body { display: flex; flex-direction: column; min-height: 0; height: 100%; padding: 0; }
+.automate-log .panel-body { padding: var(--space-2) var(--space-3); }
+.castlog { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-2); }
+.cl-block {
+  border: 1px solid var(--hud-line); border-left: 3px solid var(--hud-violet);
+  border-radius: 3px; background: #0b0916;
+}
+.cl-block.done-ok  { border-left-color: #3aff6e; }
+.cl-block.done-err { border-left-color: var(--hud-red); }
+.cl-block-head { display: flex; justify-content: flex-end; }
+.cl-block-head:empty { display: none; }
+.cl-cancel { margin: var(--space-1); }
+.cl-pre { padding: var(--space-2); max-height: 220px; overflow-y: auto; }
+.cl-pre .cl-sys { color: var(--hud-violet-hi); }
+.cl-pre .cl-err { color: var(--hud-red); }
+.cl-pre .cl-ok  { color: #3aff6e; }
+.cl-pre .cl-out { color: var(--hud-text); }
+
+/* ======================================================= CONFIRM GATE */
+/* Scrim + card are children of the surface root: unmount removes them. */
+.cast-scrim {
+  position: absolute; inset: 0; z-index: 6;
+  background: rgba(6, 4, 14, .62);
+  display: flex; align-items: center; justify-content: center;
+}
+.cast-confirm { width: min(560px, 92%); max-height: 80%; }
+.cast-confirm-sec { margin-top: var(--space-3); }
+.cast-cmd {
+  margin-top: var(--space-1);
+  background: #0b0916; border: 1px solid var(--hud-line); border-radius: 3px;
+  padding: var(--space-2);
+  max-height: 200px; overflow-y: auto;
+}
+.cast-confirm-foot { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+/* ============================================================ SESSIONS */
+.ss-row {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hud-line);
+}
+.ss-row:last-child { border-bottom: none; }
+.ss-top { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.ss-row[data-status="running"] .ss-chip { color: var(--hud-violet-hi); border-color: var(--hud-violet); }
+.ss-label { flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm); color: var(--hud-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.ss-out { margin-top: var(--space-1); }
+.ss-out summary { font-size: var(--fs-xs); color: var(--hud-text-dim); cursor: pointer; }
+.ss-out summary:hover { color: var(--hud-violet-hi); }
+.ss-pre {
+  margin-top: var(--space-1);
+  background: #0b0916; border: 1px solid var(--hud-line); border-radius: 3px;
+  padding: var(--space-2);
+  max-height: 200px; overflow-y: auto;
+}
