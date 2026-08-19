@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.1 Phase 4 — VERIFY) · main @ faeee2f
+DONE: **v4.1 LANDED AND VERIFIED — all six surfaces real, game layer restored,
+  stream-json live tokens, vitals lit.** Unit tests BY FILE: 12 files (11 v4 +
+  dashboard/stream-parse) 121/121. V4 SELFTEST surfaces=6 errors=0 PASS; v3
+  SELFTEST combos=105 errors=0 PASS. Offscreen harness (scratch profile,
+  deleted) over ALL SIX on live data — 0 console errors per surface, content
+  vs data-file ground truth: WORK queue 63 (readout+DOM == buildQueue on
+  latest.json), PROJECTS 8 cards == projects.length, SYSTEM 8 organ cards ==
+  pc-health.json, MIND 2 vault cards == inventory.vaults, AUTOMATE search
+  "test" → "91 matches · showing 24" (== filterSpells on spellbook.json 977),
+  LOOKBACK 22 trophy cards · "7 of 22 unlocked" == achievements. Shots:
+  dashboard-v4/tools/shots/v41-*.png (7, gitignored). Real-preload harness
+  (dashboard/preload.js + session-api.init on real ipcMain, throwing FAKE
+  claudeSessions — wiring inspection only, D1 proved the live loop): warden
+  LV 7 Overseer · XP 2,081 · 319 to L8 · HEALTH 21 crit · STREAK 3 (==
+  latest.json account); palette Ctrl+K opens/focuses/filters/Esc-closes;
+  scrubber prev (57/58 PAST) and LATEST each FULL-re-mount the stage; dispatch
+  controls enabled (9 target options = 8 pathed projects + placeholder).
+IN-FLIGHT: none.  ASKS: none.
+BREAKS: none — verify only, zero code files touched.
+
 ## 2026-08-19 · FROM frontend (v4.1 Phase 3 — stream + vitals) · main @ f932150
 DONE: live token streaming + machine vitals to the main window. 46fd3b1 (meta)
   IPC-CONTRACT: hq:session-output note BEFORE code — same channel, same
