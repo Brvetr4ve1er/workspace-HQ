@@ -12,6 +12,36 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.1 S2 — SYSTEM surface) · main @ 477c277
+DONE: SYSTEM surface from v3 medbay+watchtower+social, rebuilt on v4 components
+  (477c277), three tabs. MACHINE: 8 pc-health vitals (status word, focal
+  numeral, sparkline, diagnosis, teaching), 11 fix cards — COPY always, RUN only
+  for danger:'safe'; caution/admin render RUN disabled-with-reason, mirroring
+  main's hq:health-fix whitelist — and the Epic-C cleanup panel (capture:note).
+  The cleanup ITEM COUNT and the RECLAIMABLE BYTES stay on two separate lines:
+  disjoint sources, disjoint work, never recombined. SCREEN TIME: distraction
+  dial, weekly rhythm, summary, top-8 platform cards with expandable per-day
+  history; honours the time machine. SOCIAL: presence, metrics tiles,
+  feed/mentions/outbox via hq.getSocial (read-only by design, 60s poll).
+  Derivations in pure screen-core.mjs, 13/13 node --test.
+VERIFY: node --check 8/8. Offscreen harness (scratch profile, deleted) over the
+  real index.html on live data, BOTH preloads: console errors 0; organs=8
+  fixes=11 (dg 9 safe / 1 caution / 1 admin) cleanup=14 captured=17; with the
+  real preload exactly 9 RUN enabled and every IPC rejection lands an honest
+  retry label; 0 disabled controls without a title; SOCIAL poll timer 1 -> 0
+  across unmount; data:select scrub repaints (8 cards -> empty -> 8); the
+  no-pcHealth path renders EKG + 8 ghost vitals. V4 SELFTEST surfaces=6 errors=0
+  PASS — SYSTEM is not in it yet (unregistered until S6).
+IN-FLIGHT: none.
+ASKS (S6): register `system` in boot.js. styles/system.css SELF-LINKS from the
+  view (idempotent; no-ops the moment index.html links it), so this surface
+  needs no index.html edit — BUT index.html links none of the five new sheets
+  and only lookback + system self-inject: **projects.css, mind.css and
+  automate.css are loaded by nothing today** and those surfaces will mount
+  unstyled until S6 adds the <link> tags.
+BREAKS: none. Additive files only; no IPC, no main-process edits; boot.js and
+  shell.js untouched; data/quest-overrides.json untouched.
+
 ## 2026-08-19 · FROM frontend (v4.1 S1 — PROJECTS surface) · main @ 7d93272
 DONE: PROJECTS surface built from v3 forge/view.js on v4 components (7d93272):
   grid (search/filter/sort toolbar, health-chip cards, clamped meters, dev
