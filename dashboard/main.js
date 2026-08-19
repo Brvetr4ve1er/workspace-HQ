@@ -192,7 +192,11 @@ function machineSample() {
   lastCpu = cur;
   return { cpu: Math.max(0, Math.min(100, cpu)), ram: Math.round((1 - os.freemem() / os.totalmem()) * 100), servers: activeDevServers.size };
 }
-function pushMachine() { if (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) miniWin.webContents.send('hq:machine', machineSample()); }
+function pushMachine() {
+  const s = machineSample();   // sample ONCE per tick (delta-based CPU%), then fan out
+  if (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) miniWin.webContents.send('hq:machine', s);
+  if (win && !win.isDestroyed()) win.webContents.send('hq:machine', s);   // v4.1 Phase 3: main window (truth rail) gets vitals too
+}
 function startMachineSampler() { if (machineTimer) return; lastCpu = cpuTimes(); machineTimer = setInterval(pushMachine, 2500); }
 
 function hudPrefVisible() {
