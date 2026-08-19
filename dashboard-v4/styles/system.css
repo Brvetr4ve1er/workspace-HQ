@@ -1,0 +1,322 @@
+/* system.css — the SYSTEM surface (machine vitals · screen time · social).
+
+   Composes the shared component language from components.css; it defines NO new
+   button, panel or chip — only the section-local LAYOUT those components sit in
+   (the v4.1 rule: a new surface adds no new control styles).
+
+   Layout invariants (each guards a real bug):
+   - .sys-root is height:100% of #stage's content box and the tab bar is fixed
+     while .sys-stage scrolls, so switching tabs never leaves you scrolled into
+     the middle of the previous section.
+   - .sys-stage and every panel in the chain carry min-height:0 — one missing and
+     an inner scroller grows instead of scrolling.
+   - the focal numerals inside the vitals / metrics grids step DOWN from the
+     app-wide .figure size: eight of them at --fs-2xl would flatten the hierarchy
+     components.css exists to protect. */
+
+.sys-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------- tab bar */
+.sys-tabs { flex: 0 0 auto; display: flex; gap: var(--space-2); border-bottom: 1px solid var(--hud-line); }
+.sys-tab {
+  font-family: var(--term);
+  font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase;
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-3);
+  color: var(--hud-text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;                    /* the active underline sits ON the rule */
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.sys-tab:hover { color: var(--hud-text); }
+.sys-tab:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
+.sys-tab.active {
+  color: var(--hud-violet-hi);
+  border-bottom-color: var(--hud-violet);
+  text-shadow: 0 0 12px var(--hud-glow);
+}
+
+.sys-stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: var(--space-1); }
+.sys-stage::-webkit-scrollbar { width: 8px; }
+.sys-stage::-webkit-scrollbar-thumb { background: var(--hud-line); border-radius: 4px; }
+.sys-stage::-webkit-scrollbar-track { background: transparent; }
+
+/* A section is a stack of panels; each panel scrolls with the section, not on
+   its own (the section IS the scroller), so panel bodies are height-free here. */
+.sys-sec { display: flex; flex-direction: column; gap: var(--space-4); }
+.sys-sec .panel-body { overflow: visible; }
+
+/* ==================================================== MACHINE · vitals */
+.sys-tally { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.sys-host { margin-left: auto; }
+
+.organ-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
+  gap: var(--space-3);
+}
+
+/* one vital. --oc is the status colour, set inline from the STATUS table. */
+.organ {
+  --oc: var(--hud-dim);
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--oc);
+  border-radius: 3px;
+}
+.organ[data-sev="orange"] { box-shadow: 0 0 26px -20px var(--hud-amber); }
+.organ[data-sev="red"]    { box-shadow: 0 0 26px -18px var(--hud-red); }
+.organ.is-ghost { opacity: .55; border-left-style: dashed; }
+
+/* One line, always: the status chip is the card's verdict and must not wrap
+   under the name on a narrow column — the long name ellipsizes instead (the
+   full label is short enough that this only bites at the smallest grid width). */
+.organ-top { display: flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; }
+.organ-tag { flex: 0 0 auto; color: var(--oc); opacity: .85; }
+.organ-name {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--fs-sm); color: var(--hud-text); letter-spacing: .06em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.organ-top .chip { flex: 0 0 auto; }
+
+.organ-read { display: flex; align-items: baseline; gap: var(--space-2); }
+.organ .figure { font-size: var(--fs-xl); }        /* stepped down — see header note */
+.organ-spark { width: 100%; height: 26px; display: block; }
+.organ-dx { line-height: 1.4; }
+.organ-tx { font-style: italic; opacity: .85; }
+
+/* no-scan state */
+.mb-empty { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; margin-bottom: var(--space-4); }
+.mb-empty-title { font-size: var(--fs-lg); color: var(--hud-violet-hi); }
+.mb-empty-sub { max-width: var(--measure); }
+.sys-ghost-cap { margin-bottom: var(--space-2); }
+.ekg { width: 100%; height: 28px; }
+.ekg-base { fill: none; stroke: var(--hud-line); stroke-width: 1.5; }
+.ekg-line { fill: none; stroke: var(--hud-violet); stroke-width: 1.5; opacity: .8; }
+
+/* ============================================== MACHINE · recommended fixes */
+.rx-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.rx {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+}
+.rx-top { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.rx-organ {
+  font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase;
+  color: var(--oc, var(--hud-text-dim));
+}
+.rx-title { font-size: var(--fs-md); color: var(--hud-text); }
+
+/* THE DANGER GATE, stated in colour as well as words. These three classes are
+   the contract with pc-health.json's `danger` field — do not collapse them:
+     dg-safe    read-only     the ONLY kind main will execute (hq:health-fix
+                              rebuilds the whitelist from pc-health.json and
+                              refuses everything else)
+     dg-caution deletes files copy-and-run-yourself
+     dg-admin   needs admin   copy-and-run-yourself, elevated */
+.rx-danger { margin-left: auto; }
+.rx-danger.dg-safe    { color: var(--hud-text-dim); border-color: var(--hud-line); }
+.rx-danger.dg-caution { color: var(--hud-amber); border-color: #6b4a24; }
+.rx-danger.dg-admin   { color: var(--hud-red);   border-color: #6b2f3a; }
+
+.rx-why { line-height: 1.45; }
+.rx-teach { font-style: italic; opacity: .85; }
+.rx-cmd {
+  padding: var(--space-2);
+  background: #100d1e;
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+  overflow-x: auto;                      /* a long PowerShell one-liner scrolls, never widens the panel */
+}
+.rx-cmd code { font-family: var(--term); font-size: var(--fs-xs); color: var(--hud-violet-hi); white-space: pre; }
+/* HUD chrome, not OS chrome — mirrors the panel-body rule in components.css */
+.rx-cmd::-webkit-scrollbar, .rx-out::-webkit-scrollbar { width: 8px; height: 8px; }
+.rx-cmd::-webkit-scrollbar-thumb, .rx-out::-webkit-scrollbar-thumb { background: var(--hud-line); border-radius: 4px; }
+.rx-cmd::-webkit-scrollbar-track, .rx-out::-webkit-scrollbar-track { background: transparent; }
+.rx-act { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.rx-out {
+  max-height: 200px; overflow: auto;
+  padding: var(--space-2);
+  background: #0b0916;
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+}
+.rx-out.is-err { color: var(--hud-red); border-color: #6b2f3a; }
+
+/* ===================================================== MACHINE · cleanup */
+.an-reclaim { display: block; margin-bottom: var(--space-3); }
+.an-group + .an-group { margin-top: var(--space-4); }
+.an-group-h {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--hud-violet-hi);
+}
+.an-group-h::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--hud-line), transparent); }
+.an-group-n { font-weight: 400; color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+.an-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.an-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+}
+.an-label { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+.an-note { flex: 0 0 auto; }
+
+/* ================================================= SCREEN TIME · overview */
+.wt-doom {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed #6b4a24; border-radius: 3px;
+  color: var(--hud-amber);
+}
+.wt-doom-k { font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase; }
+.wt-doom-t { font-size: var(--fs-sm); color: var(--hud-text); }
+
+.wt-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
+.wt-panel {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+}
+.wt-k { display: block; }
+
+/* the distraction dial — tier drives the arc colour, nothing else */
+.wt-dial-svg { width: 100%; max-width: 240px; align-self: center; }
+.wt-arc { fill: none; stroke-width: 12; stroke-linecap: round; }
+.wt-arc.bg { stroke: var(--hud-line); }
+.wt-arc.val { stroke: var(--hud-violet); transition: stroke-dashoffset 400ms ease; }
+.wt-dial[data-tier="mid"]  .wt-arc.val { stroke: var(--hud-amber); }
+.wt-dial[data-tier="high"] .wt-arc.val { stroke: var(--hud-red); }
+.wt-dial-num { font-family: var(--term); font-size: 30px; font-weight: 700; fill: var(--hud-text); }
+.wt-dial-sub { font-family: var(--term); font-size: 9px; letter-spacing: .2em; fill: var(--hud-text-dim); }
+.wt-scale { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.wt-scale .on { color: var(--hud-violet-hi); }
+.wt-dial-trend { display: flex; align-items: center; gap: var(--space-2); }
+
+.wt-trend[data-dir="up"]   { color: var(--hud-red);    border-color: #6b2f3a; }
+.wt-trend[data-dir="down"] { color: #6de08a;           border-color: #2f6b3a; }
+.wt-trend[data-dir="flat"] { color: var(--hud-text-dim); }
+
+/* weekday rhythm */
+.wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-1); }
+.wt-wc { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wt-wc .box { display: block; width: 100%; height: 34px; border: 1px solid var(--hud-line); border-radius: 2px; overflow: hidden; }
+.wt-wc .box i { display: block; width: 100%; height: 100%; background: var(--hud-violet); }
+.wt-wc b { font-size: var(--fs-xs); font-weight: 400; color: var(--hud-text-dim); }
+
+.wt-cen-row { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-sm); color: var(--hud-text-dim); }
+.wt-cen-row b { color: var(--hud-text); font-variant-numeric: tabular-nums; }
+
+/* ================================================ SCREEN TIME · platforms */
+.wt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--space-3); align-items: start; }
+.wt-card {
+  --cc: var(--hud-violet);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-top: 2px solid var(--cc);
+  border-radius: 3px;
+}
+.wt-card.is-open { box-shadow: 0 0 30px -22px var(--cc); }
+/* the summary IS the toggle: a real button, stripped back to the card face */
+.wt-card-head {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  text-align: left;
+  font-family: var(--term);
+  color: var(--hud-text);
+  background: none; border: 0;
+  cursor: pointer;
+}
+.wt-card-head:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: -2px; }
+.wt-dom-row { display: flex; align-items: center; gap: var(--space-2); }
+.wt-dom { flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-exp { color: var(--hud-text-dim); transition: transform 160ms ease; }
+.wt-card.is-open .wt-exp { transform: rotate(90deg); }
+.wt-total-row { display: flex; align-items: baseline; gap: var(--space-2); }
+.wt-total { font-size: var(--fs-lg); color: var(--cc); text-shadow: none; }
+.wt-spark { width: 100%; height: 26px; display: block; }
+.wt-cadence { display: block; }
+
+.wt-detail { padding: 0 var(--space-3) var(--space-3); border-top: 1px solid var(--hud-line); padding-top: var(--space-3); }
+.wt-dt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.wt-dt-c { display: flex; flex-direction: column; }
+.wt-dt-c.is-wide { grid-column: 1 / -1; }
+.wt-dt-c span { font-size: var(--fs-xs); letter-spacing: .12em; text-transform: uppercase; color: var(--hud-text-dim); }
+.wt-dt-c b { font-size: var(--fs-sm); font-weight: 400; color: var(--hud-text); }
+.wt-dt-title { margin-top: var(--space-2); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-dt-k { display: block; margin: var(--space-3) 0 var(--space-1); }
+.wt-hist { display: flex; flex-direction: column; gap: 3px; }
+.wt-hrow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 92px; align-items: center; gap: var(--space-2); font-size: var(--fs-xs); }
+.wt-hrow.is-zero { opacity: .4; }
+.wt-hd { color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+.wt-hbar { height: 8px; background: #100d1e; border-radius: 2px; overflow: hidden; }
+.wt-hbar i { display: block; height: 100%; background: var(--cc); }
+.wt-hv { text-align: right; color: var(--hud-text); font-variant-numeric: tabular-nums; }
+
+.wt-empty-head { font-size: var(--fs-md); color: var(--hud-text); margin-bottom: var(--space-1); }
+.wt-empty-sub { line-height: 1.5; }
+.wt-empty-sub code { color: var(--hud-violet-hi); }
+
+/* ======================================================== SOCIAL */
+.so-accounts { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.so-acct { text-transform: none; letter-spacing: .04em; }
+
+.so-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3); }
+.so-tile {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-radius: 3px;
+}
+.so-tile .figure { font-size: var(--fs-xl); }
+.so-tile-plat { color: var(--hud-text); }
+
+.so-tabs, .so-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+/* selected filter/tab: the same .btn, lit. No new control style. */
+.btn.is-on { color: var(--hud-violet-hi); border-color: var(--hud-violet); box-shadow: 0 0 16px -8px var(--hud-violet); }
+
+.so-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.so-card, .so-ob {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--hud-dim);
+  border-radius: 3px;
+}
+.so-ob[data-status="staged"]    { border-left-color: var(--hud-amber); }
+.so-ob[data-status="sent"]      { border-left-color: var(--hud-violet); }
+.so-ob[data-status="failed"]    { border-left-color: var(--hud-red); }
+.so-ob[data-status="cancelled"] { border-left-color: var(--hud-dim); }
+
+.so-top { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.so-plat { font-size: var(--fs-xs); letter-spacing: .1em; color: var(--hud-violet-hi); }
+.so-auth { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.so-ago, .so-status { margin-left: auto; }
+.so-op { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.so-obtitle { font-size: var(--fs-sm); color: var(--hud-text); }
+.so-text { line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.so-hint { color: var(--hud-amber); }
+.so-oberr, .so-err { color: var(--hud-red); }
