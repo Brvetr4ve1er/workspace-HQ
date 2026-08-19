@@ -28,15 +28,145 @@
 .rail-btn .glyph { font-size: var(--fs-lg); line-height: 1; }
 .rail-btn .lbl { font-size: var(--fs-xs); letter-spacing: .08em; }
 
+/* --- rail frame depth --------------------------------------------------
+   The rail is the left edge of the System window: a lit inner seam and a
+   violet spine mark it as chrome, not stage. Static — no motion here. */
+#rail {
+  box-shadow: inset -1px 0 0 rgba(167, 139, 250, .10), 6px 0 24px -22px #000;
+}
+#rail::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: linear-gradient(180deg, transparent, var(--hud-violet), transparent);
+  opacity: .35; pointer-events: none;
+}
+#rail { position: relative; }
+
 /* --- topstrip --------------------------------------------------------- */
+/* base.css sets `align-items: baseline` for the v4.0 one-line strip; the
+   warden plate and scrubber are two-line blocks, so centre them instead. */
+#topstrip {
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 62px;
+  background: linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  box-shadow: inset 0 -1px 0 rgba(167, 139, 250, .10), 0 8px 26px -24px #000;
+}
+/* Off-latest is a MODE, not a footnote: the whole strip picks up an amber
+   underline so "why is nothing changing" can never be a mystery. */
+#topstrip[data-past="yes"] { box-shadow: inset 0 -2px 0 var(--hud-amber), 0 8px 26px -24px #000; }
+
 #topstrip .brand {
   font-weight: 700; letter-spacing: .08em; font-size: var(--fs-md);
-  color: var(--hud-text);
+  color: var(--hud-text); flex: 0 0 auto; white-space: nowrap;
 }
 #topstrip .brand .hq { color: var(--hud-violet-hi); text-shadow: 0 0 10px var(--hud-glow); }
-#topstrip .snapshot {
-  color: var(--hud-text-dim); font-size: var(--fs-xs);
-  letter-spacing: .1em; text-transform: uppercase;
+#topstrip .topstrip-gap { flex: 1 1 auto; min-width: var(--space-2); }
+
+/* --- warden plate (LV · XP · HEALTH · STREAK) --------------------------
+   The game layer, back from v3 chrome.js paintWarden(). Hexagon-cut like
+   every other System panel, one row, display-weight numerals. */
+.warden {
+  flex: 0 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: linear-gradient(180deg, rgba(167, 139, 250, .06), transparent);
+  border: 1px solid var(--hud-line);
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+}
+.warden[hidden] { display: none; }
+.wp-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wp-lv, .wp-streak { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+.wp-row { display: flex; align-items: baseline; gap: var(--space-2); }
+.wp-key {
+  font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--hud-text-dim); white-space: nowrap;
+}
+.wp-num {
+  font-family: var(--term); font-weight: 700; font-size: var(--fs-lg);
+  line-height: 1; color: var(--hud-text);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+}
+.wp-num--big {
+  font-size: var(--fs-2xl); color: var(--hud-violet-hi);
+  text-shadow: 0 0 14px var(--hud-glow);
+}
+.wp-num[data-band="warn"] { color: var(--hud-amber); }
+.wp-num[data-band="crit"] { color: var(--hud-red); text-shadow: 0 0 12px rgba(242, 85, 90, .35); }
+.wp-rank {
+  font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--hud-text-dim); white-space: nowrap;
+}
+.wp-sub { font-size: var(--fs-xs); color: var(--hud-text-dim); white-space: nowrap; }
+.wp-gauge { min-width: 148px; }
+.wp-bar {
+  height: 5px; background: #100d20;
+  border: 1px solid var(--hud-line); overflow: hidden;
+}
+.wp-fill {
+  display: block; height: 100%; width: 0;
+  /* motion on a real state change only (a scrub or a reload moves these) */
+  transition: width .45s cubic-bezier(.22, .61, .36, 1);
+}
+.wp-fill--xp { background: linear-gradient(90deg, var(--hud-violet), var(--hud-violet-hi)); box-shadow: 0 0 10px -2px var(--hud-violet); }
+.wp-fill--hp[data-band="ok"]   { background: var(--hud-green); box-shadow: 0 0 10px -3px var(--hud-green); }
+.wp-fill--hp[data-band="warn"] { background: var(--hud-amber); box-shadow: 0 0 10px -3px var(--hud-amber); }
+.wp-fill--hp[data-band="crit"] { background: var(--hud-red);   box-shadow: 0 0 10px -3px var(--hud-red); }
+/* HP fell since the last painted value — one flash, not a loop */
+.wp-fill.drop { animation: wp-drop .5s ease-out 1; }
+@keyframes wp-drop { 0% { filter: brightness(2.4); } 100% { filter: none; } }
+
+/* --- snapshot scrubber (the time machine) ------------------------------ */
+.scrub {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.scrub-read { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.scrub-line { display: flex; align-items: baseline; gap: var(--space-2); }
+.scrub-key {
+  font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.scrub-id {
+  font-size: var(--fs-sm); color: var(--hud-text);
+  font-variant-numeric: tabular-nums; letter-spacing: .04em;
+}
+.scrub-badge {
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  padding: 1px var(--space-2); border: 1px solid var(--hud-line);
+  color: var(--hud-text-dim);
+}
+.scrub-badge[data-state="latest"] { color: var(--hud-violet-hi); border-color: var(--hud-violet); }
+.scrub-badge[data-state="past"]   { color: var(--hud-amber); border-color: #6b4a24; }
+.scrub-badge[data-state="none"]   { color: var(--hud-red); border-color: #6b2f3a; }
+.scrub-delta { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.scrub-pos { font-variant-numeric: tabular-nums; }
+.dlt { display: inline-flex; align-items: baseline; gap: 3px; }
+.dlt[hidden], .dlt-base[hidden] { display: none; }
+.dlt i { font-style: normal; font-size: 10px; letter-spacing: .12em; color: var(--hud-dim); }
+.dlt b { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--hud-text-dim); }
+.dlt[data-dir="up"] b   { color: var(--hud-green); }
+.dlt[data-dir="down"] b { color: var(--hud-red); }
+.dlt-base { color: var(--hud-dim); }
+
+.scrub-ctl { display: flex; align-items: center; gap: var(--space-1); }
+.scrub-btn {
+  min-height: var(--tap-min); min-width: var(--tap-min);
+  padding: 0 var(--space-2);
+  background: linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  color: var(--hud-text-dim);
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em;
+  cursor: pointer;
+}
+.scrub-btn:hover:not(:disabled) {
+  color: var(--hud-violet-hi); border-color: var(--hud-violet);
+  box-shadow: 0 0 16px -8px var(--hud-violet);
+}
+.scrub-btn:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
+.scrub-btn:disabled { opacity: .4; cursor: not-allowed; }
+.scrub-latest { color: var(--hud-text); }
+#topstrip[data-past="yes"] .scrub-latest:not(:disabled) {
+  color: var(--hud-amber); border-color: #6b4a24;
 }
 
 /* --- HUD frame (shared panel) ----------------------------------------- */

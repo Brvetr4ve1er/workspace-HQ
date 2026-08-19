@@ -48,6 +48,11 @@
   --hud-red: #f2555a;
   --hud-amber: #f2a33c;
   --hud-yellow: #e6c34a;
+  /* v4.1: the "good" pole the palette was missing. Value is the app-wide green
+     already in use (ui/util.js COL.green, and the surface sheets' literal
+     #3aff6e) — this only gives it a name so the warden plate's health band and
+     the scrubber's rising deltas stop hard-coding it. */
+  --hud-green: #3aff6e;
   /* TWO dim tokens, deliberately (carried from warroom.css): --hud-dim is
      CHROME ONLY (borders, tracks, rules) — it measures ~3.1:1 on the panel
      gradient, under the 4.5:1 WCAG AA floor for text. Every run of DIM TEXT
