@@ -1,0 +1,203 @@
+/* mind.css — the MIND surface: VAULTS (know) | CANVAS (share).
+   Composes components.css (panel/figure/chip/btn/field/meter/empty/rule) and
+   adds ONLY surface layout + the canvas widget cards (w-*), which are this
+   surface's one-shape component: every canvas node renders as a .w card.
+
+   Layout invariants (same chain as work.css): .mind is height:100% of #stage's
+   content box and every column carries min-height:0, so each panel-body
+   scrolls inside its frame instead of growing the page. */
+
+.mind {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+}
+.mind > * { min-width: 0; min-height: 0; }
+
+/* Narrow windows: the canvas drops under the vaults rather than crushing them. */
+@media (max-width: 1100px) {
+  .mind { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: auto; min-height: 100%; }
+}
+
+.mind-sec { margin-bottom: var(--space-2); }
+
+/* ============================================================ VAULTS panel */
+.vault-grid { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.vault-card {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-left: 3px solid var(--hud-dim);
+  border-radius: 3px;
+}
+.vault-card.primary {
+  border-left-color: var(--hud-violet);
+  box-shadow: 0 0 26px -18px var(--hud-violet);
+}
+.vault-card.primary .chip { color: var(--hud-violet-hi); border-color: var(--hud-violet); }
+
+.vault-top  { display: flex; align-items: center; gap: var(--space-2); justify-content: space-between; }
+.vault-name { font-size: var(--fs-md); color: var(--hud-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vault-notes { font-size: var(--fs-sm); color: var(--hud-text-dim); }
+.vault-notes b {
+  font-family: var(--term); font-size: var(--fs-lg); font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--hud-text);
+}
+.vault-facts { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-top: var(--space-1); }
+
+/* NotebookLM shelf */
+.mind-shelf { display: flex; flex-direction: column; gap: var(--space-2); }
+.mind-book {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hud-line); border-radius: 3px;
+}
+.mind-book-t { font-size: var(--fs-sm); color: var(--hud-text); }
+
+/* cross-vault search launcher */
+.mind-search { display: flex; flex-direction: column; gap: var(--space-2); }
+.mind-search-row {
+  display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr) auto;
+  gap: var(--space-2); align-items: end;
+}
+.mind-search [data-out] { color: var(--hud-text-dim); font-size: var(--fs-xs); }
+
+/* ============================================================ CANVAS panel */
+.mind-teach { margin-bottom: var(--space-3); }
+
+.mind-tabs { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.mind-tabs .btn.is-on { color: var(--hud-violet-hi); border-color: var(--hud-violet); box-shadow: 0 0 16px -8px var(--hud-violet); }
+
+.mind-add {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2); align-items: end;
+  margin-bottom: var(--space-3);
+}
+
+.mind-canvas-empty p { margin: 0 0 var(--space-2); }
+.mind-canvas-empty p:last-child { margin-bottom: 0; }
+.mind-spec {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  font-family: var(--term); font-size: var(--fs-xs); line-height: 1.5;
+  color: var(--hud-text);
+  background: #100d1e;
+  border: 1px solid var(--hud-line); border-radius: 3px;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* the feed: responsive card grid, newest first; wide widgets span the row */
+.mind-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* ------------------------------------------------------------ widgets (w-*)
+   One canvas node -> one .w card. --wac is the widget's accent colour, set
+   from its spec tone by widget.js (defaults to the HUD violet). */
+.w {
+  --wac: var(--hud-violet);
+  min-width: 0;
+  padding: var(--space-3);
+  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  border-top: 2px solid var(--wac);
+  border-radius: 3px;
+}
+.w-wide { grid-column: 1 / -1; }
+.w-chip-node { border-top-color: var(--hud-line); }
+
+.w-title {
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--hud-text-dim);
+  margin-bottom: var(--space-1);
+}
+.w-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.w-meta { margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.w-empty { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+
+/* stat */
+.w-stat-val {
+  font-family: var(--term); font-size: var(--fs-2xl); font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--wac); text-shadow: 0 0 14px currentColor;
+}
+.w-unit { font-size: var(--fs-sm); font-weight: 400; color: var(--hud-text-dim); margin-left: 4px; text-shadow: none; }
+.w-stat-lbl {
+  margin-top: var(--space-1);
+  font-size: var(--fs-xs); letter-spacing: .14em; text-transform: uppercase; color: var(--hud-text-dim);
+}
+/* delta semantics carried from v3 conjure.css (the feature truth): up = green,
+   down = red; a spec whose "down is good" carries that judgement in its tone */
+.w-delta { margin-top: var(--space-1); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.w-delta.up   { color: #3aff6e; }
+.w-delta.down { color: var(--hud-red); }
+.w-delta.flat { color: var(--hud-text-dim); }
+
+/* progress */
+.w-pct { font-family: var(--term); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--hud-text); }
+.w-bar { height: 6px; background: #241f3d; border-radius: 3px; overflow: hidden; margin-top: var(--space-2); }
+.w-bar > i { display: block; height: 100%; background: var(--wac); box-shadow: 0 0 10px var(--wac); }
+
+/* checklist */
+.w-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.w-list li { display: flex; gap: var(--space-2); align-items: baseline; font-size: var(--fs-sm); color: var(--hud-text); }
+.w-list li.done span:last-child { color: var(--hud-text-dim); text-decoration: line-through; }
+.w-list .box {
+  flex: 0 0 auto; width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; line-height: 1; color: var(--wac);
+  border: 1px solid var(--hud-line); border-radius: 2px;
+}
+.w-list li.done .box { border-color: var(--wac); }
+
+/* callout / note bodies (mdLite output) */
+.w-body { font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text); overflow-wrap: anywhere; }
+.w-body .md-h { font-weight: 700; letter-spacing: .06em; color: var(--hud-violet-hi); margin: var(--space-2) 0 var(--space-1); }
+.w-body .md-li { padding-left: var(--space-2); }
+.w-body .md-p + .md-p { margin-top: var(--space-1); }
+.w-callout { border-left: 3px solid var(--wac); }
+
+/* table */
+.w-tbl-scroll { overflow-x: auto; }
+.w-tbl { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); }
+.w-tbl th {
+  text-align: left; padding: var(--space-1) var(--space-2);
+  letter-spacing: .1em; text-transform: uppercase; color: var(--hud-text-dim);
+  border-bottom: 1px solid var(--hud-line);
+}
+.w-tbl td { padding: var(--space-1) var(--space-2); color: var(--hud-text); border-bottom: 1px solid #241f3d; font-variant-numeric: tabular-nums; }
+
+/* chips */
+.w-chip-row { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.w-chip {
+  display: inline-flex; align-items: center;
+  padding: 1px var(--space-2);
+  font-size: var(--fs-xs); letter-spacing: .08em;
+  color: var(--hud-text-dim);
+  border: 1px solid var(--hud-line); border-radius: 2px;
+  white-space: nowrap;
+}
+.w-chip.toned { color: var(--wac); border-color: var(--wac); }
+
+/* spark */
+.w-spark-val { font-family: var(--term); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--hud-text); }
+.w-spark-svg { display: block; width: 100%; height: 44px; margin-top: var(--space-2); color: var(--wac); }
+.w-spark-line { fill: none; stroke: currentColor; stroke-width: 1.6; }
+.w-spark-area { fill: currentColor; opacity: .12; }
+.w-spark-dot  { fill: currentColor; }
+
+/* bars */
+.w-brow { display: flex; gap: var(--space-2); align-items: flex-end; height: 84px; margin-top: var(--space-2); }
+.w-bcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; height: 100%; justify-content: flex-end; }
+.w-bcol i { display: block; width: 100%; max-width: 34px; background: var(--wac); opacity: .8; border-radius: 2px 2px 0 0; box-shadow: 0 0 10px -4px var(--wac); }
+.w-bval { font-family: var(--term); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--hud-text-dim); }
+.w-blbl {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-xs); color: var(--hud-text-dim);
+}
