@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.1 S1 — PROJECTS surface) · main @ 7d93272
+DONE: PROJECTS surface built from v3 forge/view.js on v4 components (7d93272):
+  grid (search/filter/sort toolbar, health-chip cards, clamped meters, dev
+  toggles), drawer (re-entry briefing, Reveal folder via openRepo, dev toggle
+  via devStart/devStop+onDevStatus; v3's inline peek facts consolidated here),
+  Working-on-now (scan rollups + live tab via state/live.js), Epic-D suggested-
+  actions strip (agency proposals -> claude:dispatch / capture:note, honest-
+  async). Pure helpers in core.mjs, 10/10 node --test.
+VERIFY: node --check 8/8; offscreen harness (scratch profile, deleted) over the
+  real index.html on live data: 12/12 asserts, console errors 0, cards==8
+  projects, strip rows==min(proposals,8)==8, all disabled controls titled,
+  Esc closes drawer, 3x mount/unmount clean. Selftest NOT run for this surface
+  (unregistered until S6; boot.js untouched by construction).
+IN-FLIGHT: none.
+ASKS (S6): register `projects` view in boot.js AND add
+  `<link rel="stylesheet" href="./styles/projects.css" />` to dashboard-v4/
+  index.html (after work.css). Drawer reuses .drawer*/.truth-kv/.meter from
+  work.css — promotion into components.css is S6's call.
+BREAKS: none. Additive files only; no IPC, no main-process edits;
+  data/quest-overrides.json untouched.
+
 ## 2026-08-13 · FROM frontend (v4 SPINE D2 FIX WAVE — CHANGES attribution) · main @ aefd10a
 DONE: fixed the one D2 finding (important): the AGENT pane's CHANGES panel
   billed the WHOLE working tree to the session that had just settled — probe()
