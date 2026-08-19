@@ -1,0 +1,278 @@
+/* home.css — HOME, the v4.2 exemplar surface and the STYLE REFERENCE.
+   Every other surface gets revised toward what is in this file, so the rules it
+   embodies are written down here rather than left to be inferred:
+
+   TYPE      body and titles are MIXED CASE in the UI (sans) family. ALL-CAPS +
+             mono is a label register only — eyebrows, kind chips, the metric
+             toggle, the stat caption. Nothing under --fs-xs; prose at 1.5+.
+   HIERARCHY exactly ONE display level: `.oracle-label` at --fs-2xl. The
+             momentum readout is a step below at --fs-xl, neutral and unglowing,
+             so it reads as second rather than as a rival focal.
+   CHROME    BORDER DIET — no passive container is outlined. Sections separate by
+             a background step (--hud-panel over the --hud-ink ground) plus
+             --space-7 of air. The only border in this file that is not on an
+             interactive control is a pick card's 2px status seam.
+   COLOUR    VIOLET BUDGET = 2, and they are both on the hero: `.oracle`'s edge
+             glow and `.oracle-go`'s primary treatment. Everything else is a
+             neutral step or a muted status seam. Adding a third violet accent
+             here is the specific failure this budget exists to prevent.
+   MOTION    none. There is no idle animation on this surface at all. */
+
+.home {
+  /* The UI (sans) family the constitution requires for body text. base.css sets
+     the app font to --term (mono) and tokens.css carries no sans token; this
+     agent does not own either file, so the stack is declared here — scoped to
+     the surface that introduces the register. When the sans stack is promoted
+     to tokens.css this block becomes `font-family: var(--ui)` and nothing else
+     in the file changes. Mono survives only where it earns its keep: figures,
+     labels, and stat captions, where tabular alignment is the point. */
+  --ui: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  /* Muted, on-palette status seams — carried from v3's daily-3 so the screen
+     stays familiar. Deliberately NOT the neon --hud-red/--hud-green: nothing on
+     this screen is an emergency, and severity owns the loud end of the palette.
+     Mirrored as constants in src/surfaces/home/view.js (KIND/SERIES) because the
+     SVG stroke and the seam variable need the same value. */
+  --seam-win:    #86b986;
+  --seam-move:   #74a8dc;
+  --seam-rescue: #d98a3a;
+
+  font-family: var(--ui);
+  max-width: var(--measure);            /* text column caps at 880px */
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);                  /* the section rhythm — nothing here ever touches */
+}
+
+/* ------------------------------------------------------------------ labels */
+/* The label register: mono, tracked-out, uppercase, dim. Used for eyebrows and
+   tiny section headings ONLY — never for a sentence, a title, or a data value. */
+.home-key,
+.oracle-eyebrow,
+.pick-kind {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.home-key { font-weight: 600; margin: 0; }
+
+/* Empty/quiet states are calm single sentences, not styled panels. */
+.home-quiet {
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--hud-text-dim);
+  max-width: 62ch;
+  margin: 0;
+}
+.home-quiet--only { padding-top: var(--space-6); }
+
+.home-sec { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* ----------------------------------------------------------- oracle (focal) */
+/* The ONE dominant element. Hexagon-cut like the shell's System windows, with
+   the scanline and the edge glow the constitution reserves for focal moments.
+   It does not compose `.panel`: that component carries a full 1px outline, and
+   an outlined hero next to unoutlined sections is the "everything is a box"
+   look this surface exists to replace. */
+.oracle {
+  position: relative;
+  padding: var(--space-6);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .035) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+  /* VIOLET ACCENT 1 of 2. */
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 0 64px -32px var(--hud-violet), 0 30px 70px -40px #000;
+}
+
+.oracle-eyebrow { margin-bottom: var(--space-3); }
+
+/* The only display-weight title on the screen. Near-white, not violet: size and
+   position make it focal, and spending violet here would blow the budget. */
+.oracle-label {
+  font-family: var(--ui);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  color: var(--hud-text);
+  margin: 0;
+  max-width: 26ch;                      /* a headline measure — long labels wrap, never run edge to edge */
+  text-wrap: balance;
+}
+
+/* The reason, in a quiet sentence. */
+.oracle-reason {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--hud-text-dim);
+  max-width: 58ch;
+}
+
+.oracle-act { margin-top: var(--space-5); }
+
+/* VIOLET ACCENT 2 of 2 — `.btn--primary` supplies the violet edge and glow.
+   Overridden here into the sans register at a real size: a shouted
+   "REVIEW & COMMIT" is exactly the ALL-CAPS-everywhere failure the type rules
+   ban, and the app's single most important control should not read as chrome. */
+.oracle-go {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: .01em;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: 4px;
+}
+
+/* Rest / night / old-snapshot: a sentence on the page ground. No panel, no
+   glow, no button — when there is nothing to do, the screen says so quietly and
+   the momentum trend below becomes the thing worth looking at. */
+.oracle--rest {
+  background: none;
+  box-shadow: none;
+  clip-path: none;
+  padding: var(--space-5) 0 0;
+}
+.oracle-quiet {
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  color: var(--hud-text);
+  max-width: 54ch;
+  text-wrap: balance;
+}
+
+/* ------------------------------------------------------- today — pick one */
+/* Capped at three by view.js's slice(0, 3), and the track minimum keeps it to
+   three across the whole measure — the "max 3 tiles in a row" rule holds by
+   construction, not by luck. */
+.picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+/* Cards RECEDE: a flat background step, no outline, and a single 2px seam on
+   the accent edge carrying the kind. */
+.pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--seam, var(--hud-dim));
+  border-radius: 0 4px 4px 0;
+}
+.pick-kind { color: var(--seam, var(--hud-text-dim)); letter-spacing: .2em; }
+
+.pick-title { margin: 0; font-size: var(--fs-md); font-weight: 600; line-height: 1.45; }
+
+/* The title IS the control, so the card needs no button chrome at all. */
+.pick-open {
+  font: inherit;
+  color: var(--hud-text);
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.pick-open:hover { color: var(--hud-violet-hi); text-decoration: underline; text-underline-offset: 4px; }
+.pick-open:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; border-radius: 2px; }
+
+.pick-why {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--hud-text-dim);
+}
+
+.pick-act { margin-top: auto; padding-top: var(--space-3); }
+
+/* Quiet secondary verb: text, not a box. It only renders when hq.markQuestDone
+   exists, so it never needs a disabled-at-rest state — but it does get one the
+   moment it has fired, because a second click would be a second write. */
+.pick-done {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  color: var(--hud-text-dim);
+  background: none;
+  border: 0;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.pick-done:hover:not(:disabled) { color: var(--hud-text); text-decoration: underline; text-underline-offset: 4px; }
+.pick-done:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; border-radius: 2px; }
+.pick-done:disabled { color: var(--hud-dim); cursor: default; }
+
+/* ----------------------------------------------------------------- momentum */
+.momentum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-radius: 4px;
+}
+.mo-head { display: flex; align-items: baseline; gap: var(--space-4); }
+.mo-tabs { margin-left: auto; display: flex; gap: var(--space-3); }
+
+/* Toggle in the label register. Borderless — the active state is carried by
+   brightness plus a hairline under the word, which is quieter than two more
+   outlined controls on a screen that is trying to calm down. */
+.mo-tab {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 2px 0;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.mo-tab:hover { color: var(--hud-text); }
+.mo-tab.on { color: var(--hud-text); border-bottom-color: currentColor; }
+.mo-tab:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; }
+
+.mo-spark { line-height: 0; }
+.mo-svg { display: block; width: 100%; height: 64px; }
+
+.mo-read { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+
+/* The only other display-weight number on the screen: one step BELOW the hero
+   title, neutral-coloured and unglowing. Mono + tabular so toggling series
+   never re-flows the line. */
+.mo-val {
+  font-family: var(--term);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-text);
+}
+.mo-delta { font-family: var(--term); font-size: var(--fs-sm); color: var(--hud-text-dim); }
+.mo-delta[data-dir="up"]   { color: var(--seam-win); }
+.mo-delta[data-dir="down"] { color: var(--hud-amber); }   /* a falling trend IS the mild-warning case */
+/* A date range and a streak count, not a heading — so it stays mono and dim for
+   alignment but is NOT uppercased. "3 SCAN DAYS" shouted at the reader is the
+   ALL-CAPS-everywhere habit creeping back in through a caption. */
+.mo-range {
+  margin-left: auto;
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .06em;
+  color: var(--hud-text-dim);
+}
