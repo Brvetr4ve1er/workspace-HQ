@@ -5,8 +5,17 @@
 //
 // Security posture:
 // - The renderer NEVER chooses the executable or argv. IPC accepts only
-//   {cwd, task, label}; claude-sessions' default args ['-p'] (headless print
-//   mode) stay, and the task travels via stdin (`input`).
+//   {cwd, task, label}; the argv is the FIXED main-side constant
+//   SESSION_ARGS (headless print mode + stream-json output — v4.1 Phase 3),
+//   and the task travels via stdin (`input`).
+//
+// Live token streaming (v4.1 Phase 3, IPC-CONTRACT.md hq:session-output
+// note): stdout arrives as stream-json lines; each onOutput chunk runs
+// through the pure parser in stream-parse.js before pushing, so the renderer
+// sees assistant text + one-line [tool: ...] notices, never raw JSON. The
+// claude-sessions registry buffers the RAW output unchanged (its `tail` is
+// json now — cosmetic for presence consumers; this channel is what the
+// renderer displays).
 // - cwd is containment-checked under DOCS_ROOT with the exact same rule as
 //   main.js resolveProjectPath (re-implemented locally on purpose — main.js is
 //   not edited/exported for it; keep the two in sync by NOT "improving" this).
@@ -21,10 +30,14 @@
 //   never throws across the IPC boundary.
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { parseChunk } = require('./stream-parse');
 
 const DOCS_ROOT = 'C:\\Users\\ROG STRIX\\Documents';   // mirror of main.js:28
 const TASK_MAX = 2000;                                 // plan-mandated task cap
 const LABEL_MAX = 60;
+// Fixed argv (renderer has no say): headless print mode emitting line-delimited
+// stream-json; --verbose is required by the CLI for stream-json with -p.
+const SESSION_ARGS = ['-p', '--output-format', 'stream-json', '--verbose'];
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;             // main-side constant (contract row); seam default 120s kills real runs
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;               // big diffs exceed the 1MB spawnSync default
 const BASELINE_MAX = 100;                              // dispatch-time snapshots retained (FIFO); presence-sized, never persisted
@@ -112,15 +125,30 @@ function init({ ipcMain, claudeSessions, send }) {
         const prompt = String(task || '').slice(0, TASK_MAX);
         if (!prompt.trim()) return { error: 'task is empty' };
         let jobId = null;   // assigned before any stdout tick can fire (data events are async)
+        let sbuf = '';      // per-job stream-json line buffer (partial lines wait here)
         // BEFORE the spawn, so nothing the session writes can leak into its own
         // baseline. Discarded below if start() refuses.
         const baseline = captureBaseline(dir);
         const r = claudeSessions.start({
           label: String(label || '').trim().slice(0, LABEL_MAX) || defaultLabel(prompt),
           cwd: dir,
+          args: SESSION_ARGS,
           input: prompt,                    // headless print mode reads the task from stdin
           timeoutMs: SESSION_TIMEOUT_MS,
-          onOutput: (chunk) => { if (jobId) push('hq:session-output', { jobId, chunk: String(chunk) }); },
+          onOutput: (chunk) => {
+            const out = parseChunk(sbuf, String(chunk));
+            sbuf = out.rest;
+            if (jobId && out.text) push('hq:session-output', { jobId, chunk: out.text });
+          },
+          onDone: () => {
+            // Flush a trailing line that never got its newline (a killed
+            // process or stderr tail) — feed the buffer a bare '\n' so it
+            // parses as a complete line (JSON if valid, raw otherwise).
+            if (!sbuf.trim()) { sbuf = ''; return; }
+            const out = parseChunk(sbuf, '\n');
+            sbuf = '';
+            if (jobId && out.text) push('hq:session-output', { jobId, chunk: out.text });
+          },
         });
         if (r.error) return { error: r.error };   // nothing spawned -> the snapshot is dropped
         jobId = r.jobId;
