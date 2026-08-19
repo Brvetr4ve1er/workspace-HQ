@@ -74,7 +74,7 @@ grep the channel name).
 | `showMain()` | `hq:show-main` | — | `true` | mini HUD |
 | `miniHide()` | `hq:mini-hide` | — | `true` | mini HUD |
 | **Claude sessions (MA)** | | | | |
-| `getSessions()` | `hq:sessions-list` | — | `[{jobId, label, status, startedAt, endedAt, exitCode, tail}]` | main |
+| `getSessions()` | `hq:sessions-list` | — | `[{jobId, label, status, startedAt, endedAt, exitCode, tail}]` (`tail` is untrusted text; for `sessionStart` jobs it is PARSED — see the tail note below) | main |
 | **The Canvas (M3)** | | | | |
 | `getCanvas()` | `hq:canvas-read` | — | `[{name, nodes, edges}]` (JSON Canvas boards from `data/canvas/`) | main |
 | `canvasAdd(name, node)` | `hq:canvas-add` | board name (`[\w][\w -]{0,63}`), `{type:'text', text, x?, y?}` | `true`/`false` (text clamped 2000; atomic write; watcher pushes) | main |
@@ -138,13 +138,46 @@ pushing. So `chunk` carries assistant text plus one-line bracketed tool notices
 - Partial lines are buffered until their terminating newline arrives (a
   trailing unterminated line is flushed when the process ends).
 - Known protocol events with no user-facing text are filtered by design:
-  `system` init, `user` tool-result echoes, and the final `result` event
-  (which duplicates the assistant text already emitted).
+  `system` init and `user` tool-result echoes.
+- The final `result` event is filtered **only when the run succeeded** (it
+  duplicates the assistant text already emitted). Amended 2026-08-19 (D2 fix
+  wave): a FAILED result — `is_error: true`, or an `error*` subtype such as
+  `error_during_execution` / `error_max_turns` — emits a one-line
+  `[error: <subtype>]` notice plus its `result` string when it carries one.
+  On a failed run there is no assistant text for it to duplicate, and it is
+  frequently the ONLY diagnostic the run produces; filtering it left the user
+  with a red "Failed · exit N" chip and no reason.
 
-The registry tail in `claude-sessions.js` stays RAW process output — presence
-consumers reading `tail` (hq:sessions-list / hq:claude-sessions) see stream-json
-lines there (cosmetic); renderer consumers of THIS channel see clean text.
 `chunk` remains untrusted text: `textContent`/`esc()` only, as before.
+
+**Registry `tail` for `sessionStart` sessions (2026-08-19, additive — shape
+unchanged).** Supersedes the earlier note that called a stream-json `tail`
+"cosmetic": it is not, because two renderer surfaces DISPLAY `tail` verbatim
+(`dashboard-v4/src/surfaces/work/agent-pane.js`,
+`dashboard-v4/src/surfaces/automate/sessions.js`, plus v3's summoning realm),
+and `hq:capture-save`/`hq:scan` reload the window — which wipes the renderer's
+live output buffer while the session still lingers ~60 s in the registry. The
+next look at that session therefore falls back to `tail`, and a raw one would
+be a wall of `{"type":"assistant",…}`.
+
+`claude-sessions.js` is unchanged (READ-ONLY by program constraint) and still
+buffers RAW output. `dashboard/session-tails.js` keeps a parallel PARSED tail
+(same ~800-char rolling window) for jobs started via `hq:session-start`, fed by
+the same `stream-parse.js` pass that feeds `hq:session-output`; `main.js` swaps
+it into the `tail` field on the way out of BOTH `hq:sessions-list` and the
+`hq:claude-sessions` push.
+
+| `tail` value | When |
+|---|---|
+| PARSED text (assistant text + `[tool: …]` / `[error: …]` notices), possibly `''` | job started by `hq:session-start` in this main process |
+| RAW process output, exactly as before | every other job (`hq:claude-quest`, `draft-commit`, jobs from an earlier main process) |
+
+An empty parsed tail is returned as `''` rather than falling back to the raw
+one — the panes' honest "no output reached this window" state is correct, and a
+JSON wall is not. The registry's `[timeout]` marker (written straight into its
+own buffer, so the parser never sees it) is carried across. `tail` stays a
+string and stays untrusted; a main process older than this row returns the raw
+tail as before.
 
 ## Rules
 
