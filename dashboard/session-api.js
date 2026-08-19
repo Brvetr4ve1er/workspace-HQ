@@ -12,10 +12,16 @@
 // Live token streaming (v4.1 Phase 3, IPC-CONTRACT.md hq:session-output
 // note): stdout arrives as stream-json lines; each onOutput chunk runs
 // through the pure parser in stream-parse.js before pushing, so the renderer
-// sees assistant text + one-line [tool: ...] notices, never raw JSON. The
-// claude-sessions registry buffers the RAW output unchanged (its `tail` is
-// json now — cosmetic for presence consumers; this channel is what the
-// renderer displays).
+// sees assistant text + one-line [tool: ...] notices, never raw JSON.
+//
+// The same parsed text is recorded in session-tails.js (v4.1 D2). The
+// claude-sessions registry still buffers RAW output — it is READ-ONLY by
+// program constraint — and its stream-json `tail` is NOT merely cosmetic, as
+// this comment previously claimed: the WORK agent pane and the AUTOMATE
+// session list DISPLAY `tail` verbatim whenever the renderer's own live buffer
+// is empty, which is exactly what capture-save/scan produce when they reload
+// the window mid-linger. main.js swaps the parsed tail in on the way out of
+// hq:sessions-list / hq:claude-sessions so those panes never show JSON.
 // - cwd is containment-checked under DOCS_ROOT with the exact same rule as
 //   main.js resolveProjectPath (re-implemented locally on purpose — main.js is
 //   not edited/exported for it; keep the two in sync by NOT "improving" this).
@@ -31,6 +37,7 @@
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { parseChunk } = require('./stream-parse');
+const sessionTails = require('./session-tails');
 
 const DOCS_ROOT = 'C:\\Users\\ROG STRIX\\Documents';   // mirror of main.js:28
 const TASK_MAX = 2000;                                 // plan-mandated task cap
@@ -138,7 +145,13 @@ function init({ ipcMain, claudeSessions, send }) {
           onOutput: (chunk) => {
             const out = parseChunk(sbuf, String(chunk));
             sbuf = out.rest;
-            if (jobId && out.text) push('hq:session-output', { jobId, chunk: out.text });
+            // ONE parse, TWO consumers: the live push (this window, now) and
+            // the parsed tail (any window, after a reload). Record first — the
+            // tail must be right even if the window is already gone.
+            if (jobId && out.text) {
+              sessionTails.record(jobId, out.text);
+              push('hq:session-output', { jobId, chunk: out.text });
+            }
           },
           onDone: () => {
             // Flush a trailing line that never got its newline (a killed
@@ -147,11 +160,19 @@ function init({ ipcMain, claudeSessions, send }) {
             if (!sbuf.trim()) { sbuf = ''; return; }
             const out = parseChunk(sbuf, '\n');
             sbuf = '';
-            if (jobId && out.text) push('hq:session-output', { jobId, chunk: out.text });
+            if (jobId && out.text) {
+              sessionTails.record(jobId, out.text);   // the last line matters most on a killed run
+              push('hq:session-output', { jobId, chunk: out.text });
+            }
           },
         });
         if (r.error) return { error: r.error };   // nothing spawned -> the snapshot is dropped
         jobId = r.jobId;
+        // CLAIM the jobId even before a line completes: this session's raw
+        // registry tail is stream-json, so an empty parsed tail (which renders
+        // the panes' honest "nothing reached this window" state) is the right
+        // answer from tick zero, not a JSON wall.
+        sessionTails.record(jobId, '');
         rememberBaseline(baselines, jobId, baseline);
         return { jobId };
       } catch (e) { return { error: String(e?.message || e) }; }

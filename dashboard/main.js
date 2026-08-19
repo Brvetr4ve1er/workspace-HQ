@@ -976,9 +976,16 @@ function castSend(channel, payload) {
   }
 }
 // MA: session presence — every registry change pushes to the windows, and the
-// list is pollable (IPC-CONTRACT: hq:claude-sessions push / hq:sessions-list)
-claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessions));
-ipcMain.handle('hq:sessions-list', () => claudeSessions.list());
+// list is pollable (IPC-CONTRACT: hq:claude-sessions push / hq:sessions-list).
+// v4.1 D2: claude-sessions.js buffers RAW output and stays READ-ONLY, so for a
+// stream-json session its `tail` is JSON — and the panes DISPLAY tail whenever
+// the renderer's live buffer is empty (every capture-save/scan reloads the
+// window mid-linger). session-tails.js holds the parsed text for jobs we
+// dispatched; withTails swaps it in on the way out, on both channels, and
+// leaves every foreign job's tail untouched (IPC-CONTRACT: registry tail).
+const sessionTails = require('./session-tails');
+claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessionTails.withTails(sessions)));
+ipcMain.handle('hq:sessions-list', () => sessionTails.withTails(claudeSessions.list()));
 require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
 
 // ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
