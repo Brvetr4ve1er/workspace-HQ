@@ -79,7 +79,7 @@ grep the channel name).
 | `getCanvas()` | `hq:canvas-read` | — | `[{name, nodes, edges}]` (JSON Canvas boards from `data/canvas/`) | main |
 | `canvasAdd(name, node)` | `hq:canvas-add` | board name (`[\w][\w -]{0,63}`), `{type:'text', text, x?, y?}` | `true`/`false` (text clamped 2000; atomic write; watcher pushes) | main |
 | **Claude sessions (v4 SPINE B3, `dashboard/session-api.js`)** | | | | |
-| `sessionStart(opts)` | `hq:session-start` | `{cwd, task, label?}` — cwd containment-checked under the Documents root (same rule as `resolveProjectPath`), task truncated at 2,000 chars, label defaults from task; NO command/args passthrough; headless print mode (`claude -p`, task via stdin), main-side 15-min timeout | `{jobId}` \| `{error}` | v4 WORK |
+| `sessionStart(opts)` | `hq:session-start` | `{cwd, task, label?}` — cwd containment-checked under the Documents root (same rule as `resolveProjectPath`), task truncated at 2,000 chars, label defaults from task; NO command/args passthrough; headless print mode (since 2026-08-19 main passes the fixed args `claude -p --output-format stream-json --verbose`, task still via stdin), main-side 15-min timeout | `{jobId}` \| `{error}` | v4 WORK |
 | `sessionKill(jobId)` | `hq:session-kill` | jobId | `true`/`false` (never throws) | v4 WORK |
 | `sessionDiff(opts)` | `hq:session-diff` | `{cwd, jobId?}` (containment-checked as above; `jobId` optional — pass it to get the dispatch-time baseline) | `{files:[{path,status}], stat, baseline}` (git `status --porcelain` + `diff --stat`, no shell) \| `{error}` | v4 WORK |
 
@@ -121,7 +121,30 @@ realm switches is the #1 porting hazard).
 | `onBrowserTab(cb)` | `hq:browser-tab` | active-tab event | bridge extension reports focus |
 | `onClaudeSessions(cb)` | `hq:claude-sessions` | full sessions list | any registry change (start/stream-end/linger-expiry) |
 | `onCanvas(cb)` | `hq:canvas` | full boards list | any `.canvas` file change in `data/canvas/` (300ms debounce) |
-| `onSessionOutput(cb)` | `hq:session-output` | `{jobId, chunk}` (chunk is untrusted text — render via `textContent`/`esc()` only) | a `sessionStart` session emits stdout/stderr |
+| `onSessionOutput(cb)` | `hq:session-output` | `{jobId, chunk}` (chunk is untrusted text — render via `textContent`/`esc()` only; since 2026-08-19 chunk is PARSED text, see note below) | a `sessionStart` session emits stdout/stderr |
+
+**`hq:session-output` payload semantics (2026-08-19, additive — shape unchanged).**
+The channel and payload keep the exact same shape: `{jobId, chunk}`, `chunk` a
+string. What changed is what main feeds into it: `session-api.js` now launches
+sessions with `claude -p --output-format stream-json --verbose` and runs the
+raw stdout through a pure line parser (`dashboard/stream-parse.js`) BEFORE
+pushing. So `chunk` carries assistant text plus one-line bracketed tool notices
+(`[tool: Read C:\...\file.js]`) instead of raw JSON lines:
+
+- Assistant `text` content blocks are emitted as-is (newline-terminated).
+- `tool_use` content blocks become one-line `[tool: <name> <hint>]` notices.
+- Complete lines that are NOT valid JSON (stderr, CLI banners) pass through
+  verbatim — never dropped, the parser never throws.
+- Partial lines are buffered until their terminating newline arrives (a
+  trailing unterminated line is flushed when the process ends).
+- Known protocol events with no user-facing text are filtered by design:
+  `system` init, `user` tool-result echoes, and the final `result` event
+  (which duplicates the assistant text already emitted).
+
+The registry tail in `claude-sessions.js` stays RAW process output — presence
+consumers reading `tail` (hq:sessions-list / hq:claude-sessions) see stream-json
+lines there (cosmetic); renderer consumers of THIS channel see clean text.
+`chunk` remains untrusted text: `textContent`/`esc()` only, as before.
 
 ## Rules
 
