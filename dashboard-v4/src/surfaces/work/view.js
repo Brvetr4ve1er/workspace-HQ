@@ -94,6 +94,17 @@ export const view = {
     let model = buildQueue(scan);
     queue.render(model);
 
+    // The command palette (core/palette.js) indexes the same buildQueue model
+    // and hands an item back here: it calls switchSurface('work') — which
+    // mounts synchronously, so this subscriber exists — and then emits. It runs
+    // the IDENTICAL path as the rail's own `dispatch` verb (agent.seed +
+    // markSeeded), so a palette seed and a rail seed can never diverge.
+    teardown.push(ctx.bus.on('work:seed', (item) => {
+      if (!alive() || !item) return;
+      agent.seed(item);
+      queue.markSeeded(item.id);
+    }));
+
     // ---- live wiring -----------------------------------------------------
     // Reference comparison decides what actually changed: applyEvent() returns
     // a new state object per event but keeps untouched sub-objects by

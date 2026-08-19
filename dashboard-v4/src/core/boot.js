@@ -6,6 +6,8 @@
 import { bus } from './bus.js';
 import { data } from './data.js';
 import { startShell, switchSurface, surfaces } from './shell.js';
+import { initActions } from './actions.mjs';
+import { initPalette } from './palette.js';
 import { view as workView } from '../surfaces/work/view.js';
 import { view as projectsView } from '../surfaces/projects/view.js';
 import { view as systemView } from '../surfaces/system/view.js';
@@ -31,7 +33,25 @@ const SURFACES = [
 // boot log's active= claim stays true.
 const stored = sessionStorage.getItem('hq-v4-surface');
 const startId = SURFACES.some((s) => s.id === stored) ? stored : 'work';
+
+// The audited action registry, seeded HERE rather than at WORK's first mount:
+// the command palette must be able to navigate and act on a session that was
+// restored onto some other surface, where wire.js has not run yet. `ordered`
+// is the v3-shaped shim initActions expects — it only reads `manifest.id` and
+// `manifest.sigil` — and yields one `go:<surface>` action per rail entry.
+//
+// wire.js (WORK) and system/view.js both call initActions({hq}) later. Those
+// calls pass no `ordered`, so they cannot disturb the `go:*` actions, and they
+// re-register the shared verbs with the SAME window.hq — identical effects, so
+// the callers can never disagree.
+initActions({
+  switchRealm: switchSurface,
+  ordered: () => SURFACES.map((s) => ({ manifest: { id: s.id, sigil: s.glyph } })),
+  hq: window.hq,
+});
+
 startShell(SURFACES, startId);
+initPalette();   // one window keydown for the app's lifetime; overlay built lazily
 
 // Debug/harness handle — screenshot/verify harnesses drive surface switches
 // through this instead of synthesizing clicks.

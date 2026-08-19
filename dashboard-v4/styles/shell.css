@@ -193,5 +193,99 @@
 .hud-line { font-size: var(--fs-sm); color: var(--hud-text); margin-top: var(--space-3); }
 .hud-dim { color: var(--hud-text-dim); }
 
-/* --- placeholder surfaces (the five v4.1 stubs) ------------------------ */
+/* --- placeholder surface (the v4.0 stub factory, no longer mounted) ----- */
 .placeholder .hud-title { color: var(--hud-text-dim); text-shadow: none; }
+
+/* --- command palette (Ctrl/Cmd+K) --------------------------------------
+   Chrome overlay under #overlays, outside #stage — a surface re-mount (the
+   scrubber's included) never disturbs it. Ported from v3 palette.css onto the
+   System-HUD tokens: hexagon-cut panel, violet edge, one theme. */
+#overlays { position: relative; z-index: 70; }
+
+#palette.pal-wrap {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 12vh var(--space-4) var(--space-4);
+  background: rgba(4, 2, 12, .66);
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+#palette.pal-wrap[hidden] { display: none; }
+#palette.pal-wrap.open { opacity: 1; }
+
+.pal-panel {
+  width: min(620px, 94vw);
+  max-height: 74vh;
+  display: flex; flex-direction: column;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .03) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-violet);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 30px 80px -28px #000;
+  transform: translateY(-6px);
+  transition: transform .16s ease;
+}
+#palette.pal-wrap.open .pal-panel { transform: translateY(0); }
+
+.pal-input {
+  appearance: none; width: 100%;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: 0; border-bottom: 1px solid var(--hud-line);
+  color: var(--hud-text);
+  font-family: var(--term); font-size: var(--fs-lg); letter-spacing: .02em;
+  outline: none;
+}
+.pal-input::placeholder { color: var(--hud-dim); }
+.pal-input:focus { box-shadow: inset 0 -1px 0 var(--hud-violet); }
+
+.pal-list { overflow-y: auto; padding: var(--space-1); }
+.pal-list::-webkit-scrollbar { width: 8px; }
+.pal-list::-webkit-scrollbar-thumb { background: var(--hud-line); border-radius: 4px; }
+.pal-list::-webkit-scrollbar-track { background: transparent; }
+
+.pal-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  color: var(--hud-text);
+}
+.pal-row.sel {
+  background: linear-gradient(90deg, rgba(167, 139, 250, .12), transparent);
+  border-left-color: var(--hud-violet);
+}
+.pal-ico { flex: 0 0 auto; width: 20px; text-align: center; font-size: var(--fs-md); color: var(--hud-text-dim); }
+.pal-row.sel .pal-ico { color: var(--hud-violet-hi); }
+.pal-label {
+  flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pal-hint {
+  flex: 0 1 auto; min-width: 0; font-size: var(--fs-xs); color: var(--hud-text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pal-kind {
+  flex: 0 0 auto;
+  font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--hud-line); color: var(--hud-text-dim);
+}
+.pal-kind[data-kind="surface"] { color: var(--hud-violet-hi); border-color: var(--hud-violet); }
+.pal-kind[data-kind="verb"]    { color: var(--hud-text); border-color: var(--hud-dim); }
+.pal-kind[data-kind="spell"]   { color: var(--hud-text-dim); border-color: var(--hud-line); }
+/* queue rows carry the WORK rail's own severity language, so the two agree */
+.pal-kind[data-sev="red"]    { color: var(--hud-red);    border-color: #6b2f3a; }
+.pal-kind[data-sev="orange"] { color: var(--hud-amber);  border-color: #6b4a24; }
+.pal-kind[data-sev="yellow"] { color: var(--hud-yellow); border-color: #625524; }
+.pal-kind[data-sev="dim"]    { color: var(--hud-text-dim); border-color: var(--hud-line); }
+
+.pal-empty { padding: var(--space-6) var(--space-4); color: var(--hud-text-dim); font-size: var(--fs-sm); text-align: center; }
+
+.pal-foot {
+  display: flex; gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--hud-line);
+  font-size: var(--fs-xs); color: var(--hud-dim); letter-spacing: .08em;
+}
