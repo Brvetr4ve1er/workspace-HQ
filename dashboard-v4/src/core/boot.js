@@ -7,17 +7,22 @@ import { bus } from './bus.js';
 import { data } from './data.js';
 import { startShell, switchSurface, surfaces } from './shell.js';
 import { view as workView } from '../surfaces/work/view.js';
-import { placeholderView } from '../surfaces/placeholder.js';
+import { view as projectsView } from '../surfaces/projects/view.js';
+import { view as systemView } from '../surfaces/system/view.js';
+import { view as mindView } from '../surfaces/mind/view.js';
+import { view as automateView } from '../surfaces/automate/view.js';
+import { view as lookbackView } from '../surfaces/lookback/view.js';
 
-// The 6-surface rail (design §Surfaces). Only WORK has a real view module
-// this milestone; the other five mount an honest one-line placeholder.
+// The 6-surface rail (design §Surfaces). v4.1: all six are real views — the
+// five placeholders that shipped in v4.0 are gone (surfaces/placeholder.js
+// stays as the stub factory for any FUTURE room, it is no longer mounted).
 const SURFACES = [
   { id: 'work',      label: 'WORK',      glyph: '◎', view: workView },
-  { id: 'projects',  label: 'PROJECTS',  glyph: '▣', view: placeholderView('PROJECTS') },
-  { id: 'system',    label: 'SYSTEM',    glyph: '⧉', view: placeholderView('SYSTEM') },
-  { id: 'mind',      label: 'MIND',      glyph: '✦', view: placeholderView('MIND') },
-  { id: 'automate',  label: 'AUTOMATE',  glyph: '⚙', view: placeholderView('AUTOMATE') },
-  { id: 'lookback',  label: 'LOOKBACK',  glyph: '↺', view: placeholderView('LOOKBACK') },
+  { id: 'projects',  label: 'PROJECTS',  glyph: '▣', view: projectsView },
+  { id: 'system',    label: 'SYSTEM',    glyph: '⧉', view: systemView },
+  { id: 'mind',      label: 'MIND',      glyph: '✦', view: mindView },
+  { id: 'automate',  label: 'AUTOMATE',  glyph: '⚙', view: automateView },
+  { id: 'lookback',  label: 'LOOKBACK',  glyph: '↺', view: lookbackView },
 ];
 
 // Restore the active surface across win.reload() (main reloads on scan/commit)
