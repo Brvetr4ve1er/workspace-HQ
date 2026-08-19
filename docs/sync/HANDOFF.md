@@ -12,6 +12,36 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-19 · FROM frontend (v4.2 — HOME EXEMPLAR) · main @ 525de26
+DONE: 525de26 **HOME, the v4.2 exemplar + STYLE REFERENCE.** New files only:
+  `dashboard-v4/src/surfaces/home/{view.js,oracle-logic.mjs,oracle-logic.test.mjs}`
+  + `dashboard-v4/styles/home.css` (self-injected, index.html unowned).
+  v3 roundtable's content reborn under docs/superpowers/specs/2026-08-19-v4-
+  design-constitution.md: Oracle hero (derive.oracle → the ONE focal element),
+  today-pick-one from account.daily_top3, the 14-pt momentum strip.
+  oracle-logic is ADAPTED, not copied: derive.oracle emits v3 realm ids
+  (forge/hunts), v4 registers go:work|projects|…, so the map translates and an
+  unknown realm falls back to a REAL surface. Button copy names the room it
+  opens ("Open Projects") — v3's "Review & commit" promised work a go:* action
+  does not do.
+VERIFY: 12 v4 test files BY FILE, 115/115, fail 0 (new oracle-logic 7). Offscreen
+  harness (scratch userData, deleted) mounting `view` into the real index DOM on
+  live data: 0 console errors with AND without a bridge; hero text == the live
+  `oracle()` label ("Rotate 4 exposed secrets — Crucix"); HEALTH↔XP toggle
+  repaints (21 / #74a8dc → 2,081 / #e8a13c); data:select repaint idempotent;
+  0 listeners after unmount. Self-check measured on the DOM: violet accents = 2
+  (.oracle, .oracle-go), outlined passive containers = 0, ALL-CAPS sentences = 0,
+  section gaps 48/48px, ≤3 cards/row, column = 880px.
+  Shots: dashboard-v4/tools/shots/exemplar-home-{wide,default}.png (gitignored).
+IN-FLIGHT: none.
+ASKS: none — but HOME IS NOT REGISTERED. boot.js/shell.js deliberately untouched;
+  whoever wires it adds `{ id:'home', label:'HOME', glyph:'◎', view: homeView }`
+  as the FIRST rail entry + flips `startId` default, and may then drop the
+  self-inject in favour of a static `<link>` (the injector no-ops either way).
+BREAKS: none. No existing file was modified. `styles/home.css` introduces a sans
+  UI stack scoped to `.home`; when it is promoted to tokens.css as `--ui`, that
+  one block collapses to a var reference.
+
 ## 2026-08-19 · FROM frontend (v4.1 Phase 4 — D2 FIX WAVE) · main @ 00912cb
 DONE: both Important review findings, contract-first. 061e5b4 (meta)
   IPC-CONTRACT rows BEFORE the handlers. cbeaf77 stream-parse: textFromEvent
