@@ -1,7 +1,7 @@
 // oracle-logic.test.mjs — headless unit test for the pure Oracle adapter.
 // Ported from dashboard-v3/src/realms/roundtable/oracle-logic.test.mjs with the
 // expectations REWRITTEN for v4's rail: derive.oracle() emits v3 realm ids, and
-// v4 registers `go:work|projects|system|mind|automate|lookback`, so the v3
+// v4 registers `go:home|work|projects|system|mind|automate|lookback`, so the v3
 // assertions (`go:forge`, `go:hunts`) would have asserted dispatch into nothing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,8 @@ import { oracleActionId, oracleButtonMeta, oracleSurfaceId, sentence, restCopy }
 
 // The ids core/boot.js registers as `go:<id>`. If this list and boot.js ever
 // drift, the "every button dispatches into a real surface" test below fails.
-const REGISTERED = ['work', 'projects', 'system', 'mind', 'automate', 'lookback'];
+const REGISTERED = ['home', 'work', 'projects', 'system', 'mind', 'automate', 'lookback'];
+const LABEL_OF = { home: 'Home', work: 'Agent', projects: 'Projects', system: 'System', mind: 'Notes', automate: 'Automations', lookback: 'History' };
 
 test('oracleActionId maps every emitted realm to a REGISTERED v4 surface', () => {
   assert.equal(oracleActionId({ action: 'commit', target: { realmId: 'forge', projectId: 'p1' } }), 'go:projects');
@@ -39,16 +40,16 @@ test('button copy names the SAME room the dispatch id opens', () => {
     const meta = oracleButtonMeta(o);
     assert.equal(oracleActionId(o), `go:${meta.destination}`, `${meta.label} must dispatch go:${meta.destination}`);
     // the label the user reads has to contain the destination it dispatches to
-    assert.match(meta.label, new RegExp(meta.destination, 'i'));
+    assert.match(meta.label, new RegExp(LABEL_OF[meta.destination], 'i'));
   }
 });
 
 test('oracleButtonMeta: per-action copy; unknown/null falls back to a real surface', () => {
   assert.equal(oracleButtonMeta({ action: 'commit', target: { realmId: 'forge' } }).label, 'Open Projects');
-  assert.equal(oracleButtonMeta({ action: 'quest',  target: { realmId: 'hunts' } }).label, 'Open Work');
+  assert.equal(oracleButtonMeta({ action: 'quest',  target: { realmId: 'hunts' } }).label, 'Open Agent');
   assert.equal(oracleButtonMeta({ action: 'capture' }).label, 'Capture idea');
   assert.equal(oracleButtonMeta({ action: 'scan' }).label, 'Scan now');
-  assert.deepEqual(oracleButtonMeta(null), { label: 'Open Work', icon: '▸', destination: 'work' });
+  assert.deepEqual(oracleButtonMeta(null), { label: 'Open Agent', icon: '▸', destination: 'work' });
   // capture/scan are not navigational — they must not claim a destination
   assert.equal(oracleButtonMeta({ action: 'scan' }).destination, null);
 });

@@ -23,7 +23,7 @@ const FALLBACK_SURFACE = 'work';
 // Rail labels, as the user reads them, keyed by surface id. The button copy is
 // built from this so the label can never name a different room than the one the
 // dispatch id opens (asserted in oracle-logic.test.mjs).
-const SURFACE_LABEL = { work: 'Work', projects: 'Projects', system: 'System', mind: 'Mind', automate: 'Automate', lookback: 'Lookback' };
+const SURFACE_LABEL = { home: 'Home', work: 'Agent', projects: 'Projects', system: 'System', mind: 'Notes', automate: 'Automations', lookback: 'History' };
 
 export function oracleSurfaceId(oracle) {
   return SURFACE_OF[oracle?.target?.realmId] || FALLBACK_SURFACE;
@@ -48,7 +48,7 @@ export function oracleActionId(oracle) {
 // the AGENT seam lands and the button can seed a session, THAT is the moment the
 // verb comes back, and this function (with its test) is the one place to change.
 export function oracleButtonMeta(oracle) {
-  if (!oracle) return { label: 'Open Work', icon: '▸', destination: FALLBACK_SURFACE };
+  if (!oracle) return { label: `Open ${SURFACE_LABEL[FALLBACK_SURFACE]}`, icon: '▸', destination: FALLBACK_SURFACE };
   if (oracle.action === 'capture') return { label: 'Capture idea', icon: '✎', destination: null };
   if (oracle.action === 'scan')    return { label: 'Scan now',     icon: '⟳', destination: null };
   const id = oracleSurfaceId(oracle);

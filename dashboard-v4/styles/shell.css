@@ -140,6 +140,10 @@
 .scrub-badge[data-state="none"]   { color: var(--hud-red); border-color: #6b2f3a; }
 .scrub-delta { font-size: var(--fs-xs); color: var(--hud-text-dim); }
 .scrub-pos { font-variant-numeric: tabular-nums; }
+.scrub-fresh { color: var(--hud-text-dim); }
+.scrub-fresh[hidden] { display: none; }
+.scrub-fresh[data-state="aging"] { color: var(--hud-amber); }
+.scrub-fresh[data-state="stale"] { color: var(--hud-red); }
 .dlt { display: inline-flex; align-items: baseline; gap: 3px; }
 .dlt[hidden], .dlt-base[hidden] { display: none; }
 .dlt i { font-style: normal; font-size: 10px; letter-spacing: .12em; color: var(--hud-dim); }

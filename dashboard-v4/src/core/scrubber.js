@@ -20,6 +20,7 @@
 // button under the user's cursor and drop keyboard focus mid-interaction.
 import { data } from './data.js';
 import { el } from '../ui/util.js';
+import { freshnessForScanId } from './scrubber-core.mjs';
 
 const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
 // signed delta for the vs-previous read-out: +12 / -3 / 0
@@ -42,6 +43,7 @@ export function createScrubber() {
       </div>
       <div class="scrub-line scrub-delta">
         <span class="scrub-pos"></span>
+        <span class="scrub-fresh"></span>
         <span class="dlt" data-k="HP"><i>HP</i><b></b></span>
         <span class="dlt" data-k="XP"><i>XP</i><b></b></span>
         <span class="dlt-base">baseline</span>
@@ -56,6 +58,7 @@ export function createScrubber() {
   const idEl = root.querySelector('.scrub-id');
   const badgeEl = root.querySelector('.scrub-badge');
   const posEl = root.querySelector('.scrub-pos');
+  const freshEl = root.querySelector('.scrub-fresh');
   const hpEl = root.querySelector('.dlt[data-k="HP"]');
   const xpEl = root.querySelector('.dlt[data-k="XP"]');
   const baseEl = root.querySelector('.dlt-base');
@@ -79,6 +82,7 @@ export function createScrubber() {
       badgeEl.textContent = 'NO DATA';
       badgeEl.dataset.state = 'none';
       posEl.textContent = '';
+      freshEl.hidden = true;
       hpEl.hidden = xpEl.hidden = baseEl.hidden = true;
       for (const b of [prevB, nextB, lastB]) {
         b.disabled = true;
@@ -93,6 +97,13 @@ export function createScrubber() {
     badgeEl.textContent = isLatest ? 'LATEST' : 'PAST';
     badgeEl.dataset.state = isLatest ? 'latest' : 'past';
     posEl.textContent = `${i + 1}/${n}`;
+    const freshness = freshnessForScanId(S.scan?.id);
+    freshEl.hidden = false;
+    freshEl.textContent = freshness.label;
+    freshEl.dataset.state = freshness.state;
+    freshEl.title = freshness.days == null
+      ? 'The scan date is unavailable, so WorkspaceHQ cannot judge snapshot freshness.'
+      : `This snapshot is ${freshness.days} calendar day${freshness.days === 1 ? '' : 's'} old.`;
 
     // vs the snapshot immediately before this one — the change dimension the
     // warden plate's absolute numerals can't show on their own.

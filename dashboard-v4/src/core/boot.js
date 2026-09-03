@@ -8,6 +8,7 @@ import { data } from './data.js';
 import { startShell, switchSurface, surfaces } from './shell.js';
 import { initActions } from './actions.mjs';
 import { initPalette } from './palette.js';
+import { view as homeView } from '../surfaces/home/view.js';
 import { view as workView } from '../surfaces/work/view.js';
 import { view as projectsView } from '../surfaces/projects/view.js';
 import { view as systemView } from '../surfaces/system/view.js';
@@ -15,24 +16,25 @@ import { view as mindView } from '../surfaces/mind/view.js';
 import { view as automateView } from '../surfaces/automate/view.js';
 import { view as lookbackView } from '../surfaces/lookback/view.js';
 
-// The 6-surface rail (design §Surfaces). v4.1: all six are real views — the
-// five placeholders that shipped in v4.0 are gone (surfaces/placeholder.js
-// stays as the stub factory for any FUTURE room, it is no longer mounted).
+// The familiar v4.2 rail. HOME is the decision surface the app opens on;
+// AGENT keeps the actionable workbench reachable without asking users to
+// remember an abstract internal name. Every registered view is real.
 const SURFACES = [
-  { id: 'work',      label: 'WORK',      glyph: '◎', view: workView },
-  { id: 'projects',  label: 'PROJECTS',  glyph: '▣', view: projectsView },
-  { id: 'system',    label: 'SYSTEM',    glyph: '⧉', view: systemView },
-  { id: 'mind',      label: 'MIND',      glyph: '✦', view: mindView },
-  { id: 'automate',  label: 'AUTOMATE',  glyph: '⚙', view: automateView },
-  { id: 'lookback',  label: 'LOOKBACK',  glyph: '↺', view: lookbackView },
+  { id: 'home',      label: 'HOME',        glyph: '◎', view: homeView },
+  { id: 'work',      label: 'AGENT',       glyph: '›', view: workView },
+  { id: 'projects',  label: 'PROJECTS',    glyph: '▣', view: projectsView },
+  { id: 'system',    label: 'SYSTEM',      glyph: '⧉', view: systemView },
+  { id: 'mind',      label: 'NOTES',       glyph: '✦', view: mindView },
+  { id: 'automate',  label: 'AUTOMATIONS', glyph: '⚙', view: automateView },
+  { id: 'lookback',  label: 'HISTORY',     glyph: '↺', view: lookbackView },
 ];
 
 // Restore the active surface across win.reload() (main reloads on scan/commit)
 // so a data refresh doesn't snap the user home. Unknown stored ids fall back
-// to 'work' via switchSurface's registry lookup — but guard here anyway so the
+// to 'home' via switchSurface's registry lookup — but guard here anyway so the
 // boot log's active= claim stays true.
 const stored = sessionStorage.getItem('hq-v4-surface');
-const startId = SURFACES.some((s) => s.id === stored) ? stored : 'work';
+const startId = SURFACES.some((s) => s.id === stored) ? stored : 'home';
 
 // The audited action registry, seeded HERE rather than at WORK's first mount:
 // the command palette must be able to navigate and act on a session that was
@@ -64,7 +66,7 @@ console.log(
 );
 
 // --selftest: cycle every surface, counting mount errors. force=true so all
-// six mounts actually execute (the active surface would otherwise early-return).
+// seven mounts actually execute (the active surface would otherwise early-return).
 if (new URLSearchParams(location.search).get('selftest')) {
   let errors = 0;
   const seen = [];
@@ -76,6 +78,6 @@ if (new URLSearchParams(location.search).get('selftest')) {
       console.log(`SELFTEST-SURFACE ${s.id} nodes=${stage.childElementCount} chars=${stage.innerHTML.length}`);
     } catch (err) { errors++; console.error('[selftest] surface', s.id, err); }
   }
-  switchSurface('work', true);   // leave the app in default state
+  switchSurface('home', true);   // leave the app in default state
   console.log(`V4 SELFTEST surfaces=${seen.length} errors=${errors} ${errors === 0 ? 'PASS' : 'FAIL'}`);
 }
