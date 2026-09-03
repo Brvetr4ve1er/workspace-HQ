@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-08-27 · FROM structure + frontend · main @ 197bcc2
+DONE: reliability foundation + v4.2 Phase A start (uncommitted):
+  `schema/workspace-scan.schema.json` now declares the existing optional
+  `browser` snapshot shape and accepts legacy nullable `todo_fixme`, so
+  `latest.json` and all 58 historical reports validate. `run-scan.ps1` now
+  passes `-NoEnrich`, matching its unattended/deterministic safety contract;
+  the local `VEEMO Nightly Workspace Scan` task is registered (daily midnight
+  + logon, Ready, next 2026-08-28 00:00). v4 now links/registers HOME as the
+  default surface, uses familiar rail labels (HOME / AGENT / PROJECTS / SYSTEM
+  / NOTES / AUTOMATIONS / HISTORY), and makes snapshot age explicit in the
+  top strip (`scanned 17d ago` is stale after 7 days). New pure
+  `scrubber-core.mjs` + test covers the freshness language.
+VERIFY: 13 v4 test files, 117/117 pass; collector regression 22/22 pass;
+  touched JS syntax clean; schema history 58/58 valid; scheduler shim parses.
+IN-FLIGHT: no commit made. `data/quest-overrides.json` remains a pre-existing,
+  user-owned modification and was not changed by this work.
+ASKS: Phase B can now split TASKS out of AGENT; HOME's existing hunts mapping
+  intentionally remains `work` until that real surface is registered.
+BREAKS: schema validation now accepts browser snapshots; scheduled scans no
+  longer invoke optional Claude enrichment; v4 starts on HOME rather than WORK.
+
 ## 2026-08-19 · FROM frontend (v4.2 — HOME EXEMPLAR) · main @ 525de26
 DONE: 525de26 **HOME, the v4.2 exemplar + STYLE REFERENCE.** New files only:
   `dashboard-v4/src/surfaces/home/{view.js,oracle-logic.mjs,oracle-logic.test.mjs}`
