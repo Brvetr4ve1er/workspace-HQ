@@ -1,0 +1,238 @@
+/* focus.css — FOCUS MODE, the full-screen "one thing" moment.
+   Owned by src/core/focus.js, which injects this sheet on first use.
+
+   This is the most dramatic screen in v4, and it earns that by SUBTRACTION:
+   the world goes grey and dim, and one System window is left lit. It is held
+   to the same law as home.css (the approved exemplar), and where it departs
+   the reason is written down.
+
+   TYPE      the title is MIXED CASE in the UI (sans) family at --fs-3xl. That
+             is one step ABOVE the exemplar's --fs-2xl hero and it is the only
+             deliberate escalation in this file: HOME's title shares a screen
+             with two other sections, this one has a whole viewport to itself
+             and is read from further back. Everything else steps DOWN from it.
+             ALL-CAPS + mono stays a label register — the "ONE THING" eyebrow
+             and the "elapsed" caption. No sentence is ever shouted.
+   HIERARCHY exactly ONE display level: `.focus-title`. The clock is --fs-xl,
+             neutral and unglowing, exactly as home.css's momentum readout is —
+             so it reads as second, not as a rival focal. v3's overlay made the
+             timer a glowing gold --fs-2xl and it fought the task for attention.
+   CHROME    BORDER DIET, taken to its end: there is not a single `border` in
+             this file, and the panel carries no ring either. It separates from
+             the app by DIMMING THE WORLD BEHIND IT — that is the whole idea of
+             focus mode, so making it an outlined box would be arguing with the
+             feature.
+   COLOUR    VIOLET BUDGET = 2. (1) the bloom behind the panel, painted on the
+             scrim so it can glow past the panel's hexagon cut; (2) the primary
+             leave/done control. The panel itself is a NEUTRAL near-black step —
+             adding a violet edge or scanline to it would be the third accent.
+   MOTION    one 220ms rise as the panel arrives — a real state change, which is
+             the only kind of motion the constitution allows. base.css's
+             reduced-motion block kills it. Nothing here loops. */
+
+/* ---------------------------------------------------------- the dim world */
+/* The overlay lives in #overlays, which is a SIBLING of #v4 — so one filter on
+   the app root dims the rail, the top strip and the stage together without ever
+   touching the overlay. (#v4 already makes a stacking context, so the filter
+   adds no new layering surprise. The one fixed-position node inside it, the
+   TASKS drawer scrim, is inset:0 against a #v4 that already fills the viewport,
+   so re-basing its containing block moves it nowhere.) */
+body.focus-mode #v4,
+body.focus-mode #scan-atmo {
+  filter: grayscale(1) brightness(.34);
+  pointer-events: none;
+  transition: filter 240ms ease;
+}
+
+/* -------------------------------------------------------------- the scrim */
+.focus {
+  /* The UI (sans) family the constitution requires for body text, declared on
+     the surface root exactly as home.css does it — base.css sets the app font
+     to --term (mono) and tokens.css carries no sans token, and neither file is
+     this module's to change. When --ui is promoted to tokens.css this line
+     becomes `font-family: var(--ui)` and nothing else changes. */
+  --ui: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  position: fixed;
+  inset: 0;
+  z-index: 50;                /* under the command palette's 70 — Ctrl+K still wins */
+  display: none;
+  place-items: center;
+  padding: var(--space-6);    /* never edge to edge, even on a short window */
+  font-family: var(--ui);
+
+  /* VIOLET ACCENT 1 of 2 — the System glow, painted BEHIND the panel so the
+     hexagon cut does not clip it. A panel-side box-shadow would be clipped by
+     its own clip-path; this reads as light in the room instead of an edge. */
+  background:
+    radial-gradient(62% 52% at 50% 42%, rgba(167, 139, 250, .13), transparent 72%),
+    rgba(9, 7, 18, .74);
+  backdrop-filter: blur(3px);
+}
+/* Visibility is driven ENTIRELY by the `hidden` attribute focus.js flips, so
+   the DOM state and the paint can never disagree (the classic bug is an author
+   `display` beating the UA's [hidden] rule and leaving a "hidden" overlay up). */
+.focus:not([hidden]) { display: grid; }
+
+/* -------------------------------------------------------------- the panel */
+/* One System window, hexagon-cut like the shell's. NEUTRAL: no border, no ring,
+   no violet — the bloom above is doing that job, and a second violet surface
+   here would blow the budget. */
+.focus-panel {
+  width: min(100%, var(--measure));
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-7) var(--space-6);
+  text-align: center;         /* the one-thing moment is centred; the exemplar's
+                                 multi-section reading column is not */
+  background: linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  clip-path: polygon(26px 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%, 0 26px);
+}
+
+.focus:not([hidden]) .focus-panel {
+  animation: focus-rise 220ms cubic-bezier(.2, .7, .3, 1) both;
+}
+@keyframes focus-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------------ type */
+/* The label register: mono, tracked out, uppercase, dim. Two words, never a
+   sentence — v3's eyebrow read "ONE THING · everything else can wait", and the
+   tail half of that is a shouted sentence the type rules do not allow. */
+.focus-eyebrow {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+
+/* THE focal element, and the only display level on the screen. */
+.focus-title {
+  font-family: var(--ui);
+  font-size: var(--fs-3xl);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.015em;
+  color: var(--hud-text);
+  max-width: 22ch;            /* a headline measure — long titles wrap, never sprawl */
+  margin: var(--space-4) auto 0;
+  text-wrap: balance;
+}
+
+/* The project, in the mono register but NOT uppercased: it is a name, not a
+   label. The arrow is decoration, so it lives in CSS and the element's
+   textContent stays the bare project name. */
+.focus-project {
+  font-family: var(--term);
+  font-size: var(--fs-sm);
+  letter-spacing: .04em;
+  color: var(--hud-text-dim);
+  margin: var(--space-3) auto 0;
+}
+.focus-project::before { content: "↳ "; color: var(--hud-dim); }
+
+/* The reason, in one quiet sentence. --fs-lg not --fs-md: this is read at
+   arm's length across a whole viewport, and it is still 24px below the title. */
+.focus-reason {
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  color: var(--hud-text-dim);
+  max-width: 46ch;
+  margin: var(--space-5) auto 0;
+  text-wrap: pretty;
+}
+
+/* ----------------------------------------------------------------- clock */
+.focus-elapsed {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-3);
+}
+/* Second-loudest thing on the screen and no louder: --fs-xl against the
+   title's --fs-3xl, neutral-coloured, no glow. Mono + tabular so the minute
+   rolling over never re-flows the line. */
+.focus-clock {
+  font-family: var(--term);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-text);
+}
+.focus-clock-key {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .06em;
+  color: var(--hud-text-dim);   /* --hud-dim is chrome-only; never a text run */
+}
+
+/* --------------------------------------------------------------- actions */
+.focus-act {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+/* VIOLET ACCENT 2 of 2 — `.btn--primary` supplies the violet edge and glow.
+   Overridden into the sans register at a real size for the same reason
+   home.css does it to `.oracle-go`: a shouted "✓ DONE — EXIT FOCUS" is the
+   ALL-CAPS-everywhere failure the type rules ban, and the only decision on
+   this screen should not read as chrome. */
+.focus-go {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: .01em;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: 4px;
+}
+
+/* The quiet secondary verb: text, not a box (home.css's `.pick-done`). It only
+   renders when the primary does something ELSE — where "Leave focus" is already
+   the primary, a second leave control would be noise. */
+.focus-leave {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  color: var(--hud-text-dim);
+  background: none;
+  border: 0;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.focus-leave:hover { color: var(--hud-text); text-decoration: underline; text-underline-offset: 4px; }
+.focus-leave:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; border-radius: 2px; }
+
+/* The keys, in a mixed-case sentence. Only the key names are mono. */
+.focus-hint {
+  margin-top: var(--space-6);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--hud-text-dim);
+}
+.focus-hint b {
+  font-family: var(--term);
+  font-weight: 600;
+  color: var(--hud-text);
+}
+
+/* -------------------------------------------------------------- narrow/short */
+/* A short window must not push the controls off the bottom: step the display
+   level down rather than start scrolling a one-sentence screen. */
+@media (max-height: 660px), (max-width: 620px) {
+  .focus-panel { padding: var(--space-6) var(--space-5); }
+  .focus-title { font-size: var(--fs-2xl); }
+  .focus-reason { font-size: var(--fs-md); margin-top: var(--space-4); }
+  .focus-elapsed, .focus-act, .focus-hint { margin-top: var(--space-5); }
+}
