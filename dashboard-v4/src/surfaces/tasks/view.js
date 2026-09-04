@@ -46,6 +46,9 @@ import { buildBoard } from './board-model.mjs';
 // of the panel. Its .drawer* classes live in work.css, which index.html loads
 // document-wide, so they resolve here without this surface owning any of it.
 import { openDrawer } from '../work/drawer.js';
+// The ambient 3D sweep disc in the header slot. Owns its own teardown and never
+// throws; see the mount/dispose pair in mount() below.
+import { mountRadar } from './radar.js';
 
 let gen = 0;              // bumped by mount AND unmount — the async guard token
 let teardown = [];        // every release fn for the current mount
@@ -419,12 +422,11 @@ export function createBoard(api) {
           : 'Nothing on the board.'}</p>
       </div>
       <div class="tasks-radar"></div>`;
-    // The radar slot is intentionally EMPTY. A later agent mounts the 3D radar
-    // into `.tasks-radar` (its blip model is already computed — board.radar) and
-    // owns its own disposal: cancel rAF, dispose geometry/material, renderer
-    // dispose + forceContextLoss, null the refs, called BOTH before a re-render
-    // and from unmount(). Nothing is dynamically imported here on purpose: a
-    // file:// import of a module that does not exist yet logs a console error.
+    // The radar slot is left EMPTY here on purpose. render() replaces this whole
+    // header, so anything mounted into the slot from inside header() would be
+    // orphaned by the next paint with its WebGL context still live. The radar is
+    // mounted (and disposed) around board.render() in paint() instead — one pair,
+    // one owner, see mount().
     return head;
   }
 
@@ -472,11 +474,28 @@ export const view = {
     });
     host.appendChild(board.el);
 
+    // THE RADAR'S ONE MOUNT/DISPOSE PAIR. render() does `root.innerHTML = ''`,
+    // which detaches the `.tasks-radar` slot — so a radar that outlived a repaint
+    // would hold a live WebGL context on a node nobody can see, and 105 selftest
+    // cycles would exhaust the context pool. dropRadar() therefore runs BEFORE
+    // every render (below) and again from teardown, and it is idempotent.
+    let radar = null;
+    const dropRadar = () => {
+      if (!radar) return;
+      const d = radar; radar = null;
+      try { d(); } catch (err) { console.error('[tasks] radar dispose', err); }
+    };
+    teardown.push(dropRadar);
+
     const paint = () => {
       closeDrawer();                    // a drawer describing the previous snapshot must not survive it
+      dropRadar();                      // ...and neither must a radar bound to the header it drew on
       const S = ctx.data.selected;
       const model = buildBoard(S);
       board.render(model);
+      // Ambient accent only, and never load-bearing: mountRadar never throws and
+      // returns a no-op disposer when the flag is off or the slot is missing.
+      radar = mountRadar(board.el.querySelector('.tasks-radar'), model.radar);
       return model;
     };
 

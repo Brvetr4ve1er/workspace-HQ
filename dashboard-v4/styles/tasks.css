@@ -373,3 +373,44 @@
   .tasks-radar { margin-left: 0; }
   .t-row .t-verbs { margin-left: 0; }
 }
+
+/* ------------------------------------------------------------------- radar */
+/* The 3D sweep disc mounted into the `.tasks-radar` slot declared above
+   (src/surfaces/tasks/radar.js). Everything drawn inside is CANVAS, so this
+   block only has to place it — the disc's own geometry, framing and colour live
+   in that module.
+
+   BORDER DIET: the slot is a passive container and stays unoutlined. It reads as
+   a separate thing because it is a dark disc with air around it, not because it
+   is in a box.
+
+   VIOLET BUDGET: the radar spends ZERO. tasks.css already commits both accents
+   to the header (the panel's edge glow, and the calm-case hero count), and the
+   radar sits inside that same header — a violet disc there would be the third.
+   Its disc, rings and sweep are drawn in --hud-dim / --hud-ink; the only colour
+   on it is severity, on the blips, which is what the constitution says colour is
+   for. If a future edit re-tints this violet, one of the header's two accents has
+   to be given up in exchange.
+
+   NOT SET HERE, deliberately: `overflow: hidden`. The requirement is that the
+   disc and every blip FIT the box, which radar.js guarantees by arithmetic (the
+   camera pullback in 3D, the -4px inset in the 2D degrade). Clipping the slot
+   would hide a framing regression from the screenshot review instead of
+   preventing it. */
+.tasks-radar canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Decorative and aria-hidden — it must never eat a click meant for the header
+     underneath, and there is nothing on it to hover. */
+  pointer-events: none;
+}
+
+/* MOTION. The sweep is the one animation on this surface, and it is the shell's
+   ambient register rather than a state-change animation: one slow revolution per
+   ~6.5s, no easing, no attention pull. `prefers-reduced-motion` is honoured in
+   radar.js rather than here, because a media query cannot reach into a
+   requestAnimationFrame loop — under `reduce` the disc, its rings and every blip
+   still render, as ONE static frame, and the loop never starts. */
