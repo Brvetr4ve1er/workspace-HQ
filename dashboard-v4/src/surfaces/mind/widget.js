@@ -3,6 +3,11 @@
 // re-toned for the v4 System-HUD palette; the spec vocabulary is unchanged so
 // every node Claude has ever conjured renders identically here.
 //
+// v4.3 presentation pass: the canvas feed sits BENEATH the vault-health hero
+// and must recede, so the accent palette below was muted and the checklist's
+// drawn checkbox became a tick glyph. No spec field changed meaning, and no
+// widget type was removed — see the TONE block and styles/mind.css.
+//
 // Claude "conjures" by appending a node to a canvas board (MCP hq_canvas_add).
 // The node's TEXT carries a fenced spec the app fs-watches and renders live:
 //
@@ -29,18 +34,37 @@
 //   bars      {label?, data:[{label,value}|n..], tone?}            mini bar chart
 //   note      {title?, body(md)}                                   titled markdown
 // Common: every widget accepts `wide:true` to span the full feed width.
-import { el, esc, mdLite, COL } from '../../ui/util.js';
+import { el, esc, mdLite } from '../../ui/util.js';
 
-// tone -> accent colour. `neutral` rides the HUD violet; the rest are semantic
-// and fixed (a "danger" stat is red everywhere).
+// tone -> accent colour, in the v4.3 muted register.
+//
+// Two changes from the v3 port, both made to hold this surface's accent budget
+// (see the header of styles/mind.css):
+//   1. `neutral` no longer rides --hud-violet. An untoned widget is the common
+//      case, so violet-by-default meant a feed of twenty violet-accented cards
+//      on a screen whose budget is TWO violet accents — both already spent on
+//      the vault-health hero and the live dot. Untoned now means chrome grey.
+//   2. good/info drop the neon (#3aff6e / #4d9fff) for the same muted seam
+//      values home.css uses for its daily-3 cards. warn/danger keep the HUD
+//      tokens: severity owns the loud end of the palette, and a spec that
+//      declares itself dangerous has earned it.
+// The vocabulary is unchanged — every tone a conjured node has ever used still
+// resolves, and still means the same thing.
 const TONE = {
-  good: COL.green, success: COL.green,
-  warn: COL.orange, warning: COL.orange,
-  danger: COL.red, bad: COL.red,
-  info: COL.blue, note: COL.blue,
-  neutral: 'var(--hud-violet)',
+  good: '#86b986', success: '#86b986',
+  warn: 'var(--hud-amber)', warning: 'var(--hud-amber)',
+  danger: 'var(--hud-red)', bad: 'var(--hud-red)',
+  info: '#74a8dc', note: '#74a8dc',
+  neutral: 'var(--hud-dim)',
 };
 const tone = (t) => TONE[String(t || '').toLowerCase()] || TONE.neutral;
+// Did the spec declare a REAL judgement? Only then may the accent colour the
+// stat numeral (mind.css `.w[data-toned] .w-stat-val`) — an untoned reading
+// stays near-white, because a number is a fact, not an alarm.
+const semantic = (t) => {
+  const k = String(t || '').toLowerCase();
+  return k !== 'neutral' && Object.prototype.hasOwnProperty.call(TONE, k);
+};
 
 const num = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : (Number.isFinite(+v) ? +v : d));
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -95,8 +119,10 @@ function checklistW(s) {
     return { done: !!(it && it.done), text: it && it.text != null ? String(it.text) : '' };
   });
   const done = items.filter((i) => i.done).length;
+  // A tick glyph, not a drawn checkbox: an outlined 14px square per row was a
+  // dozen more borders per card, and the mark alone reads the state.
   const rows = items.map((i) =>
-    `<li class="${i.done ? 'done' : ''}"><span class="box">${i.done ? '✓' : ''}</span><span>${esc(i.text)}</span></li>`).join('');
+    `<li class="${i.done ? 'done' : ''}"><span class="box">${i.done ? '✓' : '·'}</span><span>${esc(i.text)}</span></li>`).join('');
   const title = s.title ? `<div class="w-title">${esc(s.title)}</div>` : '';
   const meta = items.length ? `<div class="w-meta">${done}/${items.length} done</div>` : '';
   return `${title}<ul class="w-list">${rows}</ul>${meta}`;
@@ -130,8 +156,10 @@ function chipsW(s) {
   const chips = arr(s.items).map((it) => {
     const text = typeof it === 'string' ? it : (it && it.text != null ? String(it.text) : '');
     const t = typeof it === 'object' && it ? it.tone : null;
-    const st = t ? ` style="--wac:${tone(t)}"` : '';
-    const cls = t ? ' toned' : '';
+    // Only a semantic tone recolours the chip text — "neutral" resolves to the
+    // chrome grey, which is a legal seam and an illegal text colour.
+    const st = semantic(t) ? ` style="--wac:${tone(t)}"` : '';
+    const cls = semantic(t) ? ' toned' : '';
     return `<span class="w-chip${cls}"${st}>${esc(text)}</span>`;
   }).join('');
   const title = s.title ? `<div class="w-title">${esc(s.title)}</div>` : '';
@@ -204,6 +232,7 @@ export function widgetEl(node) {
     catch { html = noteW({ body: '```json\n' + JSON.stringify(spec, null, 2) + '\n```' }); cls = 'w w-note'; }
     const card = el('div', cls, html);
     card.style.setProperty('--wac', tone(spec.tone));
+    if (semantic(spec.tone)) card.dataset.toned = '';
     return card;
   }
   // fallback: plain markdown note from the raw node text
