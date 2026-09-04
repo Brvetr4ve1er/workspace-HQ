@@ -8,30 +8,41 @@
 //   { scanned_at, host, organs:[{id,label,status,value,unit,spark,diagnosis,
 //     teaching,fixes:[{title,why,teaching,command,danger}]}] }
 // Unknown organ ids still render (fallback tag, auto grid slot) — additive-safe.
-import { el, esc, COL, fmt } from '../../ui/util.js';
+import { el, esc, fmt } from '../../ui/util.js';
 import { dispatch } from '../../core/actions.mjs';
 import { anomalies } from '../../intel/derive.mjs';
 import { anomalyGroups } from '../../intel/foresight.mjs';
 
 // The data contract keeps the grace/ember/blood keys; the display word is plain.
+//
+// `c` is the SEAM/SPARK colour and it is deliberately NOT ui/util.js's COL
+// table any more. COL.green is #3aff6e — a neon that six healthy cards cannot
+// possibly recede behind, and the v4.3 review named exactly that as part of the
+// "too crowded" verdict. These are the exemplar's own muted seams (home.css
+// --seam-win) and the palette's amber/red, mirrored here because an SVG stroke
+// attribute and a CSS custom property need the same literal.
 const STATUS = {
-  grace: { sev: 'dim',    c: COL.green,  word: 'HEALTHY' },
-  ember: { sev: 'orange', c: COL.orange, word: 'WARNING' },
-  blood: { sev: 'red',    c: COL.red,    word: 'CRITICAL' },
+  grace: { sev: 'dim',    c: '#86b986', word: 'HEALTHY' },
+  ember: { sev: 'orange', c: '#f2a33c', word: 'WARNING' },
+  blood: { sev: 'red',    c: '#f2555a', word: 'CRITICAL' },
 };
 
 // organ id → anatomical caption. A quiet nod to v3's body map: v4 lays the
 // cards out on a plain responsive grid (the isometric body was v3 chrome), but
 // the caption is CONTENT and stays. Ids outside this table render as SYSTEM.
+// `label` is only ever read by the no-scan ghost grid (a scanned organ carries
+// its own). v4.3 mixed-cases them and aligns them word-for-word with the labels
+// pc-health.json actually writes, so the waiting grid predicts the real one
+// instead of shouting eight acronyms at a reader with nothing to read.
 const ANATOMY = {
-  cpu:     { tag: 'BRAIN',  label: 'CPU' },
-  gpu:     { tag: 'EYES',   label: 'GPU' },
-  ram:     { tag: 'HEART',  label: 'RAM' },
-  network: { tag: 'VEINS',  label: 'NETWORK' },
-  updates: { tag: 'IMMUNE', label: 'UPDATES' },
-  disk:    { tag: 'GUT',    label: 'DISK' },
-  temp:    { tag: 'LIVER',  label: 'TEMP FILES' },
-  startup: { tag: 'LEGS',   label: 'STARTUP' },
+  cpu:     { tag: 'BRAIN',  label: 'Processor' },
+  gpu:     { tag: 'EYES',   label: 'Graphics' },
+  ram:     { tag: 'HEART',  label: 'Memory' },
+  network: { tag: 'VEINS',  label: 'Network' },
+  updates: { tag: 'IMMUNE', label: 'Updates' },
+  disk:    { tag: 'GUT',    label: 'Storage' },
+  temp:    { tag: 'LIVER',  label: 'Temp files' },
+  startup: { tag: 'LEGS',   label: 'Startup' },
 };
 
 // Plain-language teaching notes — rotating lines per organ, picked by day-hash
@@ -157,19 +168,25 @@ export function createMachineSection(api) {
       : esc(String(o.value ?? '—'));
     const lines = TEACHING[o.id];
     const teach = o.teaching ? esc(o.teaching) : (lines ? lines[hash(String(o.id) + dayKey) % lines.length] : '');
+    // The anatomical caption and the verdict share ONE label line. In v4.2 the
+    // verdict was a bordered `.chip` — eight little boxes inside eight bigger
+    // boxes, which is the lattice this revision exists to remove. The verdict
+    // now rides the card's own accent colour, exactly like the exemplar's
+    // `.pick-kind`, and the card's 2px seam repeats it.
     card.innerHTML = `
-      <div class="organ-top">
-        <span class="eyebrow organ-tag">${an ? an.tag : 'SYSTEM'}</span>
-        <span class="organ-name" title="${esc(o.label || o.id)}">${esc(o.label || o.id)}</span>
-        <span class="chip" data-sev="${st.sev}">${st.word}</span>
+      <div class="organ-kind">
+        <span class="organ-tag">${an ? an.tag : 'SYSTEM'}</span>
+        <span class="organ-sep">·</span>
+        <span class="organ-word">${st.word}</span>
       </div>
+      <h3 class="organ-name">${esc(o.label || o.id)}</h3>
       <div class="organ-read">
         <span class="figure" data-sev="${st.sev}">${val}</span>
         ${o.unit ? `<span class="figure-label">${esc(o.unit)}</span>` : ''}
       </div>
       ${spark(o.spark, st.c)}
-      ${o.diagnosis ? `<div class="body organ-dx">${esc(o.diagnosis)}</div>` : ''}
-      ${teach ? `<div class="meta organ-tx">${teach}</div>` : ''}`;
+      ${o.diagnosis ? `<p class="organ-dx">${esc(o.diagnosis)}</p>` : ''}
+      ${teach ? `<p class="organ-tx">${teach}</p>` : ''}`;
     return card;
   }
 
@@ -185,26 +202,43 @@ export function createMachineSection(api) {
       Number.isFinite(h.uptimeHrs) ? `up ${Math.round(h.uptimeHrs)}h` : null,
       Number.isFinite(h.battery) ? `battery ${h.battery}%` : null].filter(Boolean).join(' · ');
 
-    const panel = el('section', 'panel panel--focal', `
-      <div class="panel-head">
-        <span class="panel-title">Machine</span>
-        <span class="panel-sub">${esc(when) || 'no timestamp'}</span>
-        <span class="spacer"></span>
-      </div>
-      <div class="panel-body">
-        <div class="sys-tally">
-          <span class="chip" data-sev="dim">${counts.grace} healthy</span>
-          <span class="chip" data-sev="orange">${counts.ember} warning</span>
-          <span class="chip" data-sev="red">${counts.blood} critical</span>
-          ${hostLine ? `<span class="meta sys-host">${esc(hostLine)}</span>` : ''}
-        </div>
-        <div class="organ-grid"></div>
+    // THE FOCAL ELEMENT OF THIS SURFACE. In v4.2 the same three numbers were
+    // three tiny bordered chips wedged above a five-wide card grid, so the
+    // screen answered "what is this?" with eight equally loud boxes and no
+    // verdict. They are now one display-weight sentence in the hero, and a
+    // count only takes a severity colour when it is NON-ZERO: nothing wrong,
+    // nothing coloured. The counts are read straight off `organs`, so the line
+    // cannot drift from the cards below it.
+    const tally = [
+      `<span class="${counts.grace ? '' : 'sh-zero'}">${counts.grace} healthy</span>`,
+      `<span class="${counts.ember ? 'sh-warn' : 'sh-zero'}">${counts.ember} warning</span>`,
+      `<span class="${counts.blood ? 'sh-crit' : 'sh-zero'}">${counts.blood} critical</span>`,
+    ].join(', ');
+
+    const hero = el('section', 'sys-hero', `
+      <div class="sys-hero-main">
+        <div class="sys-eyebrow">Machine health</div>
+        <h1 class="sys-health">${tally}</h1>
+        <p class="sys-hero-sub">${when ? `Last scanned ${esc(when)}.` : 'This reading carries no timestamp.'}</p>
+        ${hostLine ? `<p class="sys-hero-host">${esc(hostLine)}</p>` : ''}
+        <div class="sys-hero-act"></div>
       </div>`);
-    panel.querySelector('.panel-head').appendChild(scanButton('Re-examine'));
-    const grid = panel.querySelector('.organ-grid');
+    hero.querySelector('.sys-hero-act').appendChild(scanButton('Re-examine'));
+    parent.appendChild(hero);
+
+    // The organ grid RECEDES: its own quiet section beneath the hero, with no
+    // glow, no scanline and no outline. A hero ring wrapped around eight cards
+    // is not a focal element, it is a bigger box.
+    const sec = el('section', 'panel', `
+      <div class="panel-head">
+        <span class="panel-title">Vitals</span>
+        <span class="panel-sub">${fmt(organs.length)} tracked</span>
+      </div>
+      <div class="panel-body"><div class="organ-grid"></div></div>`);
+    const grid = sec.querySelector('.organ-grid');
     const dayKey = String(ph.scanned_at || '').slice(0, 10);
     organs.forEach((o) => grid.appendChild(organCard(o, dayKey)));
-    parent.appendChild(panel);
+    parent.appendChild(sec);
   }
 
   // ---- no-scan state: the eight vitals are named and positioned, waiting ----
@@ -212,38 +246,45 @@ export function createMachineSection(api) {
 
   function renderTriage(parent) {
     const canScan = typeof api.hq?.healthScan === 'function';
-    const panel = el('section', 'panel panel--focal', `
-      <div class="panel-head">
-        <span class="panel-title">Machine</span>
-        <span class="panel-sub">no scan yet</span>
-        <span class="spacer"></span>
-      </div>
-      <div class="panel-body">
-        <div class="mb-empty">
-          <svg class="ekg" viewBox="0 0 480 28" preserveAspectRatio="none" aria-hidden="true">
-            <path class="ekg-base" d="${EKG_PATH}"/>
-            <path class="ekg-line" d="${EKG_PATH}"/>
-          </svg>
-          <div class="mb-empty-title">No health scan yet</div>
-          <div class="body mb-empty-sub">${canScan
-            ? 'Run a scan to check CPU, memory, GPU, disk, network, startup, updates and temperature.'
-            : "This machine hasn't been scanned yet, so there are no vitals to show. The eight system vitals below populate once scanning is available."}</div>
-        </div>
-        <div class="eyebrow sys-ghost-cap">Eight system vitals, awaiting the first scan</div>
-        <div class="organ-grid"></div>
+    // Same hero shape as the scanned state — one display line, one quiet
+    // sentence, one verb — so arriving with no scan does not look like a
+    // different screen. The flatline stays: it is the section's motif, and it
+    // is the only decoration on the tab.
+    const hero = el('section', 'sys-hero', `
+      <div class="sys-hero-main">
+        <div class="sys-eyebrow">Machine health</div>
+        <h1 class="sys-health">No health scan yet</h1>
+        <p class="sys-hero-sub">${canScan
+          ? 'Run a scan to check CPU, memory, GPU, disk, network, startup, updates and temperature.'
+          : "This machine hasn't been scanned yet, so there are no vitals to show. The eight vitals below populate once scanning is available."}</p>
+        <svg class="ekg" viewBox="0 0 480 28" preserveAspectRatio="none" aria-hidden="true">
+          <path class="ekg-base" d="${EKG_PATH}"/>
+          <path class="ekg-line" d="${EKG_PATH}"/>
+        </svg>
+        <div class="sys-hero-act"></div>
       </div>`);
-    panel.querySelector('.panel-head').appendChild(scanButton('Run scan'));
-    const grid = panel.querySelector('.organ-grid');
-    for (const [id, an] of Object.entries(ANATOMY)) {
+    hero.querySelector('.sys-hero-act').appendChild(scanButton('Run scan'));
+    parent.appendChild(hero);
+
+    const sec = el('section', 'panel', `
+      <div class="panel-head">
+        <span class="panel-title">Vitals</span>
+        <span class="panel-sub">awaiting the first scan</span>
+      </div>
+      <div class="panel-body"><div class="organ-grid"></div></div>`);
+    const grid = sec.querySelector('.organ-grid');
+    for (const [, an] of Object.entries(ANATOMY)) {
       grid.appendChild(el('div', 'organ is-ghost', `
-        <div class="organ-top">
-          <span class="eyebrow organ-tag">${an.tag}</span>
-          <span class="organ-name">${an.label}</span>
+        <div class="organ-kind">
+          <span class="organ-tag">${an.tag}</span>
+          <span class="organ-sep">·</span>
+          <span class="organ-word">AWAITING</span>
         </div>
+        <h3 class="organ-name">${an.label}</h3>
         <div class="organ-read"><span class="figure" data-sev="dim">—</span></div>
-        <div class="meta organ-dx">Awaiting scan</div>`));
+        <p class="organ-dx">No reading yet.</p>`));
     }
-    parent.appendChild(panel);
+    parent.appendChild(sec);
   }
 
   // ------------------------------------------------------- recommended fixes
@@ -255,30 +296,36 @@ export function createMachineSection(api) {
     const dg = DANGER[fix.danger] || DANGER.caution;
     const runnable = fix.danger === 'safe' && typeof api.hq?.healthFix === 'function';
     const card = el('div', 'rx');
+    // The severity colour moves onto the CARD, so the 2px seam and the organ
+    // name are lit from one variable and can never disagree.
+    card.style.setProperty('--oc', (STATUS[organ.status] || STATUS.ember).c);
     card.innerHTML = `
       <div class="rx-top">
-        <span class="rx-organ" style="--oc:${(STATUS[organ.status] || STATUS.ember).c}">${esc(organ.label || organ.id)}</span>
+        <span class="rx-organ">${esc(organ.label || organ.id)}</span>
         <span class="rx-title">${esc(fix.title)}</span>
         <span class="chip rx-danger ${dg.cls}">${dg.label}</span>
       </div>
-      <div class="body rx-why">${esc(fix.why || '')}</div>
-      ${fix.teaching ? `<div class="meta rx-teach">${esc(fix.teaching)}</div>` : ''}
+      <p class="rx-why">${esc(fix.why || '')}</p>
+      ${fix.teaching ? `<p class="rx-teach">${esc(fix.teaching)}</p>` : ''}
       <div class="rx-cmd"><code>${esc(fix.command)}</code></div>
       <div class="rx-act"></div>
       <pre class="term rx-out" hidden></pre>`;
     const out = card.querySelector('.rx-out');
     const acts = card.querySelector('.rx-act');
 
-    const copy = el('button', 'btn btn--sm rx-copy', '⧉ COPY');
+    // Mixed case, no glyph. `.btn` shouts in tracked-out caps app-wide and this
+    // surface un-shouts it in system.css; "⧉ COPY" / "✗ COPY FAILED" were the
+    // label register doing a control's job.
+    const copy = el('button', 'btn btn--sm rx-copy', 'Copy command');
     copy.title = 'Copy this command to the clipboard';
     copy.onclick = async () => {
-      try { await navigator.clipboard.writeText(String(fix.command)); if (usable()) copy.textContent = '✓ COPIED'; }
-      catch (err) { console.warn('[system] clipboard', err); if (usable()) copy.textContent = '✗ COPY FAILED'; }
-      setTimeout(() => { if (usable()) copy.textContent = '⧉ COPY'; }, 1400);
+      try { await navigator.clipboard.writeText(String(fix.command)); if (usable()) copy.textContent = 'Copied'; }
+      catch (err) { console.warn('[system] clipboard', err); if (usable()) copy.textContent = 'Copy failed'; }
+      setTimeout(() => { if (usable()) copy.textContent = 'Copy command'; }, 1400);
     };
     acts.appendChild(copy);
 
-    const run = el('button', 'btn btn--sm rx-run', '▶ RUN');
+    const run = el('button', 'btn btn--sm rx-run', 'Run');
     if (!runnable) {
       // Disabled-with-a-reason rather than absent: the control's existence is
       // the honest signal that this fix COULD be run — just not from here.
@@ -288,7 +335,7 @@ export function createMachineSection(api) {
       run.title = 'Runs this read-only command through the app (main re-checks the whitelist first)';
       run.onclick = async () => {
         run.disabled = true;
-        run.textContent = '▶ running…';        // before the await — the in-flight state is the one that is guaranteed to paint
+        run.textContent = 'Running…';          // before the await — the in-flight state is the one that is guaranteed to paint
         out.hidden = false;
         out.textContent = '…';
         try {
@@ -303,7 +350,7 @@ export function createMachineSection(api) {
           out.classList.add('is-err');
         }
         run.disabled = false;
-        run.textContent = '▶ RUN';
+        run.textContent = 'Run';
       };
     }
     acts.appendChild(run);
@@ -329,7 +376,7 @@ export function createMachineSection(api) {
   // ------------------------------------------------------------- cleanup
   function anomalyRow(item) {
     const canCapture = typeof api.hq?.captureSave === 'function';
-    const row = el('div', 'an-item', `<span class="body an-label">${esc(item.label)}</span>`);
+    const row = el('div', 'an-item', `<span class="an-label">${esc(item.label)}</span>`);
     const btn = el('button', 'btn btn--sm an-note', 'Note for cleanup');
     if (!canCapture) {
       btn.disabled = true;
@@ -371,7 +418,7 @@ export function createMachineSection(api) {
           if (!usable()) return;
           btn.disabled = false;
           btn.title = `Not saved — ${String(err?.message || err)}. Click to retry.`;
-          btn.textContent = '✗ Not saved — retry';
+          btn.textContent = 'Not saved — retry';
         }
       };
     }
@@ -408,7 +455,7 @@ export function createMachineSection(api) {
     const bytes = Number(an.reclaimableBytes) || 0;
     const products = (S?.projects || []).filter((p) => Number(p?.disk?.reclaimable_bytes) > 0).length;
     if (bytes > 0 && products > 0) {
-      body.appendChild(el('div', 'meta an-reclaim',
+      body.appendChild(el('p', 'an-reclaim',
         `Separately: ~${esc(ag.reclaimableLabel)} of build artifacts reclaimable across ${fmt(products)} product${products === 1 ? '' : 's'} — freed per project, not from this list.`));
     }
 

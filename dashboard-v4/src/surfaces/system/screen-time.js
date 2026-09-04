@@ -6,7 +6,7 @@
 // already captured per scan (scan.browser) — no new data contract, no IPC.
 // Rollups honour the time machine: only scans at-or-before the selected
 // snapshot are read, so viewing the past shows the past.
-import { el, esc, fmt, dur, COL } from '../../ui/util.js';
+import { el, esc, fmt, dur } from '../../ui/util.js';
 import { CATEGORIES, categorize } from './categories.mjs';
 import {
   browserScans, rollup, projectMap, distractPct, distractTier,
@@ -22,10 +22,33 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const openDoms = new Set();
 
 const catOf = (domain) => CATEGORIES[categorize(domain)] || CATEGORIES.other;
-const catColor = (cat) => COL[cat.col] || '#9a93c9';
+
+// The DOM layer resolves categories.mjs's colour KEY. v4.2 resolved it through
+// ui/util.js's COL table, which is a neon signal palette: COL.red on the VIDEO
+// category put an emergency colour on a card where nothing is wrong, and eight
+// neon seams in one grid is the "messy" the v4.3 review named. These are the
+// same eight hues pulled back to the muted register the exemplar uses for its
+// status seams — still eight distinguishable categories, none of them shouting,
+// and red/amber stay reserved for actual severity. `grey` has no COL entry by
+// design (see categories.mjs); the fallback covers it and any future key.
+const CAT_COLOR = {
+  pink:   '#c58bb0',   // social
+  red:    '#c98a8a',   // video
+  green:  '#86b986',   // dev
+  blue:   '#74a8dc',   // docs
+  cyan:   '#6fb1c4',   // ai
+  orange: '#c99a6b',   // news
+  gold:   '#c2b273',   // shopping
+};
+const catColor = (cat) => CAT_COLOR[cat.col] || '#8d86b3';
 const shortDom = (d) => String(d).replace(/^www\./, '');
 
 // ------------------------------------------------------------ svg fragments
+// The v4.2 dial carried a second SVG label at font-size 9 — roughly 10.8px once
+// the 200-unit viewBox was scaled to its rendered width, under the
+// constitution's 12px floor. It said "DISTRACTING", which the caption above the
+// dial and the headline beside it both already say, so it is gone rather than
+// resized: the fix for a caption nobody needed is not a bigger caption.
 function dialSvg(pct) {
   const r = 78, cx = 100, cy = 104;
   const len = Math.PI * r;
@@ -34,8 +57,7 @@ function dialSvg(pct) {
     <path class="wt-arc bg" d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}"/>
     <path class="wt-arc val" d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}"
       style="stroke-dasharray:${len.toFixed(1)};stroke-dashoffset:${off.toFixed(1)}"/>
-    <text class="wt-dial-num" x="${cx}" y="90" text-anchor="middle">${pct}%</text>
-    <text class="wt-dial-sub" x="${cx}" y="108" text-anchor="middle">DISTRACTING</text>
+    <text class="wt-dial-num" x="${cx}" y="96" text-anchor="middle">${pct}%</text>
   </svg>`;
 }
 
@@ -93,30 +115,47 @@ export function createScreenSection(api) {
     const sum = summarize(scansB, roll);
     const streak = socialStreak(scansB);
 
-    const panel = el('section', 'panel panel--focal', `
+    // ONE focal element on this tab, built the same way MACHINE's is: the
+    // verdict as a display-weight sentence, the dial beside it as the picture
+    // of that sentence, and everything else demoted into quiet cards below.
+    // v4.2 put the dial, the weekday grid and the summary in three equal
+    // outlined boxes, so the tab had three co-equal focals, which is none.
+    const dirWord = at ? (at.dir === 'up' ? 'up' : at.dir === 'down' ? 'down' : 'flat') : '';
+    const sub = `Across ${fmt(sum.days)} captured scan${sum.days === 1 ? '' : 's'}.`
+      + (at && dirWord !== 'flat' ? ` That share is ${dirWord} ${Math.abs(at.d)} point${Math.abs(at.d) === 1 ? '' : 's'} on the previous capture.` : '');
+
+    const hero = el('section', 'sys-hero', `
+      <div class="sys-hero-main">
+        <div class="sys-eyebrow">Screen time</div>
+        <h1 class="sys-health">${pct}% of your browsing is social or video</h1>
+        <p class="sys-hero-sub">${esc(sub)}</p>
+        <p class="sys-hero-host">${esc(dur(sum.grandMs))} tracked across ${fmt(sum.sites)} site${sum.sites === 1 ? '' : 's'}${sum.busiest ? ` · busiest ${esc(shortDom(sum.busiest))}` : ''}</p>
+      </div>
+      <div class="wt-dial" data-tier="${tier}">
+        ${dialSvg(pct)}
+        <div class="wt-scale">
+          <span class="${tier === 'low' ? 'on' : ''}">Low</span>
+          <span class="${tier === 'mid' ? 'on' : ''}">Moderate</span>
+          <span class="${tier === 'high' ? 'on' : ''}">High</span>
+        </div>
+        ${at ? `<div class="wt-dial-trend">${trendChip(at, atLabel)}<span class="sys-cap">vs last capture</span></div>` : ''}
+      </div>`);
+    root.appendChild(hero);
+
+    const panel = el('section', 'panel', `
       <div class="panel-head">
-        <span class="panel-title">Screen time</span>
-        <span class="panel-sub">${sum.days} captured scan${sum.days === 1 ? '' : 's'}</span>
+        <span class="panel-title">Rhythm</span>
+        <span class="panel-sub">${fmt(sum.days)} captured scan${sum.days === 1 ? '' : 's'}</span>
       </div>
       <div class="panel-body">
-        ${streak >= 3 ? `<div class="wt-doom"><span class="wt-doom-k">↑ Trend</span><span class="wt-doom-t">Social time has risen ${streak} scans in a row.</span></div>` : ''}
+        ${streak >= 3 ? `<div class="wt-doom"><span class="wt-doom-k">Rising</span><span class="wt-doom-t">Social time has risen ${streak} scans in a row.</span></div>` : ''}
         <div class="wt-top">
-          <div class="wt-panel wt-dial" data-tier="${tier}">
-            <div class="eyebrow wt-k">Distraction meter · social &amp; video share</div>
-            ${dialSvg(pct)}
-            <div class="wt-scale">
-              <span class="${tier === 'low' ? 'on' : ''}">Low</span>
-              <span class="${tier === 'mid' ? 'on' : ''}">Moderate</span>
-              <span class="${tier === 'high' ? 'on' : ''}">High</span>
-            </div>
-            ${at ? `<div class="wt-dial-trend">${trendChip(at, atLabel)}<span class="meta">vs last capture</span></div>` : ''}
-          </div>
           <div class="wt-panel">
-            <div class="eyebrow wt-k">Weekly rhythm · time by weekday</div>
+            <div class="sys-cap wt-k">Time by weekday</div>
             <div class="wt-week">${cells}</div>
           </div>
           <div class="wt-panel">
-            <div class="eyebrow wt-k">Summary</div>
+            <div class="sys-cap wt-k">Totals across every captured scan</div>
             <div class="wt-cen-row"><span>Total time</span><b>${esc(dur(sum.grandMs))}</b></div>
             <div class="wt-cen-row"><span>Sites tracked</span><b>${fmt(sum.sites)}</b></div>
             <div class="wt-cen-row"><span>Days captured</span><b>${fmt(sum.days)}</b></div>
@@ -181,10 +220,13 @@ export function createScreenSection(api) {
       // keyboard and AT get it for free) and the detail is its sibling — the
       // detail carries block content, which may not live inside a button.
       const card = el('div', 'wt-card');
+      // The category was a bordered `.chip` on every card. It is now a coloured
+      // word in the label register, lit from the same --cc the card's 2px seam
+      // and the history bars use — one variable, one accent, no box.
       const head = el('button', 'wt-card-head', `
         <span class="wt-dom-row">
           <span class="wt-dom" title="${esc(r.domain)}">${esc(shortDom(r.domain))}</span>
-          <span class="chip">${cat.label}</span>
+          <span class="chip wt-cat">${cat.label}</span>
           <span class="wt-exp" aria-hidden="true">▸</span>
         </span>
         <span class="wt-total-row">
@@ -192,7 +234,7 @@ export function createScreenSection(api) {
           ${trendChip(t, tlabel)}
         </span>
         ${sparkSvg(r.series, catColor(cat))}
-        <span class="meta wt-cadence">Seen ${r.days}/${scansB.length} days · ${esc(fmt(r.visits))} visits</span>`);
+        <span class="sys-cap wt-cadence">Seen ${r.days}/${scansB.length} days · ${esc(fmt(r.visits))} visits</span>`);
       head.type = 'button';
       head.title = 'Show this platform’s day-by-day history';
       card.style.setProperty('--cc', catColor(cat));
