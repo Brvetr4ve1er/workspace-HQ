@@ -239,6 +239,15 @@
   color: var(--hud-text-dim);
 }
 
+/* A card-level aside (the learning log's XP line) — a quiet sentence, not a
+   second heading, so the card keeps one title. */
+.store-note {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--hud-text-dim);
+}
+
 /* Rows are separated by air, never by a rule.
    WRAPPING: the name claims at least 55% of the row, so when a name plus its
    meta and tag cannot share one line the meta and tag drop to a second line

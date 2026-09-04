@@ -293,10 +293,11 @@ function buildCity(scan, onOpen) {
 // duplicates, dead folders, the archive and the learning log are the city's
 // inventory. Every list v3 rendered is rendered here; an empty list is omitted
 // rather than shown as an empty card (v3 parity).
-function storeCard(grid, title, count) {
+function storeCard(grid, title, count, note) {
   const c = el('article', 'store-card');
   c.innerHTML = `<div class="store-head"><h3 class="store-name">${esc(title)}</h3>`
-              + `<span class="store-n">${esc(String(count))}</span></div>`;
+              + `<span class="store-n">${esc(String(count))}</span></div>`
+              + (note ? `<p class="store-note">${esc(note)}</p>` : '');
   grid.appendChild(c);
   return c;
 }
@@ -378,11 +379,14 @@ function buildStorage(scan, ctx) {
     }
   }
 
-  // The learning log.
+  // The learning log. v3's card head read "What I learned · N total · +X XP";
+  // the count sits in the head here and the XP earned from it becomes the
+  // card's note, so no fact from that heading is lost.
   const learnings = scan.recent_learnings || [];
   if (learnings.length) {
     const total = Number(scan.account?.totals?.learnings) || learnings.length;
-    const c = storeCard(grid, 'What I learned', total);
+    const kxp = Number(scan.account?.totals?.knowledge_xp) || 0;
+    const c = storeCard(grid, 'What I learned', total, kxp ? `Worth ${fmt(kxp)} XP so far.` : '');
     for (const l of learnings) storeRow(c, String(l?.text ?? ''), String(l?.ts ?? '').slice(0, 10), '', null);
   }
 
