@@ -24,6 +24,7 @@
 // paints the same thing — the module-scope `activeTab` is what keeps the user on
 // the section they were reading either way.
 import { el, esc } from '../../ui/util.js';
+import { renderHero } from './hero.js';
 import { renderTrends } from './trends.js';
 import { renderTrophies } from './trophies.js';
 import { renderTimeline } from './timeline.js';
@@ -80,15 +81,22 @@ export const view = {
     const scan = ctx.data.selected;
     if (!scan) {
       // No tabs in this state: three tabs onto three empty rooms is a control
-      // that promises content the build does not have.
-      root.appendChild(el('section', 'panel', `
-        <div class="panel-head"><span class="panel-title">Lookback</span></div>
-        <div class="panel-body">
-          <div class="empty">No scan data in this build — run a scan and this room fills with your history.</div>
-        </div>`));
+      // that promises content the build does not have. And no panel either —
+      // the constitution's empty states are calm single sentences.
+      root.appendChild(el('p', 'lb-quiet lb-quiet--only',
+        'No scan data in this build yet. Run a scan and this room fills with your history.'));
       console.log('LOOKBACK mounted tab=none scans=0 (no scan data)');
       return;
     }
+
+    // ---- hero ------------------------------------------------------------
+    // The surface's ONE focal element (see hero.js). It sits ABOVE the tab bar
+    // because it is the whole room's headline, not one section's: whichever
+    // section you are reading, you read it under the same answer to "where is
+    // this heading". Repainted by paint(), so it time-travels with everything
+    // else.
+    const heroSlot = el('div', 'lb-hero-slot');
+    root.appendChild(heroSlot);
 
     // ---- tab bar ---------------------------------------------------------
     const bar = el('div', 'lb-tabs');
@@ -101,7 +109,11 @@ export const view = {
 
     const buttons = new Map();
     for (const t of TABS) {
-      const b = el('button', 'btn lb-tab', esc(t.label));
+      // NOT a `.btn`: that component carries a full 1px outline, and three
+      // outlined controls at the top of a screen trying to calm down is the
+      // border-everything habit the beautify pass exists to end. The active
+      // state is brightness plus a hairline under the word (home's `.mo-tab`).
+      const b = el('button', 'lb-tab', esc(t.label));
       b.type = 'button';
       b.setAttribute('role', 'tab');
       b.onclick = () => { if (activeTab !== t.id) { activeTab = t.id; paint(); } };
@@ -122,9 +134,17 @@ export const view = {
         b.setAttribute('aria-selected', on ? 'true' : 'false');
       }
       body.innerHTML = '';
+      heroSlot.innerHTML = '';
       // `now` is read HERE and threaded down, never inside intel/*.mjs — that is
       // what keeps the pure brain pure and the forecast honest under the scrubber.
       const now = new Date().toISOString();
+      let hero = {};
+      try { hero = renderHero(heroSlot, ctx, now) || {}; }
+      catch (err) {
+        console.error('[lookback] hero', err);
+        heroSlot.innerHTML = '';
+        heroSlot.appendChild(el('p', 'lb-quiet', 'The momentum forecast could not be fitted from this snapshot.'));
+      }
       let facts = {};
       try { facts = tab.render(body, ctx, now) || {}; }
       catch (err) {
@@ -140,7 +160,7 @@ export const view = {
         `LOOKBACK mounted tab=${tab.id} snapshot=${S?.scan?.id || 'none'} ` +
         `snapshots=${ctx.data.scans.length} achievements=${ach.length} ` +
         `unlocked=${ach.filter((x) => x && x.unlocked).length} ` +
-        `nodes=${ctx.data.selectedIndex + 1} section=${JSON.stringify(facts)}`
+        `nodes=${ctx.data.selectedIndex + 1} hero=${JSON.stringify(hero)} section=${JSON.stringify(facts)}`
       );
     }
 

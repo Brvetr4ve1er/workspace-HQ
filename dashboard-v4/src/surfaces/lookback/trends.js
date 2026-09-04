@@ -13,10 +13,28 @@
 //
 // Every source is feature-detected: an absent/empty series renders a calm
 // empty-note card, never a throw and never a fabricated zero.
-import { el, esc, fmt, COL, DAY_MS } from '../../ui/util.js';
+import { el, esc, fmt, DAY_MS } from '../../ui/util.js';
 import { lineChart, stackedBar, legend, chartCard, attachLineTip, attachBarTip } from './charts.js';
-import { momentum } from '../../intel/derive.mjs';
-import { forecastLine } from '../../intel/foresight.mjs';
+
+// CHART PALETTE — v4.3 beautify pass. ui/util.js's COL is v2's neon set
+// (#3aff6e, #b14aff, #ff4757 …): ten cards drawn in it read as ten alarms, and
+// its purple sat a third violet accent next to the hero's two. These are the
+// same hues at the volume home.css uses for its status seams, and severity
+// still owns the warm end — a failed run and a critical task are the only
+// things drawn in red here, which is the point of the rule.
+const C = {
+  blue:   '#74a8dc',   // neutral series: XP, channeled runs, per-project lines
+  green:  '#86b986',   // the "good" pole: health, low risk, resolved runs
+  amber:  '#d98a3a',   // mild warning / activity
+  yellow: '#c9b04e',   // housekeeping tier
+  red:    '#cf6b70',   // something is actually wrong: fizzled, critical
+  dim:    '#9b93c4',
+  teal:   '#7fc4c4',
+  mauve:  '#c08fb4',
+};
+// Categorical ramp for completion-by-project — one hue per product, no repeats
+// until nine, and nothing in it shouts.
+const SERIES_RAMP = [C.blue, C.green, C.amber, C.mauve, C.teal, C.dim, '#b0a86e', '#8f9ad6', '#c9857f'];
 
 const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
@@ -50,9 +68,9 @@ function renderRecords(parent, S, cd) {
   const recs = [];
 
   const h = peak(f(tr.health_index));
-  if (h) recs.push({ c: COL.green, ic: '❤', k: 'Peak health', v: fmt(h.v), sub: h.d });
+  if (h) recs.push({ c: C.green, ic: '❤', k: 'Peak health', v: fmt(h.v), sub: h.d });
   const x = peak(f(tr.xp));
-  if (x) recs.push({ c: COL.purple, ic: '✦', k: 'Peak account XP', v: fmt(x.v), sub: x.d });
+  if (x) recs.push({ c: C.blue, ic: '✦', k: 'Peak account XP', v: fmt(x.v), sub: x.d });
 
   // Longest streak: the canonical account field when present, else the longest
   // consecutive-scan-day run derived from the health series.
@@ -60,18 +78,22 @@ function renderRecords(parent, S, cd) {
   let len = stk && Number.isFinite(stk.longest_scan_days) ? stk.longest_scan_days : null;
   let stkSub = 'consecutive scan-days';
   if (len == null) { const r = longestDailyRun(f(tr.health_index)); if (r) { len = r.len; stkSub = `through ${r.end}`; } }
-  if (len != null) recs.push({ c: COL.gold, ic: '🔥', k: 'Longest streak', v: fmt(len), sub: stkSub });
+  if (len != null) recs.push({ c: C.amber, ic: '🔥', k: 'Longest streak', v: fmt(len), sub: stkSub });
 
   const cpk = peak(f(tr.casts_per_day));
-  if (cpk && cpk.v > 0) recs.push({ c: COL.orange, ic: '⚡', k: 'Most runs / day', v: fmt(cpk.v), sub: cpk.d });
+  if (cpk && cpk.v > 0) recs.push({ c: C.yellow, ic: '⚡', k: 'Most runs / day', v: fmt(cpk.v), sub: cpk.d });
 
   let bc = null; const cbp = tr.completion_by_project || {};
   for (const id of Object.keys(cbp)) for (const p of f(cbp[id])) if (bc === null || p.v > bc.v) bc = { v: p.v, id, d: p.d };
-  if (bc) recs.push({ c: COL.blue, ic: '◆', k: 'Best completion', v: bc.v + '%', sub: `${nameOf[bc.id] || bc.id} · ${bc.d}` });
+  if (bc) recs.push({ c: C.teal, ic: '◆', k: 'Best completion', v: bc.v + '%', sub: `${nameOf[bc.id] || bc.id} · ${bc.d}` });
 
   if (!recs.length) return 0;
   parent.appendChild(el('h2', 'lb-sec', 'Personal records'));
-  const grid = el('div', 'lb-records');
+  // A QUIET KEY-VALUE LIST, not five tiles. Five outlined boxes across one row
+  // was both the "max 3 tiles in a row" failure and the single densest thing on
+  // the old screen; the constitution's own remedy for "more stats" is a list.
+  // Same five records, same five numbers — read as rows instead of as chrome.
+  const list = el('div', 'lb-records');
   recs.forEach((r) => {
     const item = el('div', 'lb-rec');
     item.style.setProperty('--pc', r.c);
@@ -79,12 +101,12 @@ function renderRecords(parent, S, cd) {
     // else is esc()'d.
     item.innerHTML = `
       <span class="lb-rec-ic">${r.ic}</span>
-      <span class="figure lb-rec-v">${esc(r.v)}</span>
       <span class="lb-rec-k">${esc(r.k)}</span>
-      <span class="meta lb-rec-sub">${esc(r.sub)}</span>`;
-    grid.appendChild(item);
+      <span class="lb-rec-v">${esc(r.v)}</span>
+      <span class="lb-rec-sub">${esc(r.sub)}</span>`;
+    list.appendChild(item);
   });
-  parent.appendChild(grid);
+  parent.appendChild(list);
   return recs.length;
 }
 
@@ -104,7 +126,7 @@ function xpCard(scans, cd, S) {
     src = 'trend sidecar';
   }
   if (!points.length) return { card: emptyCard('Account XP over time', 'No XP history recorded yet.'), series: null };
-  const series = [{ color: COL.purple, area: true, points, label: '' }];
+  const series = [{ color: C.blue, area: true, points, label: '' }];
   const card = chartCard('Account XP over time', fmt(num(S.account?.xp)), lineChart(series, cd));
   const lvl = num(S.account?.level), toNext = num(S.account?.xp_to_next);
   card.insertAdjacentHTML('beforeend',
@@ -112,43 +134,13 @@ function xpCard(scans, cd, S) {
   return { card, series };
 }
 
-// ---- Momentum forecast -------------------------------------------------------
-// derive.momentum() fits a least-squares slope over S.trends.xp; foresight.
-// forecastLine() turns it into a trend word + an ETA. `now` comes from the
-// caller so this card time-travels like its neighbours.
-//
-// UNITS (do not relabel): the fit is per trend SAMPLE — one sample per scan, and
-// scans are NOT daily — so the slope is XP/scan and the ETA is counted in SCANS.
-// Anything that wants calendar days must first divide by an observed scans-per-
-// day rate, which nothing computes today, so nothing here may claim days.
-const TREND_LABEL = { rising: 'Rising', falling: 'Falling', flat: 'Flat' };
-
-function forecastCard(S, now) {
-  const m = momentum(S.trends, S.account, now);
-  const f = forecastLine(m);
-  const target = num(S.account?.level) + 1;
-  const sign = f.slopePerScan > 0 ? '+' : '';
-  const slopeTxt = `${sign}${f.slopePerScan} XP/scan`;
-  // Honesty line: the slope/ETA is a least-squares fit over the WHOLE series,
-  // which reads more confident than a short run of scans supports. State the
-  // sample size it is actually fit over.
-  const sampleN = (S.trends?.xp || []).length;
-  const basisLine = `<div class="meta lb-fc-basis">based on ${esc(String(sampleN))} scan${sampleN === 1 ? '' : 's'}</div>`;
-  // Three states, three sentences. 'falling' must NOT inherit the flat copy
-  // ("not enough forward motion") — that reads as "nearly there" under a badge
-  // saying Falling. A negative slope has no crossing with the next level, so
-  // there is no ETA to project and the card says exactly that.
-  let body;
-  if (f.trend === 'falling') body = `<div class="lb-fc-note">XP is trending down — no level ETA.</div>`;
-  else if (f.trend === 'flat' || f.etaLabel === '—') body = `<div class="lb-fc-note">Not enough forward motion to project a date.</div>`;
-  else body = `<div class="lb-fc-eta">${esc(f.etaLabel)} to L${esc(fmt(target))}</div>`;
-  return chartCard('Momentum forecast', TREND_LABEL[f.trend] || f.trend, `
-    <div class="lb-forecast">
-      <div class="lb-fc-slope">${esc(slopeTxt)}</div>
-      ${body}
-      ${basisLine}
-    </div>`);
-}
+// ---- Momentum forecast ------------------------------------------------------
+// PROMOTED, NOT REMOVED. The forecast used to be the third tile in this grid,
+// where it was visually indistinguishable from "Automation runs / day". It is
+// now the surface's single focal element and lives in hero.js, rendered above
+// the section tabs by view.js — same two pure functions, same units, same
+// sample-size honesty line. Nothing about it was dropped; it was made the
+// answer to "what is the ONE thing this screen wants me to see?".
 
 // ---- Scan streak -------------------------------------------------------------
 // Off the selected scan's account.streak (present per-scan, so it time-travels).
@@ -174,9 +166,9 @@ function streakCard(S, scans, cd) {
 // telemetry.casts → one bar per day, stacked by the outcome strings actually
 // present in the data (never an assumed set). Unknown outcomes get a palette
 // colour so a new outcome still renders.
-const OC_COL = { resolved: COL.green, fizzled: COL.red, channeled: COL.blue };
+const OC_COL = { resolved: C.green, fizzled: C.red, channeled: C.blue };
 const OC_LABEL = { resolved: 'Resolved', fizzled: 'Fizzled', channeled: 'Channeled' };
-const OC_FALLBACK = [COL.orange, COL.cyan, COL.gold, COL.pink];
+const OC_FALLBACK = [C.amber, C.teal, C.yellow, C.mauve];
 
 function castsCard(bundle, cd) {
   const casts = bundle?.telemetry?.casts || [];
@@ -240,7 +232,7 @@ export function renderTrends(parent, ctx, now) {
   const records = renderRecords(parent, S, cd);
 
   const head = el('h2', 'lb-sec', 'Analytics');
-  head.appendChild(el('span', 'meta lb-sec-note', `${fmt(scans.length)} snapshots`));
+  head.appendChild(el('span', 'lb-sec-note', `${fmt(scans.length)} snapshots`));
   parent.appendChild(head);
 
   const grid = el('div', 'lb-grid');
@@ -248,19 +240,19 @@ export function renderTrends(parent, ctx, now) {
   let cards = 0;
   const add = (card) => { grid.appendChild(card); cards++; return card; };
 
-  // 1. XP over time (merged) + 2. momentum + 3. streak — the identity row.
+  // 1. XP over time (merged) + 2. streak. The momentum forecast that used to
+  // sit between them is now the surface hero above the tabs (hero.js).
   const xp = xpCard(scans, cd, S);
   add(xp.card);
   if (xp.series) attachLineTip(xp.card, xp.series, cd);
-  add(forecastCard(S, now));
   add(streakCard(S, scans, cd));
 
   // 4. health index — the headline trend from the sidecar.
-  if (tr.health_index) add(lineTrendCard('Health index', tr.health_index, COL.green, cd));
+  if (tr.health_index) add(lineTrendCard('Health index', tr.health_index, C.green, cd));
   else add(emptyCard('Health index', 'No health history in this snapshot.'));
 
   // 5. automation runs / day + 6. runs by outcome.
-  if (tr.casts_per_day && tr.casts_per_day.length) add(lineTrendCard('Automation runs / day', tr.casts_per_day, COL.gold, cd));
+  if (tr.casts_per_day && tr.casts_per_day.length) add(lineTrendCard('Automation runs / day', tr.casts_per_day, C.yellow, cd));
   const runs = castsCard(bundle, cd);
   add(runs.card);
   if (runs.rows) attachBarTip(runs.card, runs.rows, runs.keys, runs.colors, cd, runs.labels);
@@ -270,7 +262,7 @@ export function renderTrends(parent, ctx, now) {
 
   // 8. completion % by project — one line per product, legend by name.
   if (tr.completion_by_project && Object.keys(tr.completion_by_project).length) {
-    const palette = [COL.blue, COL.purple, COL.green, COL.orange, COL.red, COL.cyan, COL.pink, '#a5d6ff', '#ffa657'];
+    const palette = SERIES_RAMP;
     const ids = Object.keys(tr.completion_by_project);
     const nameOf = {}; (S.projects || []).forEach((p) => { if (p && p.id) nameOf[p.id] = p.name; });
     const series = ids.map((id, i) => ({ color: palette[i % palette.length], points: tr.completion_by_project[id], label: nameOf[id] || id }));
@@ -281,18 +273,18 @@ export function renderTrends(parent, ctx, now) {
 
   // 9. open tasks by priority (stacked).
   if (tr.open_quests_by_tier) {
-    const colors = { red: COL.red, orange: COL.orange, yellow: COL.yellow };
+    const colors = { red: C.red, orange: C.amber, yellow: C.yellow };
     const labels = { red: 'critical', orange: 'important', yellow: 'housekeeping' };
     const card = add(chartCard('Open tasks by priority', null, stackedBar(tr.open_quests_by_tier, ['red', 'orange', 'yellow'], colors, cd)));
-    card.insertAdjacentHTML('beforeend', legend([{ c: COL.red, l: 'critical' }, { c: COL.orange, l: 'important' }, { c: COL.yellow, l: 'housekeeping' }]));
+    card.insertAdjacentHTML('beforeend', legend([{ c: C.red, l: 'critical' }, { c: C.amber, l: 'important' }, { c: C.yellow, l: 'housekeeping' }]));
     attachBarTip(card, tr.open_quests_by_tier, ['red', 'orange', 'yellow'], colors, cd, labels);
   }
 
   // 10. git-safety risk (stacked).
   if (tr.git_risk) {
-    const colors = { high: COL.red, medium: COL.orange, low: COL.green };
+    const colors = { high: C.red, medium: C.amber, low: C.green };
     const card = add(chartCard('Git-safety risk', null, stackedBar(tr.git_risk, ['high', 'medium', 'low'], colors, cd)));
-    card.insertAdjacentHTML('beforeend', legend([{ c: COL.red, l: 'high' }, { c: COL.orange, l: 'medium' }, { c: COL.green, l: 'low' }]));
+    card.insertAdjacentHTML('beforeend', legend([{ c: C.red, l: 'high' }, { c: C.amber, l: 'medium' }, { c: C.green, l: 'low' }]));
     attachBarTip(card, tr.git_risk, ['high', 'medium', 'low'], colors, cd);
   }
 

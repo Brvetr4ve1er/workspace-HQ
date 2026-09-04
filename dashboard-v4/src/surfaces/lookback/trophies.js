@@ -49,22 +49,23 @@ function renderConsistency(parent, ctx, cd) {
   const pct = next ? Math.round((active / next) * 100) : 100;
   const left = next ? next - active : 0;
 
-  parent.appendChild(el('h2', 'lb-sec', `Consistency · level ${level}`));
-  const card = el('section', 'panel lb-consistency');
+  // The section label carries ONE word; the level goes in the mixed-case note
+  // beside it. "CONSISTENCY · LEVEL 3" shouted as a heading is the ALL-CAPS
+  // habit creeping back in through a section title.
+  const head = el('h2', 'lb-sec', 'Consistency');
+  head.appendChild(el('span', 'lb-sec-note', `Level ${level} of ${max}`));
+  parent.appendChild(head);
+  const card = el('section', 'lb-panel lb-consistency');
   card.innerHTML = `
-    <div class="lb-card-body">
-      <div class="lb-con-row">
-        <span class="lb-con-pips">${'●'.repeat(Math.min(level, max))}${'○'.repeat(Math.max(0, max - level))}</span>
-        <span class="figure lb-con-n">${esc(fmt(active))}</span>
-        <span class="figure-label">active day${active === 1 ? '' : 's'}</span>
-        <span class="spacer"></span>
-        <span class="chip">Level ${esc(String(level))} / ${esc(String(max))}</span>
-      </div>
-      <div class="meter"><i style="width:${pct}%"></i></div>
-      <div class="meta lb-con-next">${next
-        ? `${esc(String(left))} more active day${left > 1 ? 's' : ''} to reach level ${esc(String(level + 1))}`
-        : 'Every level reached — great consistency.'}</div>
-    </div>`;
+    <div class="lb-con-row">
+      <span class="lb-con-pips">${'●'.repeat(Math.min(level, max))}${'○'.repeat(Math.max(0, max - level))}</span>
+      <span class="lb-con-n">${esc(fmt(active))}</span>
+      <span class="figure-label">active day${active === 1 ? '' : 's'}</span>
+    </div>
+    <div class="meter"><i style="width:${pct}%"></i></div>
+    <div class="lb-con-next">${next
+      ? `${esc(String(left))} more active day${left > 1 ? 's' : ''} to reach level ${esc(String(level + 1))}.`
+      : 'Every level reached — great consistency.'}</div>`;
   parent.appendChild(card);
   return { active, level };
 }
@@ -76,7 +77,9 @@ function renderNudges(parent, achievements) {
   const rows = nudgeRows(achievementNudges(achievements), achMeta);
   if (!rows.length) return 0;
   parent.appendChild(el('h2', 'lb-sec', 'Almost there'));
-  const wrap = el('div', 'lb-nudges');
+  // ONE background step holding N rows, not N outlined strips. Same rows, same
+  // have/need numerals, same bar — the boxes were the noise.
+  const wrap = el('div', 'lb-panel lb-nudges');
   // r.icon is a trusted static string from our own catalog (pixel-art SVG markup
   // or an emoji) — NOT scan data — so it is intentionally injected raw. Do not
   // "fix" it into esc(r.icon); that would turn the SVG into visible tags.
@@ -85,7 +88,7 @@ function renderNudges(parent, achievements) {
       <span class="lb-nudge-ic">${r.icon || ''}</span>
       <span class="lb-nudge-l">${esc(r.label)}</span>
       <span class="meter lb-nudge-bar"><i style="width:${esc(String(r.pct))}%"></i></span>
-      <span class="meta lb-nudge-n">${esc(String(r.have))}/${esc(String(r.need))}</span>
+      <span class="lb-nudge-n">${esc(String(r.have))} / ${esc(String(r.need))}</span>
     </div>`).join('');
   parent.appendChild(wrap);
   return rows.length;
@@ -131,7 +134,9 @@ function toggleAch(card, x, meta) {
 function renderGrid(parent, S) {
   const list = S.achievements || [];
   const unlocked = list.filter((x) => x && x.unlocked).length;
-  parent.appendChild(el('h2', 'lb-sec', `Trophies · ${unlocked} of ${list.length} unlocked`));
+  const head = el('h2', 'lb-sec', 'Trophies');
+  head.appendChild(el('span', 'lb-sec-note', `${unlocked} of ${list.length} unlocked`));
+  parent.appendChild(head);
   const grid = el('div', 'lb-ach-grid');
   parent.appendChild(grid);
   list.forEach((x) => {
@@ -147,7 +152,7 @@ function renderGrid(parent, S) {
     card.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     card.title = x.unlocked ? 'Unlocked — show how' : 'Locked — show what it takes';
     let foot;
-    if (x.unlocked) foot = `<div class="meta lb-ach-foot">unlocked ${esc(x.unlocked_on || '')}</div>`;
+    if (x.unlocked) foot = `<div class="lb-ach-foot">unlocked ${esc(x.unlocked_on || '')}</div>`;
     else if (x.progress) {
       const need = x.progress.need;
       // "drive to zero" goals (need = 0) are NOT a fraction: v3 printed them as
@@ -155,15 +160,17 @@ function renderGrid(parent, S) {
       // clear". Same words the unfolded detail uses.
       const pct = need ? Math.min(100, Math.round((x.progress.have / need) * 100)) : 0;
       const label = need ? `${esc(fmt(x.progress.have))} / ${esc(fmt(need))}` : `${esc(fmt(x.progress.have))} to clear`;
-      foot = `<div class="meter"><i style="width:${pct}%"></i></div><div class="meta lb-ach-foot">${label}</div>`;
+      foot = `<div class="meter"><i style="width:${pct}%"></i></div><div class="lb-ach-foot">${label}</div>`;
     } else foot = `<div class="meta lb-ach-foot">locked</div>`;
     // meta.icon is our own static pixel-art SVG / emoji (see ach.js) — raw on
     // purpose; the name and desc are display strings and go through esc().
     card.innerHTML =
       `<div class="lb-ach-ic">${meta.icon}</div>` +
-      `<div class="lb-ach-name">${esc(meta.name)}</div>` +
-      `<div class="meta lb-ach-desc">${esc(meta.desc)}</div>` +
-      foot + (isOpen ? achDetail(x, meta) : '');
+      `<div class="lb-ach-main">` +
+        `<div class="lb-ach-name">${esc(meta.name)}</div>` +
+        `<div class="lb-ach-desc">${esc(meta.desc)}</div>` +
+        foot +
+      `</div>` + (isOpen ? achDetail(x, meta) : '');
     card.onclick = () => toggleAch(card, x, meta);
     grid.appendChild(card);
   });

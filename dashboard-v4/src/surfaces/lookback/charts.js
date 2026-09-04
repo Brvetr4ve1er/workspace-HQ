@@ -96,18 +96,28 @@ export function legend(items) {
   return '<div class="lb-legend">' + items.map((i) => `<span><i style="background:${i.c}"></i>${esc(i.l)}</span>`).join('') + '</div>';
 }
 
-// The tile every chart sits in: a v4 .panel (hexagon cut, HUD frame) with the
-// component language's .panel-head / .figure, so LOOKBACK adds no new panel
-// style — it composes styles/components.css.
+// The tile every chart sits in.
+//
+// v4.3 BEAUTIFY: this used to be a `.panel` + `.panel-head` + `.figure` from
+// styles/components.css. Those three components carry, respectively, a full 1px
+// outline, a 1px head rule, and violet-with-glow display type — so ten charts
+// meant ten outlined boxes, ten hairlines and ten glowing violet numerals, which
+// is precisely the "too crowded / messy" the design constitution's border diet
+// and violet budget exist to prevent. (home.css, the approved exemplar, refuses
+// to compose `.panel` for exactly this reason and says so in its header.)
+//
+// The card now wears its own quiet language: a background step over the page
+// ground, no outline, a mixed-case title and a neutral mono readout. No feature
+// changed — same title, same optional headline number, same body.
 //
 // CONTRACT: `title` and `now` are RAW values (this function escapes them).
 // `inner` is builder-generated markup — an SVG from above or a small block
 // assembled in a section module, where every interpolation is already esc()'d.
 export function chartCard(title, now, inner) {
-  const c = el('section', 'panel lb-card');
-  c.appendChild(el('div', 'panel-head',
-    `<span class="panel-title">${esc(title)}</span><span class="spacer"></span>` +
-    (now != null ? `<span class="figure lb-now">${esc(String(now))}</span>` : '')));
+  const c = el('section', 'lb-card');
+  c.appendChild(el('div', 'lb-card-head',
+    `<span class="lb-card-title">${esc(title)}</span><span class="lb-card-gap"></span>` +
+    (now != null ? `<span class="lb-now">${esc(String(now))}</span>` : '')));
   const body = el('div', 'lb-card-body');
   body.innerHTML = inner;
   c.appendChild(body);

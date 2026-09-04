@@ -5,12 +5,25 @@
    `.lb-` or scoped under `.lb-root`, so a sheet that stays in <head> after the
    surface unmounts cannot bleed into another surface.
 
-   COMPOSITION, NOT REDEFINITION. The v4 rule is that a new surface adds no new
-   button/panel/chip styles — it composes styles/components.css. Every card here
-   IS a `.panel`; every number IS a `.figure`; every bar IS a `.meter`; the tabs
-   ARE `.btn`s. What this sheet adds is only what components.css has no opinion
-   about: the chart tile internals, the trophy grid, the timeline rail, and the
-   hover-tooltip rig.
+   COMPOSITION, WITH TWO DELIBERATE EXCEPTIONS. The v4 rule is that a surface
+   adds no new button/panel/chip styles — it composes styles/components.css.
+   Every number here is still a `.figure` and every bar is still a `.meter`.
+   The v4.3 beautify pass broke composition in exactly two places, because
+   components.css's shapes carry outlines the border diet forbids:
+
+     - CARDS are no longer `.panel`. `.panel` is a 1px-outlined, hexagon-cut
+       frame; a screen of them is the "everything is a box" look the
+       constitution bans. Chart tiles are `.lb-card` and the trophy/nudge
+       cards are `.lb-panel` — same background step, no outline. The
+       `.lb-root .panel` override at the foot of this file catches the two
+       `.panel`s timeline.js still emits.
+     - TABS are no longer `.btn`. Three outlined controls across the top of a
+       screen trying to calm down is the same failure in miniature; `.lb-tab`
+       is text plus a hairline under the active word (home.css's `.mo-tab`).
+
+   What this sheet otherwise adds is only what components.css has no opinion
+   about: the surface hero, the chart tile internals, the trophy grid, the
+   timeline rail, and the hover-tooltip rig.
 
    Layout invariant: #stage is the scroller (base.css). .lb-root therefore flows
    normally and does NOT create a second scrollport — two nested scrollers is
@@ -29,11 +42,24 @@
   background: var(--hud-ink);
   border-bottom: 1px solid var(--hud-line);
 }
-.lb-tab.is-on {
-  color: var(--hud-violet-hi);
-  border-color: var(--hud-violet);
-  box-shadow: 0 0 20px -10px var(--hud-violet);
+.lb-tab {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: var(--space-1) var(--space-1);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
 }
+.lb-tab:hover { color: var(--hud-text); }
+.lb-tab:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; }
+/* Active = brightness plus a hairline under the word. It was a violet box-glow,
+   which made the section switcher compete with the hero for focal. */
+.lb-tab.is-on { color: var(--hud-text); border-bottom-color: currentColor; }
 
 .lb-body { display: flex; flex-direction: column; gap: var(--space-4); }
 
@@ -41,7 +67,7 @@
 .lb-sec {
   display: flex; align-items: baseline; gap: var(--space-3);
   font-size: var(--fs-xs); font-weight: 700; letter-spacing: .22em;
-  text-transform: uppercase; color: var(--hud-violet-hi);
+  text-transform: uppercase; color: var(--hud-text-dim);
 }
 .lb-sec::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--hud-line), transparent); }
 .lb-sec-note { letter-spacing: .1em; text-transform: none; font-weight: 400; }
@@ -52,15 +78,16 @@
   gap: var(--space-3);
 }
 .lb-rec {
-  --pc: var(--hud-violet);
+  --pc: var(--hud-dim);
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas: "ic v" "ic k" "ic sub";
   align-items: baseline;
   gap: 0 var(--space-3);
   padding: var(--space-3);
-  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
-  border: 1px solid var(--hud-line);
+  background: var(--hud-panel);
+  /* BORDER DIET: the full 1px outline is gone; the accent seam below is the
+     only edge a passive record card gets (the .pick language in home.css). */
   border-left: 3px solid var(--pc);
   border-radius: 3px;
 }
@@ -94,7 +121,7 @@
    default; `.tip-on` is added by the pointer handler in charts.js. */
 .lb-tip-guide, .lb-tip-dot, .lb-tip { position: absolute; pointer-events: none; opacity: 0; transition: opacity 120ms ease; }
 .lb-card.tip-on .lb-tip-guide, .lb-card.tip-on .lb-tip-dot, .lb-card.tip-on .lb-tip { opacity: 1; }
-.lb-tip-guide { width: 1px; background: var(--hud-violet); opacity: 0; }
+.lb-tip-guide { width: 1px; background: var(--hud-text-dim); opacity: 0; }
 .lb-card.tip-on .lb-tip-guide { opacity: .45; }
 .lb-tip-dot { width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; display: none; }
 .lb-tip {
@@ -102,7 +129,7 @@
   display: flex; flex-direction: column; gap: 2px;
   padding: var(--space-1) var(--space-2);
   background: #100d1e;
-  border: 1px solid var(--hud-violet);
+  border: 1px solid var(--hud-line);
   border-radius: 3px;
   font-size: var(--fs-xs);
   white-space: nowrap;
@@ -113,14 +140,11 @@
 .lb-tp-row { display: inline-flex; align-items: center; gap: 5px; color: var(--hud-text); }
 .lb-tp-row i { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
 
-/* ------------------------------------------------------- forecast / streak */
-.lb-forecast { display: flex; flex-direction: column; gap: var(--space-2); }
-.lb-fc-slope { font-family: var(--term); font-size: var(--fs-xl); color: var(--hud-violet-hi); font-variant-numeric: tabular-nums; }
-.lb-fc-eta   { font-size: var(--fs-sm); color: var(--hud-text); }
-.lb-fc-note  { font-size: var(--fs-sm); color: var(--hud-text-dim); }
-/* the sample-size line is load-bearing honesty about the fit, not a footnote —
-   never style it out of existence. */
-.lb-fc-basis { letter-spacing: .08em; }
+/* --------------------------------------------------------------- streak */
+/* The momentum forecast USED to live here as `.lb-forecast`/`.lb-fc-*`. It is
+   now the surface hero (see the hero block at the foot of this file), and
+   nothing emits those classes any more, so the rules are gone rather than left
+   to rot as a second, unreachable way to style the same fact. */
 
 .lb-streak, .lb-ft { display: flex; flex-direction: column; gap: var(--space-3); }
 .lb-tiles { display: flex; gap: var(--space-5); }
@@ -130,7 +154,7 @@
 
 /* ------------------------------------------------------------- consistency */
 .lb-con-row { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
-.lb-con-pips { color: var(--hud-violet); letter-spacing: 3px; }
+.lb-con-pips { color: #86b986; letter-spacing: 3px; }
 .lb-con-n { font-size: var(--fs-xl); }
 .lb-con-next { margin-top: var(--space-2); }
 
@@ -139,9 +163,9 @@
 .lb-nudge {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) 120px auto;
   align-items: center; gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--hud-line); border-radius: 3px;
-  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
+  padding: var(--space-3);
+  border-radius: 3px;
+  background: var(--hud-panel);
 }
 .lb-nudge-ic { display: flex; align-items: center; justify-content: center; }
 .lb-nudge-l  { font-size: var(--fs-sm); color: var(--hud-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -169,7 +193,7 @@
 .lb-ach.open { border-color: var(--hud-violet); box-shadow: inset 0 0 0 1px var(--hud-glow); }
 /* locked trophies are visibly dimmed — the grid must read "7 of 22" at a glance */
 .lb-ach:not(.unlocked) .lb-ach-ic { filter: grayscale(1); opacity: .45; }
-.lb-ach.unlocked { border-color: #4a3f7d; box-shadow: 0 0 26px -20px var(--hud-violet); }
+.lb-ach.unlocked { border-color: #4a3f7d; }
 .lb-ach-ic   { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; min-height: 28px; }
 .lb-ach-name { font-size: var(--fs-sm); color: var(--hud-text); }
 .lb-ach-desc { line-height: 1.35; }
@@ -202,7 +226,7 @@
 .lb-narr { margin-top: var(--space-3); font-size: var(--fs-sm); line-height: 1.55; color: var(--hud-text); }
 /* mdLite() output — the only markup it can emit (it escapes first, then rebuilds
    these three from the escaped text). */
-.lb-narr .md-h  { font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase; color: var(--hud-violet-hi); margin-top: var(--space-3); }
+.lb-narr .md-h  { font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase; color: var(--hud-text-dim); margin-top: var(--space-3); }
 .lb-narr .md-li { padding-left: var(--space-2); color: var(--hud-text-dim); }
 .lb-narr .md-p  { margin-top: var(--space-2); }
 
@@ -233,7 +257,7 @@
 }
 .lb-chg.positive { border-left-color: #3aff6e; }
 .lb-chg.negative { border-left-color: var(--hud-red); }
-.lb-chg-t { color: var(--hud-violet-hi); letter-spacing: .08em; text-transform: uppercase; }
+.lb-chg-t { color: var(--hud-text-dim); letter-spacing: .08em; text-transform: uppercase; }
 .lb-chg-p { color: var(--hud-text); }
 .lb-chg-d { color: var(--hud-text-dim); }
 .lb-chg-d.solo { color: var(--hud-text); }
@@ -243,7 +267,7 @@
   display: inline-flex; align-items: center; gap: var(--space-1);
   padding: 2px var(--space-2);
   font-size: var(--fs-xs); color: var(--hud-text);
-  border: 1px solid #4a3f7d; border-radius: 2px;
+  border-radius: 2px;
   background: rgba(167, 139, 250, .07);
 }
 .lb-badge-ic { display: inline-flex; align-items: center; }
@@ -256,3 +280,181 @@
   .lb-nudge { grid-template-columns: 22px minmax(0, 1fr) auto; }
   .lb-nudge-bar { display: none; }        /* the have/need numerals still carry the fact */
 }
+
+/* ==================================================================== v4.3
+   BEAUTIFY PASS — the border diet, the sans register, and the surface hero.
+
+   Everything below was added when LOOKBACK was brought to the HOME exemplar
+   (styles/home.css) under docs/superpowers/specs/2026-08-19-v4-design-constitution.md.
+   The three rules it answers, and how:
+
+   TYPE      body is MIXED-CASE SANS. base.css sets the app font to --term
+             (mono) and tokens.css carries no sans token, and this sheet owns
+             neither file, so the stack is declared on .lb-root exactly as
+             home/tasks/system/work/mind/automate declare it. Mono survives only
+             where it earns its keep — figures, eyebrows, tab labels, tabular
+             numerals — which is the label register the constitution allows.
+   CHROME    BORDER DIET. Chart tiles, trophy cards and the timeline's panels
+             separate by a background step over the page ground plus air, not by
+             outline. The `.lb-root .panel` override below is what retires the
+             last two outlined passives (timeline's header and weekly recap)
+             WITHOUT editing timeline.js, which this pass does not own.
+   COLOUR    VIOLET BUDGET = 1 at rest, and it is the hero's edge glow. The
+             active tab's glow, the section-heading colour, the record accent,
+             the unlocked-trophy glow and the tooltip frame were all violet and
+             have been neutralised above. Violet on :hover / :focus-visible is
+             NOT counted — it is interaction feedback, and home.css spends it
+             the same way.                                                     */
+
+.lb-root {
+  --ui: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--ui);
+  /* Charts and the trophy grid are allowed to exceed --measure, but nothing may
+     touch the viewport edge (constitution, Space). Prose blocks cap themselves
+     with their own max-width below. */
+  padding: var(--space-6) var(--space-6) var(--space-7);
+  gap: var(--space-6);
+}
+
+/* Figures, eyebrows and anything tabular stay mono — alignment is the point. */
+.lb-root .figure,
+.lb-root .figure-label,
+.lb-root .meta { font-family: var(--term); }
+
+/* ------------------------------------------------------------------- hero */
+/* The surface's ONE focal element (src/surfaces/lookback/hero.js). Deliberately
+   shaped like home.css's `.oracle`: hexagon cut, scanline, one edge glow — and
+   deliberately NOT `.panel`, because an outlined hero above unoutlined sections
+   is the "everything is a box" look this pass exists to end. */
+.lb-hero-slot { display: block; }
+
+.lb-hero {
+  position: relative;
+  padding: var(--space-6);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .035) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+  /* THE VIOLET ACCENT. The only one on this surface at rest. */
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 0 64px -32px var(--hud-violet), 0 30px 70px -40px #000;
+}
+
+/* Label register: mono, tracked-out, uppercase, dim. Never a sentence. */
+.lb-eyebrow {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+  margin-bottom: var(--space-3);
+}
+
+/* The ONE display level on the screen. Near-white rather than violet: size and
+   position make it focal, and colouring it would spend the budget twice. */
+.lb-hero-line {
+  font-family: var(--ui);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  color: var(--hud-text);
+  margin: 0;
+  max-width: 26ch;
+  text-wrap: balance;
+}
+
+/* What it means next, in a quiet sentence. */
+.lb-hero-out {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--hud-text-dim);
+  max-width: 58ch;
+}
+
+/* "Fitted over N scans" is load-bearing honesty about the fit — a slope drawn
+   from four samples reads far more confident than it deserves. It is quieter
+   than the outlook line but it is NOT hidden, and it never drops below --fs-xs. */
+.lb-hero-basis {
+  margin: var(--space-4) 0 0;
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .06em;
+  line-height: 1.5;
+  color: var(--hud-dim);
+}
+
+/* A falling account is the mild-warning case, so the outlook line — the one
+   that says there is no ETA — carries the amber. The hero frame stays neutral:
+   a downward trend is not an emergency and must not read as one. */
+.lb-hero[data-trend="falling"] .lb-hero-out { color: var(--hud-amber); }
+
+/* ------------------------------------------------------------------ quiet */
+/* Empty states are calm single sentences, not styled panels. */
+.lb-quiet {
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--hud-text-dim);
+  max-width: 62ch;
+  margin: 0;
+}
+.lb-quiet--only { padding-top: var(--space-6); }
+
+/* ------------------------------------------------- the borderless card set */
+/* `.lb-panel` is the border-diet replacement for `.panel`: the same background
+   step and padding, no outline and no hexagon cut. Passive containers separate
+   by ground contrast and air. */
+.lb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-radius: 4px;
+}
+
+/* Retires the last two outlined passives — timeline.js's header and weekly
+   recap still emit `.panel`, and timeline.js is not in this pass's ownership.
+   Scoping the override to .lb-root keeps it off every other surface. */
+.lb-root .panel,
+.lb-root .panel--focal {
+  background: var(--hud-panel);
+  border: 0;
+  clip-path: none;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+/* Chart tiles. charts.js dropped `.panel` from these, so the background step
+   they used to inherit has to live here or every chart floats on bare ground. */
+.lb-card {
+  background: var(--hud-panel);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.lb-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+}
+/* A tile title, not a shout: sans, mixed case, one step above body. */
+.lb-card-title {
+  font-family: var(--ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--hud-text);
+}
+.lb-card-gap { flex: 1 1 auto; }
+
+/* --------------------------------------------------------------- trophies */
+.lb-ach-main { display: flex; flex-direction: column; gap: var(--space-1); }
+/* Trophy names are titles, so they join the sans register; the unlock criteria
+   under them stay sans too. The pixel icon carries the game feel on its own. */
+.lb-ach-name { font-family: var(--ui); font-weight: 600; }
+.lb-ach-desc { font-family: var(--ui); }
+
+/* ------------------------------------------------------------ consistency */
+.lb-consistency { gap: var(--space-2); }
