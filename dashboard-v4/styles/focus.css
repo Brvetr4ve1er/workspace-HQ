@@ -17,11 +17,12 @@
              neutral and unglowing, exactly as home.css's momentum readout is —
              so it reads as second, not as a rival focal. v3's overlay made the
              timer a glowing gold --fs-2xl and it fought the task for attention.
-   CHROME    BORDER DIET, taken to its end: there is not a single `border` in
-             this file, and the panel carries no ring either. It separates from
-             the app by DIMMING THE WORLD BEHIND IT — that is the whole idea of
-             focus mode, so making it an outlined box would be arguing with the
-             feature.
+   CHROME    BORDER DIET, taken to its end: this sheet DRAWS no border at all.
+             The only `border` declaration in it is `border: 0` (removing the
+             UA button outline), and the panel carries no ring either. It
+             separates from the app by DIMMING THE WORLD BEHIND IT — that is
+             the whole idea of focus mode, so making it an outlined box would
+             be arguing with the feature.
    COLOUR    VIOLET BUDGET = 2. (1) the bloom behind the panel, painted on the
              scrim so it can glow past the panel's hexagon cut; (2) the primary
              leave/done control. The panel itself is a NEUTRAL near-black step —

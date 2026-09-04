@@ -245,6 +245,11 @@ export function enterFocus(item) {
   if (!shown) {
     restoreTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.classList.add('focus-mode');
+    // The CSS dims the app and kills its pointer events, but a filter cannot
+    // stop TAB from walking into the rail behind the overlay and Enter from
+    // switching surfaces underneath it. `inert` closes that hole for real —
+    // focus mode is modal, so the world behind is not just dark, it is gone.
+    document.getElementById('v4')?.setAttribute('inert', '');
     root.hidden = false;
     shown = true;
   }
@@ -271,6 +276,9 @@ export function exitFocus(opts) {
   current = null;
   document.body.classList.remove('focus-mode');
   root.hidden = true;
+  // BEFORE restoring focus — an inert subtree refuses focus(), so the order
+  // here is what makes the restore actually land.
+  document.getElementById('v4')?.removeAttribute('inert');
 
   const back = restoreTo;
   restoreTo = null;
@@ -310,15 +318,22 @@ export function isFocused() { return shown; }
 const isTyping = (t) => !!(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
   || t.tagName === 'SELECT' || t.isContentEditable));
 
-// ONE window listener for the app's lifetime.
-// `e.defaultPrevented` makes this order-independent against the command
-// palette: the palette preventDefaults its own Escape, so an Escape that closes
-// the palette never also drops the user out of focus. Belt-and-braces with the
-// typing guard, which catches the palette input directly.
+// ONE window listener for the app's lifetime, registered in the CAPTURE phase.
+// Capture on window is the FIRST stop in the event path, which is what makes
+// focus mode properly modal: while the overlay is up, Escape belongs to focus
+// and is stopped there, so it cannot also close a TASKS/PROJECTS drawer
+// sitting inert behind the dim (those surfaces listen on `document`, which
+// capture beats). While focus is DOWN this handler stops nothing and every
+// surface keeps its own Escape.
+//
+// The command palette still wins when it is open over focus: its input holds
+// keyboard focus, so `isTyping` bails out before we stop anything and the
+// palette's own bubble-phase listener gets the key. `defaultPrevented` is kept
+// as a cheap guard against any earlier capture-phase listener.
 function onKey(e) {
   if (e.defaultPrevented) return;
   if (e.key === 'Escape') {
-    if (shown && !isTyping(e.target)) { e.preventDefault(); exitFocus(); }
+    if (shown && !isTyping(e.target)) { e.preventDefault(); e.stopPropagation(); exitFocus(); }
     return;
   }
   if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -332,12 +347,16 @@ export function initFocus() {
   if (inited) return;   // idempotent — the selftest re-runs boot logic
   inited = true;
   ensureFocusOverlay();
-  window.addEventListener('keydown', onKey);
+  window.addEventListener('keydown', onKey, true);
   // Payloads are whatever the emitter sent; enterFocus normalizes and never
   // throws on a malformed one, and bus.emit already isolates handler errors.
   disposers.push(bus.on('focus:toggle', (item) => toggleFocus(item)));
   disposers.push(bus.on('focus:enter', (item) => enterFocus(item)));
   disposers.push(bus.on('focus:exit', () => exitFocus()));
+  // Scrubbing to another snapshot while focused changes whether the DONE verb
+  // is allowed to write (canMarkDone() gates on data.isLatest), so the button
+  // is repainted rather than left advertising a write it would no longer make.
+  disposers.push(bus.on('data:select', () => { if (shown && current) paint(); }));
 }
 
 // Full disposal. Unlike a surface stylesheet (kept, because dropping it per
@@ -346,7 +365,8 @@ export function initFocus() {
 // index.html is never ours and is left alone.
 export function teardownFocus() {
   if (shown) exitFocus();
-  window.removeEventListener('keydown', onKey);
+  window.removeEventListener('keydown', onKey, true);   // capture flag must match the add
+  document.getElementById('v4')?.removeAttribute('inert');
   for (const off of disposers.splice(0)) { try { off(); } catch (err) { console.error('[focus] teardown', err); } }
   clearInterval(ticker);
   ticker = null;
