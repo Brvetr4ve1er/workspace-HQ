@@ -31,6 +31,18 @@
   <link rel="stylesheet" href="./styles/mind.css" />
   <link rel="stylesheet" href="./styles/automate.css" />
   <link rel="stylesheet" href="./styles/lookback.css" />
+  <!-- v4.3 MAP. AFTER work.css and components.css on purpose: the isometric
+       city reuses work.css's project drawer (it scopes one `.drawer-scrim`
+       override under `.map`) and components.css's `.btn` for the archive's
+       Restore verb, so both must already be resolved when this sheet lands. -->
+  <link rel="stylesheet" href="./styles/map.css" />
+  <!-- v4.3 FOCUS MODE — chrome overlay, not a surface; last because it
+       composes components.css `.btn--primary` and must win over it. Like
+       system.css and lookback.css, map.css and focus.css ALSO self-inject
+       from their modules; these static links win the race and the injectors
+       (which test for `link[href$="map.css"]` / `[href$="focus.css"]`) then
+       no-op, so exactly one copy of each sheet is ever in the document. -->
+  <link rel="stylesheet" href="./styles/focus.css" />
 </head>
 <body>
   <!-- scanline atmosphere (pure CSS, pointer-events none) -->

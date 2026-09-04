@@ -1,17 +1,20 @@
-// v4 boot — registers the 6 surfaces, starts the shell, logs one scriptable
+// v4 boot — registers the 9 surfaces, starts the shell, initialises the two
+// app-lifetime overlays (command palette, focus mode), and logs one scriptable
 // line the smoke/selftest harness asserts on. Adapted from v3's boot.js MINUS
-// its extras (themes, lexicon, chrome.js, fx, ambient, palette, actions/notify
-// wiring) — Phase C wires the substrate; Phase A keeps the boot path minimal
-// so the selftest gate has the fewest ways to fail.
+// its extras (themes, lexicon, chrome.js, fx, ambient) — Phase C wired the
+// substrate; the boot path stays flat so the selftest gate has the fewest
+// ways to fail.
 import { bus } from './bus.js';
 import { data } from './data.js';
 import { startShell, switchSurface, surfaces } from './shell.js';
 import { initActions } from './actions.mjs';
 import { initPalette } from './palette.js';
+import { initFocus } from './focus.js';
 import { view as homeView } from '../surfaces/home/view.js';
 import { view as tasksView } from '../surfaces/tasks/view.js';
 import { view as workView } from '../surfaces/work/view.js';
 import { view as projectsView } from '../surfaces/projects/view.js';
+import { view as mapView } from '../surfaces/map/view.js';
 import { view as systemView } from '../surfaces/system/view.js';
 import { view as mindView } from '../surfaces/mind/view.js';
 import { view as automateView } from '../surfaces/automate/view.js';
@@ -21,12 +24,16 @@ import { view as lookbackView } from '../surfaces/lookback/view.js';
 // AGENT keeps the actionable workbench reachable without asking users to
 // remember an abstract internal name. Every registered view is real.
 // v4.3 adds TASKS between them: the full queue board (the restored SITROOM
-// threat board), leaving AGENT with only a compact "next up" seed list.
+// threat board), leaving AGENT with only a compact "next up" seed list — and
+// MAP directly after PROJECTS, because the isometric city IS the project list
+// seen from above: the two surfaces answer the same question at different
+// altitudes, so they sit next to each other in the rail.
 const SURFACES = [
   { id: 'home',      label: 'HOME',        glyph: '◎', view: homeView },
   { id: 'tasks',     label: 'TASKS',       glyph: '◈', view: tasksView },
   { id: 'work',      label: 'AGENT',       glyph: '›', view: workView },
   { id: 'projects',  label: 'PROJECTS',    glyph: '▣', view: projectsView },
+  { id: 'map',       label: 'MAP',         glyph: '⬢', view: mapView },
   { id: 'system',    label: 'SYSTEM',      glyph: '⧉', view: systemView },
   { id: 'mind',      label: 'NOTES',       glyph: '✦', view: mindView },
   { id: 'automate',  label: 'AUTOMATIONS', glyph: '⚙', view: automateView },
@@ -59,6 +66,14 @@ initActions({
 startShell(SURFACES, startId);
 initPalette();   // one window keydown for the app's lifetime; overlay built lazily
 
+// FOCUS MODE — the full-screen "one thing" overlay, on the same footing as the
+// palette: an app-lifetime chrome overlay that lives in #overlays, OUTSIDE
+// #stage, so a surface re-mount (every scrub is one) never disturbs it.
+// initFocus() is idempotent behind its own `inited` flag, which matters
+// because the selftest re-runs this module's boot logic; calling it twice
+// registers no second keydown listener and no second set of bus handlers.
+initFocus();
+
 // Debug/harness handle — screenshot/verify harnesses drive surface switches
 // through this instead of synthesizing clicks.
 window.V4 = { switchSurface, surfaces };
@@ -70,7 +85,7 @@ console.log(
 );
 
 // --selftest: cycle every surface, counting mount errors. force=true so all
-// seven mounts actually execute (the active surface would otherwise early-return).
+// NINE mounts actually execute (the active surface would otherwise early-return).
 if (new URLSearchParams(location.search).get('selftest')) {
   let errors = 0;
   const seen = [];

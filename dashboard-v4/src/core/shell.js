@@ -139,7 +139,14 @@ function createWarden() {
     const streak = num(a.streak?.scan_days);
 
     w.level.textContent = String(level);
-    w.rank.textContent = String(a.title ?? '');       // scan-derived: textContent, never parsed
+    // Scan-derived: textContent, never parsed. shell.css caps the rank at a
+    // fixed measure and ellipsises the overflow so a long title can never push
+    // its box out of the LV cell and across the XP gauge (the collision this
+    // plate shipped with once); `.title` keeps the full string reachable, so
+    // the truncation hides nothing.
+    const rank = String(a.title ?? '');
+    w.rank.textContent = rank;
+    w.rank.title = rank;
 
     w.xp.textContent = fmt(num(a.xp));
     // v3 parity: a falsy xp_to_next means the level curve is topped out.
@@ -190,7 +197,12 @@ function buildTopstrip() {
   top.appendChild(el('div', 'brand', 'WORKSPACE<span class="hq">HQ</span> v4'));
   warden = createWarden();
   top.appendChild(warden.el);
-  top.appendChild(el('div', 'topstrip-gap'));
+  // NO spacer element between the plate and the scrubber any more. The strip
+  // wraps at narrow widths (see shell.css), and a `flex: 1 1 auto` spacer would
+  // sit at the end of the FIRST line, stranding the scrubber at the left edge
+  // of the second. `.scrub { margin-left: auto }` pushes it right on whichever
+  // line it lands on, which is the same result on one line and the correct one
+  // on two.
   scrubber = createScrubber();
   top.appendChild(scrubber.el);
 }
