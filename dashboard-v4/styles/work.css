@@ -1,187 +1,491 @@
-/* work.css — the WORKBENCH. Three columns at the 1440×900 primary size:
+/* work.css — AGENT, the workbench, revised in v4.3 against
+   docs/superpowers/specs/2026-08-19-v4-design-constitution.md and the approved
+   exemplar (styles/home.css). The previous version was rejected as "too
+   crowded and messy"; what changed, and why, is written down here so the next
+   editor does not put it back.
 
-     QUEUE (decide)  |  AGENT (act)  |  TRUTH (sense)
+   LAYOUT    TWO columns, not three. A 320px CONTEXT RAIL (Truth over Next up)
+             and the AGENT column, --space-6 apart. The old 380/1fr/300 grid
+             left the focal column narrower than its two rails combined at the
+             sizes this app actually opens at — the thing you look at was the
+             thing with the least room.
+   HIERARCHY ONE display level: `.agent-title` at --fs-xl. Everything else steps
+             down. The focal REGION (the dispatch form when idle, the output
+             block when a session runs) is focal by size, position and the one
+             edge glow — never by a second display size or a second colour.
+   CHROME    BORDER DIET. This file contains ZERO `border: 1px solid`
+             declarations outside the shared drawer block at the bottom (which
+             belongs to TASKS/PROJECTS/MAP, not to this screen). Passive
+             containers separate by a background step (--hud-panel over the
+             --hud-ink ground) plus air. Cards carry a 2px severity seam, which
+             is the one border the exemplar allows.
+   COLOUR    VIOLET BUDGET = 2, both on the focal column: `.work-agent`'s edge
+             glow and `.agent-go`'s primary treatment. Every other violet this
+             surface used to spend — four .panel-title headings, three .figure
+             numerals, the live dots, the meter fill, the active session card,
+             the "good" status line, the changes group heads — is now neutral or
+             a severity seam. Adding a third violet accent is the specific
+             failure this budget exists to prevent.
+   TYPE      Mixed-case sans for every title and sentence. ALL-CAPS + mono is a
+             label register only: `.work-key` section labels, `.truth-name`,
+             `.q-source`, field labels, stat captions. The output header used to
+             uppercase the SESSION LABEL and the char-count sentence — a data
+             value and a sentence, both banned from that register.
 
-   The middle column is the widest and the only .panel--focal one, because the
-   agent pane is where the work happens — v3's failure was that every panel had
-   equal weight, so nothing read as the place to look.
-
-   Layout invariants (each guards a real bug):
+   Layout invariants (each guards a real bug, carried from the first version):
    - .work is height:100% of #stage's content box, and EVERY column and scroller
      in the chain carries min-height:0 — one missing and the inner scroller grows
      instead of scrolling, pushing the workbench off-screen.
-   - the output <pre> scrolls in its own box; nothing above it may grow
+   - the output block scrolls in its own box; nothing above it may grow
      unboundedly, or the stick-to-bottom logic fights the page scroll. */
+
+/* The surface root is also the positioning context for the drawer scrim that
+   other surfaces reuse from this sheet. */
+.work-root {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  /* The UI (sans) family the constitution requires for body text, declared the
+     same way and for the same reason as in home.css: base.css sets the app font
+     to --term (mono) and tokens.css carries no sans token, and this agent owns
+     neither file. When --ui is promoted to tokens.css this block collapses to a
+     var reference and nothing else here changes. */
+  --ui: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--ui);
+  /* #stage pays 16px; this takes the gutter to the 24/32px the constitution
+     asks for so the workbench never runs into the viewport edge. */
+  padding: var(--space-2) var(--space-4) 0;
+}
 
 .work {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr) 300px;
-  gap: var(--space-4);
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--space-6);
   height: 100%;
   min-height: 0;
 }
 .work > * { min-width: 0; min-height: 0; }
 
-/* Narrow windows: truth rail drops under the two working columns rather than
-   crushing them. (The app opens at 1440×900; this is for a resized window.) */
-@media (max-width: 1240px) {
+/* Narrow windows: the rail drops above the agent column rather than crushing
+   it. One breakpoint, well below any size this app opens at. */
+@media (max-width: 900px) {
   .work {
-    grid-template-columns: 340px minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     height: auto;
     min-height: 100%;
   }
-  .work-truth { grid-column: 1 / -1; }
 }
 
-/* ============================================================ QUEUE rail */
-.q-total { display: flex; align-items: baseline; gap: var(--space-2); }
-
-.q-group + .q-group { margin-top: var(--space-4); }
-.q-group-head {
-  display: flex; align-items: center; gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .18em;
-  text-transform: uppercase; color: var(--hud-violet-hi);
-}
-.q-group-head::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--hud-line), transparent); }
-.q-group-n { font-weight: 400; color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
-
-/* THE one item component. Every queue row in the app is this element — the
-   design's structural fix for "everything is a card": hierarchy is designed
-   once here instead of drifting across surfaces. */
-.q-item {
-  display: flex; flex-direction: column; gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
-  border: 1px solid var(--hud-line);
-  border-left: 3px solid var(--hud-dim);
-  border-radius: 3px;
-  transition: transform 140ms ease, box-shadow 140ms ease;
-}
-.q-item + .q-item { margin-top: var(--space-2); }
-.q-item:hover { transform: translateX(2px); }
-.q-item[data-sev="red"]    { border-left-color: var(--hud-red);    box-shadow: 0 0 26px -18px var(--hud-red); }
-.q-item[data-sev="orange"] { border-left-color: var(--hud-amber);  box-shadow: 0 0 26px -20px var(--hud-amber); }
-.q-item[data-sev="yellow"] { border-left-color: var(--hud-yellow); box-shadow: 0 0 22px -20px var(--hud-yellow); }
-.q-item[data-sev="dim"]    { border-left-color: var(--hud-dim); }
-.q-item.is-seeded { border-color: var(--hud-violet); box-shadow: inset 0 0 0 1px var(--hud-glow); }
-
-.q-title { font-size: var(--fs-md); line-height: 1.25; color: var(--hud-text); }
-.q-sub   { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.q-verbs { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-top: var(--space-1); }
-.q-note  { font-size: var(--fs-xs); color: var(--hud-text-dim); }
-
-/* ============================================================ AGENT pane */
-/* The agent pane does NOT scroll as a whole: the form/strip block scrolls if it
-   must, and the output block takes the rest and scrolls on its own. One page
-   scroller wrapping a live stream would fight the stick-to-bottom logic. */
-.agent-body {
-  flex: 1 1 auto; min-height: 0;
-  display: flex; flex-direction: column; gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  overflow: hidden;
-}
-.agent-top { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
-.chg { flex: 0 0 auto; max-height: 34%; overflow-y: auto; }
-.chg .panel-title { display: block; margin-bottom: var(--space-2); }
-
-.agent-form { display: flex; flex-direction: column; gap: var(--space-3); }
-.agent-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: end; }
-.agent-warn {
-  font-size: var(--fs-xs); color: var(--hud-amber);
-  border: 1px dashed #6b4a24; border-radius: 3px;
-  padding: var(--space-2);
-}
-.agent-status { font-size: var(--fs-xs); color: var(--hud-text-dim); min-height: 16px; }
-.agent-status[data-tone="bad"]  { color: var(--hud-red); }
-.agent-status[data-tone="good"] { color: var(--hud-violet-hi); }
-
-/* running/finished sessions — a strip of selectable cards above the output */
-.sess-strip { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.sess-card {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: var(--space-2) var(--space-3);
-  min-width: 168px; max-width: 260px;
-  text-align: left;
+/* ------------------------------------------------------------------ labels */
+/* The label register, identical in intent to home.css's `.home-key`: mono,
+   tracked-out, uppercase, dim. Section headings and eyebrows ONLY — never a
+   sentence, never a title, never a data value. */
+.work-key {
   font-family: var(--term);
-  color: var(--hud-text);
-  background: linear-gradient(160deg, var(--hud-panel-hi), var(--hud-panel));
-  border: 1px solid var(--hud-line);
-  border-left: 3px solid var(--hud-dim);
-  border-radius: 3px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+  margin: 0;
+}
+
+/* Empty and explanatory states are calm sentences on the ground, not styled
+   panels. This replaces every `.empty` dashed box this surface used to draw. */
+.work-quiet {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--hud-text-dim);
+  max-width: 62ch;
+  margin: 0;
+}
+/* Long honest notes that live inside the 320px rail stay at the --fs-xs floor
+   so the rail does not become a wall of text; the line-height keeps them
+   readable, which is what the type rule actually protects. */
+.work-root .meta { line-height: 1.5; }
+
+/* Secondary verbs are TEXT, not boxes (the exemplar's `.pick-done`). They still
+   obey "real action or disabled with a reason" — disabled is dim and inert. */
+.work-link {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  color: var(--hud-text-dim);
+  background: none;
+  border: 0;
+  padding: var(--space-1) 0;
+  margin: 0;
+  text-align: left;
   cursor: pointer;
+  transition: color 140ms ease;
 }
-.sess-card:hover { border-color: var(--hud-violet); }
-.sess-card:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
-.sess-card.is-active { border-color: var(--hud-violet); box-shadow: 0 0 22px -12px var(--hud-violet); }
-.sess-card[data-status="running"] { border-left-color: var(--hud-violet); }
-.sess-card[data-status="done"]    { border-left-color: #3aff6e; }
-.sess-card[data-status="failed"]  { border-left-color: var(--hud-red); }
-.sess-label { font-size: var(--fs-sm); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sess-meta  { font-size: var(--fs-xs); color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+.work-link:hover:not(:disabled) { color: var(--hud-text); text-decoration: underline; text-underline-offset: 4px; }
+.work-link:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; border-radius: 2px; }
+.work-link:disabled { color: var(--hud-dim); cursor: not-allowed; }
 
-/* output block: the one scroller with stick-to-bottom */
-.out-wrap {
-  display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
-  border: 1px solid var(--hud-line); border-radius: 3px;
-  background: #0b0916;
+/* Field labels must stay in the MONO label register even though the surface
+   root now sets a sans stack that they would otherwise inherit. */
+.work-root .field > label { font-family: var(--term); }
+
+/* The no-scan state: one sentence, no panel, no controls. */
+.work-blank { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-5); }
+
+/* ============================================================ context rail */
+/* Truth on top (it is short and fixed), Next up below taking the rest with its
+   own scroller — so both named blocks are on screen at once and the part that
+   scrolls is the tail of an urgency-sorted list. */
+.work-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-height: 0;
 }
-.out-head {
+
+/* ================================================================== TRUTH */
+/* ONE background-stepped block, like the exemplar's momentum panel. The four
+   tiles inside it are separated by space alone — the 1px rule that used to sit
+   between them is exactly the outline habit the border diet bans. */
+.work-truth {
   flex: 0 0 auto;
-  display: flex; align-items: center; gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  border-bottom: 1px solid var(--hud-line);
-  font-size: var(--fs-xs); letter-spacing: .12em; text-transform: uppercase; color: var(--hud-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-radius: 4px;
+  max-height: 58%;
+  overflow-y: auto;
 }
-.out-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; padding: var(--space-2); }
-.out-foot {
-  flex: 0 0 auto; display: flex; align-items: center; gap: var(--space-2);
-  padding: var(--space-2); border-top: 1px solid var(--hud-line);
-}
-.out-unstuck {                      /* only shown when the user scrolled up */
-  font-size: var(--fs-xs); color: var(--hud-violet-hi);
-}
+.wt-head { display: flex; align-items: baseline; gap: var(--space-3); }
+.wt-sub { margin-left: auto; font-family: var(--term); font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.wt-body { display: flex; flex-direction: column; gap: var(--space-4); }
 
-/* CHANGES panel — the working tree, split by the dispatch-time baseline.
-   The group heading + its "why" line are load-bearing honesty, not decoration:
-   they state which window each list covers. Never style the "why" away. */
-.chg-group { margin-top: var(--space-3); border-left: 2px solid var(--hud-line); padding-left: var(--space-2); }
-.chg-group-head {
-  font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase;
-  color: var(--hud-violet-hi);
-}
-.chg-group-why { font-size: var(--fs-xs); color: var(--hud-text-dim); margin-top: 2px; }
-.chg-list { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-2); }
-.chg-row { display: flex; gap: var(--space-2); font-size: var(--fs-xs); }
-.chg-status {
-  flex: 0 0 auto; width: 22px; text-align: center;
-  color: var(--hud-amber); font-weight: 700;
-}
-.chg-path { color: var(--hud-text); word-break: break-all; }
-.chg-stat { margin-top: var(--space-2); color: var(--hud-text-dim); }
-
-/* ============================================================ TRUTH rail */
-.truth-tile { padding: var(--space-3) 0; }
-.truth-tile + .truth-tile { border-top: 1px solid var(--hud-line); }
+.truth-tile { padding: 0; }
 .truth-head { display: flex; align-items: center; gap: var(--space-2); }
-.truth-name { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--hud-text); }
-.truth-age  { margin-left: auto; font-size: var(--fs-xs); color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+.truth-name {
+  font-family: var(--term);
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--hud-text);
+}
+.truth-age {
+  margin-left: auto;
+  font-family: var(--term); font-size: var(--fs-xs);
+  color: var(--hud-text-dim); font-variant-numeric: tabular-nums;
+}
 .truth-body { margin-top: var(--space-2); }
+
+/* SHARED with projects/drawer.js — keep the shape these rules have. */
 .truth-kv   { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--fs-xs); }
 .truth-kv .k { color: var(--hud-text-dim); text-transform: uppercase; letter-spacing: .1em; }
 .truth-kv .v { color: var(--hud-text); font-variant-numeric: tabular-nums; }
 .truth-figs { display: flex; gap: var(--space-4); align-items: baseline; }
 .truth-fig  { display: flex; flex-direction: column; gap: 2px; }
 
-/* meter: a bar whose width is a REAL percentage, never a decorative fill */
+/* Session counts used `.figure`: --fs-2xl, violet, glowing, and RED whenever
+   anything was running. Three lies in one element — a second display level
+   beside the focal title, two more violet accents, and severity colour on a
+   state that is not a problem. They are now a quiet figure one step down. */
+.truth-num {
+  font-family: var(--term);
+  font-size: var(--fs-lg); font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-text-dim);
+}
+.truth-num[data-on] { color: var(--hud-text); }
+.truth-cap {
+  font-family: var(--term); font-size: var(--fs-xs);
+  letter-spacing: .18em; text-transform: uppercase; color: var(--hud-text-dim);
+}
+
+/* meter: a bar whose width is a REAL percentage, never a decorative fill.
+   The base rule is SHARED with lookback/*; only the fill is neutralised here,
+   scoped, so this surface spends no violet on a CPU bar. */
 .meter { height: 4px; background: #241f3d; border-radius: 2px; overflow: hidden; margin-top: 3px; }
 .meter > i { display: block; height: 100%; background: var(--hud-violet); box-shadow: 0 0 10px var(--hud-violet); }
+.work-truth .meter > i { background: var(--hud-text-dim); box-shadow: none; }
 
-/* ============================================================ drawer-lite */
-/* Project detail, from the SNAPSHOT (labeled as such). Overlays the workbench
-   inside the surface — it is a child of the surface root, so unmount()
-   removing the root removes the drawer with it. */
+/* The live/stale dot is an honesty device, not an accent. Neutralised on this
+   surface so the violet budget stays on the focal column; it still reports the
+   three states it always did (received recently / stale / no channel). */
+.work-root .pulse-dot[data-live="yes"] {
+  background: var(--hud-text);
+  box-shadow: 0 0 8px rgba(233, 230, 245, .45);
+}
+
+/* ================================================================ NEXT UP */
+.work-queue {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: var(--space-3);
+}
+.wq-head { flex: 0 0 auto; display: flex; align-items: baseline; gap: var(--space-3); }
+.wq-total {
+  margin-left: auto;
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .06em;
+  color: var(--hud-text-dim); font-variant-numeric: tabular-nums;
+}
+/* Severity owns colour: the total takes the worst severity in the WHOLE queue,
+   and nothing else about it shouts. */
+.wq-total [data-sev="red"]    { color: var(--hud-red); }
+.wq-total [data-sev="orange"] { color: var(--hud-amber); }
+.wq-total [data-sev="yellow"] { color: var(--hud-yellow); }
+
+.wq-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+.wq-foot { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+
+/* THE item component. It RECEDES, exactly like the exemplar's pick cards: a
+   flat background step, NO outline, and a single 2px seam on the accent edge
+   carrying severity. The old version was a gradient card with a full 1px
+   border, a 3px edge AND a coloured drop-glow — three separations doing one
+   job, six times down a narrow column. */
+.q-item {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-4);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--seam, var(--hud-dim));
+  border-radius: 0 4px 4px 0;
+}
+.q-item[data-sev="red"]    { --seam: var(--hud-red); }
+.q-item[data-sev="orange"] { --seam: var(--hud-amber); }
+.q-item[data-sev="yellow"] { --seam: var(--hud-yellow); }
+.q-item[data-sev="dim"]    { --seam: var(--hud-dim); }
+
+/* Which row last filled the form. It used to be a violet outline + inset glow;
+   a background step plus a plain-language line says the same thing without
+   spending an accent on a passive card. */
+.q-item.is-seeded { background: var(--hud-panel-hi); }
+.q-item.is-seeded::after {
+  content: "loaded into the dispatch form";
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .06em;
+  color: var(--hud-text-dim);
+  margin-top: var(--space-1);
+}
+
+/* The source, in the label register, coloured by severity only when there IS
+   severity. This replaces a bordered `.chip` — six more outlines in a column
+   that is trying to calm down. */
+.q-source {
+  font-family: var(--term); font-size: var(--fs-xs);
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.q-item[data-sev="red"]    .q-source { color: var(--hud-red); }
+.q-item[data-sev="orange"] .q-source { color: var(--hud-amber); }
+.q-item[data-sev="yellow"] .q-source { color: var(--hud-yellow); }
+
+.q-title { margin: 0; font-size: var(--fs-md); font-weight: 600; line-height: 1.45; }
+/* The title IS the control (the exemplar's `.pick-open`), so the row needs no
+   button chrome at all — six identical uppercase "DISPATCH" boxes were the
+   loudest thing in the column and the least informative. */
+.q-open {
+  font: inherit;
+  color: var(--hud-text);
+  background: none; border: 0; padding: 0; margin: 0;
+  text-align: left; cursor: pointer;
+  transition: color 140ms ease;
+}
+.q-open:hover:not(:disabled) { color: var(--hud-violet-hi); text-decoration: underline; text-underline-offset: 4px; }
+.q-open:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; border-radius: 2px; }
+.q-open:disabled { color: var(--hud-text-dim); cursor: not-allowed; }
+
+.q-where { font-size: var(--fs-sm); line-height: 1.45; color: var(--hud-text-dim); }
+.q-note  { font-size: var(--fs-xs); line-height: 1.5; color: var(--hud-text-dim); max-width: 46ch; }
+
+/* ================================================================== AGENT */
+/* The focal column. It does NOT compose `.panel`: that component carries a flat
+   1px outline, and an outlined hero beside unoutlined sections is the
+   "everything is a box" look this revision exists to remove. Scanline + the one
+   edge glow are the constitution's focal seasoning, spent here and nowhere
+   else on this screen.
+   VIOLET ACCENT 1 of 2. */
+.work-agent {
+  display: flex; flex-direction: column; min-height: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .035) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 0 64px -32px var(--hud-violet), 0 30px 70px -40px #000;
+}
+
+.agent-head {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-5) var(--space-5) 0;
+}
+/* The ONE display-weight element on this surface. Near-white, not violet: size
+   and position make the column focal, and a violet title would blow the budget
+   the glow already spends. */
+.agent-title {
+  font-family: var(--ui);
+  font-size: var(--fs-xl); font-weight: 600; line-height: 1.2;
+  letter-spacing: -.01em; color: var(--hud-text);
+  margin: 0;
+}
+/* Replaces the ALL-CAPS "IN-APP · NO TERMINAL" strip: same claim, in a sentence. */
+.agent-lede { font-size: var(--fs-md); line-height: 1.5; color: var(--hud-text-dim); max-width: 58ch; margin: 0; }
+.agent-count { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .06em; color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+
+/* The agent pane does NOT scroll as a whole: the form/strip block scrolls if it
+   must, and the output block takes the rest and scrolls on its own. One page
+   scroller wrapping a live stream would fight the stick-to-bottom logic. */
+.agent-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--space-5);
+  padding: var(--space-5);
+  overflow: hidden;
+}
+.agent-top { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-5); }
+.chg { flex: 0 0 auto; max-height: 34%; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.agent-form { display: flex; flex-direction: column; gap: var(--space-4); max-width: 62ch; }
+.agent-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; }
+
+/* A warning, so amber is earned — but a seam, not a dashed box. */
+.agent-warn {
+  font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-amber);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--hud-amber);
+  border-radius: 0 4px 4px 0;
+  padding: var(--space-3) var(--space-4);
+  max-width: 62ch;
+}
+.agent-status { font-size: var(--fs-sm); line-height: 1.45; color: var(--hud-text-dim); min-height: 18px; }
+.agent-status[data-tone="bad"]  { color: var(--hud-red); }
+/* A muted, on-palette green — the exemplar's seam-win. "Started" is good news,
+   not a violet accent. */
+.agent-status[data-tone="good"] { color: #86b986; }
+
+/* VIOLET ACCENT 2 of 2 — `.btn--primary` supplies the violet edge and glow.
+   Overridden into the sans register at a real size for the same reason the
+   exemplar overrides `.oracle-go`: the app's dispatch control should not read
+   as chrome. `.btn:disabled` does NOT clear `.btn--primary`'s box-shadow, so a
+   bridge-less preview would otherwise show a GLOWING dead control. */
+.agent-go {
+  font-family: var(--ui);
+  font-size: var(--fs-sm); font-weight: 600;
+  text-transform: none; letter-spacing: .01em;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: 4px;
+}
+.agent-go:disabled { box-shadow: none; }
+
+/* The stop button keeps its danger treatment (severity owns colour, and a
+   border on an interactive control is allowed) but leaves the caps register. */
+.agent-kill {
+  font-family: var(--ui);
+  font-size: var(--fs-sm); font-weight: 600;
+  text-transform: none; letter-spacing: .01em;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-4);
+  border-radius: 4px;
+}
+.agent-kill:disabled { box-shadow: none; }
+
+/* ------------------------------------------- running/finished sessions */
+/* A GRID, capped at three across: the old flex-wrap strip put four and five
+   cards in a row at the widths this column now has, which is the "five tiles in
+   a row" the constitution names by number. */
+.sess-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.sess-strip > .work-quiet { grid-column: 1 / -1; }
+
+.sess-card {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-family: var(--ui);
+  color: var(--hud-text);
+  background: var(--hud-panel);
+  border: 0;
+  border-left: 2px solid var(--hud-dim);
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+.sess-card:hover { background: var(--hud-panel-hi); }
+.sess-card:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
+/* Selection is a background step + a brighter seam, not a violet ring. */
+.sess-card.is-active { background: var(--hud-panel-hi); }
+.sess-card[data-status="running"] { border-left-color: var(--hud-text); }
+.sess-card[data-status="done"]    { border-left-color: #86b986; }
+.sess-card[data-status="failed"]  { border-left-color: var(--hud-red); }
+.sess-label { font-size: var(--fs-sm); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess-meta  { font-family: var(--term); font-size: var(--fs-xs); color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------ output block */
+/* The focal moment when a session is running. It is focal by SIZE and by the
+   dark background step it sits in — the wrapper itself is now transparent and
+   unbordered, and the head/foot rules that used to fence it are gone. */
+.out-wrap {
+  display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
+  gap: var(--space-2);
+}
+.out-head {
+  flex: 0 0 auto;
+  display: flex; align-items: baseline; gap: var(--space-2);
+}
+/* The session label is a DATA VALUE. It used to be uppercased by a rule that
+   also uppercased the char-count sentence beside it. Both read as prose now. */
+.out-name { font-size: var(--fs-md); line-height: 1.4; color: var(--hud-text); }
+.out-meta { font-family: var(--term); font-size: var(--fs-xs); line-height: 1.5; color: var(--hud-text-dim); text-align: right; }
+.out-scroll {
+  flex: 1 1 auto; min-height: 120px; overflow-y: auto;
+  padding: var(--space-4);
+  background: #0b0916;
+  border-radius: 4px;
+}
+.out-foot {
+  flex: 0 0 auto; display: flex; align-items: center; gap: var(--space-4);
+}
+/* Following-paused is a state note, not an alarm and not an accent. */
+.out-unstuck { font-size: var(--fs-sm); color: var(--hud-text-dim); }
+
+/* The hint must never be mistaken for something the agent printed. The dashed
+   box that used to guarantee that is replaced by TWO stronger separations: it
+   is the sans family (the <pre> is mono) on a raised --hud-panel step (the
+   scroller is near-black). Do not merge it into the <pre>. */
+.out-hint {
+  font-family: var(--ui);
+  font-size: var(--fs-sm); line-height: 1.5;
+  color: var(--hud-text-dim);
+  background: var(--hud-panel);
+  border-radius: 4px;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  max-width: 62ch;
+}
+
+/* ---------------------------------------------------------------- CHANGES */
+/* The working tree, split by the dispatch-time baseline. The group heading and
+   its "why" line are load-bearing honesty, not decoration: they state which
+   window each list covers. Never style the "why" away — and never shrink it
+   back into the label register, which is what --fs-xs uppercase violet did. */
+.chg-group { border-left: 2px solid var(--hud-line); padding-left: var(--space-4); }
+.chg-group + .chg-group { margin-top: var(--space-4); }
+.chg-group-head { font-size: var(--fs-sm); font-weight: 600; line-height: 1.45; color: var(--hud-text); }
+.chg-group-why { font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text-dim); max-width: 62ch; margin-top: var(--space-1); }
+.chg-list { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-3); }
+.chg-row { display: flex; gap: var(--space-2); font-family: var(--term); font-size: var(--fs-xs); line-height: 1.5; }
+.chg-status { flex: 0 0 auto; width: 22px; text-align: center; color: var(--hud-text-dim); font-weight: 700; }
+.chg-path { color: var(--hud-text); word-break: break-all; }
+.chg-stat { color: var(--hud-text-dim); }
+.chg-again { align-self: flex-start; }
+
+/* ============================================================== drawer-lite */
+/* SHARED, and NOT part of this screen any more: v4.3 moved the project drawer
+   to TASKS, which imports work/drawer.js unchanged, and PROJECTS + MAP scope
+   their own overrides on top of these rules. They are deliberately left exactly
+   as they were — restyling them here would silently restyle three surfaces this
+   agent does not own. The `border: 1px solid` declarations below are theirs. */
 .drawer-scrim {
   position: absolute; inset: 0; z-index: 5;
   background: rgba(6, 4, 14, .62);
@@ -202,6 +506,3 @@
 .drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--space-4); }
 .drawer-title { font-size: var(--fs-lg); color: var(--hud-violet-hi); text-shadow: 0 0 12px currentColor; }
 .drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3); }
-
-/* The surface root is the positioning context for the drawer scrim. */
-.work-root { position: relative; height: 100%; min-height: 0; }

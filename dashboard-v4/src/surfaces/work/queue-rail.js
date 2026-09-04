@@ -19,6 +19,15 @@
 // The board's other three verbs (open / done / note) live on TASKS, which is
 // one click away through the footer control. Every control here either acts or
 // renders disabled with a title that says why — there is no third state.
+//
+// v4.3 PRESENTATION (design constitution + the HOME exemplar): the row's TITLE
+// is the verb, the way `.pick-open` is on HOME. Six identical uppercase
+// "DISPATCH" boxes were the loudest thing in a 320px column and told the reader
+// nothing the row did not already say; the action is unchanged, only its
+// affordance. The row itself receded to a flat background step with a 2px
+// severity seam, and the source moved from a bordered `.chip` into the plain
+// label register. The header's queue total stopped being a glowing --fs-2xl
+// numeral: one display level per screen, and it belongs to the AGENT column.
 import { el, esc } from '../../ui/util.js';
 import { dispatch, resolve } from '../../core/actions.mjs';
 
@@ -28,56 +37,46 @@ const NEXT_UP = 6;
 
 export function createQueueRail(api) {
   // api: { ctx, canDispatch, seed(item) }
-  const root = el('section', 'panel work-queue', `
-    <div class="panel-head">
-      <span class="panel-title">Next up</span>
-      <span class="spacer"></span>
-      <span class="q-total"><span class="figure" data-count>0</span><span class="figure-label">queued</span></span>
+  const root = el('section', 'work-queue', `
+    <div class="wq-head">
+      <h2 class="work-key">Next up</h2>
+      <span class="wq-total"><span data-count>0</span> queued</span>
     </div>
-    <div class="panel-body" data-body></div>
-    <div class="panel-foot" data-foot></div>`);
+    <div class="wq-body" data-body></div>
+    <div class="wq-foot" data-foot></div>`);
   const bodyEl = root.querySelector('[data-body]');
   const countEl = root.querySelector('[data-count]');
   const footEl = root.querySelector('[data-foot]');
 
-  function dispatchButton(item) {
-    const btn = el('button', 'btn btn--sm', 'Dispatch');
-    btn.type = 'button';
-    // Six identical "Dispatch" labels are useless to a screen reader — name the target.
-    btn.setAttribute('aria-label', `Dispatch: ${item.title}`);
-    if (!api.canDispatch) {
-      btn.disabled = true;
-      btn.title = 'Dispatch needs the live app — this preview has no bridge to the main process (window.hq is absent).';
-    } else {
-      btn.title = 'Load this item into the dispatch form beside it (does not start the agent).';
-      btn.onclick = () => api.seed(item);
-    }
-    return btn;
-  }
-
-  // THE item component, unchanged in shape from the full board it came from, so
-  // a row reads identically on both surfaces. Every scan-derived string is
-  // esc()'d on the way in.
+  // THE item component. Every scan-derived string is esc()'d on the way in, and
+  // the title is the control: one tap target per row, named by the row.
   function queueItem(item) {
     const node = el('div', 'q-item');
     node.dataset.sev = item.severity || 'dim';
     node.dataset.itemId = item.id;
     const where = item.projectName || item.projectId || 'unattached';
     node.innerHTML = `
-      <div class="q-title">${esc(item.title)}</div>
-      <div class="q-sub">
-        <span class="chip" data-sev="${esc(item.severity || 'dim')}">${esc(item.source)}</span>
-        <span class="meta">${esc(where)}</span>
-      </div>`;
-    const verbs = el('div', 'q-verbs');
-    verbs.appendChild(dispatchButton(item));
-    node.appendChild(verbs);
+      <div class="q-source">${esc(item.source)}</div>
+      <h3 class="q-title"><button class="q-open" type="button">${esc(item.title)}</button></h3>
+      <div class="q-where">${esc(where)}</div>`;
+    const open = node.querySelector('.q-open');
+    // .setAttribute takes the RAW string — esc() here would show entity text to
+    // a screen reader instead of the character.
+    open.setAttribute('aria-label', `Load into the dispatch form: ${item.title}`);
+    if (!api.canDispatch) {
+      open.disabled = true;
+      open.title = 'Dispatch needs the live app — this preview has no bridge to the main process (window.hq is absent).';
+    } else {
+      open.title = 'Load this item into the dispatch form beside it (does not start the agent).';
+      open.onclick = () => api.seed(item);
+    }
     return node;
   }
 
-  // The one control in the footer: the whole board, one click away.
+  // The one control in the footer: the whole board, one click away. A quiet
+  // text verb (the exemplar's `.pick-done`), not a third box in the column.
   function boardButton() {
-    const btn = el('button', 'btn btn--sm', 'Open the full board');
+    const btn = el('button', 'work-link', 'Open the full board');
     btn.type = 'button';
     if (!resolve('go:tasks')) {
       btn.disabled = true;
@@ -98,15 +97,15 @@ export function createQueueRail(api) {
     const shown = seedable.slice(0, NEXT_UP);
 
     // The header counts the WHOLE queue and takes the colour of the worst
-    // severity in it — a violet total over a queue of nothing but ideas would
-    // be an alarm the data does not justify.
+    // severity in it — severity is the only thing on this rail allowed to spend
+    // colour, and a queue of nothing but ideas stays neutral.
     countEl.textContent = String(items.length);
     const worst = ['red', 'orange', 'yellow'].find((s) => items.some((i) => i.severity === s));
     countEl.dataset.sev = items.length === 0 ? 'dim' : (worst || 'dim');
 
     bodyEl.innerHTML = '';
     if (!shown.length) {
-      bodyEl.appendChild(el('div', 'empty', items.length
+      bodyEl.appendChild(el('p', 'work-quiet', items.length
         ? 'Nothing in this snapshot can seed a session — every queued item is missing a project path in the scan.'
         : 'Queue is empty — no threats, open tasks, signal gaps or captured ideas in this snapshot.'));
     } else {

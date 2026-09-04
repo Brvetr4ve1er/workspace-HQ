@@ -51,11 +51,12 @@ export const view = {
     if (!scan) {
       // No controls at all in this state: everything the workbench does needs a
       // project list, and a form that can only fail is a lying control.
-      root.appendChild(el('section', 'panel', `
-        <div class="panel-head"><span class="panel-title">Work</span></div>
-        <div class="panel-body">
-          <div class="empty">No scan data in this build — run a scan to populate the queue and the project list.</div>
-        </div>`));
+      // v4.3: a calm sentence on the ground, not a bordered panel wrapping a
+      // dashed box — the constitution's "empty states are calm single
+      // sentences" rule, and the exemplar's `.home-quiet` treatment.
+      root.appendChild(el('section', 'work-blank', `
+        <h2 class="work-key">Agent</h2>
+        <p class="work-quiet">No scan data in this build — run a scan to populate the queue and the project list.</p>`));
       return;
     }
 
@@ -81,9 +82,19 @@ export const view = {
       seed: (item) => { agent.seed(item); queue.markSeeded(item.id); },
     });
 
-    grid.appendChild(queue.el);
+    // v4.3 COMPOSITION: two columns, not three. TRUTH and NEXT UP share one
+    // 320px context rail so the AGENT column — the focal one, the reason this
+    // surface exists — is wider than both of them put together at every size
+    // the app opens at. The old 380 | 1fr | 300 grid gave the thing you look at
+    // the least room, which is half of why the screen read as crowded.
+    // Truth sits ABOVE Next up because it is short and fixed-height, so the
+    // part that scrolls is the tail of an urgency-sorted list rather than a
+    // whole named block disappearing below the fold.
+    const rail = el('div', 'work-rail');
+    rail.appendChild(truth.el);
+    rail.appendChild(queue.el);
+    grid.appendChild(rail);
     grid.appendChild(agent.el);
-    grid.appendChild(truth.el);
 
     let model = buildQueue(scan);
     queue.render(model);
