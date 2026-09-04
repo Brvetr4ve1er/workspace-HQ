@@ -9,15 +9,16 @@ import { oracleActionId, oracleButtonMeta, oracleSurfaceId, sentence, restCopy }
 
 // The ids core/boot.js registers as `go:<id>`. If this list and boot.js ever
 // drift, the "every button dispatches into a real surface" test below fails.
-const REGISTERED = ['home', 'work', 'projects', 'system', 'mind', 'automate', 'lookback'];
-const LABEL_OF = { home: 'Home', work: 'Agent', projects: 'Projects', system: 'System', mind: 'Notes', automate: 'Automations', lookback: 'History' };
+const REGISTERED = ['home', 'tasks', 'work', 'projects', 'system', 'mind', 'automate', 'lookback'];
+const LABEL_OF = { home: 'Home', tasks: 'Tasks', work: 'Agent', projects: 'Projects', system: 'System', mind: 'Notes', automate: 'Automations', lookback: 'History' };
 
 test('oracleActionId maps every emitted realm to a REGISTERED v4 surface', () => {
   assert.equal(oracleActionId({ action: 'commit', target: { realmId: 'forge', projectId: 'p1' } }), 'go:projects');
-  assert.equal(oracleActionId({ action: 'quest',  target: { realmId: 'hunts', questId: 'q1' } }),   'go:work');
+  assert.equal(oracleActionId({ action: 'quest',  target: { realmId: 'hunts', questId: 'q1' } }),   'go:tasks');   // v4.3: the board is its own surface
   assert.equal(oracleActionId({ action: 'quest',  target: { realmId: 'forge', projectId: 'p2' } }), 'go:projects'); // the secrets quest is project-scoped
   assert.equal(oracleActionId({ action: 'capture', target: { realmId: 'roundtable' } }), 'capture:idea');
   assert.equal(oracleActionId({ action: 'scan',    target: { realmId: 'roundtable' } }), 'scan:now');
+  assert.equal(oracleActionId({ action: 'rest',    target: { realmId: 'roundtable' } }), 'go:home');    // v3's roundtable IS v4's HOME
   assert.equal(oracleActionId({ action: 'rest',    target: {} }), 'go:work');                       // missing realmId -> the safe default surface
   assert.equal(oracleActionId({ action: 'quest',   target: { realmId: 'atlantis' } }), 'go:work');   // unknown realm -> never dispatches into nothing
   assert.equal(oracleActionId(null), null);
@@ -46,7 +47,7 @@ test('button copy names the SAME room the dispatch id opens', () => {
 
 test('oracleButtonMeta: per-action copy; unknown/null falls back to a real surface', () => {
   assert.equal(oracleButtonMeta({ action: 'commit', target: { realmId: 'forge' } }).label, 'Open Projects');
-  assert.equal(oracleButtonMeta({ action: 'quest',  target: { realmId: 'hunts' } }).label, 'Open Agent');
+  assert.equal(oracleButtonMeta({ action: 'quest',  target: { realmId: 'hunts' } }).label, 'Open Tasks');
   assert.equal(oracleButtonMeta({ action: 'capture' }).label, 'Capture idea');
   assert.equal(oracleButtonMeta({ action: 'scan' }).label, 'Scan now');
   assert.deepEqual(oracleButtonMeta(null), { label: 'Open Agent', icon: '▸', destination: 'work' });

@@ -8,12 +8,18 @@
 // ('forge' = the project shelf, 'hunts' = the task board). v4 registers exactly
 // one `go:<id>` action per rail surface (core/boot.js SURFACES), so the adapter
 // translates. Keeping the translation HERE — not in derive.mjs — leaves the
-// intel layer's golden fixtures untouched and keeps the rename a one-line edit
-// when the rail is renamed to HOME/TASKS/AGENT per the constitution's IA rules.
+// intel layer's golden fixtures untouched and keeps each rail change a one-line
+// edit in this map.
+//
+// v4.3 retargets two of the three. 'hunts' WAS the queue rail inside AGENT,
+// because that is where the board lived; the board is now its own surface, so
+// task-scoped advice goes to TASKS. 'roundtable' was parked on the queue with a
+// note saying HOME was not registered yet — it is (v4.2 Phase A), and HOME is
+// exactly v3's roundtable reborn, so it points there now.
 const SURFACE_OF = {
   forge: 'projects',      // project-scoped advice lands on the product shelf
-  hunts: 'work',          // task-scoped advice lands on the queue rail
-  roundtable: 'work',     // v3's home; HOME is not registered yet, so the queue
+  hunts: 'tasks',         // task-scoped advice lands on the task board
+  roundtable: 'home',     // v3's decision surface, reborn as HOME
 };
 
 // Any realm the intel layer grows before this map does still resolves to a REAL
@@ -23,7 +29,7 @@ const FALLBACK_SURFACE = 'work';
 // Rail labels, as the user reads them, keyed by surface id. The button copy is
 // built from this so the label can never name a different room than the one the
 // dispatch id opens (asserted in oracle-logic.test.mjs).
-const SURFACE_LABEL = { home: 'Home', work: 'Agent', projects: 'Projects', system: 'System', mind: 'Notes', automate: 'Automations', lookback: 'History' };
+const SURFACE_LABEL = { home: 'Home', tasks: 'Tasks', work: 'Agent', projects: 'Projects', system: 'System', mind: 'Notes', automate: 'Automations', lookback: 'History' };
 
 export function oracleSurfaceId(oracle) {
   return SURFACE_OF[oracle?.target?.realmId] || FALLBACK_SURFACE;

@@ -9,6 +9,7 @@ import { startShell, switchSurface, surfaces } from './shell.js';
 import { initActions } from './actions.mjs';
 import { initPalette } from './palette.js';
 import { view as homeView } from '../surfaces/home/view.js';
+import { view as tasksView } from '../surfaces/tasks/view.js';
 import { view as workView } from '../surfaces/work/view.js';
 import { view as projectsView } from '../surfaces/projects/view.js';
 import { view as systemView } from '../surfaces/system/view.js';
@@ -19,8 +20,11 @@ import { view as lookbackView } from '../surfaces/lookback/view.js';
 // The familiar v4.2 rail. HOME is the decision surface the app opens on;
 // AGENT keeps the actionable workbench reachable without asking users to
 // remember an abstract internal name. Every registered view is real.
+// v4.3 adds TASKS between them: the full queue board (the restored SITROOM
+// threat board), leaving AGENT with only a compact "next up" seed list.
 const SURFACES = [
   { id: 'home',      label: 'HOME',        glyph: '◎', view: homeView },
+  { id: 'tasks',     label: 'TASKS',       glyph: '◈', view: tasksView },
   { id: 'work',      label: 'AGENT',       glyph: '›', view: workView },
   { id: 'projects',  label: 'PROJECTS',    glyph: '▣', view: projectsView },
   { id: 'system',    label: 'SYSTEM',      glyph: '⧉', view: systemView },

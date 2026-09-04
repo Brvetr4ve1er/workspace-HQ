@@ -15,6 +15,10 @@
   <link rel="stylesheet" href="./styles/components.css" />
   <link rel="stylesheet" href="./styles/work.css" />
   <link rel="stylesheet" href="./styles/home.css" />
+  <!-- v4.3 TASKS board. AFTER work.css on purpose: it reuses that sheet's
+       .drawer* classes for the project drawer and scopes one override of the
+       scrim under .tasks-host, which needs to win on source order. -->
+  <link rel="stylesheet" href="./styles/tasks.css" />
   <!-- v4.1 surfaces. work.css stays FIRST of the surface sheets: the PROJECTS
        drawer composes its .drawer*/.truth-kv/.meter classes rather than
        redefining them (S1's "promote into components.css" ask is declined —
