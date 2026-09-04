@@ -92,7 +92,11 @@
 #rail {
   border-right: 0;
   padding: var(--space-4) var(--space-2);
-  gap: var(--space-1);
+  /* 8px, not 4: with the active state now a filled band rather than an
+     outline, the band needs air around it to read as one item rather than as
+     a block of the list. Nine buttons at this rhythm still clear an 820px
+     viewport with room to spare. */
+  gap: var(--space-2);
   background: var(--hud-panel);
   box-shadow: 10px 0 30px -26px #000;
 }
