@@ -12,6 +12,39 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-09-05 · FROM frontend (v4.3 — BEAUTIFY SALVAGE + DESIGN GATE) · main @ f4541dd
+DONE: salvaged the v4.3 fleet that died on the session limit, then finished it.
+  4dd91f2/5ab420f/138168e/c096736 land the four beautify surfaces whose JS+CSS
+  both survived (AGENT 11→7 passive outlines, SYSTEM 16→7, NOTES 11→5,
+  AUTOMATIONS 9→3). 5c0086e finishes HISTORY, which the fleet left HALF-landed:
+  its agent had promoted the momentum forecast into a surface hero and died
+  before writing one line of CSS, so every class the hero emitted had zero
+  rules, `.lb-tab` had only an `.is-on` modifier (tabs rendered as native
+  bordered buttons), and charts.js had dropped `.panel` with nothing replacing
+  the background step. 7ac0767 adds the design gate + the two defects it caught.
+  f4541dd un-boxes the shared `.chip` — 32 outlined rectangles on PROJECTS
+  alone were the "too crowded" complaint in its purest form.
+VERIFY: v4 selftest 9 surfaces / 0 errors PASS; 125/125 unit tests by file;
+  v3 regression 105 combos / 0 errors PASS; layout gate 0 findings across all
+  9 surfaces; 9 screenshots, 0 console errors.
+NEW TOOLS: `dashboard-v4/tools/shot-surfaces.js` (a PNG per surface — parks the
+  window OFFSCREEN, because `show:false` is never composited and capturePage()
+  returns a stale frame; the first run wrote AUTOMATIONS pixels into
+  history.png) and `tools/check-layout.js` (overlap/overflow/max-3-tiles-per-row;
+  rects intersected with clipping ancestors, or scrolled-out content reports
+  hundreds of phantom overlaps — 476 findings, 3 real).
+IN-FLIGHT: nothing uncommitted of mine. `data/quest-overrides.json`,
+  `run-scan.ps1` and `schema/workspace-scan.schema.json` remain pre-existing
+  modifications owned elsewhere and were NOT touched.
+ASKS: none. The nightly scan still looks stalled (snapshot 2026-09-03, "2d ago")
+  — structure lane may want to confirm the scheduled task is firing.
+BREAKS: `.chip` in components.css no longer has a border (background step +
+  severity wash instead) — any new surface relying on a chip outline must set
+  its own. HISTORY cards are `.lb-card`/`.lb-panel` rather than `.panel`, and
+  a scoped `.lb-root .panel` override neutralises the two `.panel`s timeline.js
+  still emits.
+
+
 ## 2026-08-27 · FROM structure + frontend · main @ 197bcc2
 DONE: reliability foundation + v4.2 Phase A start (uncommitted):
   `schema/workspace-scan.schema.json` now declares the existing optional
