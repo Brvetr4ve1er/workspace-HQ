@@ -333,7 +333,9 @@
 
 /* The filter bank, folded. Open whenever a cut is active, so the screen never
    hides state it is applying — and the summary names the cut either way. */
-.au-fsum { color: var(--hud-dim); font-size: var(--fs-xs); }
+/* --hud-text-dim: this summary is prose the user reads, and --hud-dim is the
+   chrome-only token that measures ~3.1:1 (see tokens.css). */
+.au-fsum { color: var(--hud-text-dim); font-size: var(--fs-xs); }
 .au-filter-body { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) 0 var(--space-2); }
 .au-frow { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
 .au-flabel { flex: 0 0 62px; letter-spacing: .16em; }
@@ -356,7 +358,7 @@
   cursor: pointer;
   transition: color 140ms ease, border-color 140ms ease;
 }
-.au-opt b { font-weight: 400; color: var(--hud-dim); margin-left: 3px; }
+.au-opt b { font-weight: 400; color: var(--hud-text-dim); margin-left: 3px; }
 .au-opt:hover { color: var(--hud-text); }
 .au-opt[aria-pressed="true"] { color: var(--hud-text); border-bottom-color: currentColor; }
 .au-opt[aria-pressed="true"] b { color: var(--hud-text-dim); }
@@ -499,7 +501,7 @@
 .det-kv { margin-top: var(--space-2); line-height: 1.5; }
 .det-kv b {
   font-family: var(--term);
-  color: var(--hud-dim); text-transform: uppercase; letter-spacing: .16em;
+  color: var(--hud-text-dim); text-transform: uppercase; letter-spacing: .16em;
   font-weight: 400; font-size: var(--fs-xs);
   margin-right: var(--space-2);
 }

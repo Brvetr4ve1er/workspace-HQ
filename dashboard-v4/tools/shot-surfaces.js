@@ -19,6 +19,32 @@ const OUT = path.join(__dirname, 'shots');
 const ONLY = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// In-surface tabs. HISTORY and SYSTEM each hide two thirds of themselves behind
+// a tab bar, so a harness that only captures the default tab leaves TROPHIES,
+// TIMELINE, SCREEN TIME and SOCIAL completely unverified — which is exactly the
+// blind spot "you destroyed it" keeps coming out of.
+const TAB_SEL = '[role="tab"], .lb-tab, .sys-tab';
+async function tabsOf(win) {
+  return win.webContents.executeJavaScript(
+    `Array.from(document.querySelectorAll('#stage ${TAB_SEL.replace(/'/g, "\'")}'))
+       .map(n => (n.textContent || '').trim()).filter(Boolean)`);
+}
+async function clickTab(win, i) {
+  return win.webContents.executeJavaScript(
+    `(() => { const t = document.querySelectorAll('#stage ${TAB_SEL.replace(/'/g, "\'")}')[${i}];
+       if (!t) return false; t.click(); return true; })()`);
+}
+
+
+async function shoot(win, name) {
+  const img = await win.webContents.capturePage();
+  const file = path.join(OUT, `${name}.png`);
+  fs.writeFileSync(file, img.toPNG());
+  const chars = await win.webContents.executeJavaScript(
+    `(document.getElementById('stage')?.innerHTML || '').length`);
+  console.log(`SHOT ${name} chars=${chars} -> ${path.relative(process.cwd(), file)}`);
+}
+
 async function run() {
   fs.mkdirSync(OUT, { recursive: true });
   // SHOWN, BUT PARKED OFFSCREEN. `show: false` looks like the tidy choice and
@@ -60,12 +86,19 @@ async function run() {
     // so the capture can never precede the paint it is meant to record.
     await new Promise((r) => win.webContents.once('paint', r).isDestroyed?.() || setTimeout(r, 350));
 
-    const img = await win.webContents.capturePage();
-    const file = path.join(OUT, `${name}.png`);
-    fs.writeFileSync(file, img.toPNG());
-    const chars = await win.webContents.executeJavaScript(
-      `(document.getElementById('stage')?.innerHTML || '').length`);
-    console.log(`SHOT ${name} chars=${chars} -> ${path.relative(process.cwd(), file)}`);
+    const tabs = await tabsOf(win);
+    if (!tabs.length) {
+      await shoot(win, name);
+    } else {
+      // Capture EVERY tab, not just whichever one mounts first.
+      for (let t = 0; t < tabs.length; t++) {
+        await clickTab(win, t);
+        await sleep(800);
+        const slug = tabs[t].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        await shoot(win, `${name}-${slug}`);
+      }
+      await clickTab(win, 0);
+    }
   }
 
   console.log(`SHOT DONE errors=${errors.length}`);

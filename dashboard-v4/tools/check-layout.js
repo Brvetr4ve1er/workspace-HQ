@@ -11,6 +11,23 @@ const os = require('node:os');
 app.setPath('userData', path.join(os.tmpdir(), process.env.HQ_V4_PROFILE || 'hq-v4-layout'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// In-surface tabs. HISTORY and SYSTEM each hide two thirds of themselves behind
+// a tab bar, so a harness that only captures the default tab leaves TROPHIES,
+// TIMELINE, SCREEN TIME and SOCIAL completely unverified — which is exactly the
+// blind spot "you destroyed it" keeps coming out of.
+const TAB_SEL = '[role="tab"], .lb-tab, .sys-tab';
+async function tabsOf(win) {
+  return win.webContents.executeJavaScript(
+    `Array.from(document.querySelectorAll('#stage ${TAB_SEL.replace(/'/g, "\'")}'))
+       .map(n => (n.textContent || '').trim()).filter(Boolean)`);
+}
+async function clickTab(win, i) {
+  return win.webContents.executeJavaScript(
+    `(() => { const t = document.querySelectorAll('#stage ${TAB_SEL.replace(/'/g, "\'")}')[${i}];
+       if (!t) return false; t.click(); return true; })()`);
+}
+
+
 const PROBE = `(() => {
   const out = { overlaps: [], overflow: [], wideRows: [] };
   const stage = document.getElementById('stage');
@@ -21,8 +38,8 @@ const PROBE = `(() => {
   // rect even when scrolled out of view, so it "overlaps" everything painted
   // after the scroller. What a reader actually sees is the rect INTERSECTED
   // with every clipping ancestor, so that is what we compare.
-  function visibleRect(n) {
-    let r = n.getBoundingClientRect();
+  function clipTo(rect, n) {
+    let r = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
     let p = n.parentElement;
     while (p && p !== document.documentElement) {
       const cs = getComputedStyle(p);
@@ -57,9 +74,17 @@ const PROBE = `(() => {
     // took AUTOMATIONS from 33 phantom findings to 0.
     if (n.closest('details:not([open]) > *:not(summary), details:not([open]) *:not(summary)')) continue;
     if (n.closest('[hidden]')) continue;
-    const r = visibleRect(n);
-    if (!r || r.width < 3 || r.height < 3) continue;
-    leaves.push({ n, r, cs });
+    // PER-LINE BOXES, not the union. A wrapped inline (<code>browser-bridge/</code>
+    // breaking across two lines) returns ONE bounding rect spanning both lines,
+    // which then "overlaps" whatever sits on the first line. getClientRects()
+    // gives the real line boxes, and comparing those reports what a reader sees.
+    const boxes = [];
+    for (const raw of n.getClientRects()) {
+      const c = clipTo(raw, n);
+      if (c && c.width >= 3 && c.height >= 3) boxes.push(c);
+    }
+    if (!boxes.length) continue;
+    leaves.push({ n, boxes, cs });
   }
 
   const desc = (n) => (n.tagName.toLowerCase() + '.' + (n.className && n.className.baseVal !== undefined ? n.className.baseVal : String(n.className || '')).trim().split(/\s+/).filter(Boolean).slice(0,2).join('.')) + ' "' + (n.textContent||'').trim().slice(0,26) + '"';
@@ -69,10 +94,14 @@ const PROBE = `(() => {
       const A = leaves[i], B = leaves[j];
       if (A.n.contains(B.n) || B.n.contains(A.n)) continue;
       if (/absolute|fixed/.test(A.cs.position) || /absolute|fixed/.test(B.cs.position)) continue;
-      const ox = Math.min(A.r.right, B.r.right) - Math.max(A.r.left, B.r.left);
-      const oy = Math.min(A.r.bottom, B.r.bottom) - Math.max(A.r.top, B.r.top);
-      // 3px of slack absorbs sub-pixel layout and font descenders
-      if (ox > 3 && oy > 3) out.overlaps.push(desc(A.n) + '  ><  ' + desc(B.n) + '  [' + Math.round(ox) + 'x' + Math.round(oy) + ']');
+      let hit = null;
+      for (const ra of A.boxes) for (const rb of B.boxes) {
+        const ox = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
+        const oy = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+        // 3px of slack absorbs sub-pixel layout and font descenders
+        if (ox > 3 && oy > 3) { hit = Math.round(ox) + 'x' + Math.round(oy); break; }
+      }
+      if (hit) out.overlaps.push(desc(A.n) + '  ><  ' + desc(B.n) + '  [' + hit + ']');
     }
   }
 
@@ -88,8 +117,16 @@ const PROBE = `(() => {
     const cs = getComputedStyle(g);
     if (cs.display !== 'grid') continue;
     const cols = cs.gridTemplateColumns.split(' ').filter(Boolean).length;
-    if (cols > 3 && g.children.length > 3) {
-      out.wideRows.push(String(g.className || g.tagName) + ' -> ' + cols + ' columns, ' + g.children.length + ' items');
+    if (cols <= 3 || g.children.length <= 3) continue;
+    // The constitution's rule is about STAT TILES — a card whose point is a big
+    // number — not about every wide grid. A 7-column weekday strip, a trophy
+    // case, and a 4-part nudge ROW (icon | label | bar | count) all tripped the
+    // naive version and none of them are stat tiles. A tile is identified by a
+    // display-weight numeral (>=24px) inside it.
+    const tiles = Array.from(g.children).filter((c) =>
+      Array.from(c.querySelectorAll('*')).concat([c]).some((d) => parseFloat(getComputedStyle(d).fontSize) >= 24));
+    if (tiles.length > 3) {
+      out.wideRows.push(String(g.className || g.tagName) + ' -> ' + cols + ' columns, ' + tiles.length + ' stat tiles');
     }
   }
   return out;
@@ -110,13 +147,20 @@ async function run() {
   for (let i = 0; i < labels.length; i++) {
     await win.webContents.executeJavaScript(`document.querySelectorAll('#rail .rail-btn')[${i}].click(); true`);
     await sleep(1000);
-    const r = await win.webContents.executeJavaScript(PROBE);
-    const n = r.overlaps.length + r.overflow.length + r.wideRows.length;
-    total += n;
-    console.log(`LAYOUT ${labels[i].toLowerCase()} overlaps=${r.overlaps.length} overflow=${r.overflow.length} wideRows=${r.wideRows.length}`);
-    for (const s of r.overlaps.slice(0, 6))  console.log('    OVERLAP  ' + s);
-    for (const s of r.overflow.slice(0, 4))  console.log('    OVERFLOW ' + s);
-    for (const s of r.wideRows.slice(0, 4))  console.log('    WIDEROW  ' + s);
+    const tabs = await tabsOf(win);
+    const passes = tabs.length ? tabs.map((t, k) => ({ t, k })) : [{ t: null, k: -1 }];
+    for (const { t, k } of passes) {
+      if (k >= 0) { await clickTab(win, k); await sleep(800); }
+      const r = await win.webContents.executeJavaScript(PROBE);
+      const n = r.overlaps.length + r.overflow.length + r.wideRows.length;
+      total += n;
+      const who = labels[i].toLowerCase() + (t ? '/' + t.toLowerCase() : '');
+      console.log(`LAYOUT ${who} overlaps=${r.overlaps.length} overflow=${r.overflow.length} wideRows=${r.wideRows.length}`);
+      for (const s of r.overlaps.slice(0, 6))  console.log('    OVERLAP  ' + s);
+      for (const s of r.overflow.slice(0, 4))  console.log('    OVERFLOW ' + s);
+      for (const s of r.wideRows.slice(0, 4))  console.log('    WIDEROW  ' + s);
+    }
+    if (tabs.length) await clickTab(win, 0);
   }
   console.log('LAYOUT TOTAL findings=' + total);
   app.quit();

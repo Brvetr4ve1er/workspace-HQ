@@ -66,11 +66,28 @@
 /* ------------------------------------------------------- focal numerals */
 /* The only display-weight type in the app. tabular-nums so a ticking count
    never re-flows the line it sits on. */
+/* NEUTRAL BY DEFAULT (v4.3). This was --fs-2xl, --hud-violet-hi, with a
+   0 0 14px glow — on EVERY numeral in the app. Two consequences the
+   constitution forbids: the violet budget (<=2 glowing elements per screen)
+   was blown by any surface showing three stats, and a glowing 2xl numeral
+   competes with whatever the surface actually chose as its focal. On the
+   HISTORY timeline the "2,186 TOTAL XP" figure out-shouted the momentum hero
+   directly above it — two focals, and the violet one won.
+
+   The evidence that the component was wrong rather than its callers: home.css
+   defines .mo-val from scratch instead of using .figure, and work.css
+   overrode it with the note "three lies in one element". Two surfaces had
+   already opted out on their own.
+
+   Size and weight still make figures read as figures. Severity variants below
+   keep their colour, because severity is the one thing allowed to shout, and
+   a surface that genuinely wants a violet focal opts in locally the way
+   home.css .oracle does. */
 .figure {
   font-family: var(--term);
   font-size: var(--fs-2xl); font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--hud-violet-hi); text-shadow: 0 0 14px currentColor;
+  color: var(--hud-text);
 }
 .figure--xl { font-size: var(--fs-3xl); }
 .figure[data-sev="red"]    { color: var(--hud-red); }

@@ -392,7 +392,11 @@
   font-size: var(--fs-xs);
   letter-spacing: .06em;
   line-height: 1.5;
-  color: var(--hud-dim);
+  /* --hud-text-dim, NOT --hud-dim. tokens.css keeps two dim tokens on purpose:
+     --hud-dim is CHROME ONLY at ~3.1:1 and fails WCAG AA for text. Putting it
+     on 12px type here would have styled the sample-size line out of existence
+     by contrast — the precise thing the comment above forbids. */
+  color: var(--hud-text-dim);
 }
 
 /* A falling account is the mild-warning case, so the outlook line — the one
@@ -468,3 +472,8 @@
 
 /* ------------------------------------------------------------ consistency */
 .lb-consistency { gap: var(--space-2); }
+
+/* The timeline header total-XP figure sat at .figure --fs-2xl, the exact size
+   of the surface hero above it, so even neutralised it read as a second
+   headline. One display level per screen: the hero keeps 2xl, this steps down. */
+.lb-head .figure { font-size: var(--fs-xl); }
