@@ -24,9 +24,21 @@ DONE: salvaged the v4.3 fleet that died on the session limit, then finished it.
   the background step. 7ac0767 adds the design gate + the two defects it caught.
   f4541dd un-boxes the shared `.chip` — 32 outlined rectangles on PROJECTS
   alone were the "too crowded" complaint in its purest form.
+  f4541dd un-boxes the shared `.chip`; 25e76d7 makes `.figure` neutral — it
+  was --fs-2xl violet WITH A GLOW on every numeral in the app, which made
+  HISTORY/timeline's "2,186 TOTAL XP" a second focal out-shouting the hero and
+  blew the <=2 violet budget on any surface with three stats. home.css and
+  work.css had each already opted out of it independently.
 VERIFY: v4 selftest 9 surfaces / 0 errors PASS; 125/125 unit tests by file;
   v3 regression 105 combos / 0 errors PASS; layout gate 0 findings across all
-  9 surfaces; 9 screenshots, 0 console errors.
+  13 surface/TAB combinations; 13 screenshots, 0 console errors. REAL-PRELOAD
+  run (HQ_V4_PRELOAD=v2) also 9/0 PASS: the four "no handler registered" lines
+  it prints are the dev harness registering no IPC at all — all four channels
+  exist in dashboard/main.js — and the surfaces degrading to 0 renderer errors
+  is the guarded-call discipline proving itself.
+BLIND SPOT CLOSED: both harnesses only captured whichever tab mounts first, so
+  TROPHIES, TIMELINE, SCREEN TIME and SOCIAL had never been rendered once. They
+  now walk every in-surface tab; that is where the .figure rival-focal was found.
 NEW TOOLS: `dashboard-v4/tools/shot-surfaces.js` (a PNG per surface — parks the
   window OFFSCREEN, because `show:false` is never composited and capturePage()
   returns a stale frame; the first run wrote AUTOMATIONS pixels into
