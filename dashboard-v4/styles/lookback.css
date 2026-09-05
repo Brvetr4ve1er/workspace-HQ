@@ -74,9 +74,17 @@
 
 /* --------------------------------------------------------- personal records */
 .lb-records {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  display: grid;
+  /* MAX 3 TILES IN A ROW, by construction rather than by luck. auto-fill with a
+     180px track resolved to SIX columns at 1440px and put all five personal
+     records shoulder to shoulder — the exact density the constitution's
+     three-per-row rule exists to stop. Fixed tracks make the rule hold at every
+     width the app is used at, and the two leftovers wrap to a second row. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
 }
+@media (max-width: 1000px) { .lb-records { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px)  { .lb-records { grid-template-columns: minmax(0, 1fr); } }
 .lb-rec {
   --pc: var(--hud-dim);
   display: grid;

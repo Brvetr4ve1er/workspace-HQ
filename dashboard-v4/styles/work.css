@@ -428,6 +428,12 @@
 .out-wrap {
   display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
   gap: var(--space-2);
+  /* Nothing may escape this box. .out-scroll used to carry a hard
+     min-height: 120px, so when the agent pane was squeezed the children needed
+     ~160px inside a 143px wrapper and the Kill button spilled 17px past the
+     bottom — landing directly on the Changes panel's title below it. Clipping
+     here is the backstop; the real fix is the shrinkable scroller below. */
+  overflow: hidden;
 }
 .out-head {
   flex: 0 0 auto;
@@ -438,7 +444,12 @@
 .out-name { font-size: var(--fs-md); line-height: 1.4; color: var(--hud-text); }
 .out-meta { font-family: var(--term); font-size: var(--fs-xs); line-height: 1.5; color: var(--hud-text-dim); text-align: right; }
 .out-scroll {
-  flex: 1 1 auto; min-height: 120px; overflow-y: auto;
+  /* min-height: 0, NOT 120px. A hard floor on a flex child that is supposed to
+     absorb the leftover space cannot yield, so the siblings overflow instead —
+     and the sibling that got pushed out was the Kill button. When the pane is
+     tight the OUTPUT gives way; the controls stay reachable. flex-basis keeps
+     the comfortable size whenever there is room for it. */
+  flex: 1 1 120px; min-height: 0; overflow-y: auto;
   padding: var(--space-4);
   background: #0b0916;
   border-radius: 4px;
