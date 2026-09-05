@@ -228,8 +228,10 @@
 /* ------------------------------------------------------------ weekly recap */
 .lb-recap-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .lb-rchip b { font-variant-numeric: tabular-nums; }
-.lb-rchip.pos { color: #6ee7a8; border-color: #2f6b4a; }
-.lb-rchip.neg { color: var(--hud-red); border-color: #6b2f3a; }
+/* border-color here became a no-op when components.css's .chip traded its
+   outline for a background step, so the up/down signal moves to the wash. */
+.lb-rchip.pos { color: #6ee7a8;        background: rgba(110, 231, 168, .12); }
+.lb-rchip.neg { color: var(--hud-red); background: rgba(242, 85, 90, .14); }
 .lb-recap-runs { margin-top: var(--space-2); }
 .lb-narr { margin-top: var(--space-3); font-size: var(--fs-sm); line-height: 1.55; color: var(--hud-text); }
 /* mdLite() output — the only markup it can emit (it escapes first, then rebuilds
