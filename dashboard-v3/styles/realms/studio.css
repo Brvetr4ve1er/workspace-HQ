@@ -1,0 +1,214 @@
+/* STUDIO realm — capture library aftermath surface. Own selectors are all
+   scoped under .studio-realm so nothing here can drift another realm. Uses
+   the shared amber-nexus token ramp (--ash / --edge / --parch / --parch-3 /
+   --gold / --gold-2 / --blood / --active) the way forge.css and hunts.css
+   do — no bespoke color values, no violet-glow figures. Under other themes
+   the same tokens remap and this realm reskins for free. */
+
+.studio-realm {
+  max-width: 1240px; margin: 0 auto;
+  padding: var(--space-2) var(--space-3) var(--space-7);
+  animation: studio-in .3s ease;
+}
+@keyframes studio-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* ==== top bar (SNIP + RECORD + REFRESH) ================================== */
+.studio-realm .st-bar {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-1);
+  margin-bottom: var(--space-4);
+}
+.studio-realm .st-cta {
+  appearance: none; cursor: pointer;
+  font-family: var(--px, var(--font-ui)); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .06em;
+  padding: var(--space-3) var(--space-4); min-height: var(--tap-min);
+  background: linear-gradient(180deg, var(--card-hi, var(--ash)), var(--card, var(--ash)));
+  color: var(--parch, var(--text)); border: 1px solid var(--frame, var(--edge));
+  border-radius: 8px;
+  transition: color .14s, border-color .14s, box-shadow .14s, transform .08s;
+}
+.studio-realm .st-cta:hover:not(:disabled) {
+  color: var(--gold-2, var(--active)); border-color: var(--active, var(--gold));
+  box-shadow: 0 0 10px -4px var(--active, var(--gold));
+}
+.studio-realm .st-cta:active:not(:disabled) { transform: translateY(1px); }
+.studio-realm .st-cta:disabled { opacity: .5; cursor: default; }
+.studio-realm .st-snip { border-color: var(--frame-hi, var(--edge)); }
+.studio-realm .st-rec  { color: var(--gold, #ffd23f); }
+.studio-realm .st-refresh {
+  appearance: none; cursor: pointer; margin-left: auto;
+  font-family: var(--term, var(--font-data)); font-size: var(--fs-xs); letter-spacing: .04em;
+  padding: var(--space-2) var(--space-3); min-height: var(--tap-min);
+  background: transparent; color: var(--muted, var(--parch-3));
+  border: 1px solid var(--frame, var(--edge)); border-radius: 6px;
+}
+.studio-realm .st-refresh:hover { color: var(--parch, var(--text)); border-color: var(--frame-hi, var(--edge)); }
+
+/* ==== section header ===================================================== */
+.studio-realm .st-section { margin-bottom: var(--space-6); }
+.studio-realm .st-sec-h {
+  display: flex; align-items: baseline; gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-md);
+  color: var(--parch, var(--text)); letter-spacing: 0;
+}
+.studio-realm .st-sec-n {
+  font-family: var(--font-data, var(--term)); font-weight: 400;
+  font-size: var(--fs-sm); color: var(--parch-3, var(--faint));
+}
+.studio-realm .st-sec-note {
+  font-family: var(--term, var(--font-ui)); font-size: var(--fs-xs);
+  color: var(--parch-3, var(--faint)); margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--blood, #e0645a);
+  background: rgba(0, 0, 0, .12);
+}
+.studio-realm .st-empty {
+  font-family: var(--term, var(--font-ui)); font-size: var(--fs-sm);
+  color: var(--parch-3, var(--faint));
+  padding: var(--space-4) var(--space-1);
+}
+.studio-realm .st-empty-mini {
+  font-family: var(--term, var(--font-ui)); font-size: var(--fs-xs);
+  color: var(--parch-3, var(--faint));
+  padding: var(--space-3) var(--space-1);
+}
+
+/* ==== masonry-ish grid =================================================== */
+.studio-realm .st-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* ==== tile =============================================================== */
+.studio-realm .st-tile {
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--card, var(--ash));
+  border: 1px solid var(--frame, var(--edge));
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .14s, box-shadow .14s, transform .08s;
+}
+.studio-realm .st-tile:hover {
+  border-color: var(--active, var(--gold));
+  box-shadow: 0 0 12px -4px var(--active, var(--gold));
+}
+.studio-realm .st-tile.recovered { border-color: var(--blood, #e0645a); }
+
+.studio-realm .st-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: rgba(0, 0, 0, .35);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.studio-realm .st-thumb img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  background: rgba(0, 0, 0, .5);
+}
+.studio-realm .st-glyph {
+  font-size: 34px; color: var(--parch-3, var(--faint));
+  opacity: .8;
+}
+.studio-realm .st-chip {
+  position: absolute; top: 6px; left: 6px;
+  font-family: var(--font-data, var(--term)); font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  padding: 2px 6px; border-radius: 4px;
+  background: rgba(0, 0, 0, .55); color: var(--parch, var(--text));
+  border: 1px solid var(--frame, var(--edge));
+}
+.studio-realm .st-recovered {
+  position: absolute; top: 6px; right: 6px;
+  font-family: var(--font-data, var(--term)); font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--blood, #e0645a); color: #fff;
+}
+
+.studio-realm .st-meta {
+  padding: var(--space-2) var(--space-3);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.studio-realm .st-name {
+  font-family: var(--font-data, var(--term)); font-size: var(--fs-xs);
+  color: var(--parch, var(--text));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.studio-realm .st-sub {
+  font-family: var(--font-data, var(--term)); font-size: 10px;
+  color: var(--parch-3, var(--faint));
+}
+
+.studio-realm .st-actions {
+  display: flex; gap: var(--space-1); flex-wrap: wrap;
+  padding: 0 var(--space-2) var(--space-2);
+}
+.studio-realm .st-a {
+  appearance: none; cursor: pointer;
+  font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  padding: 4px 8px; min-height: 24px;
+  background: transparent; color: var(--parch-3, var(--faint));
+  border: 1px solid var(--frame, var(--edge)); border-radius: 4px;
+  transition: color .14s, border-color .14s;
+}
+.studio-realm .st-a:hover:not(:disabled) {
+  color: var(--parch, var(--text)); border-color: var(--active, var(--gold));
+}
+.studio-realm .st-a:disabled { opacity: .45; cursor: default; }
+.studio-realm .st-a.st-danger:hover:not(:disabled) {
+  color: var(--blood, #e0645a); border-color: var(--blood, #e0645a);
+}
+
+/* ==== preview modal ====================================================== */
+.studio-realm ~ .st-modal, .st-modal {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0, 0, 0, .78);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  animation: st-modal-in .16s ease;
+}
+@keyframes st-modal-in { from { opacity: 0; } }
+.st-modal .st-modal-inner {
+  background: var(--card, var(--ash));
+  border: 1px solid var(--frame, var(--edge));
+  border-radius: 10px;
+  max-width: 92vw; max-height: 92vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.st-modal .st-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--frame, var(--edge));
+  background: linear-gradient(180deg, var(--card-hi, var(--ash)), var(--card, var(--ash)));
+}
+.st-modal .st-modal-title {
+  font-family: var(--font-data, var(--term)); font-size: var(--fs-sm);
+  color: var(--parch, var(--text));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+.st-modal .st-modal-close {
+  appearance: none; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em;
+  padding: var(--space-2) var(--space-3); min-height: var(--tap-min);
+  background: transparent; color: var(--parch-3, var(--faint));
+  border: 1px solid var(--frame, var(--edge)); border-radius: 6px;
+}
+.st-modal .st-modal-close:hover {
+  color: var(--parch, var(--text)); border-color: var(--active, var(--gold));
+}
+.st-modal .st-modal-body {
+  padding: var(--space-4);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .35);
+  min-height: 200px; overflow: auto;
+}
+.st-modal .st-modal-body img,
+.st-modal .st-modal-body video {
+  max-width: 84vw; max-height: 78vh; display: block;
+  background: rgba(0, 0, 0, .5);
+}
