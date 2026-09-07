@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WorkspaceHQ Snip Overlay</title>
+<style>
+  /* HUD palette — echoes capture.html so themes stay coherent even on a
+     surface the user only sees for a second at a time. */
+  :root {
+    --cyan:   #00f0ff;
+    --cyan-2: rgba(0, 240, 255, 0.85);
+    --cyan-3: rgba(0, 240, 255, 0.35);
+    --pink:   #ff2bd6;
+    --gold:   #ffd23f;
+    --ink:    #0a081c;
+    --ink-2:  rgba(10, 8, 28, 0.72);
+    --line:   rgba(0, 240, 255, 0.55);
+    --mono:   ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: transparent;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Layer stack:
+       #frozen   — the real desktop pixels (full-bleed <img>)
+       #scrim    — semi-opaque dark; a rect gets clipped out of it during drag
+       #selection-frame — thin bright border around the "hole"
+       #dim-chip — floating W×H readout near cursor
+       #hud      — top-left labelled crosshair + display index badge
+     The scrim is what makes the selection *feel* selected — bright inside,
+     dim outside — while a single background image supplies both regions,
+     so we never fight blending or brightness drift. */
+
+  #frozen {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    /* Rendered at native pixels; browser scales to CSS pixels. Keep it crisp
+       so the selection preview matches the eventual crop. */
+    image-rendering: -webkit-optimize-contrast;
+    pointer-events: none;
+    /* Until the frozen bitmap arrives from main we paint a solid dark ground
+       so a single click doesn't flash the underlying desktop. */
+    background: #050510;
+  }
+
+  #scrim {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+    /* Default: no rect selected → scrim covers everything (nothing punched
+       out yet). During drag we swap in a clip-path that carves a rectangular
+       hole; the frozen bitmap peeks through at full brightness. */
+    transition: none;
+  }
+
+  #selection-frame {
+    position: absolute;
+    display: none;
+    border: 1px solid var(--cyan);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.55),
+      0 0 12px 0 var(--cyan-3),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+    box-sizing: border-box;
+  }
+
+  /* Four thin corner ticks that live *inside* the frame — a HUD-adjacent
+     read that makes the box feel targetted rather than merely drawn. */
+  .tick {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-color: var(--cyan);
+    border-style: solid;
+    border-width: 0;
+    pointer-events: none;
+  }
+  .tick.tl { top: -1px; left: -1px;  border-top-width: 2px;    border-left-width: 2px; }
+  .tick.tr { top: -1px; right: -1px; border-top-width: 2px;    border-right-width: 2px; }
+  .tick.bl { bottom: -1px; left: -1px;  border-bottom-width: 2px; border-left-width: 2px; }
+  .tick.br { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; }
+
+  #dim-chip {
+    position: absolute;
+    display: none;
+    padding: 4px 8px;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    color: var(--cyan);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: 0 0 6px rgba(0, 240, 255, 0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+  }
+  #dim-chip b { color: #fff; font-weight: 600; }
+  #dim-chip .dot { color: var(--gold); margin: 0 4px; }
+
+  /* Top-left ambient HUD — always on, dim, tells the user which display they
+     are targeting and the primary shortcuts. Never displays scan/session
+     text, so no esc() needed. */
+  #hud {
+    position: absolute;
+    top: 18px; left: 20px;
+    padding: 10px 14px;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--cyan);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    pointer-events: none;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+    opacity: 0.92;
+  }
+  #hud .row + .row { margin-top: 4px; }
+  #hud .k { color: var(--gold); }
+  #hud .sep { color: rgba(0, 240, 255, 0.35); margin: 0 6px; }
+  #hud .badge { color: var(--pink); }
+
+  /* When the mode arrives as 'full' from the query params (Ctrl+Alt+Shift+S
+     path), we auto-commit as soon as the frozen bitmap arrives and don't
+     bother showing the HUD — but the first frame paints for a beat, so a
+     tiny hint helps if we ever slow down. */
+  body[data-kind="full"] #hud { opacity: 0.65; }
+
+  /* Post-commit flash so the user gets a shutter cue even before the toast
+     from main lands. Painted just before we send snipCommit. */
+  #flash {
+    position: absolute; inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 90ms ease-out;
+  }
+  #flash.on { opacity: 0.55; }
+</style>
+</head>
+<body>
+  <img id="frozen" alt="" draggable="false" />
+  <div id="scrim"></div>
+  <div id="selection-frame">
+    <span class="tick tl"></span>
+    <span class="tick tr"></span>
+    <span class="tick bl"></span>
+    <span class="tick br"></span>
+  </div>
+  <div id="dim-chip"><b>0</b> <span class="dot">×</span> <b>0</b></div>
+  <div id="hud">
+    <div class="row">
+      <span class="badge" id="hud-display">DISPLAY —</span>
+      <span class="sep">·</span>
+      <span id="hud-kind">REGION</span>
+    </div>
+    <div class="row">
+      <span class="k">DRAG</span> select <span class="sep">·</span>
+      <span class="k">SPACE</span> full <span class="sep">·</span>
+      <span class="k">ENTER</span> commit <span class="sep">·</span>
+      <span class="k">ESC</span> cancel
+    </div>
+  </div>
+  <div id="flash"></div>
+
+  <script>
+    'use strict';
+
+    // ---- surface handles --------------------------------------------------
+    const frozen  = document.getElementById('frozen');
+    const scrim   = document.getElementById('scrim');
+    const frame   = document.getElementById('selection-frame');
+    const chip    = document.getElementById('dim-chip');
+    const flash   = document.getElementById('flash');
+    const hudDisp = document.getElementById('hud-display');
+    const hudKind = document.getElementById('hud-kind');
+
+    // ---- state ------------------------------------------------------------
+    // Query params from main's loadFile({query:{displayId, kind}}) — these
+    // arrive BEFORE onSnipFrozen fires, so the HUD can label itself
+    // immediately even if the freeze push is a beat late.
+    const params    = new URLSearchParams(location.search);
+    const qDisplay  = params.get('displayId') || '';
+    const qKind     = params.get('kind') || 'region';
+    let   kind      = (qKind === 'full' || qKind === 'window') ? qKind : 'region';
+    let   displayId = qDisplay;              // set again from onSnipFrozen
+    let   bounds    = null;                  // {x, y, width, height} in DIP
+    let   scaleFactor = 1;                   // for logging only; main re-derives
+    let   displayIndex = null;               // 0-based; badge shows +1
+    let   isFrozen  = false;                 // did the freeze push land?
+    let   committed = false;                 // ignore repeat Enter/mouseup
+    let   dragging  = false;
+    let   start     = null;                  // {x, y} in CSS px, DIP
+    let   current   = null;                  // {x, y, w, h} in CSS px, DIP
+    let   lastMouse = { x: 0, y: 0 };        // for chip placement on Space
+
+    document.body.setAttribute('data-kind', kind);
+    hudKind.textContent = kind.toUpperCase();
+    if (qDisplay) hudDisp.textContent = 'DISPLAY ' + qDisplay;
+
+    // ---- helpers ----------------------------------------------------------
+
+    // Clip a rectangular hole out of the scrim so the region beneath shines
+    // through at full brightness. Uses evenodd fill-rule via polygon().
+    function paintHole(rect) {
+      if (!rect || rect.w < 1 || rect.h < 1) { clearHole(); return; }
+      const W = window.innerWidth, H = window.innerHeight;
+      const x1 = Math.max(0, Math.min(W, rect.x));
+      const y1 = Math.max(0, Math.min(H, rect.y));
+      const x2 = Math.max(0, Math.min(W, rect.x + rect.w));
+      const y2 = Math.max(0, Math.min(H, rect.y + rect.h));
+      // Outer ring CW, inner rect CCW → evenodd punches the inner out.
+      scrim.style.clipPath =
+        `polygon(evenodd,
+          0 0, ${W}px 0, ${W}px ${H}px, 0 ${H}px, 0 0,
+          ${x1}px ${y1}px, ${x1}px ${y2}px, ${x2}px ${y2}px, ${x2}px ${y1}px, ${x1}px ${y1}px)`;
+    }
+    function clearHole() {
+      scrim.style.clipPath = '';
+    }
+
+    function showFrame(rect) {
+      if (!rect || rect.w < 1 || rect.h < 1) { frame.style.display = 'none'; return; }
+      frame.style.display = 'block';
+      frame.style.left    = rect.x + 'px';
+      frame.style.top     = rect.y + 'px';
+      frame.style.width   = rect.w + 'px';
+      frame.style.height  = rect.h + 'px';
+    }
+    function hideFrame() { frame.style.display = 'none'; }
+
+    function showChip(rect, mouseX, mouseY) {
+      if (!rect) { chip.style.display = 'none'; return; }
+      // Dimensions live in DIP so the user sees exactly what the file will
+      // look like once main crops using scaleFactor. Match main's rounding.
+      const w = Math.max(0, Math.round(rect.w));
+      const h = Math.max(0, Math.round(rect.h));
+      chip.firstElementChild.textContent = String(w);
+      chip.lastElementChild.textContent  = String(h);
+      chip.style.display = 'inline-block';
+
+      // Anchor near the cursor but keep the chip fully on-screen.
+      const CHIP_W_EST = 96, CHIP_H_EST = 22, PAD = 14;
+      let cx = mouseX + PAD;
+      let cy = mouseY + PAD;
+      const W = window.innerWidth, H = window.innerHeight;
+      if (cx + CHIP_W_EST > W - 4) cx = mouseX - CHIP_W_EST - PAD;
+      if (cy + CHIP_H_EST > H - 4) cy = mouseY - CHIP_H_EST - PAD;
+      if (cx < 4) cx = 4;
+      if (cy < 4) cy = 4;
+      chip.style.left = cx + 'px';
+      chip.style.top  = cy + 'px';
+    }
+    function hideChip() { chip.style.display = 'none'; }
+
+    // Turn a mousedown/move pair into a normalized rect in CSS pixels (DIP).
+    function rectFrom(a, b) {
+      return {
+        x: Math.min(a.x, b.x),
+        y: Math.min(a.y, b.y),
+        w: Math.abs(b.x - a.x),
+        h: Math.abs(b.y - a.y),
+      };
+    }
+
+    function commit(mode, rect) {
+      if (committed) return;
+      committed = true;
+      // Shutter flash — 90ms opacity ramp, then blank. Main also plays its
+      // own toast; this just makes the *this-screen* cue visible even before
+      // that.
+      flash.classList.add('on');
+      const payload = {
+        displayId: displayId,
+        rectDIP: rect ? { x: rect.x, y: rect.y, w: rect.w, h: rect.h } : null,
+        mode: mode,
+      };
+      // Give the flash one frame to paint so the user sees SOMETHING even
+      // if the write is fast enough to close the window instantly.
+      requestAnimationFrame(() => {
+        try {
+          if (window.hq && window.hq.studio && window.hq.studio.snipCommit) {
+            window.hq.studio.snipCommit(payload);
+          } else {
+            console.error('[snip-overlay] hq.studio.snipCommit not exposed');
+          }
+        } catch (e) {
+          console.error('[snip-overlay] commit failed:', e && e.message);
+        }
+      });
+    }
+
+    function cancel() {
+      if (committed) return;
+      committed = true;
+      try {
+        if (window.hq && window.hq.studio && window.hq.studio.snipCancel) {
+          window.hq.studio.snipCancel();
+        } else {
+          console.error('[snip-overlay] hq.studio.snipCancel not exposed');
+        }
+      } catch (e) {
+        console.error('[snip-overlay] cancel failed:', e && e.message);
+      }
+    }
+
+    // ---- freeze subscription ---------------------------------------------
+    // Main pushes {displayId, pngDataUrl, bounds, scaleFactor, kind, displayIndex}
+    // once the overlay window is ready-to-show. Use its data as authoritative;
+    // the query params are just an early hint.
+    let unsubFreeze = null;
+    try {
+      if (window.hq && window.hq.studio && typeof window.hq.studio.onSnipFrozen === 'function') {
+        unsubFreeze = window.hq.studio.onSnipFrozen((data) => {
+          if (!data) return;
+          if (data.pngDataUrl) frozen.src = data.pngDataUrl;
+          if (data.displayId != null)  displayId    = data.displayId;
+          if (data.bounds)             bounds       = data.bounds;
+          if (data.scaleFactor)        scaleFactor  = data.scaleFactor;
+          if (Number.isInteger(data.displayIndex)) displayIndex = data.displayIndex;
+          if (data.kind === 'full' || data.kind === 'window' || data.kind === 'region') {
+            kind = data.kind;
+            document.body.setAttribute('data-kind', kind);
+            hudKind.textContent = kind.toUpperCase();
+          }
+          const label =
+            (displayIndex != null ? (displayIndex + 1) : '') ||
+            (displayId    != null ? String(displayId).slice(0, 6) : '');
+          hudDisp.textContent = 'DISPLAY ' + (label || '—');
+          isFrozen = true;
+
+          // 'full' kind = user hit Ctrl+Alt+Shift+S — snap the whole display
+          // and get out of the way. Give one paint tick so the flash cue is
+          // real, then commit.
+          if (kind === 'full') {
+            requestAnimationFrame(() => commit('full', null));
+          }
+        });
+      }
+    } catch (e) {
+      console.error('[snip-overlay] onSnipFrozen wire failed:', e && e.message);
+    }
+    window.addEventListener('beforeunload', () => {
+      try { if (typeof unsubFreeze === 'function') unsubFreeze(); } catch { /* ignore */ }
+    });
+
+    // ---- pointer handling -------------------------------------------------
+    // Everything runs in CSS pixels aligned to this overlay window's origin,
+    // which is d.bounds.{x,y}. Because main creates one overlay per Display
+    // at bounds.{width,height}, the coord space is always 0..W, 0..H — no
+    // negative offsets to reconcile at commit time. Main scales via
+    // scaleFactor and receives DIP directly.
+
+    window.addEventListener('mousedown', (e) => {
+      if (committed) return;
+      if (e.button !== 0) return;
+      dragging = true;
+      start = { x: e.clientX, y: e.clientY };
+      current = { x: start.x, y: start.y, w: 0, h: 0 };
+      // Clear any prior sticky selection so a fresh drag reads cleanly.
+      clearHole();
+      hideFrame();
+      hideChip();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      lastMouse.x = e.clientX;
+      lastMouse.y = e.clientY;
+      if (!dragging || committed) return;
+      current = rectFrom(start, { x: e.clientX, y: e.clientY });
+      paintHole(current);
+      showFrame(current);
+      showChip(current, e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!dragging || committed) return;
+      dragging = false;
+      current = rectFrom(start, { x: e.clientX, y: e.clientY });
+      // No-drag zero-area click → treat as cancel. Better than committing a
+      // 0×0 image or a default box that would surprise the user.
+      if (current.w < 3 || current.h < 3) {
+        clearHole(); hideFrame(); hideChip();
+        cancel();
+        return;
+      }
+      commit('region', current);
+    });
+
+    // ---- keyboard ---------------------------------------------------------
+    window.addEventListener('keydown', (e) => {
+      if (committed) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancel();
+        return;
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        // Space = full display under cursor. In our per-display overlay
+        // world that just means: send mode:'full' with no rect and let main
+        // use the entire frozen bitmap.
+        e.preventDefault();
+        commit('full', null);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Return') {
+        e.preventDefault();
+        // If a rectangle is in progress, commit it; otherwise fall back to
+        // full-display. Enter without any drag is the "just grab this
+        // screen" affordance, matching Space.
+        if (current && current.w >= 3 && current.h >= 3) {
+          dragging = false;
+          commit('region', current);
+        } else {
+          commit('full', null);
+        }
+      }
+    });
+
+    // Blocking the context menu keeps a right-click from popping the
+    // system menu over the frozen bitmap. The user's escape is Esc.
+    window.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+
+    // On resize (a display DPI change or a scale flip mid-snip) just
+    // repaint the current rect against the new viewport size.
+    window.addEventListener('resize', () => {
+      if (current && current.w > 0 && current.h > 0) {
+        paintHole(current);
+        showFrame(current);
+        showChip(current, lastMouse.x, lastMouse.y);
+      }
+    });
+  </script>
+</body>
+</html>
