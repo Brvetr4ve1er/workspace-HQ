@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Record</title>
+<link rel="stylesheet" href="record-panel.css" />
+</head>
+<body>
+  <div id="panel" role="application" aria-label="Recorder">
+    <header id="drag">
+      <div class="titlebar">
+        <span class="dot" id="hdrDot" aria-hidden="true"></span>
+        <span class="ttl">STUDIO / RECORD</span>
+        <span class="timer" id="timer" title="Elapsed">00:00</span>
+      </div>
+    </header>
+
+    <section id="sourcesWrap" aria-label="Capture source">
+      <div class="lbl">Source</div>
+      <div id="sources" role="radiogroup" aria-label="Sources"></div>
+      <div id="sourcesEmpty" class="empty" hidden>No sources available.</div>
+    </section>
+
+    <section id="options" aria-label="Audio options">
+      <label class="chip" title="Include the default microphone track">
+        <input type="checkbox" id="optMic" />
+        <span>Mic</span>
+      </label>
+      <label class="chip" title="Include desktop / system audio (loopback)">
+        <input type="checkbox" id="optSys" />
+        <span>System audio</span>
+      </label>
+    </section>
+
+    <section id="controls">
+      <button id="btnRec" class="rec" type="button" disabled title="Pick a source first">
+        <span class="pulse" aria-hidden="true"></span>
+        <span class="lbl-rec" id="btnRecLbl">Record</span>
+      </button>
+    </section>
+
+    <footer id="status" role="status" aria-live="polite">
+      <span id="statusText">Idle</span>
+      <button id="btnReveal" class="tiny" type="button" hidden>Reveal</button>
+      <button id="btnRefresh" class="tiny ghost" type="button" title="Rescan sources">Rescan</button>
+    </footer>
+  </div>
+  <script src="record-panel.js"></script>
+</body>
+</html>
