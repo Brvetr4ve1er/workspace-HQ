@@ -7,13 +7,14 @@
 // Tauri alternative: dashboard/ is the distDir; a src-tauri wrapper would call the
 // same run-pipeline.ps1 and the same data/quest-overrides.json from a Rust command.
 
-const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { spawnSync, spawn } = require('node:child_process');
 const { startBridge } = require('./browser-bridge');
 const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
+const screenCapture = require('./screen-capture');     // v3 STUDIO: snip + record + library (Group 1)
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
 // whole main process (and every window) down. Log and keep the app alive.
@@ -1400,6 +1401,12 @@ if (!app.requestSingleInstanceLock()) {
     startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
     try { globalShortcut.register('CommandOrControl+Alt+Space', openCapture); } catch (e) { console.error('capture hotkey failed:', e); }
     try { globalShortcut.register('CommandOrControl+Alt+G', openSummon); } catch (e) { console.error('summon hotkey failed:', e); }
+    // v3 STUDIO — mount the main-process capture wire (owns its IPC + panel/overlay windows).
+    try { screenCapture.init({ ipcMain, app, BrowserWindow, screen, desktopCapturer, globalShortcut }); } catch (e) { console.error('studio init failed:', e); }
+    // The two "still free" global hotkeys the design specifies. Shift-variants
+    // and Ctrl+Alt+L are registered inside screen-capture.js.
+    try { globalShortcut.register('CommandOrControl+Alt+S', () => screenCapture.snipArm('region')); } catch (e) { console.error('studio snip hotkey failed:', e); }
+    try { globalShortcut.register('CommandOrControl+Alt+R', () => screenCapture.recToggle()); } catch (e) { console.error('studio rec hotkey failed:', e); }
     respawnShards();   // sticky notes + conjured widgets grow back where you left them
     // dev/test hook: `electron . --summon="timer 5"` materializes a shard on launch
     const sArg = process.argv.find((a) => a.startsWith('--summon='));

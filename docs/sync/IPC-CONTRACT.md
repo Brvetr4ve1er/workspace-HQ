@@ -103,6 +103,28 @@ this row omits `baseline` entirely; treat a missing field as `{state:'none'}`.
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 | **Social bridge** | | | | |
 | `getSocial()` | `hq:social-read` | — | `{inbox, outbox, accounts}` from `data/social/*` (read-only snapshot) \| `null` | main (SOCIAL realm) |
+| **v3 STUDIO — screen capture (owns `dashboard/screen-capture.js`)** | | | | |
+| `studio.panelToggle()` | `hq:studio:panel-toggle` | — | `true` (shows/hides the FloatingPanel; creates it on first call) | tray / hotkey / STUDIO realm |
+| `studio.snipArm(kind)` | `hq:studio:snip-arm` | `{kind:'region'\|'full'\|'window'}` (default `'region'`) | `true` — main freezes every display via `desktopCapturer.getSources` at each display's native pixel size, spawns one transparent overlay BrowserWindow per Display, and pushes the freeze on `hq:studio:snip-frozen` | panel / Ctrl+Alt+S / STUDIO realm |
+| `studio.recSources()` | `hq:studio:rec-sources` | — | `[{sourceId, displayId, label, primary, kind:'screen'\|'window', thumbnail (dataURL), width, height}]` — joined `getSources({types:['screen','window']})` × `screen.getAllDisplays()` on `display_id` | FloatingPanel |
+| `studio.recStart(opts)` | `hq:studio:rec-start` | `{sourceId, mic, sysAudio, fps, sourceLabel?}` | `{recId, tmpPath}` \| `{error}` — opens `<slug>.webm.part` write stream and starts the 30-min auto-split + disk-space watchdog | FloatingPanel |
+| `studio.recStop(recId)` | `hq:studio:rec-stop` | `{recId}` | final path \| `null` — flushes, `fsyncSync`, `renameSync` `.part`→`.webm`, then emits `studio:capture-added` | FloatingPanel |
+| `studio.recToggle(opts?)` | `hq:studio:rec-toggle` | `{sourceId?, mic?, sysAudio?, fps?, sourceLabel?}` (opts optional) | `{toggled:'stopped', recId}` \| `{toggled:'panel-opened'}` \| `{recId, tmpPath}` — hotkey path; stops the first live recorder or starts one with saved defaults, opens the panel if no source is configured | Ctrl+Alt+R / panel |
+| `studio.libraryList(query)` | `hq:studio:library-list` | `{kind:'shot'\|'rec'\|'all'\|'recovered', limit}` | `[{kind, recovered, path, name, size, mtimeMs, thumbDataUrl}]` sorted newest-first | STUDIO realm |
+| `studio.libraryReveal(path)` | `hq:studio:library-reveal` | absolute path | `true`/`false` — refuses anything outside the resolved library root before it reaches `shell.showItemInFolder` | STUDIO realm |
+| `studio.libraryDelete(path)` | `hq:studio:library-delete` | absolute path | `true`/`false` — same containment check; `shell.trashItem` + best-effort thumb sidecar | STUDIO realm |
+| `studio.settingsGet()` | `hq:studio:settings-get` | — | `{rootOverride, defaultFps, hotkeysEnabled, defaultSourceId, defaultMic, defaultSysAudio, panelPosition}` (persisted at `userData/studio-settings.json`) | STUDIO realm / panel |
+| `studio.settingsSet(patch)` | `hq:studio:settings-set` | partial of the above (whitelisted keys only) | full settings after merge | STUDIO realm / panel |
+
+**Overlay-only channels (`ipcRenderer.send`, no invoke shape).** These flow between
+the snip overlay window and main; the STUDIO realm never uses them.
+
+| `window.hq.studio` method | Channel | Direction | Payload |
+|---|---|---|---|
+| `studio.snipCommit(payload)` | `hq:studio:snip-commit` | overlay → main | `{displayId, rectDIP:{x,y,w,h}, mode:'region'\|'full'\|'window'}` — main crops the frozen buffer via `nativeImage`, atomic-writes `<slug>.png`, writes thumb sidecar, copies to clipboard, emits `studio:capture-added` |
+| `studio.snipCancel()` | `hq:studio:snip-cancel` | overlay → main | — (Esc; main closes every overlay and re-shows the panel) |
+| `studio.recChunk(recId, seq, buf)` | `hq:studio:rec-chunk` | panel → main | `{recId, seq, buf:ArrayBuffer}` — main queues per-recId, appends in order to the open write stream; backpressure surfaces as a `rec-status` `state:'backpressure'` push |
+| `studio.recAbort(recId)` | `hq:studio:rec-abort` | panel → main | `{recId}` — closes the stream and unlinks the `.part` |
 
 ## Push channels (main → renderer, subscribe via `window.hq.on*`)
 
@@ -122,6 +144,10 @@ realm switches is the #1 porting hazard).
 | `onClaudeSessions(cb)` | `hq:claude-sessions` | full sessions list | any registry change (start/stream-end/linger-expiry) |
 | `onCanvas(cb)` | `hq:canvas` | full boards list | any `.canvas` file change in `data/canvas/` (300ms debounce) |
 | `onSessionOutput(cb)` | `hq:session-output` | `{jobId, chunk}` (chunk is untrusted text — render via `textContent`/`esc()` only; since 2026-08-19 chunk is PARSED text, see note below) | a `sessionStart` session emits stdout/stderr |
+| `studio.recStatus(cb)` | `hq:studio:rec-status` | `{state:'recording'\|'backpressure'\|'drained'\|'stopped'\|'aborted'\|'auto-split'\|'stopped-lowdisk'\|'error', recId, elapsedMs?, bytes?, sourceLabel?, mic?, sysAudio?, lastPath?}` | 1 Hz push while any recording is live, plus one-shot state transitions |
+| `studio.onCaptureAdded(cb)` | `studio:capture-added` | `{kind:'shot'\|'rec', path, at, durationMs?, bytes?}` | atomic write of a shot or recording finishes; STUDIO realm prepends a tile without polling |
+| `studio.onSnipFrozen(cb)` | `hq:studio:snip-frozen` | `{displayId, pngDataUrl, bounds, scaleFactor, kind, displayIndex}` | overlay window is ready; main hands it the freeze so the paint is real pixels |
+| `studio.onOpenRealm(cb)` | `hq:studio:open-realm` | `{at}` | Ctrl+Alt+L pressed; renderer routes v3 to the STUDIO realm |
 
 **`hq:session-output` payload semantics (2026-08-19, additive — shape unchanged).**
 The channel and payload keep the exact same shape: `{jobId, chunk}`, `chunk` a
