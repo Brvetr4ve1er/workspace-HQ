@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WorkspaceHQ v3 · Icon Sprite
+  ────────────────────────────────────────────────────────────────────────
+  28 symbols in one file. Amber-nexus register: line icons on a 24×24 grid,
+  stroke="currentColor" so the parent CSS colours them (rail dim → active
+  amber). Optional fills use currentColor at reduced opacity so severity
+  and hover treatments propagate without a repaint.
+  Referenced from HTML via <svg><use href="hq-icons.svg#i-<name>"/></svg>
+  OR from JS via the icon(name) helper in dashboard-v3/src/ui/icons.js,
+  which inlines the sprite into <body> at boot so cross-file <use> works
+  under file:// without CSP quirks.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+  <defs>
+    <style>
+      /* Every symbol composes these — kept out of individual paths for readability.
+         `.f` fills the current colour at 12% for interior glyph accents that must
+         read at rail size without competing with the outline. */
+      symbol { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+      symbol .f { fill: currentColor; stroke: none; }
+      symbol .fw { fill: currentColor; fill-opacity: .16; stroke: none; }
+      symbol .accent { stroke: #f5a623; }
+    </style>
+  </defs>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       REALMS (16)
+       ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- HOME · roundtable — a round table with five seats. The decision surface. -->
+  <symbol id="i-realm-roundtable" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5.5"/>
+    <circle cx="12" cy="3.5" r="1.6"/>
+    <circle cx="19.5" cy="8" r="1.6"/>
+    <circle cx="17.5" cy="18" r="1.6"/>
+    <circle cx="6.5" cy="18" r="1.6"/>
+    <circle cx="4.5" cy="8" r="1.6"/>
+  </symbol>
+
+  <!-- PROJECTS · forge — hammer over anvil with a spark. -->
+  <symbol id="i-realm-forge" viewBox="0 0 24 24">
+    <path d="M4 18h16"/>
+    <path d="M6.5 18v-3.5h11V18"/>
+    <path d="M15.5 3.5 21 9l-2 2-5.5-5.5z"/>
+    <path d="m13.5 5.5-8 8"/>
+    <circle class="f" cx="4.6" cy="14.4" r=".8"/>
+  </symbol>
+
+  <!-- TASKS · hunts — target with an arrow through centre. -->
+  <symbol id="i-realm-hunts" viewBox="0 0 24 24">
+    <circle cx="11" cy="13" r="8"/>
+    <circle cx="11" cy="13" r="4.5"/>
+    <circle class="f" cx="11" cy="13" r="1.4"/>
+    <path d="M14 10 21.5 2.5"/>
+    <path d="M18.5 2.5h3v3"/>
+  </symbol>
+
+  <!-- ON FIRE · warroom — a flame. -->
+  <symbol id="i-realm-warroom" viewBox="0 0 24 24">
+    <path d="M12 3s3 3 3 6c0 1.4-.9 2.5-2 2.7 1.7.6 4 2.6 4 5.6a5 5 0 1 1-10 0c0-2 1-3.4 2-4.6.7 1 1.6 1.6 2.4 1.6 0-3.7-1-4.6-1-6.3 0-1.8 1.6-5 1.6-5z"/>
+    <path class="fw" d="M9.6 15.5c0 2.6 1.1 3.7 2.4 3.7s2.4-1.1 2.4-3.7c0-1.6-.7-2.7-1.4-3.3-.4.9-1 1.4-1.5 1.4-.5 0-1.1-.3-1.9-1.1z"/>
+  </symbol>
+
+  <!-- AUTOMATIONS · grimoire — closed spellbook with a bookmark ribbon. -->
+  <symbol id="i-realm-grimoire" viewBox="0 0 24 24">
+    <path d="M5.5 4.5h11a2 2 0 0 1 2 2v13a1 1 0 0 1-1.5.87L14 18.5l-3 1.87a1 1 0 0 1-1.05 0L6.5 18.5 3.5 20.37A1 1 0 0 1 2 19.5v-13a2 2 0 0 1 2-2h1.5"/>
+    <path d="M8.5 4.5v6l1.6-1.2 1.6 1.2v-6"/>
+  </symbol>
+
+  <!-- MAP · lands — three hex tiles suggesting a landscape. -->
+  <symbol id="i-realm-lands" viewBox="0 0 24 24">
+    <path d="m7 4 3 1.7v3.6L7 11l-3-1.7V5.7z"/>
+    <path d="m17 4 3 1.7v3.6L17 11l-3-1.7V5.7z"/>
+    <path d="m12 13 3 1.7v3.6L12 20l-3-1.7V14.7z"/>
+  </symbol>
+
+  <!-- HISTORY · legacy — trophy cup with a base. -->
+  <symbol id="i-realm-legacy" viewBox="0 0 24 24">
+    <path d="M7 4h10v3a5 5 0 0 1-10 0z"/>
+    <path d="M7 5.5H4.5v1.7A3 3 0 0 0 7.5 10"/>
+    <path d="M17 5.5h2.5v1.7A3 3 0 0 1 16.5 10"/>
+    <path d="M12 12v3"/>
+    <path d="M8.5 20h7"/>
+    <path d="M10 15h4l-.5 5h-3z"/>
+  </symbol>
+
+  <!-- SYSTEM · medbay — heartbeat with a health cross. -->
+  <symbol id="i-realm-medbay" viewBox="0 0 24 24">
+    <path d="M2.5 12h4l1.5-4 3 8 2-6 1.5 2h7.5"/>
+    <path d="M18 5.5v4"/>
+    <path d="M16 7.5h4"/>
+  </symbol>
+
+  <!-- NOTES · observatory — telescope pointed at a star. -->
+  <symbol id="i-realm-observatory" viewBox="0 0 24 24">
+    <path d="m4 17 9-9-3-3-9 9z" transform="translate(3 0)"/>
+    <path d="m14 8 3-3"/>
+    <path d="M9 20h8"/>
+    <path d="M13 16v4"/>
+    <path d="m18.5 3.5 1 1.4L21 6l-1.5 1.1-1 1.4-1-1.4L16 6l1.5-1.1z" class="f"/>
+  </symbol>
+
+  <!-- SCREEN TIME · watchtower — tower with a beam. -->
+  <symbol id="i-realm-watchtower" viewBox="0 0 24 24">
+    <path d="M10 20h4"/>
+    <path d="M11 20V9"/>
+    <path d="M13 20V9"/>
+    <path d="M8.5 9h7l-1-3h-5z"/>
+    <path d="M10 6V3.5h4V6"/>
+    <path d="m15.5 8-3 4"/>
+    <path d="m17 5-4 6" opacity=".5"/>
+  </symbol>
+
+  <!-- ASSISTANT · summoning — magic circle with a rune. -->
+  <symbol id="i-realm-summoning" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.5"/>
+    <circle cx="12" cy="12" r="5"/>
+    <path d="M12 3.5v5"/>
+    <path d="M12 15.5v5"/>
+    <path d="M3.5 12h5"/>
+    <path d="M15.5 12h5"/>
+    <circle class="f" cx="12" cy="12" r="1.2"/>
+  </symbol>
+
+  <!-- TIMELINE · chronicle — vertical timeline with three nodes. -->
+  <symbol id="i-realm-chronicle" viewBox="0 0 24 24">
+    <path d="M8 4v16"/>
+    <circle cx="8" cy="6.5" r="1.7"/>
+    <circle cx="8" cy="12" r="1.7"/>
+    <circle cx="8" cy="17.5" r="1.7"/>
+    <path d="M11 6.5h9"/>
+    <path d="M11 12h6"/>
+    <path d="M11 17.5h8"/>
+  </symbol>
+
+  <!-- ANALYTICS · atlas — a bar chart. -->
+  <symbol id="i-realm-atlas" viewBox="0 0 24 24">
+    <path d="M3 21h18"/>
+    <path d="M6 21V13"/>
+    <path d="M11 21V8"/>
+    <path d="M16 21V16"/>
+    <path d="M21 21V4"/>
+    <path d="M3 3.5V21" opacity="0"/>
+  </symbol>
+
+  <!-- CANVAS · conjure — palette with a brush stroke. -->
+  <symbol id="i-realm-conjure" viewBox="0 0 24 24">
+    <path d="M12 3.5A8.5 8.5 0 0 0 3.5 12c0 4 3 7 6.5 7 1.4 0 2-1 2-2 0-.7-.4-1-.4-1.6 0-.8.7-1.4 1.4-1.4H15c3 0 5.5-2.4 5.5-5.5A8 8 0 0 0 12 3.5z"/>
+    <circle class="f" cx="8" cy="10" r="1.1"/>
+    <circle class="f" cx="12" cy="7.5" r="1.1"/>
+    <circle class="f" cx="16" cy="10" r="1.1"/>
+    <circle class="f" cx="17" cy="14" r="1.1"/>
+  </symbol>
+
+  <!-- SOCIAL · social — two overlapping chat bubbles. -->
+  <symbol id="i-realm-social" viewBox="0 0 24 24">
+    <path d="M4 5.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3 3v-3H4a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 4 5.5z"/>
+    <path d="M9 15.5V17a1.5 1.5 0 0 0 1.5 1.5H16l3 3v-3h1a1.5 1.5 0 0 0 1.5-1.5v-6A1.5 1.5 0 0 0 20 9.5h-3.5"/>
+  </symbol>
+
+  <!-- STUDIO · new capture realm — camera with a crosshair (snip + record combined). -->
+  <symbol id="i-realm-studio" viewBox="0 0 24 24">
+    <path d="M4 7.5h3l1.5-2h7L17 7.5h3a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5V9A1.5 1.5 0 0 1 4 7.5z"/>
+    <circle cx="12" cy="13" r="3.5"/>
+    <path d="M12 11v-1"/>
+    <path d="M12 15v1"/>
+    <path d="M10 13H9"/>
+    <path d="M14 13h1"/>
+    <circle class="f" cx="18" cy="10" r=".9"/>
+  </symbol>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       VERBS (10) — button-scale action glyphs. Same 24×24 canvas so they
+       drop into the same slots as realm icons; sized down via CSS.
+       ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- SNIP — camera with a dashed selection rectangle. -->
+  <symbol id="i-verb-snip" viewBox="0 0 24 24">
+    <path d="M4 8h2.5L8 6h8l1.5 2H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+    <path stroke-dasharray="2 1.5" d="M8.5 11.5h7v5h-7z"/>
+    <circle class="f" cx="17.5" cy="10.5" r=".8"/>
+  </symbol>
+
+  <!-- RECORD — filled dot inside a ring (colours the dot red on state=on via CSS). -->
+  <symbol id="i-verb-record" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9"/>
+    <circle class="f" cx="12" cy="12" r="4.5" fill="#f2555a"/>
+  </symbol>
+
+  <!-- FOCUS — bullseye. -->
+  <symbol id="i-verb-focus" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.5"/>
+    <circle cx="12" cy="12" r="5"/>
+    <circle class="f" cx="12" cy="12" r="1.8"/>
+  </symbol>
+
+  <!-- SEND CLAUDE — paper airplane. -->
+  <symbol id="i-verb-send-claude" viewBox="0 0 24 24">
+    <path d="M3 12 21 3l-4 18-4.5-7z"/>
+    <path d="m12.5 14 4.5-9"/>
+  </symbol>
+
+  <!-- IDEA — lightbulb with a spark. -->
+  <symbol id="i-verb-idea" viewBox="0 0 24 24">
+    <path d="M8 15.5A5.5 5.5 0 0 1 12 4a5.5 5.5 0 0 1 4 11.5v2.5a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1z"/>
+    <path d="M10 21h4"/>
+    <path d="M11 12.5v3"/>
+    <path d="M13 12.5v3"/>
+  </symbol>
+
+  <!-- RUN — play triangle. -->
+  <symbol id="i-verb-run" viewBox="0 0 24 24">
+    <path d="M7 4v16l14-8z"/>
+  </symbol>
+
+  <!-- DONE — check mark inside a hexagon (matches the HUD frame vocabulary). -->
+  <symbol id="i-verb-done" viewBox="0 0 24 24">
+    <path d="m4 8 8-4.5L20 8v8l-8 4.5L4 16z"/>
+    <path d="m8 12 3 3 5-6"/>
+  </symbol>
+
+  <!-- OPEN — arrow up-right (external / open-in-place). -->
+  <symbol id="i-verb-open" viewBox="0 0 24 24">
+    <path d="M8 5h11v11"/>
+    <path d="M6 18 19 5"/>
+  </symbol>
+
+  <!-- DISPATCH — a rocket, angled up-right. Sits well next to Send Claude without being confusable. -->
+  <symbol id="i-verb-dispatch" viewBox="0 0 24 24">
+    <path d="M14 3.5c4.5 0 6.5 2 6.5 6.5 0 4-3 8-9 12.5-1.5-1-3-2.2-4-3.2s-2.2-2.5-3.2-4C8.8 9.3 12.8 6 14 3.5z" transform="rotate(0 12 12)"/>
+    <circle cx="15.5" cy="9" r="1.6"/>
+    <path d="m5.5 18.5 2-2"/>
+    <path d="m3.5 20.5 4-4"/>
+  </symbol>
+
+  <!-- KILL — X in a circle. -->
+  <symbol id="i-verb-kill" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9"/>
+    <path d="m8.5 8.5 7 7"/>
+    <path d="m15.5 8.5-7 7"/>
+  </symbol>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       BRAND (2)
+       ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- Wordmark — WORKSPACE HQ typographic, monospace, brackets echo the HUD.
+       Rendered as paths so it doesn't depend on VT323 being loaded. -->
+  <symbol id="i-brand-wordmark" viewBox="0 0 240 32">
+    <path d="M8 8v16" stroke-width="2"/>
+    <path d="M14 8v16" stroke-width="2"/>
+    <!-- WORKSPACE — geometric monoline capitals -->
+    <g font-family="ui-monospace, 'Cascadia Mono', 'Consolas', monospace" font-size="18" font-weight="700" letter-spacing="2" class="f">
+      <text x="24" y="22">WORKSPACE</text>
+    </g>
+    <!-- HQ chip -->
+    <path d="M172 6h58a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-58a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" class="accent"/>
+    <g font-family="ui-monospace, 'Cascadia Mono', 'Consolas', monospace" font-size="16" font-weight="700" letter-spacing="4" class="f">
+      <text x="184" y="21">HQ</text>
+    </g>
+    <path d="M226 8v16" stroke-width="2" class="accent"/>
+    <path d="M232 8v16" stroke-width="2" class="accent"/>
+  </symbol>
+
+  <!-- Level coin — hexagon ring around a numeric slot. CSS positions the number
+       on top; this symbol is the frame only. Two overlaid hexes = double-ring HUD. -->
+  <symbol id="i-brand-level-coin" viewBox="0 0 48 48">
+    <path d="m24 3 18 10.5v21L24 45 6 34.5v-21z" stroke-width="2"/>
+    <path d="m24 8 14 8v16l-14 8-14-8V16z" stroke-width="1" opacity=".6"/>
+    <path d="m24 12 10 6v12l-10 6-10-6V18z" stroke-width="1" opacity=".25"/>
+  </symbol>
+
+</svg>
