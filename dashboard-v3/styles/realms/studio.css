@@ -20,6 +20,9 @@
 }
 .studio-realm .st-cta {
   appearance: none; cursor: pointer;
+  /* inline-flex so the sprite icon (SVG) and .st-cta-lbl (SPAN) sit on the same
+     baseline; the gap replaces what was previously a leading text-only button. */
+  display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--px, var(--font-ui)); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .06em;
   padding: var(--space-3) var(--space-4); min-height: var(--tap-min);
   background: linear-gradient(180deg, var(--card-hi, var(--ash)), var(--card, var(--ash)));
@@ -35,6 +38,12 @@
 .studio-realm .st-cta:disabled { opacity: .5; cursor: default; }
 .studio-realm .st-snip { border-color: var(--frame-hi, var(--edge)); }
 .studio-realm .st-rec  { color: var(--gold, #ffd23f); }
+/* .st-rec's icon carries its own red dot via a hard-coded #f2555a in the sprite
+   — override to currentColor so the button reads as a single-hue chip on any
+   theme (currentColor propagates the .st-rec gold everywhere on the mark). */
+.studio-realm .st-rec .i-verb-record circle[fill="#f2555a"] { fill: currentColor; opacity: .85; }
+.studio-realm .st-cta .i { flex: 0 0 auto; }
+.studio-realm .st-cta-lbl { line-height: 1; }
 .studio-realm .st-refresh {
   appearance: none; cursor: pointer; margin-left: auto;
   font-family: var(--term, var(--font-data)); font-size: var(--fs-xs); letter-spacing: .04em;

@@ -42,6 +42,15 @@ import { manifest as studioM } from '../realms/studio/manifest.js';
 import { view as studioV } from '../realms/studio/view.js';
 import { initPalette } from './palette.js';
 import { initActions } from './actions.mjs';
+// v3 icon sprite — fetched once and injected into <body> so every rail button
+// and realm-owned button can reference symbols via `<use href="#i-...">`.
+// AWAITED before startShell() so the very first rail render sees the symbols
+// (an earlier fire-and-forget version rendered the rail with 0 <use> and 16
+// fallback sigils because the fetch was still in flight). The sprite is a
+// ~3 KB local file — the await is negligible and it beats a flash of
+// placeholder sigils that would swap out ~40 ms later.
+import { injectIconSprite } from '../ui/icons.js';
+await injectIconSprite().catch(() => {});     // failure is not fatal — every icon() call falls back to the manifest sigil, and hasIcon() returns false
 import { initNotify } from './notify.mjs';
 
 register(roundtableM, roundtableV);

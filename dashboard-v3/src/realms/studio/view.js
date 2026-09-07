@@ -22,6 +22,7 @@
 // theme swap, and window.hq.studio.onCaptureAdded for live grid updates);
 // unmount() disposes both, closes any open modal, and clears the poll timer.
 import { el, esc } from '../../ui/util.js';
+import { icon } from '../../ui/icons.js';
 
 // -------- module state (survives re-render inside one mount) ----------------
 let CTX = null;
@@ -124,7 +125,11 @@ async function load() {
 function topBar(b) {
   const bar = el('div', 'st-bar');
 
-  const snip = el('button', 'st-cta st-snip', 'SNIP');
+  // Icon + label. The icon is authored (fixed sprite id), the label is a fixed
+  // string — no scan-derived text — so template concatenation here is safe by
+  // construction. Label goes in a <span> so CSS can size the icon
+  // independently.
+  const snip = el('button', 'st-cta st-snip', `${icon('verb-snip', { size: 16 })}<span class="st-cta-lbl">SNIP</span>`);
   if (!b.snip) {
     snip.disabled = true;
     snip.title = 'Needs the live app — the Studio bridge is unavailable in this preview';
@@ -139,7 +144,7 @@ function topBar(b) {
     };
   }
 
-  const rec = el('button', 'st-cta st-rec', 'RECORD');
+  const rec = el('button', 'st-cta st-rec', `${icon('verb-record', { size: 16 })}<span class="st-cta-lbl">RECORD</span>`);
   if (!b.record) {
     rec.disabled = true;
     rec.title = 'Needs the live app — the Studio bridge is unavailable in this preview';

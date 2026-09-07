@@ -6,7 +6,8 @@ import { data } from './data.js';
 import { LX } from './lexicon.js';
 import { ordered, byId } from './registry.js';
 import { applyTheme, currentTheme } from './themes.js';
-import { el } from '../ui/util.js';
+import { el, esc } from '../ui/util.js';
+import { icon, hasIcon } from '../ui/icons.js';
 
 let activeId = null;
 
@@ -44,9 +45,15 @@ function renderRail() {
   rail.innerHTML = '';
   for (const { manifest: m } of ordered()) {
     if (!m.enabled(data)) continue;
-    // glyph is decorative (the .lbl carries the name) — hide the emoji from AT so
+    // glyph is decorative (the .lbl carries the name) — hide from AT so
     // the button reads as its realm label, not "<emoji> LABEL <count>".
-    const b = el('button', 'sigil', `<span class="glyph" aria-hidden="true">${m.sigil}</span><span class="lbl">${LX(m.lexKey)}</span><span class="badge"></span>`);
+    // If the injected sprite carries an SVG symbol for this realm, prefer
+    // it; otherwise fall back to the manifest's placeholder unicode sigil so
+    // adding a new realm does not require a sprite update to render at all.
+    const glyphHtml = hasIcon(`realm-${m.id}`)
+      ? icon(`realm-${m.id}`, { size: 20 })
+      : `<span class="sigil-fallback">${esc(m.sigil)}</span>`;
+    const b = el('button', 'sigil', `<span class="glyph" aria-hidden="true">${glyphHtml}</span><span class="lbl">${LX(m.lexKey)}</span><span class="badge"></span>`);
     b.dataset.realm = m.id;
     b.title = LX(m.lexKey);
     b.onclick = () => switchRealm(m.id);
