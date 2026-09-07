@@ -511,8 +511,9 @@ async function finalizeRecord() {
   }
   try {
     const res = await bridge.recStop(recId);
-    if (res && res.path) {
-      state.lastPath = String(res.path);
+    const path = (typeof res === 'string') ? res : (res && res.path);
+    if (path) {
+      state.lastPath = String(path);
       const stem = state.lastPath.split(/[/\\]/).pop() || 'recording.webm';
       setStatus('Saved ' + stem, 'saved');
       els.btnReveal.hidden = !have('libraryReveal');
@@ -568,8 +569,41 @@ function wireStatus() {
         setStatus('Recorder error (main)', 'err');
         endRecord({ reason: 'main-error' });
         break;
+      case 'stopped':
+      case 'aborted':
+        // Main-initiated stop (hotkey, tray, etc.): tear down the local
+        // recorder without calling recStop again — main has already finalized.
+        if (state.recording && !state.finishing) {
+          state.finishing = true;
+          els.body.classList.add('finishing');
+          els.btnRec.disabled = true;
+          stopTimer();
+          try {
+            if (state.recorder && state.recorder.state !== 'inactive') {
+              state.recorder.stop();
+            }
+          } catch { /* ignore */ }
+          stopAllTracks(state.stream, state.micStream, state.sysStream);
+          state.stream = state.micStream = state.sysStream = null;
+          state.recorder = null;
+          state.recId = null;
+          state.recording = false;
+          if (payload.lastPath) {
+            state.lastPath = String(payload.lastPath);
+            const stem = state.lastPath.split(/[/\\]/).pop() || 'recording.webm';
+            setStatus((payload.state === 'aborted' ? 'Aborted ' : 'Saved ') + stem, payload.state === 'aborted' ? 'warn' : 'saved');
+            if (payload.state === 'stopped') {
+              els.btnReveal.hidden = !have('libraryReveal');
+              els.btnReveal.title = have('libraryReveal') ? 'Open the containing folder' : 'libraryReveal missing on bridge';
+            }
+          } else {
+            setStatus(payload.state === 'aborted' ? 'Aborted (main)' : 'Stopped (main)', payload.state === 'aborted' ? 'warn' : 'saved');
+          }
+          finishUiReset();
+        }
+        break;
       default:
-        // 'recording' / 'stopped' handled locally; ignore duplicates from main.
+        // 'recording' handled locally; ignore duplicates from main.
         break;
     }
   });
@@ -595,11 +629,12 @@ function wireControls() {
     });
   });
 
-  // Guard against page unload while recording — we abort cleanly.
+  // Guard against page unload while recording — stop cleanly so the take is saved.
+  // (Abort would delete the .part file; only the explicit discard path should do that.)
   window.addEventListener('beforeunload', () => {
     if (state.recording) {
       try { state.recorder && state.recorder.stop(); } catch { /* ignore */ }
-      if (state.recId && have('recAbort')) bridge.recAbort(state.recId);
+      if (state.recId && have('recStop')) bridge.recStop(state.recId);
       stopAllTracks(state.stream, state.micStream, state.sysStream);
     }
   });
