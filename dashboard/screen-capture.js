@@ -158,7 +158,14 @@ function saveSettings() {
 }
 function patchSettings(patch) {
   if (!patch || typeof patch !== 'object') return;
-  for (const k of SETTINGS_KEYS) if (k in patch) settings[k] = patch[k];
+  for (const k of SETTINGS_KEYS) {
+    if (!(k in patch)) continue;
+    // rootOverride is the sole containment check for library-reveal/library-delete
+    // (see withinRoot). An IPC-writable rootOverride would turn shell.trashItem into
+    // an arbitrary-file trash primitive, so refuse it here — set it via env/CLI in init().
+    if (k === 'rootOverride') continue;
+    settings[k] = patch[k];
+  }
   saveSettings();
 }
 
@@ -624,7 +631,7 @@ async function stopRec(recId) {
     state: 'stopped', recId, elapsedMs: Date.now() - r.startedAt, bytes: r.bytes,
     sourceLabel: r.sourceLabel, lastPath: r.finalPath,
   });
-  return r.finalPath;
+  return { path: r.finalPath, bytes: r.bytes, durationMs: Date.now() - r.startedAt };
 }
 
 async function abortRec(recId) {
@@ -649,13 +656,16 @@ function recToggle(optsIn) {
     stopRec(firstId).catch(() => { /* ignore */ });
     return { toggled: 'stopped', recId: firstId };
   }
-  const sourceId = opts.sourceId || (settings && settings.defaultSourceId);
-  if (!sourceId) {
+  // MediaRecorder lives in the record-panel renderer — without a caller who is
+  // already feeding chunks (i.e. opts.sourceId came from that renderer), opening
+  // the file here just produces an empty .part. Hotkey with no live panel:
+  // surface the panel and let the user press Rec there.
+  if (!opts.sourceId) {
     togglePanel();
     return { toggled: 'panel-opened' };
   }
   const merged = {
-    sourceId,
+    sourceId: opts.sourceId,
     mic: 'mic' in opts ? !!opts.mic : !!(settings && settings.defaultMic),
     sysAudio: 'sysAudio' in opts ? !!opts.sysAudio : !!(settings && settings.defaultSysAudio),
     fps: Number.isFinite(opts.fps) ? opts.fps : (settings && settings.defaultFps) || 30,
