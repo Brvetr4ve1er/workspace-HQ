@@ -263,6 +263,25 @@
     <path d="M232 8v16" stroke-width="2" class="accent"/>
   </symbol>
 
+  <!-- App mark — nested hexagons with a central amber dot. Distinctive at 16 px
+       (the outer frame reads as a hex, the amber core reads as a warm dot), and
+       at 256 px reveals the nested-hex HUD language shared with the level coin.
+       Ink ground is baked in so the favicon is legible on any background. -->
+  <symbol id="i-brand-app" viewBox="0 0 48 48">
+    <!-- inner amber background — the "chip" -->
+    <path d="m24 3 18 10.5v21L24 45 6 34.5v-21z" fill="#f5a623"/>
+    <!-- outer hex highlight -->
+    <path d="m24 3 18 10.5v21L24 45 6 34.5v-21z" fill="none" stroke="#e6c34a" stroke-width="1.4"/>
+    <!-- ink nested-hex geometry (renders as ink on the amber ground; deliberately
+         does not use currentColor so it stays legible independent of the parent
+         colour that the sprite's <style> block otherwise cascades through). -->
+    <path d="m24 8 14 8v16l-14 8-14-8V16z" fill="none" stroke="#0a0812" stroke-width="1.6"/>
+    <path d="m24 13 9.5 5.5v11L24 35l-9.5-5.5v-11z" fill="none" stroke="#0a0812" stroke-width="1.2" opacity=".55"/>
+    <!-- central dot — the "hub" -->
+    <circle cx="24" cy="24" r="2.6" fill="#0a0812"/>
+    <circle cx="24" cy="24" r="1.1" fill="#f5a623"/>
+  </symbol>
+
   <!-- Level coin — hexagon ring around a numeric slot. CSS positions the number
        on top; this symbol is the frame only. Two overlaid hexes = double-ring HUD. -->
   <symbol id="i-brand-level-coin" viewBox="0 0 48 48">
