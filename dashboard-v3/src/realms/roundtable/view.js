@@ -6,6 +6,7 @@
 // the Overview fold carries a per-project health list (status dots + expandable
 // detail) alongside the KPI tiles.
 import { el, esc, mdLite, fmt, COL } from '../../ui/util.js';
+import { icon } from '../../ui/icons.js';
 import {
   sfx, aos, aosKids, aosRefresh, deriveScanContext, deltaSpan, foldSec,
   openDrawer, castSpell,
@@ -223,7 +224,10 @@ function render() {
       c.innerHTML = `<div class="d3k">${m.t}</div><div class="d3l">${esc(pick.label)}</div><div class="d3r">${esc(pick.reason || '')}</div><div class="d3hint">${projById[pick.project_id] ? 'OPEN ▸' : 'BOARD ▸'}</div><div class="d3act"></div>`;
       c.onclick = () => { const p = projById[pick.project_id]; if (p) openDrawer(p, prevProj[pick.project_id], ctx.data); else switchRealm('hunts'); };
       const act = c.querySelector('.d3act');
-      const fb = el('button', 'qbtn focus', '◎ FOCUS');
+      // Icon-first FOCUS. Both segments are hard-coded — no scan-derived text —
+      // so template concatenation is safe by construction. Label lives in its
+      // own span so we can toggle the FOCUS/DONE state without wiping the icon.
+      const fb = el('button', 'qbtn focus', `${icon('verb-focus', { size: 14 })}<span class="qbtn-lbl">FOCUS</span>`);
       fb.onclick = (e) => { e.stopPropagation(); enterOneThing(q || undefined); };
       act.appendChild(fb);
       if (q && hq?.markQuestDone && isLatest) {
@@ -254,7 +258,7 @@ function render() {
         <div class="otc-title">${esc(otAction.title)}</div>
         ${otAction.project_name ? `<div class="otc-proj">↳ ${esc(otAction.project_name)}</div>` : ''}
         <div class="otc-reason">${esc(otAction.reason)}</div>
-        <div class="otc-actions"><button class="otc-focus">◎ FOCUS</button></div>`;
+        <div class="otc-actions"><button class="otc-focus">${icon('verb-focus', { size: 14 })}<span class="qbtn-lbl">FOCUS</span></button></div>`;
       otc.querySelector('.otc-focus').onclick = () => enterOneThing(otAction);
       aos(otc, 'fade-up');
       ov.appendChild(otc);

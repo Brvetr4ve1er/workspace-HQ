@@ -39,7 +39,10 @@
 #stage:has(> .forge-grid) .fa-proj { font-family: var(--term); font-size: var(--fs-sm); color: var(--text); word-break: break-word; }
 #stage:has(> .forge-grid) .fa-gap { font-family: var(--term); font-size: var(--fs-xs); color: var(--faint); }
 #stage:has(> .forge-grid) .fa-btns { display: flex; gap: var(--space-2); flex: none; flex-wrap: wrap; }
+#stage:has(> .forge-grid) .fa-btn .i { flex: 0 0 auto; }
 #stage:has(> .forge-grid) .fa-btn {
+  /* inline-flex so icon + .fa-btn-lbl align — sep-2026 verb-icon rollout. */
+  display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em;
   cursor: pointer; border-radius: 8px; padding: var(--space-2) var(--space-3); min-height: var(--tap-min);
   background: var(--card-hi); border: 1px solid var(--frame); color: var(--muted);

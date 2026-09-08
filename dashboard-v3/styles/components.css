@@ -338,7 +338,12 @@ h2.sec:first-child { margin-top: var(--space-1); }
 .quest .proj { font-size: var(--fs-sm); color: var(--faint); margin-top: var(--space-1); }
 .quest .qactions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
 .qbtn { appearance: none; font-family: var(--px); font-size: var(--fs-xs); letter-spacing: 1px; cursor: pointer;
+  /* inline-flex so the sprite <svg> (added Sep 2026 for the verb-icon rollout)
+     and .qbtn-lbl <span> sit on a shared baseline. A .qbtn with no icon still
+     renders as a single text label — flex on a lone child is a no-op. */
+  display: inline-flex; align-items: center; gap: 6px;
   background: var(--ink); color: var(--muted); border: 2px solid var(--frame); padding: var(--space-2) var(--space-3); transition: .12s; }
+.qbtn .i { flex: 0 0 auto; }
 .qbtn:hover { color: var(--gold-2); border-color: var(--gold); }
 .qbtn:active { transform: translateY(2px); }
 .qbtn:disabled { opacity: .4; cursor: default; }
@@ -910,6 +915,7 @@ h2.sec.sec-fold:hover { color: var(--text); }
 .otc-reason { font-family: var(--term); font-size: var(--fs-sm); color: var(--muted); margin: var(--space-2) 0 var(--space-3); }
 .otc-actions { display: flex; gap: var(--space-2); }
 .otc-focus { font-family: var(--px); font-size: var(--fs-xs); padding: var(--space-2) var(--space-4); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
   background: rgba(255,210,63,.12); color: var(--gold, #ffd23f);
   border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--gold, #ffd23f); }
 .otc-focus:hover { background: rgba(255,210,63,.24); }

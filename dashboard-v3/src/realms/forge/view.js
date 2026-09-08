@@ -6,6 +6,20 @@
 // browser dwell) without opening the full drawer — the drawer stays one click
 // away via the card's Open button.
 import { el, esc, COL } from '../../ui/util.js';
+import { icon } from '../../ui/icons.js';
+
+// A verb button whose label lives in its own <span> so state transitions can
+// swap the text without wiping the leading icon. All callers below use this
+// instead of `el('button', cls, textLabel)` for the same reason.
+function verbButton(cls, iconName, label) {
+  return el('button', cls, `${icon(iconName, { size: 14 })}<span class="fa-btn-lbl">${esc(label)}</span>`);
+}
+// setLbl(btn, 'Opened ▸') is the state-transition swap. Preserves the icon.
+function setLbl(btn, text) {
+  const lbl = btn.querySelector('.fa-btn-lbl');
+  if (lbl) lbl.textContent = text;
+  else btn.textContent = text;      // sensible fallback if a caller bypassed verbButton
+}
 import { aos, aosKids, aosRefresh, deltaSpan, deriveScanContext, devState, fmtDur, openDrawer, sfx } from '../../ui/components.js';
 import { agencyProposals } from '../../intel/agency.mjs';
 import { dispatch } from '../../core/actions.mjs';
@@ -275,7 +289,7 @@ const AGENCY_CAP = 8;
 // never "done"/"fixed". The handler resolves `false` when the project path
 // can't be resolved to a cwd; that is a real failure, not a refusal to show.
 function sendClaudeButton(p) {
-  const btn = el('button', 'fa-btn fa-send', 'Send Claude');
+  const btn = verbButton('fa-btn fa-send', 'verb-send-claude', 'Send Claude');
   if (!window.hq?.claudeQuest) {
     btn.disabled = true;
     btn.title = 'Needs the live app — Claude dispatch is unavailable in this preview';
@@ -290,13 +304,13 @@ function sendClaudeButton(p) {
       if (!r.ok) throw new Error(r.error || 'dispatch failed');
       const ok = await Promise.resolve(r.result);
       if (ok === false) throw new Error("couldn't resolve the project path");
-      btn.textContent = 'Opened ▸';
+      setLbl(btn, 'Opened ▸');
       btn.title = 'A terminal window opened running Claude in this project';
       // stays disabled: re-clicking would spawn a second terminal
     } catch (err) {
       console.warn('[forge] claude:dispatch failed', err);
       btn.disabled = false;
-      btn.textContent = '✗ Not opened — retry';
+      setLbl(btn, '✗ Not opened — retry');
       btn.title = `Not opened — ${String(err?.message || err)}. Click to retry.`;
     }
   };
@@ -313,7 +327,7 @@ function sendClaudeButton(p) {
 // deliberately no persistent success state: win.reload() usually tears this
 // view down before 'Noted' would ever be seen.
 function addIdeaButton(p) {
-  const btn = el('button', 'fa-btn fa-idea', 'Add to ideas');
+  const btn = verbButton('fa-btn fa-idea', 'verb-idea', 'Add to ideas');
   if (!window.hq?.captureSave) {
     btn.disabled = true;
     btn.title = 'Needs the live app — capture is unavailable in this preview';
@@ -323,18 +337,18 @@ function addIdeaButton(p) {
   btn.onclick = async () => {
     btn.disabled = true;
     btn.title = '';
-    btn.textContent = 'Saving…';   // set BEFORE the await — see note above
+    setLbl(btn, 'Saving…');        // set BEFORE the await — see note above
     try {
       const r = dispatch('capture:note', { text: p.captureText });
       if (!r.ok) throw new Error(r.error || 'dispatch failed');
       const ok = await Promise.resolve(r.result);
       if (ok === false) throw new Error('capture refused');
-      btn.textContent = 'Noted';   // usually preempted by main's win.reload()
+      setLbl(btn, 'Noted');        // usually preempted by main's win.reload()
     } catch (err) {
       console.warn('[forge] capture:note failed', err);
       btn.disabled = false;
       btn.title = `Not saved — ${String(err?.message || err)}. Click to retry.`;
-      btn.textContent = '✗ Not saved — retry';
+      setLbl(btn, '✗ Not saved — retry');
     }
   };
   return btn;

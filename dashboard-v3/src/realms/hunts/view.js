@@ -4,6 +4,7 @@
 // only copy, spacing and hierarchy were cleaned up — the data + action wiring is
 // unchanged.
 import { el, esc } from '../../ui/util.js';
+import { icon } from '../../ui/icons.js';
 import { aos, aosRefresh, sfx, sideQuestRow, deriveScanContext } from '../../ui/components.js';
 
 function render(root, ctx) {
@@ -35,9 +36,9 @@ function render(root, ctx) {
       // live actions only on the latest snapshot inside Electron (hq absent = dev harness)
       if (hq && isLatest) {
         const acts = qd.querySelector('.qactions');
-        if (proj) { const b = el('button', 'qbtn', 'Open'); b.onclick = (e) => { e.stopPropagation(); hq.openRepo?.(proj.path); }; acts.appendChild(b); }
+        if (proj) { const b = el('button', 'qbtn', `${icon('verb-open', { size: 14 })}<span class="qbtn-lbl">Open</span>`); b.onclick = (e) => { e.stopPropagation(); hq.openRepo?.(proj.path); }; acts.appendChild(b); }
         if (proj) { const cb = el('button', 'qbtn claude', '⚡'); cb.title = 'Send to a Claude session'; cb.onclick = (e) => { e.stopPropagation(); hq.claudeQuest?.(proj.path, `${x.title} — ${x.insight || ''}`); }; acts.appendChild(cb); }
-        const dn = el('button', 'qbtn done-btn', '✓ Done');
+        const dn = el('button', 'qbtn done-btn', `${icon('verb-done', { size: 14 })}<span class="qbtn-lbl">Done</span>`);
         dn.onclick = (e) => {
           e.stopPropagation(); dn.disabled = true; sfx('coin');
           hq.markQuestDone?.(x.id);
