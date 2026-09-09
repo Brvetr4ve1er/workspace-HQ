@@ -5,12 +5,22 @@
 // shared machinery in ui/components.js — the overview run-of-the-day strip uses
 // it too, so it stays under its original function names.
 import { el, esc } from '../../ui/util.js';
+import { icon } from '../../ui/icons.js';
 import {
   sfx, aosKids, aosRefresh, fmtCd, SCHOOL,
   castSpell, closeDrawer,
 } from '../../ui/components.js';
 
 const $ = (id) => document.getElementById(id);
+
+// setLbl(btn, text) preserves the leading verb icon; use it in place of
+// btn.textContent = 'X' for buttons whose label changes during a state
+// transition (RESCAN → '…' → RESCAN). Mirrors forge/view.js's helper.
+function setLbl(btn, text, cls) {
+  const lbl = btn.querySelector('.' + cls);
+  if (lbl) lbl.textContent = text;
+  else btn.textContent = text;
+}
 
 // Plain category labels for the internal "school" ids the data still carries —
 // we keep SCHOOL's colour but drop the RPG naming (school -> category).
@@ -94,7 +104,7 @@ function spellCard(s) {
       ${s.kind === 'channeled' ? '<span class="sp-kind">Interactive</span>' : ''}
       ${s.kind === 'tome' ? '<span class="sp-kind">Plugin</span>' : ''}
       ${s.kind === 'chain' ? '<span class="sp-kind">Chain</span>' : ''}
-      ${runnable || s.kind === 'channeled' ? `<button class="sp-cast" ${s.invalid ? 'disabled' : ''}>RUN</button>` : ''}
+      ${runnable || s.kind === 'channeled' ? `<button class="sp-cast" ${s.invalid ? 'disabled' : ''}>${icon('verb-run', { size: 14 })}<span class="sp-cast-lbl">RUN</span></button>` : ''}
     </div>`;
   card.onclick = () => openSpellDrawer(s);
   const btn = card.querySelector('.sp-cast');
@@ -128,8 +138,8 @@ function openSpellDrawer(s) {
       ${s.schedule ? `<div class="spd-kv">next: ${esc(s.schedule.next_run || '—')} · last: ${esc(s.schedule.last_run || '—')} (result ${esc(String(s.schedule.last_result ?? '—'))})</div>` : ''}
       ${roll ? `<div class="spd-kv">runs: ${roll.lifetime_casts} · last: ${esc((roll.last_cast || '').slice(0, 16).replace('T', ' '))}</div>` : ''}
       <div class="spd-actions">
-        ${s.kind === 'castable' || s.kind === 'chain' || s.kind === 'channeled' ? `<button class="spd-cast" ${s.invalid ? 'disabled' : ''}>▶ RUN</button>` : ''}
-        ${s.origin_path && CTX.hq ? `<button class="spd-open">Open file</button>` : ''}
+        ${s.kind === 'castable' || s.kind === 'chain' || s.kind === 'channeled' ? `<button class="spd-cast" ${s.invalid ? 'disabled' : ''}>${icon('verb-run', { size: 14 })}<span class="spd-cast-lbl">RUN</span></button>` : ''}
+        ${s.origin_path && CTX.hq ? `<button class="spd-open">${icon('verb-open', { size: 14 })}<span class="spd-open-lbl">Open file</span></button>` : ''}
       </div>
     </div>`;
   d.querySelector('.spd-close').onclick = closeDrawer;
@@ -155,17 +165,17 @@ function render() {
   const head = el('h2', 'sec', `${LX('arsenal')} · ${B.counts.total} ${LX('spells_known')}`);
   if (hq) {
     const acts = el('span', 'sec-acts');
-    const deep = el('button', 'sec-btn', 'DEEP SCAN');
+    const deep = el('button', 'sec-btn', `${icon('verb-focus', { size: 14 })}<span class="sec-btn-lbl">DEEP SCAN</span>`);
     deep.title = 'Run the full pipeline (collect → enrich → assemble → build)';
     deep.onclick = (e) => { e.stopPropagation(); const ds = B.spells.find((x) => x.id === 'grimoire:deep-scan'); if (ds) castSpell(ds); };
-    const relearn = el('button', 'sec-btn', 'RESCAN');
+    const relearn = el('button', 'sec-btn', `${icon('verb-run', { size: 14 })}<span class="sec-btn-lbl">RESCAN</span>`);
     relearn.title = 'Rescan skills, scripts and tasks only (fast, no pipeline)';
     relearn.onclick = async (e) => {
       e.stopPropagation();
       if (!hq.rescanSpellbook) return;   // no bridge → don't strand the label at '…'
-      relearn.textContent = '…'; relearn.disabled = true;
+      setLbl(relearn, '…', 'sec-btn-lbl'); relearn.disabled = true;
       try { await hq.rescanSpellbook(); }
-      finally { relearn.textContent = 'RESCAN'; relearn.disabled = false; }   // restore even if the reload doesn't re-render us
+      finally { setLbl(relearn, 'RESCAN', 'sec-btn-lbl'); relearn.disabled = false; }   // restore even if the reload doesn't re-render us
     };
     acts.append(deep, relearn);
     head.appendChild(acts);

@@ -276,3 +276,20 @@
 }
 :root[data-theme="nexus"] .grimoire-realm .tb2-clear:hover { color: var(--parch); border-color: var(--edge); }
 :root[data-theme="nexus"] .grimoire-realm .tb2-clear[hidden] { display: none; }
+
+/* ---- verb-icon alignment for the four wired buttons -------------------
+   sec-btn (DEEP SCAN / RESCAN), sp-cast (card RUN), spd-cast (drawer RUN),
+   spd-open (drawer Open file) now lead with an SVG symbol from the icon
+   sprite. inline-flex + gap keeps icon + label on a shared baseline; the
+   fixed-basis .i keeps the label from shrinking the icon when space is
+   tight. spdrawer rules match the file's own out-of-realm scoping. */
+:root[data-theme="nexus"] .grimoire-realm .sec-btn,
+:root[data-theme="nexus"] .grimoire-realm .sp-cast,
+:root[data-theme="nexus"] .spdrawer .spd-cast,
+:root[data-theme="nexus"] .spdrawer .spd-open {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+:root[data-theme="nexus"] .grimoire-realm .sec-btn .i,
+:root[data-theme="nexus"] .grimoire-realm .sp-cast .i,
+:root[data-theme="nexus"] .spdrawer .spd-cast .i,
+:root[data-theme="nexus"] .spdrawer .spd-open .i { flex: 0 0 auto; }
