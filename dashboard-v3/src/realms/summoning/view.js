@@ -5,6 +5,7 @@
 // feature-detected: the dev harness renders everything, powered-down.
 import { el, esc, clock, dur } from '../../ui/util.js';
 import { sfx } from '../../ui/components.js';
+import { icon } from '../../ui/icons.js';
 import { setSessions, sessionCache, runningCount } from './session-store.js';
 import { renderCanvas, clearLocalNotes } from './canvas-board.js';
 
@@ -92,7 +93,7 @@ function renderConsole() {
       <textarea class="sum-prompt" rows="4" placeholder="What do you want to work on? (e.g. &quot;find and remove the dead routes in the router&quot;)"></textarea>
     </label>
     <div class="sum-act">
-      <button class="sum-go" ${armed ? '' : 'disabled'}>Start session</button>
+      <button class="sum-go" ${armed ? '' : 'disabled'}>${icon('verb-dispatch', { size: 14 })}<span class="sum-go-lbl">Start session</span></button>
       <span class="sum-hint">${hq?.claudeQuest ? '' : 'Not available in the dev harness'}</span>
     </div>`;
   const go = card.querySelector('.sum-go');

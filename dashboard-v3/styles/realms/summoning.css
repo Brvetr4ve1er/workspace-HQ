@@ -84,11 +84,13 @@
 .sum-act { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
 .sum-go {
   appearance: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--term); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .01em;
   padding: var(--space-3) var(--space-5); border-radius: 8px;
   background: var(--active); color: var(--ink); border: 1px solid var(--active);
   transition: opacity .15s, transform .1s;
 }
+.sum-go .i { flex: 0 0 auto; }
 .sum-go:hover:not(:disabled) { opacity: .9; }
 .sum-go:active:not(:disabled) { transform: translateY(1px); }
 .sum-go:disabled { opacity: .4; cursor: default; }
