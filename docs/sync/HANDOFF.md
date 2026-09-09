@@ -12,6 +12,79 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-09-09 · FROM frontend (v3 IS BACK + STUDIO + ICON SET) · main @ 096a16d
+DONE: full pivot away from v4 back to v3, plus two greenfield features.
+
+  UI-VERSION FLIP: data/.ui-version → v3 (user-owned file, one-line change,
+  instantly reversible). The v4 renderer stays on disk but nothing loads it.
+
+  STUDIO — screen recording + snipping suite (6 commits):
+  086f2ef main-process wire + preload surface + screen-capture.js module.
+  eb7a8d8 per-display snip overlay (frozen-desktop + region drag + Esc cancel).
+  bdad79e record panel (source picker, mic + system audio, VP9+Opus with codec
+    fallback ladder, 500ms MediaRecorder chunks streamed to main via
+    hq:studio:rec-chunk, atomic .part→rename).
+  61bdf88 STUDIO realm — capture gallery with SNIP/RECORD triggers and honest
+    bridge gating.
+  ece983d fix (reliability review): panel beforeunload was calling recAbort
+    mid-record and deleting the .part; now calls recStop so window close
+    finalizes cleanly.
+  d00337f fix (security review): hq:studio:settings-set was accepting an
+    unvalidated rootOverride that turned shell.trashItem into an arbitrary-
+    file trash primitive; patcher now skips that key entirely.
+  New IPC channels (all documented in docs/sync/IPC-CONTRACT.md BEFORE
+  handlers): hq:studio:{panel-toggle, snip-arm, snip-frozen, snip-commit,
+  snip-cancel, rec-sources, rec-start, rec-chunk, rec-stop, rec-abort,
+  rec-status, rec-toggle, library-list, library-reveal, library-delete,
+  settings-get, settings-set}. Storage: <homedir>/Videos/WorkspaceHQ/
+  {screenshots, recordings, .thumbs}. Hotkeys: Ctrl+Alt+S snip, Ctrl+Alt+R
+  record, Ctrl+Alt+L open STUDIO realm.
+
+  ICON SET — 29-symbol SVG sprite, hand-authored (Freepik generation would
+  have cost 10,500 credits; unlimitedAppliesHere:false on this MCP session):
+  ca0e17c the sprite (dashboard-v3/icons/hq-icons.svg) + preview.html +
+    dashboard-v3/src/ui/icons.js helper (injectIconSprite / icon(name,opts) /
+    hasIcon(name)).
+  2f76427 wire the sprite into shell.js rail with sigil fallback + STUDIO
+    SNIP/RECORD verbs. boot.js awaits injectIconSprite() before startShell()
+    so the first paint sees symbols (a fire-and-forget version rendered 16
+    fallback sigils because the fetch was still in flight — verified with a
+    throwaway harness).
+  96994be favicon set at 16/32/48/128/256 (initially rasterized from the
+    roundtable HOME glyph).
+  b1aa6bf dedicated i-brand-app mark — nested hex + central hub — and
+    re-rasterized favicons. The nested-hex geometry echoes the level-coin
+    frame, so the favicon reads as part of the same HUD vocabulary.
+  9eb5d63 verb icons on roundtable/hunts/forge — the three most-visible
+    surfaces. FOCUS bullseye on QUICK WIN/RESCUE cards, Open + Done on
+    every quest row, Send Claude + Add to ideas on all 8 project cards.
+    Forge introduces the verbButton() / setLbl() pattern so state
+    transitions (Opened ▸ / ✗ Not opened — retry / Saving… / Noted) swap
+    the label without wiping the icon.
+  84a3cd1 grimoire verb icons — DEEP SCAN (focus), RESCAN + all runnable
+    spellcards + drawer RUN (run), drawer Open file (open). 24 live use-refs.
+  4b6eb50 medbay verb icons — Re-examine + Run scan + fix-card RUN (run),
+    Note for cleanup (idea). 24 live use-refs.
+  096a16d summoning verb icons — Start session (dispatch). 1 live use-ref.
+
+VERIFY: v3 selftest combos=112 errors=0 PASS across all 16 realms × 7 themes
+  (up from 105 pre-STUDIO). No handler-registered errors from studio IPC in
+  the real preload; guarded-call discipline holds. Live icon count on
+  grimoire=24, medbay=24, summoning=1, plus roundtable/hunts/forge/rail/studio
+  from earlier commits. 0 renderer console errors across all shots.
+IN-FLIGHT: nothing uncommitted of mine.
+ASKS: none. warroom realm was requested in the fleet brief but does not
+  exist in dashboard-v3 (grep for "warroom"/"wr-act"/"wr-claude" returns 0
+  hits — the classes live in dashboard-v3/src/ui/components.js .dwr-actionbar,
+  which is shared-component territory, not a realm). If the structure lane
+  wants a warroom equivalent, the closest v3 realm is watchtower.
+BREAKS: dashboard/main.js gained one require + one init line + two
+  globalShortcut.register calls for the studio module. dashboard/preload.js
+  gained a window.hq.studio namespace (panelToggle, snipArm, recToggle,
+  recStatus, libraryList/Reveal/Delete, settingsGet/Set, onCaptureAdded).
+  Any tooling that enumerates preload keys will see the new surface.
+
+
 ## 2026-09-05 · FROM frontend (v4.3 — BEAUTIFY SALVAGE + DESIGN GATE) · main @ f4541dd
 DONE: salvaged the v4.3 fleet that died on the session limit, then finished it.
   4dd91f2/5ab420f/138168e/c096736 land the four beautify surfaces whose JS+CSS
