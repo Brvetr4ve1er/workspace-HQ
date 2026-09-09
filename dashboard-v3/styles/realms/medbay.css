@@ -170,3 +170,13 @@
 @media (prefers-reduced-motion: reduce) {
   .realm-medbay .ekg-line { animation: none; }
 }
+
+/* verb-icon alignment — sec-btn (Re-examine, Run scan), rx-run (RUN inside fix
+   cards) and an-note (Note for cleanup) all pair a leading SVG icon with a
+   .vlbl label span; share the same inline-flex baseline used across realms. */
+.realm-medbay .sec-btn,
+.realm-medbay .rx-run,
+.realm-medbay .an-note { display: inline-flex; align-items: center; gap: 6px; }
+.realm-medbay .sec-btn .i,
+.realm-medbay .rx-run .i,
+.realm-medbay .an-note .i { flex: 0 0 auto; }

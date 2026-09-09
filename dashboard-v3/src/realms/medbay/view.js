@@ -26,6 +26,14 @@ import { aosKids, aosRefresh } from '../../ui/components.js';
 import { anomalies } from '../../intel/derive.mjs';
 import { anomalyGroups } from '../../intel/foresight.mjs';
 import { dispatch } from '../../core/actions.mjs';
+import { icon } from '../../ui/icons.js';
+
+// Rewrite a verb button's visible label without touching the leading <svg> icon.
+// Every wired button in this file carries its label in a <span class="vlbl">.
+function setLbl(btn, text) {
+  const lbl = btn.querySelector('.vlbl');
+  if (lbl) lbl.textContent = text; else btn.textContent = text;
+}
 
 // The data contract keeps the grace/ember/blood keys; the display word is plain.
 const STATUS = {
@@ -110,16 +118,17 @@ let LIVE = null;   // a fresh scan overrides the build-time snapshot
 // Shared scan button — same wiring in the header (Re-examine) and the empty
 // state (Run scan). Fresh report → LIVE override → full re-render.
 function scanButton(label, cls) {
-  const btn = el('button', ('sec-btn ' + (cls || '')).trim(), esc(label));
+  const btn = el('button', ('sec-btn ' + (cls || '')).trim(),
+    `${icon('verb-run', { size: 14 })}<span class="vlbl">${esc(label)}</span>`);
   btn.title = 'Run a fresh health scan of this machine (~3s)';
   btn.onclick = async () => {
     btn.disabled = true;
-    const prev = btn.textContent;
-    btn.textContent = 'Scanning…';
+    const prev = btn.querySelector('.vlbl')?.textContent || label;
+    setLbl(btn, 'Scanning…');
     try {
       const fresh = await CTX.hq.healthScan();
       if (fresh?.organs) { LIVE = fresh; render(); }
-    } finally { btn.disabled = false; btn.textContent = prev; }
+    } finally { btn.disabled = false; setLbl(btn, prev); }
   };
   return btn;
 }
@@ -231,7 +240,7 @@ function fixCard(fix, organ) {
     <div class="rx-cmd"><code>${esc(fix.command)}</code></div>
     <div class="rx-act">
       <button class="rx-copy">⧉ COPY</button>
-      ${runnable ? '<button class="rx-run">▶ RUN</button>' : `<span class="rx-manual">copy and run it yourself — ${dg.label}</span>`}
+      ${runnable ? `<button class="rx-run">${icon('verb-run', { size: 14 })}<span class="vlbl">RUN</span></button>` : `<span class="rx-manual">copy and run it yourself — ${dg.label}</span>`}
     </div>
     <pre class="rx-out" hidden></pre>`;
   const out = card.querySelector('.rx-out');
@@ -242,13 +251,13 @@ function fixCard(fix, organ) {
   };
   const runBtn = card.querySelector('.rx-run');
   if (runBtn) runBtn.onclick = async () => {
-    runBtn.disabled = true; runBtn.textContent = '▶ running…'; out.hidden = false; out.textContent = '…';
+    runBtn.disabled = true; setLbl(runBtn, 'running…'); out.hidden = false; out.textContent = '…';
     try {
       const r = await CTX.hq.healthFix(fix.command);
       out.textContent = (r?.output || '').trim() || (r?.ok ? '(done — no output)' : 'refused or failed.');
       out.classList.toggle('err', !r?.ok);
     } catch (err) { out.textContent = String(err?.message || err); out.classList.add('err'); }
-    finally { runBtn.disabled = false; runBtn.textContent = '▶ RUN'; }
+    finally { runBtn.disabled = false; setLbl(runBtn, 'RUN'); }
   };
   return card;
 }
@@ -278,7 +287,7 @@ function anomalyRow(item) {
   const row = el('div', 'an-item');
   row.innerHTML = `
     <span class="an-label">${esc(item.label)}</span>
-    <button class="an-note"${canCapture ? '' : ' disabled title="Needs the live app — capture is unavailable in this preview"'}>Note for cleanup</button>`;
+    <button class="an-note"${canCapture ? '' : ' disabled title="Needs the live app — capture is unavailable in this preview"'}>${icon('verb-idea', { size: 14 })}<span class="vlbl">Note for cleanup</span></button>`;
   if (canCapture) {
     const btn = row.querySelector('.an-note');
     // dispatch()'s synchronous {ok:true} only means the IPC call was SENT —
@@ -304,13 +313,13 @@ function anomalyRow(item) {
     btn.onclick = async () => {
       btn.disabled = true;
       btn.title = '';
-      btn.textContent = 'Saving…';   // set BEFORE the await — see note above
+      setLbl(btn, 'Saving…');   // set BEFORE the await — see note above
       try {
         const r = dispatch('capture:note', { text: `Clean up: ${item.label}` });
         if (!r.ok) throw new Error(r.error || 'dispatch failed');
         const ok = await Promise.resolve(r.result);
         if (ok === false) throw new Error('capture refused');
-        btn.textContent = 'Noted';   // usually preempted by main's win.reload()
+        setLbl(btn, 'Noted');   // usually preempted by main's win.reload()
       } catch (err) {
         // Visible, not just console-visible: a silent snap-back to the original
         // label is indistinguishable from a mis-click. Mirrors rx-run pushing
@@ -319,7 +328,7 @@ function anomalyRow(item) {
         console.warn('[medbay] capture:note failed', err);
         btn.disabled = false;
         btn.title = `Not saved — ${String(err?.message || err)}. Click to retry.`;
-        btn.textContent = '✗ Not saved — retry';
+        setLbl(btn, '✗ Not saved — retry');
       }
     };
   }
