@@ -14,6 +14,7 @@ const os = require('node:os');
 const { spawnSync, spawn } = require('node:child_process');
 const { startBridge } = require('./browser-bridge');
 const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
+const llmLocal = require('./llm-local');               // PC-Brain L3: local model adapter (Ollama/LM Studio)
 const screenCapture = require('./screen-capture');     // v3 STUDIO: snip + record + library (Group 1)
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
@@ -751,10 +752,18 @@ ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
   return true;
 });
 
+// ---- PC-Brain L3: local model runtime probe -----------------------------------
+// The medbay realm calls this on mount to show whether Ollama/LM Studio is up.
+// Renderer never gets to send prompts through this channel — this is presence only.
+ipcMain.handle('hq:llm:probe', () => llmLocal.probe());
+
 // ---- Commit drafter (Wave 4): claude -p over git diff -> conventional commit ----
 // MA: async via the sessions registry — the main process no longer freezes for
 // up to 90s while Claude writes. invoke() already promises to the renderer,
 // so the {message}|{error} contract is unchanged.
+// PC-Brain Phase 1: try the local model first (~3-8s via Ollama/LM Studio); on
+// unavailable or error, fall through to the Claude CLI leash (~60s) so the
+// user's daily commit-draft flow keeps working with no runtime installed.
 ipcMain.handle('hq:draft-commit', async (_e, projPath) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return { error: 'bad path' };
@@ -762,10 +771,12 @@ ipcMain.handle('hq:draft-commit', async (_e, projPath) => {
   const diff = (spawnSync('git', ['-C', cwd, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }).stdout || '').slice(0, 30000);
   if (!diff.trim()) return { error: 'no diff to summarize' };
   const prompt = `Write a single conventional-commit message for this diff. Format: "type(scope): summary" then blank line then 1-3 bullet points if useful. Reply with ONLY the message text, no fences.\n\n${diff}`;
+  const local = await llmLocal.run({ prompt, timeoutMs: 30000 });
+  if (local.status === 'done') return { message: local.output.trim(), via: `local:${local.runtime}` };
   const r = await claudeSessions.run({ label: 'draft-commit', input: prompt, timeoutMs: 90000 });
   if (r.error) return { error: r.error };
   if (r.status !== 'done') return { error: r.output.slice(-300).trim() || 'claude failed' };
-  return { message: r.output.trim() };
+  return { message: r.output.trim(), via: 'claude' };
 });
 // MA: async twin of the sync node runners — for post-action rescans that
 // must not freeze the main process

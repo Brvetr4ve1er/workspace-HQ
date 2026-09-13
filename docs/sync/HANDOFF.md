@@ -12,6 +12,50 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-09-13 · FROM frontend (PC-BRAIN PHASE 0/1) · main @ bc9790b
+DONE: local-model seam + first live swap.
+
+  Approved plan lives at ~/.claude/plans/stateful-sparking-curry.md (WorkspaceHQ →
+  PC Brain, six phases). Phases 0 and 1 landed in this commit.
+
+  dashboard/llm-local.js (new): OpenAI-compatible HTTP client. probe() detects
+    Ollama (:11434) then LM Studio (:1234) with a 1.5s timeout each; result
+    cached 30s. run({system, prompt, model, timeoutMs}) POST /v1/chat/completions.
+    Clean-fail contract: on unavailable/error returns {status, reason} — NEVER
+    throws. Cache is invalidated on any HTTP error inside run() so a runtime
+    that goes down mid-session is re-detected on the next call.
+
+  dashboard/llm-persona.md (new): GLaDOS × Navi system prompt for the future
+    Oracle realm. Hard grounding rule: "you may only ground in the context
+    given; if the answer isn't there, say so — never invent numbers/names/ids".
+
+  dashboard/main.js: added `hq:llm:probe` IPC (presence-only; no prompts through
+    this channel). Swapped `hq:draft-commit` to try local first (30s timeout);
+    on {status:'unavailable'|'error'} falls through to the existing
+    claudeSessions.run() path (90s Claude CLI). Output contract unchanged;
+    added `via:'local:<runtime>'|'claude'` field for renderer diagnostics.
+
+  dashboard/preload.js: `probeLlm()` renderer binding.
+
+  dashboard-v3/src/realms/medbay/view.js + styles/realms/medbay.css:
+    "AI runtime:" status strip at the top of med-bay. Paints from module-cached
+    LLM_STATUS instantly on re-render; refreshRuntimeStatus() called once on
+    mount. Three states: probing (pulse), ok (green dot + runtime + top model),
+    off (muted dot + "install Ollama or LM Studio…").
+
+IN-FLIGHT: nothing.
+ASKS: none for structure lane yet. Phase 6 (collector/guide-bake.mjs +
+  run-pipeline.ps1 insertion) is a struct-lane ask when the time comes;
+  Phases 2–5 stay entirely in frontend.
+BREAKS: none. draft-commit's return shape is a strict superset (adds `via`);
+  existing renderers ignore extras. No contract, hotkey, or IPC channel
+  removed. Zero effect until the user installs a local runtime.
+
+USER ACTION for Phase 0 gate: `ollama pull qwen2.5:7b-instruct-q4_K_M`
+  (5 GB, fits 8 GB VRAM), then relaunch app → medbay shows the green row.
+
+---
+
 ## 2026-09-09 · FROM frontend (v3 IS BACK + STUDIO + ICON SET) · main @ 096a16d
 DONE: full pivot away from v4 back to v3, plus two greenfield features.
 

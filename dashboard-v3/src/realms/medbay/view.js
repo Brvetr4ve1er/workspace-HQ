@@ -114,6 +114,10 @@ function spark(vals, color) {
 
 let CTX = null, root = null, offSelect = null;
 let LIVE = null;   // a fresh scan overrides the build-time snapshot
+// PC-Brain Phase 0/1: cached local-model runtime presence. Module-scoped so
+// re-renders (each data:select clears root) paint the last-known state
+// instantly — the promise is fetched once on mount and refreshed on probe cta.
+let LLM_STATUS = null;   // { available, runtime?, endpoint?, models? } | null (probing)
 
 // Shared scan button — same wiring in the header (Re-examine) and the empty
 // state (Run scan). Fresh report → LIVE override → full re-render.
@@ -381,9 +385,33 @@ function renderAnomalies(parent, S) {
   parent.appendChild(wrap);
 }
 
+// PC-Brain L3: local LLM runtime presence row. Paints from LLM_STATUS instantly
+// on re-render; a null status shows "probing…". Never blocks the render call.
+function renderRuntimeStatus(parent) {
+  if (!CTX.hq?.probeLlm) return;   // dev harness with no preload — skip silently
+  const row = el('div', 'ai-runtime-status');
+  const label = LLM_STATUS == null
+    ? 'AI runtime: probing…'
+    : (LLM_STATUS.available
+      ? `AI runtime: ${LLM_STATUS.runtime}${LLM_STATUS.models?.[0]?.id ? ` · ${LLM_STATUS.models[0].id}` : ''}${LLM_STATUS.models?.length > 1 ? ` (+${LLM_STATUS.models.length - 1} more)` : ''}`
+      : 'AI runtime: none detected — install Ollama or LM Studio to enable local model features');
+  const cls = LLM_STATUS == null ? 'airs-probing' : (LLM_STATUS.available ? 'airs-ok' : 'airs-off');
+  row.classList.add(cls);
+  row.innerHTML = `<span class="airs-dot"></span><span class="airs-label">${esc(label)}</span>`;
+  parent.appendChild(row);
+}
+
+function refreshRuntimeStatus() {
+  if (!CTX?.hq?.probeLlm) return;
+  CTX.hq.probeLlm()
+    .then((p) => { LLM_STATUS = p || { available: false, reason: 'probe returned null' }; render(); })
+    .catch((err) => { LLM_STATUS = { available: false, reason: String(err?.message || err) }; render(); });
+}
+
 function render() {
   if (!root || !CTX) return;
   root.innerHTML = '';
+  renderRuntimeStatus(root);
   const ph = LIVE || CTX.data.bundle.pcHealth;
   if (ph && Array.isArray(ph.organs) && ph.organs.length) { renderAnatomy(root, ph); renderTreatments(root, ph); }
   else renderTriage(root);
@@ -398,6 +426,8 @@ export const view = {
     stage.appendChild(root);
     offSelect = ctx.bus.on('data:select', render);
     render();
+    // fire-and-forget: paint "probing…" now, upgrade to the real state on resolve
+    refreshRuntimeStatus();
   },
   unmount() {
     offSelect?.(); offSelect = null;

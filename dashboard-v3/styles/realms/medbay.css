@@ -7,6 +7,32 @@
 
 .realm-medbay { max-width: 1200px; margin: 0 auto; padding: var(--space-2) var(--space-4) var(--space-7); }
 
+/* --- AI runtime presence (PC-Brain L3) ------------------------------------
+   A single-line strip pinned above the tally. Colour-coded dot + short label:
+   probing (dim), ok (green), off (muted). Never a chore — a status indicator
+   only; there is no button to install Ollama from here on purpose (the
+   plan_file lives in ~/.claude/plans; user acts on the machine, not the panel). */
+.realm-medbay .ai-runtime-status {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border: 1px dashed var(--divider, rgba(180, 180, 200, 0.2));
+  border-radius: 4px;
+  font-family: var(--mono); font-size: var(--fs-xs);
+  color: var(--faint);
+  background: rgba(255, 255, 255, 0.02);
+}
+.realm-medbay .ai-runtime-status .airs-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--faint);
+  flex-shrink: 0;
+}
+.realm-medbay .ai-runtime-status.airs-ok { color: var(--muted); border-color: rgba(120, 220, 140, 0.35); }
+.realm-medbay .ai-runtime-status.airs-ok .airs-dot { background: #78dc8c; box-shadow: 0 0 6px rgba(120, 220, 140, 0.6); }
+.realm-medbay .ai-runtime-status.airs-off .airs-dot { background: var(--faint); opacity: 0.5; }
+.realm-medbay .ai-runtime-status.airs-probing .airs-dot { background: var(--faint); animation: airs-pulse 1.4s ease-in-out infinite; }
+@keyframes airs-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.9; } }
+
 /* --- status tally --------------------------------------------------------- */
 .realm-medbay .mb-tally {
   display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-5);

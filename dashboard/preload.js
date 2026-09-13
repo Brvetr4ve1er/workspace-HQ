@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('hq', {
   claudeQuest: (projPath, prompt) => ipcRenderer.invoke('hq:claude-quest', projPath, prompt),
   draftCommit: (projPath) => ipcRenderer.invoke('hq:draft-commit', projPath),
   doCommit: (projPath, msg) => ipcRenderer.invoke('hq:do-commit', projPath, msg),
+  // PC-Brain Phase 0/1: presence-check for a local LLM runtime (Ollama/LM Studio)
+  probeLlm: () => ipcRenderer.invoke('hq:llm:probe'),
   logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
