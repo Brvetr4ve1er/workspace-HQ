@@ -54,6 +54,30 @@ BREAKS: none. draft-commit's return shape is a strict superset (adds `via`);
 USER ACTION for Phase 0 gate: `ollama pull qwen2.5:7b-instruct-q4_K_M`
   (5 GB, fits 8 GB VRAM), then relaunch app → medbay shows the green row.
 
+VERIFIED (2026-09-14, workflow wf_77ee6712-315, 6/6 agents, verdict PASS):
+  - Ollama installed via winget, qwen2.5:7b-instruct-q4_K_M pulled (4.7 GB).
+  - Warm draft-commit round trip: **3539 ms** through llmLocal.run() with a
+    realistic 60-line mock diff → clean `refactor(users): migrate routes to
+    async/await` + blank line + 2-bullet body. Well inside the 30 s renderer
+    cap.
+  - Adapter clean-fail contract: 8/8 adversarial cases pass (empty/null/
+    missing prompt, bad model → HTTP 404, 1 ms timeout, 5×probe cache, force-
+    reprobe, AbortController+finally audit). run() and probe() never throw.
+  - Fallback path: taskkill ollama → probe reports {available:false} → run()
+    reports {status:'unavailable'} — the exact non-'done' signal main.js line
+    775 uses to fall through to claudeSessions.run(). Restart → auto-detect.
+  - Honesty boundary intact: llmLocal.run() called exactly once, only from
+    hq:draft-commit's dialog surface. Tray tooltip, native notifications,
+    mini HUD, deterministic voice all remain measured-only.
+  - Wiring: node --check clean on main.js, preload.js, llm-local.js. All 12
+    wiring checks pass with line-level evidence.
+
+KNOWN gap (non-blocker, track for Phase 2): llm-local.js auto-selects
+  models[0].id. A user whose first-listed model is an embedding model would
+  get bad completions. Fix: model preference config, or filter by
+  capabilities: ['completion']. Phase 2 (AI Guide realm) should own this
+  since it introduces the model-picker UX.
+
 ---
 
 ## 2026-09-09 · FROM frontend (v3 IS BACK + STUDIO + ICON SET) · main @ 096a16d
