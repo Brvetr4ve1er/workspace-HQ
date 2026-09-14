@@ -7,7 +7,7 @@ test('oracleActionId maps each action to a registered dispatch id', () => {
   assert.equal(oracleActionId({ action: 'commit', target: { realmId: 'forge', projectId: 'p1' } }), 'go:forge');
   assert.equal(oracleActionId({ action: 'quest', target: { realmId: 'hunts', questId: 'q1' } }), 'go:hunts');
   assert.equal(oracleActionId({ action: 'quest', target: { realmId: 'forge', projectId: 'p2' } }), 'go:forge'); // secrets quest lives on forge
-  assert.equal(oracleActionId({ action: 'capture', target: { realmId: 'roundtable' } }), 'capture:idea');
+  assert.equal(oracleActionId({ action: 'capture', target: { realmId: 'roundtable' } }), 'capture:note');
   assert.equal(oracleActionId({ action: 'scan', target: { realmId: 'roundtable' } }), 'scan:now');
   assert.equal(oracleActionId({ action: 'rest', target: {} }), 'go:roundtable'); // missing realmId → safe home
   assert.equal(oracleActionId(null), null);

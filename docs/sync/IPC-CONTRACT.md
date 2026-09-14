@@ -42,11 +42,9 @@ grep the channel name).
 | **Project lifecycle** | | | | |
 | `archiveProject(id)` | `hq:archive-project` | project id | — | main |
 | `reviveProject(id)` | `hq:revive-project` | project id | — | main |
-| `orphanArchive(p)` | `hq:orphan-archive` | dir path | — | main |
 | **Quests** | | | | |
 | `markQuestDone(id)` | `hq:quest-done` | quest id | `true`/`false` | main |
 | `actedOn(entry)` | `hq:acted-on` | ledger entry object (normalized main-side) | `true`/`false` | main |
-| `getActedOn()` | `hq:acted-on-read` | — | `{ entries: [] }` live ledger (window.DATA.actedOn is the stale build-time snapshot) | main |
 | **Dev servers** | | | | |
 | `devStart(id)` | `hq:dev-start` | project id | — | main |
 | `devStop(id)` | `hq:dev-stop` | project id | — | main |

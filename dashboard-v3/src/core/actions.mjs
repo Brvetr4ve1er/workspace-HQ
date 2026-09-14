@@ -55,11 +55,9 @@ export function initActions(deps) {
     register({ id: `go:${m.id}`, label: `Go: ${m.id}`, icon: m.sigil, run: () => switchRealm?.(m.id) });
   }
   register({ id: 'scan:now',     label: 'Scan now',       run: () => hq?.runScan?.() });
-  register({ id: 'capture:idea', label: 'Capture idea',   run: () => hq?.capture?.() });
-  // Real capture seam: preload exposes captureSave(text) (capture:idea's
-  // hq.capture() does not exist — see the note above). Text-carrying callers
-  // (the Med-Bay cleanup panel) dispatch through here so the write stays on the
-  // one audited path.
+  // capture:idea removed per 2026-09-15 dead-weight audit: preload never
+  // exposed hq.capture (only captureSave(text)), so the action was a documented
+  // no-op. Every capture call site now uses capture:note, which is real.
   register({ id: 'capture:note', label: 'Capture note', run: (ctx) => hq?.captureSave?.(ctx?.text), enabled: (ctx) => !!ctx?.text });
   // Hands a task to Claude INSIDE the target project: hq:claude-quest resolves
   // the project dir and opens a terminal running `claude "<prompt>"` there. The

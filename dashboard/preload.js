@@ -19,10 +19,8 @@ contextBridge.exposeInMainWorld('hq', {
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
   reviveProject: (id) => ipcRenderer.invoke('hq:revive-project', id),
-  orphanArchive: (p) => ipcRenderer.invoke('hq:orphan-archive', p),
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
   actedOn: (entry) => ipcRenderer.invoke('hq:acted-on', entry),
-  getActedOn: () => ipcRenderer.invoke('hq:acted-on-read'),
   // M2: MED-BAY — live PC-health scan + whitelisted safe fix runner
   healthScan: () => ipcRenderer.invoke('hq:health-scan'),
   healthFix: (command) => ipcRenderer.invoke('hq:health-fix', command),

@@ -77,28 +77,10 @@ function renderQuestSync(parent, S) {
   parent.appendChild(el('div', 'obs-sync', bits.join(' · ')));
 }
 
-// ------------------------------------------------- NotebookLM
-// DATA.notebooklm is null until the capture ships. Proposed sidecar shape
-// (listed as an ask — struct lane owns the CONTRACT.md entry):
-//   { captured_at: ISO string,
-//     notebooks: [{ title, last_opened: ISO, dwell_ms: number, url: string }] }
-function renderShelf(parent, bundle) {
-  parent.appendChild(el('h2', 'sec', 'NotebookLM'));
-  const nb = bundle.notebooklm;
-  if (!nb || !nb.notebooks?.length) {
-    parent.appendChild(el('div', 'obs-dormant', 'No notebooks captured yet.'));
-    return;
-  }
-  const shelf = el('div', 'obs-shelf');
-  nb.notebooks.forEach((n) => {
-    shelf.appendChild(el('div', 'obs-book', `
-      <span class="obs-bt" title="${esc(n.url || '')}">${esc(n.title)}</span>
-      ${n.last_opened ? `<span class="obs-bm">opened ${esc(String(n.last_opened).slice(0, 10))}</span>` : ''}
-      ${typeof n.dwell_ms === 'number' ? `<span class="obs-bm">${fmtDur(n.dwell_ms)} active</span>` : ''}`));
-  });
-  parent.appendChild(shelf);
-  if (nb.captured_at) parent.appendChild(el('div', 'obs-cap', `captured ${esc(String(nb.captured_at).slice(0, 16).replace('T', ' '))}`));
-}
+// NotebookLM shelf removed per 2026-09-15 dead-weight audit: the M4 capture
+// producer never shipped, DATA.notebooklm has always been null, so the shelf
+// rendered its "No notebooks captured yet" empty state on every visit —
+// perpetual-empty is a ghost panel, not an honest first-run invitation.
 
 // ------------------------------------------------- cross-vault search
 // Builds an obsidian://search URI as a COPYABLE string: this window can't
@@ -158,7 +140,6 @@ function render() {
   if (!S) return;
   renderVaults(root, S);
   renderQuestSync(root, S);
-  renderShelf(root, ctx.data.bundle);
   renderSearch(root, S);
   aosRefresh();
 }

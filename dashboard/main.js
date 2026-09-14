@@ -287,23 +287,12 @@ function createTray() {
   updateTray();
 }
 
-// Fire a native notification for each notify=true change in the latest scan,
-// but only once per scan id (tracked in .notify-state.json).
-function notifyForLatest() {
-  const s = latest(); if (!s) return;
-  let state = {}; try { state = JSON.parse(fs.readFileSync(NOTIFY_STATE, 'utf8')); } catch {}
-  if (state.last_notified === s.scan.id) return;
-  const fire = (s.changes_since_prev || []).filter((c) => c.notify);
-  fire.slice(0, 5).forEach((c) => {
-    if (!Notification.isSupported()) return;
-    new Notification({
-      title: c.type === 'quest_completed' ? '✅ Quest complete (+XP)' : c.impact === 'negative' ? '⚠ Needs attention' : 'WorkspaceHQ',
-      body: c.detail, icon: path.join(DIR, 'icon.png'),
-    }).show();
-  });
-  fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(NOTIFY_STATE, JSON.stringify({ last_notified: s.scan.id }));
-}
+// Ambient positive-outcome OS notifications were retired per the 2026-06-20
+// ambient-companion spec: measured+new but not actionable, so five toasts per
+// happy event of things the user already did. See docs/sync/HANDOFF.md for the
+// audit rationale. The notify:true flags are still emitted by the collector
+// (structure-lane responsibility) so a future ambient/voice surface can consume
+// them honestly — nothing in the app now turns them into OS toasts.
 
 // ---- safe read for a persisted JSON store that gets MODIFIED and written back.
 // A read-modify-write on an unparseable file would OVERWRITE (destroy) it with the
@@ -426,7 +415,7 @@ function runScan() {
   ps.on('error', (err) => { if (win && !win.isDestroyed()) win.setTitle('WorkspaceHQ'); try { dialog.showErrorBox('Scan failed to start', String(err.message || err)); } catch {} });
   ps.on('close', (code) => {
     if (win) win.setTitle('WorkspaceHQ');
-    if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); pushMini(); notifyForLatest(); }
+    if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); pushMini(); }
     else if (win) dialog.showErrorBox('Scan failed', `Pipeline exited ${code}. See workspace hq/logs.`);
   });
 }
@@ -873,15 +862,9 @@ ipcMain.handle('hq:revive-project', (_e, projId) => {
   return true;
 });
 
-// ---- Orphan triage (Wave 5): register / delete discovered folders ----
-ipcMain.handle('hq:orphan-archive', (_e, dirPath) => {
-  const src = resolveProjectPath(dirPath); if (!src) return false;
-  const archiveRoot = path.join(DOCS_ROOT, '_archive');
-  fs.mkdirSync(archiveRoot, { recursive: true });
-  const dest = path.join(archiveRoot, path.basename(src));
-  try { fs.renameSync(src, dest); } catch (e) { return { error: String(e.message) }; }
-  return { ok: true, dest };
-});
+// hq:orphan-archive removed per 2026-09-15 dead-weight audit: zero renderer
+// callsites across v2/v3/v4 — filesystem-mutation surface for a UI that was
+// never built (Wave 5 triage plan). Latent chore-hook the ambient spec forbids.
 // Works for both core quest ids (q-…) and side-quest ids (sq-…) — both live in the
 // same quest-overrides.json store that assemble.mjs reads.
 ipcMain.handle('hq:quest-done', (_e, id) => { if (!id) return false; applyDone(id); return true; });
@@ -944,9 +927,10 @@ ipcMain.handle('hq:acted-on', (_e, entry) => {
   fs.renameSync(tmp, ACTED_ON_FILE);
   return true;
 });
-// Live read — the renderer bakes a build-time snapshot into window.DATA.actedOn,
-// but that goes stale the moment a session is logged; this serves the current file.
-ipcMain.handle('hq:acted-on-read', () => readActedOn());
+// hq:acted-on-read removed per 2026-09-15 dead-weight audit: consumer was the
+// v2 renderer (dashboard/app.js:822-823), and data/.ui-version=v3 makes v2
+// inactive at runtime. The v3 renderer bakes window.DATA.actedOn at build time
+// and never reads live. readActedOn() is still used by the ledger append path.
 const castRegistry = new Map();   // spellId -> { proc, castId, startedAt, timer }
 
 function readSpellbook() {
@@ -1391,7 +1375,7 @@ if (!app.requestSingleInstanceLock()) {
       watcher = fs.watch(DATA, (_evt, file) => {
         if (file !== 'latest.json') return;
         clearTimeout(t);
-        t = setTimeout(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini(); notifyForLatest(); }, 800);
+        t = setTimeout(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini(); }, 800);
       });
     } catch (e) { console.error('watchData failed:', e); }
   }
@@ -1432,7 +1416,6 @@ if (!app.requestSingleInstanceLock()) {
         { type: 'separator' }, { role: 'toggleDevTools' }, { role: 'quit' },
       ] },
     ]));
-    notifyForLatest();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(true); });
   });
 

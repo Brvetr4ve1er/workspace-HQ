@@ -18,7 +18,7 @@ const BTN = {
 export function oracleActionId(oracle) {
   if (!oracle) return null;
   switch (oracle.action) {
-    case 'capture': return 'capture:idea';
+    case 'capture': return 'capture:note';
     case 'scan':    return 'scan:now';
     default:        return 'go:' + (oracle.target?.realmId || 'roundtable');
   }
