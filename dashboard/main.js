@@ -244,7 +244,6 @@ function buildTrayMenu() {
   const items = [
     { label: 'Show WorkspaceHQ', click: () => { if (!win) createWindow(); else win.show(); } },
     { label: 'Toggle mini HUD', click: toggleMini },
-    { label: 'Quick capture (Ctrl+Alt+Space)', click: openCapture },
     { label: 'Summon widget (Ctrl+Alt+G)', click: openSummon },
     { label: 'Cast a spell… (Ctrl+Alt+X)', click: openCastPalette },
     { label: 'Scan now', click: runScan },
@@ -471,38 +470,25 @@ ipcMain.handle('hq:snapshot', async (_e, projPath, name) => {
   return !!dest;
 });
 
-// ---- Quick-capture: global hotkey -> frameless box -> data/brain-dump.json (Wave 4) ----
-let captureWin = null;
-function openCapture() {
-  if (captureWin && !captureWin.isDestroyed()) { captureWin.show(); captureWin.focus(); return; }
-  const wa = screen.getPrimaryDisplay().workArea;
-  const W = 480, H = 96;
-  captureWin = new BrowserWindow({
-    width: W, height: H, x: Math.round(wa.x + (wa.width - W) / 2), y: Math.round(wa.y + wa.height * 0.26),
-    frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: true,
-    fullscreenable: false, minimizable: false, maximizable: false,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
-  });
-  captureWin.setAlwaysOnTop(true, 'screen-saver');
-  captureWin.loadFile(path.join(DIR, 'capture.html'));
-  captureWin.on('blur', () => { if (captureWin && !captureWin.isDestroyed()) captureWin.close(); });
-  captureWin.on('closed', () => { captureWin = null; });
-}
+// ---- Capture-save (Wave 4): now text-only, no frameless window ----
+// The frameless Ctrl+Alt+Space quick-capture window was retired per the
+// 2026-09-15 dead-weight audit — data/brain-dump.json was empty for 80+ days
+// through both the hotkey UI and the MCP hq_capture tool. The IPC handler
+// stays because the v3 medbay realm's "Note for cleanup" button (via the
+// core/actions.mjs capture:note action) still writes captures programmatically,
+// and the MCP hq_capture tool (dashboard-v3/mcp/server.mjs) is unchanged.
 ipcMain.handle('hq:capture-save', (_e, text) => {
   const t = String(text || '').trim();
-  if (captureWin && !captureWin.isDestroyed()) captureWin.close();
   if (!t) return false;
   const f = path.join(DATA, 'brain-dump.json');
   const arr = readJsonStore(f, () => [], Array.isArray);
   arr.push({ id: `${Date.now().toString(36)}`, ts: new Date().toISOString(), text: t });
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(arr, null, 2));
-  if (Notification.isSupported()) new Notification({ title: '🧠 Captured', body: t.slice(0, 90), icon: path.join(DIR, 'icon.png') }).show();
   // re-assemble the current scan (fast — no collector) so the dump shows as a side-quest
   const s = latest();
   if (s) { spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }); rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); }
   return true;
 });
-ipcMain.handle('hq:capture-cancel', () => { if (captureWin && !captureWin.isDestroyed()) captureWin.close(); return true; });
 
 // ============================================================================
 // ORGANIC UI — shards. WorkspaceHQ grows interface anywhere on the desktop.
@@ -1394,7 +1380,6 @@ if (!app.requestSingleInstanceLock()) {
     watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
     bridge = startBridge({ dataDir: DATA, onLive: pushBrowserTab });   // browser extension ingest
     startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
-    try { globalShortcut.register('CommandOrControl+Alt+Space', openCapture); } catch (e) { console.error('capture hotkey failed:', e); }
     try { globalShortcut.register('CommandOrControl+Alt+G', openSummon); } catch (e) { console.error('summon hotkey failed:', e); }
     // v3 STUDIO — mount the main-process capture wire (owns its IPC + panel/overlay windows).
     try { screenCapture.init({ ipcMain, app, BrowserWindow, screen, desktopCapturer, globalShortcut }); } catch (e) { console.error('studio init failed:', e); }

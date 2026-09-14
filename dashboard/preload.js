@@ -9,7 +9,6 @@ contextBridge.exposeInMainWorld('hq', {
   reclaim: (projPath, dirNames) => ipcRenderer.invoke('hq:reclaim', projPath, dirNames),
   snapshot: (projPath, name) => ipcRenderer.invoke('hq:snapshot', projPath, name),
   captureSave: (text) => ipcRenderer.invoke('hq:capture-save', text),
-  captureCancel: () => ipcRenderer.invoke('hq:capture-cancel'),
   claudeQuest: (projPath, prompt) => ipcRenderer.invoke('hq:claude-quest', projPath, prompt),
   draftCommit: (projPath) => ipcRenderer.invoke('hq:draft-commit', projPath),
   doCommit: (projPath, msg) => ipcRenderer.invoke('hq:do-commit', projPath, msg),
