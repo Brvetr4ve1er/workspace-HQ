@@ -92,3 +92,32 @@
 .realm-legacy .ach .nxd-v.ok { color: var(--gold-2); }
 .realm-legacy .ach .nxd-bar { height: 7px; background: var(--ink); border: 1px solid var(--divider); border-radius: 4px; overflow: hidden; }
 .realm-legacy .ach .nxd-bar i { display: block; height: 100%; background: var(--active); }
+
+/* --- Momentum forecast + Follow-through (folded from ATLAS per 2026-09-15 audit) --- */
+.realm-legacy .atl-forecast { margin-top: var(--space-2); }
+.realm-legacy .atl-fc-slope {
+  font-size: var(--fs-lg); font-weight: 600; color: var(--text);
+  font-family: var(--font-data, var(--mono));
+}
+.realm-legacy .atl-fc-eta,
+.realm-legacy .atl-fc-note {
+  margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--faint);
+  font-family: var(--font-data, var(--mono));
+}
+.realm-legacy .atl-fc-basis {
+  margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--faint);
+  opacity: .7; font-family: var(--font-data, var(--mono));
+}
+.realm-legacy .atl-bar {
+  height: 10px; background: var(--ink); border: 1px solid var(--divider);
+  border-radius: 5px; overflow: hidden; margin: var(--space-2) 0 var(--space-3);
+}
+.realm-legacy .atl-bar i {
+  display: block; height: 100%; background: var(--active);
+  border-radius: 5px 0 0 5px; transition: width .35s ease;
+}
+.realm-legacy .atl-ft-row {
+  display: flex; justify-content: space-between; gap: var(--space-3);
+  font-size: var(--fs-xs); color: var(--muted);
+}
+.realm-legacy .atl-ft-row span:last-child { color: var(--faint); }

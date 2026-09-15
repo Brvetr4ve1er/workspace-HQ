@@ -21,7 +21,7 @@ export const LEXICONS = {
     amb_machine: 'MACHINE', amb_whisper: 'TOP RISK', amb_next: 'DO NOW', amb_familiar: 'ASSISTANT',
     amb_familiar_idle: 'no sessions running',
     tab_medbay: 'SYSTEM', tab_observatory: 'NOTES', tab_watchtower: 'SCREEN TIME', tab_summoning: 'ASSISTANT',
-    tab_chronicle: 'TIMELINE', tab_atlas: 'ANALYTICS', tab_conjure: 'CANVAS', tab_social: 'SOCIAL',
+    tab_chronicle: 'TIMELINE', tab_conjure: 'CANVAS', tab_social: 'SOCIAL',
     tab_warroom: 'ON FIRE',
   },
   default: {
@@ -39,7 +39,7 @@ export const LEXICONS = {
     amb_machine: 'MACHINE', amb_whisper: 'SIDE-QUEST', amb_next: 'DO NOW', amb_familiar: 'CLAUDE',
     amb_familiar_idle: 'no sessions running',
     tab_medbay: 'MED-BAY', tab_observatory: 'OBSERVATORY', tab_watchtower: 'WATCHTOWER', tab_summoning: 'SUMMONING',
-    tab_chronicle: 'CHRONICLE', tab_atlas: 'ATLAS', tab_conjure: 'CONJURE', tab_social: 'SOCIAL',
+    tab_chronicle: 'CHRONICLE', tab_conjure: 'CONJURE', tab_social: 'SOCIAL',
     tab_warroom: 'WAR ROOM',
   },
   nightfall: {
@@ -57,7 +57,7 @@ export const LEXICONS = {
     amb_machine: 'THE VESSEL', amb_whisper: 'WHISPER', amb_next: 'THE OMEN', amb_familiar: 'FAMILIAR',
     amb_familiar_idle: 'unbound — the bell is silent',
     tab_medbay: 'THE WARD', tab_observatory: 'OBSERVATORY', tab_watchtower: 'THE SPIRE', tab_summoning: 'THE CIRCLE',
-    tab_chronicle: 'THE CHRONICLE', tab_atlas: 'THE ATLAS', tab_conjure: 'THE CONJURING', tab_social: 'THE HERALD',
+    tab_chronicle: 'THE CHRONICLE', tab_conjure: 'THE CONJURING', tab_social: 'THE HERALD',
     tab_warroom: 'THE MUSTER',
   },
 };

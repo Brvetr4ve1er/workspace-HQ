@@ -1,9 +1,24 @@
 // HISTORY — v2's STATS tab, enriched: personal-records callout, trend charts with
-// hover tooltips (value + date at the snapped point), a consistency card, and
-// clickable trophy cards that unfold their unlock criteria / progress.
-// Render order: records → charts → consistency → milestones grid.
+// hover tooltips (value + date at the snapped point), a consistency card,
+// forecast + follow-through cards (folded from the retired ATLAS realm per the
+// 2026-09-15 dead-weight audit), and clickable trophy cards that unfold their
+// unlock criteria / progress.
+// Render order: records → charts → progress cards → consistency → milestones grid.
 import { el, esc, COL, fmt, DAY_MS } from '../../ui/util.js';
 import { lineChart, stackedBar, legend, chartCard, aosKids, aosRefresh, deriveScanContext, sfx, ACH, PX } from '../../ui/components.js';
+import { momentum } from '../../intel/derive.mjs';
+import { forecastLine } from '../../intel/foresight.mjs';
+
+// numeric gate for atlas-fold cards: fmt() passes non-numbers through as raw
+// strings, so anything from scan data funnels through num() first.
+const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
+const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
+const day = (iso) => String(iso || '').slice(0, 10);
+
+// Empty state that keeps the grid even — a chart card with an empty-note body.
+function emptyChartCard(title, msg) {
+  return chartCard(title, null, `<div class="empty-note">${esc(msg)}</div>`);
+}
 
 // Consistency levels: a cosmetic streak signal, off the XP ledger. Derived at
 // render — one "active day" per calendar day with ≥1 completed task across all
@@ -193,6 +208,63 @@ function renderTrends(tc, S) {
   aosKids(charts, 'zoom-in', 70);
 }
 
+// --- Momentum forecast + Follow-through (folded from the retired ATLAS realm) --
+// derive.momentum() fits a least-squares slope over S.trends.xp, then
+// foresight.forecastLine() turns that into a display-ready trend word + ETA.
+// `now` is threaded in from the caller (never computed here or in the pure
+// intel modules) so this card time-travels correctly under the time-machine
+// scrubber, same as its neighbours.
+const TREND_LABEL = { rising: 'Rising', falling: 'Falling', flat: 'Flat' };
+
+function forecastCard(S, now) {
+  const m = momentum(S.trends, S.account, now);
+  const f = forecastLine(m);
+  const target = num(S.account?.level) + 1;
+  const sign = f.slopePerScan > 0 ? '+' : '';
+  const slopeTxt = `${sign}${f.slopePerScan} XP/scan`;
+  const sampleN = (S.trends?.xp || []).length;
+  const basisLine = `<div class="atl-fc-basis">based on ${esc(String(sampleN))} scan${sampleN === 1 ? '' : 's'}</div>`;
+  let body;
+  if (f.trend === 'falling') body = `<div class="atl-fc-note">XP is trending down — no level ETA.</div>`;
+  else if (f.trend === 'flat' || f.etaLabel === '—') body = `<div class="atl-fc-note">Not enough forward motion to project a date.</div>`;
+  else body = `<div class="atl-fc-eta">${esc(f.etaLabel)} to L${fmt(target)}</div>`;
+  const inner = `
+    <div class="atl-forecast">
+      <div class="atl-fc-slope">${esc(slopeTxt)}</div>
+      ${body}
+      ${basisLine}
+    </div>`;
+  return chartCard('Momentum forecast', esc(TREND_LABEL[f.trend] || f.trend), inner);
+}
+
+// actedOn.entries clipped to curDate. resolved := resolved || marked_done (the
+// ledger grew a marked_done field mid-life; older rows only carry resolved).
+function followCard(bundle, cd) {
+  const entries = bundle.actedOn?.entries || [];
+  const seen = entries.filter((e) => day(e.at) <= cd);
+  if (!seen.length) return emptyChartCard('Follow-through', 'No prompted actions taken yet.');
+  const total = seen.length;
+  const resolved = seen.filter((e) => e.resolved === true || e.marked_done === true).length;
+  const rate = pct(resolved, total);
+  const inner = `
+    <div class="atl-ft">
+      <div class="atl-bar"><i style="width:${rate}%"></i></div>
+      <div class="atl-ft-row"><span>${fmt(resolved)} resolved</span><span>${fmt(total)} acted on</span></div>
+    </div>`;
+  return chartCard('Follow-through', rate + '%', inner);
+}
+
+function renderProgress(parent, S, ctx) {
+  const cd = S.scan?.id || '';
+  const bundle = ctx.data.bundle || {};
+  const now = new Date().toISOString();   // injected here, never inside intel/*.mjs (they stay pure)
+  const grid = el('div', 'charts');
+  grid.appendChild(forecastCard(S, now));
+  grid.appendChild(followCard(bundle, cd));
+  aosKids(grid, 'zoom-in', 60);
+  parent.appendChild(grid);
+}
+
 function renderConsistency(parent, ctx) {
   const LX = ctx.LX;
   const days = new Set();
@@ -278,6 +350,7 @@ function render() {
   const { S } = deriveScanContext(ctx.data);
   root.innerHTML = '';
   renderTrends(root, S);
+  renderProgress(root, S, ctx);
   renderAchievements(root, S, ctx);
   aosRefresh();
 }

@@ -32,8 +32,8 @@ import { manifest as summoningM } from '../realms/summoning/manifest.js';
 import { view as summoningV } from '../realms/summoning/view.js';
 import { manifest as chronicleM } from '../realms/chronicle/manifest.js';
 import { view as chronicleV } from '../realms/chronicle/view.js';
-import { manifest as atlasM } from '../realms/atlas/manifest.js';
-import { view as atlasV } from '../realms/atlas/view.js';
+// ATLAS realm merged into LEGACY per 2026-09-15 dead-weight audit — the two
+// unique cards (forecast, follow-through) now live in legacy/view.js
 import { manifest as conjureM } from '../realms/conjure/manifest.js';
 import { view as conjureV } from '../realms/conjure/view.js';
 import { manifest as socialM } from '../realms/social/manifest.js';
@@ -64,11 +64,10 @@ register(medbayM, medbayV);
 register(observatoryM, observatoryV);
 register(watchtowerM, watchtowerV);
 register(summoningM, summoningV);
-// Charter realms 11-13 — order fields (chronicle 11, atlas 12, conjure 13) place
-// them after the existing rail; registration order here is irrelevant since the
-// registry sorts by manifest.order.
+// Charter realms 11-13 — order fields (chronicle 11, conjure 13) place them
+// after the existing rail; registration order here is irrelevant since the
+// registry sorts by manifest.order. ATLAS (12) retired 2026-09-15 (audit).
 register(chronicleM, chronicleV);
-register(atlasM, atlasV);
 register(conjureM, conjureV);
 register(socialM, socialV);
 register(studioM, studioV);

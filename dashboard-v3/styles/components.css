@@ -944,7 +944,7 @@ h2.sec.sec-fold:hover { color: var(--text); }
   flex: 1; min-width: 0; font-family: var(--term); font-size: var(--fs-sm); color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* progress bar mirrors the .atl-bar idiom (realms/atlas.css) so bars read the same everywhere */
+/* progress bar mirrors the .atl-bar idiom (folded from atlas → realms/legacy.css per 2026-09-15 audit) so bars read the same everywhere */
 .nudge-bar {
   flex: none; width: 90px; height: 7px; background: var(--ink); border: 1px solid var(--frame);
   border-radius: 4px; overflow: hidden;
