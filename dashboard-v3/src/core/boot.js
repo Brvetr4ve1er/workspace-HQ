@@ -14,8 +14,10 @@ import { manifest as forgeM } from '../realms/forge/manifest.js';
 import { view as forgeV } from '../realms/forge/view.js';
 import { manifest as huntsM } from '../realms/hunts/manifest.js';
 import { view as huntsV } from '../realms/hunts/view.js';
-import { manifest as warroomM } from '../realms/warroom/manifest.js';
-import { view as warroomV } from '../realms/warroom/view.js';
+// WARROOM realm merged into FORGE per 2026-09-15 dead-weight audit — forge's
+// existing "At risk" filter + "Risk" sort surface the same signal; the
+// dedicated SITROOM board was pure navigation cost (its only verb dispatched
+// go:forge). triage() stays exported from intel/derive.mjs for future reuse.
 import { manifest as grimoireM } from '../realms/grimoire/manifest.js';
 import { view as grimoireV } from '../realms/grimoire/view.js';
 import { manifest as landsM } from '../realms/lands/manifest.js';
@@ -56,7 +58,6 @@ import { initNotify } from './notify.mjs';
 register(roundtableM, roundtableV);
 register(forgeM, forgeV);
 register(huntsM, huntsV);
-register(warroomM, warroomV);
 register(grimoireM, grimoireV);
 register(landsM, landsV);
 register(legacyM, legacyV);

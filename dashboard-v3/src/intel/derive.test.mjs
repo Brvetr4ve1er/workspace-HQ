@@ -36,10 +36,12 @@ test('triage: secrets outrank a dirty tree; rows sorted desc by blast radius', (
   assert.ok(r.every((x,i,a) => i===0 || a[i-1].blastRadius >= x.blastRadius));
 });
 
-test('triage: blast radius is capped per kind — the ceilings warroom-model KIND_MAX mirrors', () => {
-  // The WAR ROOM HP bar divides blastRadius by a per-kind ABSOLUTE ceiling so a
-  // bar stays comparable across time-machine snapshots. Those denominators are
-  // copied from the formulas below; this test fails loudly if they drift.
+test('triage: blast radius is capped per kind — the per-kind ceilings hold', () => {
+  // Historical context: the retired WARROOM realm's HP bar divided blastRadius
+  // by a per-kind ABSOLUTE ceiling so bars stayed comparable across time-machine
+  // snapshots. Those denominators are copied from the formulas below; this test
+  // fails loudly if they drift. triage() stayed exported after the 2026-09-15
+  // audit retired the realm — pure function, reusable for future features.
   const sel = { projects: [
     { id:'p1', name:'A', metrics:{ risk_security:{secrets_found:5}, git_safety:{dirty:400} },
       signals:{has_tests:false, has_ci:false}, activity:{days_since_commit:900} },
