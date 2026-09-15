@@ -12,6 +12,120 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-09-15 · FROM frontend (DEAD-WEIGHT AUDIT — 4 commits) · main @ f39ec2a
+DONE: comprehensive dead-weight audit executed against user-approved plan.
+  Audit workflow wf_defbfc07-16d (45 agents, 39 candidates → 29 survived
+  adversarial refute → tiered removal plan). Four commits landed:
+
+  77ca7e9 Tier 1 FE-lane deletes (5 items, ~70 LOC):
+    - notifyForLatest() + 3 call sites — positive-outcome OS toasts retired
+      per ambient-companion spec (not actionable, celebrates what user
+      already did). Collector-side notify:true flags stay for future
+      ambient/voice surface (STRUCT lane owns those).
+    - hq:orphan-archive handler + preload binding + IPC-CONTRACT row
+    - hq:acted-on-read handler + preload binding + IPC-CONTRACT row
+    - Observatory NotebookLM shelf (M4 producer never shipped)
+    - capture:idea no-op action; oracle "capture" remap → capture:note
+
+  eef04e9 Brain-dump retirement (S7 finding, 80+ days zero use):
+    - Deleted: dashboard/capture.html, openCapture() function, captureWin
+      var, Ctrl+Alt+Space globalShortcut, tray "Quick capture" menu item,
+      hq:capture-cancel handler, preload captureCancel binding.
+    - KEPT: hq:capture-save handler (medbay "Note for cleanup" button
+      still uses it via core/actions.mjs capture:note action) and MCP
+      hq_capture tool (dashboard-v3/mcp/server.mjs unchanged).
+
+  80c7653 ATLAS → HISTORY merge:
+    - forecastCard + followCard folded into legacy/view.js as renderProgress
+    - Re-scoped CSS rules appended to legacy.css
+    - Deleted: atlas/manifest.js, atlas/view.js, atlas.css
+    - boot.js + lexicons.js + realms.css purged of atlas refs
+
+  1815a2d WARROOM retirement:
+    - Deleted entire warroom/ folder (5 files) + warroom.css (~840 LOC)
+    - Forge's existing "At risk" filter + "Risk" sort cover the same
+      signal from the same underlying metrics
+    - triage() export in intel/derive.mjs KEPT (pure function, reusable);
+      its 2 tests in derive.test.mjs still pass (12/12 total)
+
+  Total: ~1136 LOC removed across 4 commits. Zero test failures. Rail
+  goes from 16 realms to 14. Two dashboard/ files smaller by 100+ lines.
+
+IN-FLIGHT: nothing.
+
+ASKS for STRUCTURE lane (11 vanity-metric fixes the audit surfaced —
+  ranked by keystone impact; VAN-04 unlocks 3 others):
+
+  V1 (keystone) VAN-04 — enriched=true never ages out (5-line fix):
+    collector/assemble.mjs:52-59,306 — set enriched only when scan_id
+    matches today (or age <= N days). Currently enrichment.json is
+    36 days stale and the ~ estimate marker never fires. Cascades: fixes
+    VAN-03/05/08 by making the ~ marker do its job everywhere.
+
+  V2 VAN-01+13 — scan-day streak → commit-day streak:
+    schema/gamification.config.json:63-66,95 (rename scan_streak_7 →
+    commit_streak_7), collector/lib/gamification.mjs:35-41 (compute from
+    commit_days already in raw-metrics.json), collector/assemble.mjs:310,
+    dashboard/main.js:179,280 (tray tooltip), dashboard/mini.html:114 (HUD)
+
+  V3 VAN-02+ streak_day XP — the +10 unconditional-per-scan reward
+    (Tier 1 #3, structure-lane): schema/gamification.config.json:39 remove
+    source, collector/assemble.mjs:125-127 stop emitting. This is the
+    purest activity-XP violation — cron heartbeat rewards itself.
+
+  V4 VAN-10+11 — project graduation to Shipped shelf:
+    collector/assemble.mjs:67-73,295-300,339-364. Add active|shipped|
+    archived lifecycle; auto-graduate on measured signals; graduated
+    projects leave daily_top3 rescue selection. Kills the "Rescue X —
+    dormant 96d" nag currently haunting the daily Obsidian notes.
+
+  V5 VAN-08 — auto-dismiss stale quests when evidence vanishes:
+    collector/lib/quests.mjs:36-44. age_days > N AND !autoSatisfied AND
+    evidence-fact-still-present === false → status='dismissed_stale'.
+
+  V6 VAN-05 — stamp soft fields with scan_id_authored:
+    collector/lib/projects.mjs:161-163. Age markers or drop when the
+    evidence-object referenced no longer matches current metrics.
+
+  V7 VAN-03 — HUD HP bar leaks estimated completion% into ambient:
+    collector/lib/gamification.mjs:32 (compute measured_health without the
+    completion% weight), dashboard/main.js:179,280 (route measured_health
+    to tray), dashboard/mini.html:112-115.
+
+  V8 VAN-07 — data/quest-overrides.json GC after resolution:
+    collector/assemble.mjs:83-99. Filter overrides to entries whose
+    quest_id ∈ current quests[], write back pruned.
+
+  V9 VAN-12 — knowledge_xp gate on measured evidence:
+    schema/gamification.config.json:99, collector/assemble.mjs:132-134.
+    Currently every learnings.md line = +15 XP with no evidence link.
+
+  V10 S6 — Spellcraft XP only on outcome:
+    collector/lib/spellcraft.mjs, collector/assemble.mjs,
+    schema/gamification.config.json. XP only when outcome:'resolved' AND
+    exit_code===0 AND duration_ms >= 5000. Fizzles earn zero.
+
+  V11 (spec §5 floor, larger) VAN-09 — deterministic voice layer:
+    Build dashboard/voice.json (curated line library) + collector/voice.mjs
+    (deterministic line picker). Once landed, retired positive-outcome
+    notifications can migrate their happy-events to the tray tooltip /
+    dashboard header voice line instead of nowhere.
+
+BREAKS: none. Two rail tabs (ATLAS "ANALYTICS", WARROOM "ON FIRE") disappear
+  in the UI; every unique piece of content moved into a live realm or was
+  itself the redundancy. Ctrl+Alt+Space frameless capture no longer opens
+  (retirement approved by user); the underlying capture IPC still works.
+  Positive-outcome OS notifications no longer fire (retirement approved
+  by user); no other flow depended on them. IPC-CONTRACT.md purged of the
+  two dead handler rows.
+
+VERIFY on next relaunch: rail shows 14 realms (was 16 — ATLAS + WARROOM
+  gone). HISTORY realm now has forecast + follow-through cards below the
+  trends charts. PROJECTS realm unchanged (already had At risk filter +
+  Risk sort). Ctrl+Alt+Space is a no-op. No OS toasts on scan-complete.
+
+---
+
 ## 2026-09-13 · FROM frontend (PC-BRAIN PHASE 0/1) · main @ bc9790b
 DONE: local-model seam + first live swap.
 
