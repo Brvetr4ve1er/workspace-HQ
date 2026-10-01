@@ -46,7 +46,8 @@ export function toggleOneThing() {
 // v2-verbatim guards: inputs eat keys; F must be bare of ctrl/meta/alt.
 // Escape here only leaves focus — drawer Escape belongs to the chrome port.
 function onKey(e) {
-  if (e.target.tagName === 'INPUT') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
   if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { toggleOneThing(); return; }
   if (e.key === 'Escape') exitOneThing(false);
 }
