@@ -60,6 +60,11 @@ IN-FLIGHT: nothing in the frontend lane. collector/collector.config.json,
 ASKS (structure lane): the 11 vanity-metric asks from 2026-09-15 still
   stand. The ORACLE now labels those values as estimates in its context,
   but fixing them at the source (VAN-04 first) makes every answer better.
+  VAN-05 got more visible: even with live "now:" counts beside it, the 7B
+  model quotes a task title verbatim ("Push DOCTOR CHERFIA CLINIC (5
+  ahead)"). Refreshing quest titles/insights at scan time
+  (collector/lib/quests.mjs carries them unchanged from creation) fixes
+  what the ORACLE says, not just what the board shows.
   Also: pc-health GPU VRAM via nvidia-smi instead of WMI AdapterRAM.
 BREAKS: none. hq:llm:probe gained an optional arg; draft-commit return
   shape unchanged. Ollama must be running for ORACLE (it starts at login).
