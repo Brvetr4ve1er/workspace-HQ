@@ -26,6 +26,7 @@ const PORT = 47821;
 const HOST = '127.0.0.1';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 4000;
+const BROWSER_WINDOW_DAYS = 3;   // rolling window of browser-activity.json (exported: ORACLE labels its totals with it)
 const MAX_BODY = 512 * 1024;
 
 // ---- shared machinery (every tendril goes through these) ----
@@ -92,7 +93,7 @@ const TENDRILS = [
     route: 'browser',
     legacyRoutes: ['/ingest'],   // the deployed extension POSTs bare /ingest
     sidecarPath: 'browser-activity.json',
-    windowDays: 3,
+    windowDays: BROWSER_WINDOW_DAYS,
     maxEvents: MAX_EVENTS,
     dedupe: (e) => `${e.ts}|${e.domain}|${e.path}|${e.focus_ms}`,
     sanitize: sanitizeBrowser,
@@ -217,4 +218,4 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
   };
 }
 
-module.exports = { startBridge, BRIDGE_PORT: PORT };
+module.exports = { startBridge, BRIDGE_PORT: PORT, BROWSER_WINDOW_DAYS };

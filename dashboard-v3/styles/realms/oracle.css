@@ -1,0 +1,168 @@
+/* ORACLE realm — local-model chat. Everything scoped under .realm-oracle.
+   Shared token ramp only (--ash/--edge/--parch/--gold/--active/--card/--frame
+   …), so every theme reskins it for free. The realm fills #stage's content box
+   and runs its own flex column: header + source chips on top, the log scrolls,
+   the composer stays pinned at the bottom. */
+
+.realm-oracle {
+  display: flex; flex-direction: column;
+  /* #statusbar is position:fixed (~34px) and some themes shrink #stage's
+     bottom padding to 20px — inset our own bottom so the composer never
+     slides under it. */
+  box-sizing: border-box; padding-bottom: 36px;
+  height: 100%; min-height: 420px;
+  max-width: 980px; margin: 0 auto;
+  gap: var(--space-3);
+  animation: or-in .3s ease;
+}
+@keyframes or-in { from { opacity: 0; transform: translateY(6px); } }
+.realm-oracle [hidden] { display: none !important; }
+
+/* ---- header ------------------------------------------------------------- */
+.realm-oracle .or-head {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-2) var(--space-1) 0;
+}
+.realm-oracle .or-title { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 280px; }
+.realm-oracle .or-mark {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; flex: none;
+  border: 1px solid var(--frame, var(--edge)); border-radius: 10px;
+  color: var(--gold, var(--active)); background: var(--card, var(--ash));
+}
+.realm-oracle .or-name {
+  font-family: var(--px, var(--font-ui)); font-size: var(--fs-sm); font-weight: 700;
+  letter-spacing: .08em; color: var(--parch, var(--text));
+}
+.realm-oracle .or-sub { font-size: var(--fs-xs); color: var(--muted, var(--parch-3)); margin-top: 2px; }
+
+.realm-oracle .or-status {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-family: var(--term, var(--font-data)); font-size: var(--fs-xs);
+  color: var(--muted, var(--parch-3));
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--frame, var(--edge)); border-radius: 999px;
+  max-width: 100%; min-width: 0;
+}
+.realm-oracle .or-status-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.realm-oracle .or-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--faint, var(--parch-3)); }
+.realm-oracle .or-status.ok .or-dot { background: var(--green, #3aff6e); box-shadow: 0 0 6px var(--green, #3aff6e); }
+.realm-oracle .or-status.ok { color: var(--parch, var(--text)); }
+.realm-oracle .or-status.warn .or-dot { background: var(--gold, #ffd23f); }
+.realm-oracle .or-status.off .or-dot { opacity: .45; }
+.realm-oracle .or-status.probing .or-dot { animation: or-pulse 1.3s ease-in-out infinite; }
+@keyframes or-pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+
+.realm-oracle .or-new,
+.realm-oracle .or-retry {
+  appearance: none; cursor: pointer;
+  font-family: var(--term, var(--font-data)); font-size: var(--fs-xs); letter-spacing: .04em;
+  padding: var(--space-2) var(--space-3); min-height: var(--tap-min, 32px);
+  background: transparent; color: var(--muted, var(--parch-3));
+  border: 1px solid var(--frame, var(--edge)); border-radius: 6px;
+}
+.realm-oracle .or-new:hover:not(:disabled),
+.realm-oracle .or-retry:hover { color: var(--parch, var(--text)); border-color: var(--active, var(--gold)); }
+.realm-oracle .or-new:disabled { opacity: .4; cursor: default; }
+
+/* ---- source chips ------------------------------------------------------- */
+.realm-oracle .or-sources { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: 0 var(--space-1); }
+.realm-oracle .or-src-lbl {
+  font-family: var(--term, var(--font-data)); font-size: var(--fs-xs);
+  color: var(--faint, var(--parch-3)); margin-right: var(--space-1);
+}
+.realm-oracle .or-src {
+  appearance: none; cursor: pointer;
+  font-size: var(--fs-xs); padding: 4px 10px; border-radius: 999px;
+  background: transparent; color: var(--muted, var(--parch-3));
+  border: 1px dashed var(--frame, var(--edge));
+  transition: color .12s, border-color .12s, background .12s;
+}
+.realm-oracle .or-src:hover { color: var(--parch, var(--text)); }
+.realm-oracle .or-src.on {
+  color: var(--gold-2, var(--active)); border-style: solid; border-color: var(--active, var(--gold));
+  background: var(--card, transparent);
+}
+
+/* ---- log ---------------------------------------------------------------- */
+.realm-oracle .or-log {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid var(--frame, var(--edge)); border-radius: 10px;
+  background: var(--ink, transparent);
+}
+.realm-oracle .or-msg { max-width: 86%; display: flex; flex-direction: column; gap: var(--space-1); }
+.realm-oracle .or-user { align-self: flex-end; }
+.realm-oracle .or-bot { align-self: flex-start; }
+.realm-oracle .or-body {
+  padding: var(--space-2) var(--space-3); border-radius: 10px;
+  font-size: var(--fs-sm); line-height: 1.55; color: var(--parch, var(--text));
+  overflow-wrap: anywhere;
+}
+.realm-oracle .or-user .or-body {
+  white-space: pre-wrap;
+  background: var(--card-hi, var(--ash)); border: 1px solid var(--frame-hi, var(--edge));
+}
+.realm-oracle .or-bot .or-body {
+  background: var(--card, var(--ash)); border: 1px solid var(--frame, var(--edge));
+  border-left: 3px solid var(--active, var(--gold));
+}
+.realm-oracle .or-body .md-p { margin: 0 0 var(--space-2); }
+.realm-oracle .or-body .md-p:last-child { margin-bottom: 0; }
+.realm-oracle .or-body .md-li { margin: 2px 0 2px var(--space-2); }
+.realm-oracle .or-body .md-h { font-weight: 700; color: var(--gold, var(--text)); margin: var(--space-2) 0 var(--space-1); }
+.realm-oracle .or-body b { color: var(--gold-2, var(--text)); }
+.realm-oracle .or-think { color: var(--faint, var(--parch-3)); font-style: italic; animation: or-pulse 1.3s ease-in-out infinite; }
+.realm-oracle .or-msg.streaming .or-body::after {
+  content: '▍'; margin-left: 2px; color: var(--active, var(--gold));
+  animation: or-pulse 1s steps(2) infinite;
+}
+.realm-oracle .or-meta {
+  font-family: var(--term, var(--font-data)); font-size: var(--fs-xs);
+  color: var(--faint, var(--parch-3)); padding: 0 var(--space-1);
+}
+.realm-oracle .or-meta.warn { color: var(--gold, var(--muted)); }
+
+/* empty state */
+.realm-oracle .or-empty { margin: auto; max-width: 560px; text-align: center; padding: var(--space-5) var(--space-3); }
+.realm-oracle .or-empty-t { font-size: var(--fs-lg, 18px); color: var(--parch, var(--text)); margin-bottom: var(--space-2); }
+.realm-oracle .or-empty-s { font-size: var(--fs-sm); color: var(--muted, var(--parch-3)); line-height: 1.5; margin-bottom: var(--space-2); }
+.realm-oracle .or-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); }
+.realm-oracle .or-prompt {
+  appearance: none; cursor: pointer;
+  font-size: var(--fs-sm); padding: var(--space-2) var(--space-3); border-radius: 8px;
+  background: var(--card, var(--ash)); color: var(--parch, var(--text));
+  border: 1px solid var(--frame, var(--edge));
+}
+.realm-oracle .or-prompt:hover:not(:disabled) { border-color: var(--active, var(--gold)); color: var(--gold-2, var(--active)); }
+.realm-oracle .or-prompt:disabled { opacity: .45; cursor: default; }
+
+/* ---- offline panel ------------------------------------------------------ */
+.realm-oracle .or-offline {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4); border-radius: 10px;
+  border: 1px solid var(--gold, var(--edge)); background: var(--card, var(--ash));
+}
+.realm-oracle .or-off-t { font-weight: 700; color: var(--parch, var(--text)); }
+.realm-oracle .or-off-s { font-size: var(--fs-sm); color: var(--muted, var(--parch-3)); flex: 1 1 240px; }
+
+/* ---- composer ----------------------------------------------------------- */
+.realm-oracle .or-compose { display: flex; align-items: flex-end; gap: var(--space-2); }
+.realm-oracle .or-input {
+  flex: 1 1 auto; resize: none; min-height: 42px; max-height: 160px;
+  font: inherit; font-size: var(--fs-sm); line-height: 1.45;
+  padding: var(--space-2) var(--space-3); border-radius: 10px;
+  background: var(--card, var(--ash)); color: var(--parch, var(--text));
+  border: 1px solid var(--frame, var(--edge)); outline: none;
+}
+.realm-oracle .or-input:focus { border-color: var(--active, var(--gold)); box-shadow: 0 0 0 1px var(--active, var(--gold)); }
+.realm-oracle .or-input:disabled { opacity: .5; }
+.realm-oracle .or-send {
+  appearance: none; cursor: pointer; flex: none;
+  min-height: 42px; padding: 0 var(--space-4); border-radius: 10px;
+  font-family: var(--px, var(--font-ui)); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .06em;
+  background: linear-gradient(180deg, var(--card-hi, var(--ash)), var(--card, var(--ash)));
+  color: var(--gold, var(--active)); border: 1px solid var(--active, var(--gold));
+}
+.realm-oracle .or-send.stop { color: var(--blood, #ff4757); border-color: var(--blood, #ff4757); }
+.realm-oracle .or-send:disabled { opacity: .45; cursor: default; }

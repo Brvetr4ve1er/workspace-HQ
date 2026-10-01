@@ -113,6 +113,14 @@
   </symbol>
 
   <!-- ASSISTANT · summoning — magic circle with a rune. -->
+  <!-- ORACLE · oracle — a crystal orb on a stand, with a spark inside. -->
+  <symbol id="i-realm-oracle" viewBox="0 0 24 24">
+    <circle cx="12" cy="10" r="6.5"/>
+    <path d="M8.5 16.2L7 19.5h10l-1.5-3.3"/>
+    <path d="M5.5 21h13"/>
+    <path d="M12 6.8v2.4M10.8 8h2.4"/>
+    <circle class="f" cx="9.6" cy="11.6" r=".8"/>
+  </symbol>
   <symbol id="i-realm-summoning" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="8.5"/>
     <circle cx="12" cy="12" r="5"/>

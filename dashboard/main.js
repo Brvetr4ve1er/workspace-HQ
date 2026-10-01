@@ -730,7 +730,101 @@ ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
 // ---- PC-Brain L3: local model runtime probe -----------------------------------
 // The medbay realm calls this on mount to show whether Ollama/LM Studio is up.
 // Renderer never gets to send prompts through this channel — this is presence only.
-ipcMain.handle('hq:llm:probe', () => llmLocal.probe());
+ipcMain.handle('hq:llm:probe', (_e, opts) => llmLocal.probe({ force: opts?.force === true }));
+
+// ---- PC-Brain Phase 2: ORACLE chat --------------------------------------------
+// The renderer sends {jobId, messages, include}; main builds the grounding
+// CONTEXT from the app's own data files (llm-context.js), prepends the persona,
+// and streams the reply back. Model output only ever reaches the ORACLE realm —
+// never the tray, HUD, or notifications (ambient-companion honesty boundary).
+const llmContext = require('./llm-context');
+let personaText = null;
+function oraclePersona() {
+  if (personaText == null) {
+    try { personaText = fs.readFileSync(path.join(DIR, 'llm-persona.md'), 'utf8'); }
+    catch { personaText = 'You are a concise assistant. Answer only from the CONTEXT block; if the answer is not there, say so.'; }
+  }
+  return personaText;
+}
+const llmJobs = new Map();   // jobId -> AbortController
+const LLM_JOB_RE = /^[a-z0-9-]{4,40}$/i;
+function cleanChatReq(req) {
+  if (!req || typeof req !== 'object') return { error: 'bad request' };
+  const jobId = String(req.jobId || '');
+  if (!LLM_JOB_RE.test(jobId)) return { error: 'bad job id' };
+  if (llmJobs.has(jobId)) return { error: 'job already running' };
+  const msgs = (Array.isArray(req.messages) ? req.messages.slice(-20) : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+  // Newest-first history budget (~2k tokens) so persona + context + history +
+  // answer stay inside the 8k window llm-local asks Ollama for.
+  const kept = [];
+  let budget = 8000;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    budget -= msgs[i].content.length;
+    if (budget < 0 && kept.length) break;
+    kept.unshift(msgs[i]);
+  }
+  if (!kept.length || kept[kept.length - 1].role !== 'user') return { error: 'the last message must be from the user' };
+  const include = {};
+  for (const id of llmContext.SECTION_IDS) include[id] = req.include?.[id] === true;
+  return { jobId, messages: kept, include };
+}
+ipcMain.handle('hq:llm:warm', () => llmLocal.warm());
+ipcMain.handle('hq:llm:chat', async (e, req) => {
+  const c = cleanChatReq(req);
+  if (c.error) return { status: 'error', reason: c.error, output: '' };
+  const t0 = Date.now();
+  // Registered BEFORE any await: a Stop pressed while the vault is still being
+  // searched must find the job, and a duplicate jobId must be refused.
+  const ac = new AbortController();
+  llmJobs.set(c.jobId, ac);
+  // The renderer that asked can disappear mid-answer (main reloads the window
+  // after scans and commits): abort instead of generating into the void.
+  const sender = e.sender;
+  const kill = () => ac.abort();
+  const onNav = (ev) => { if (ev && (ev.isMainFrame === false || ev.isSameDocument === true)) return; kill(); };
+  sender.on('did-start-navigation', onNav);
+  sender.once('destroyed', kill);
+  sender.once('render-process-gone', kill);
+  // Push the ACCUMULATED text (not deltas), throttled to ~25/s — a renderer
+  // that re-mounts mid-answer re-attaches cleanly instead of missing chunks.
+  let latest = '', lastSent = 0, timer = null;
+  const flush = () => {
+    timer = null; lastSent = Date.now();
+    if (!sender.isDestroyed()) sender.send('hq:llm:delta', { jobId: c.jobId, text: latest });
+  };
+  try {
+    const ctx = await llmContext.assemble({
+      dataDir: DATA, vaultDir: VAULT, include: c.include, query: c.messages[c.messages.length - 1].content,
+      activity: bridge ? bridge.readActivity() : null,
+    });
+    if (ac.signal.aborted) return { status: 'cancelled', output: '', sections: ctx.sections, contextChars: ctx.chars, ms: Date.now() - t0 };
+    // The persona file is split at <!-- after-context -->: the answer rules go
+    // AFTER the data, where a small model weights them most.
+    const [personaPre, personaPost = ''] = oraclePersona().split('<!-- after-context -->');
+    const r = await llmLocal.stream({
+      messages: [{ role: 'system', content: `${personaPre.trim()}\n\n## CONTEXT\n${ctx.text}\n\n${personaPost.trim()}`.trim() }, ...c.messages],
+      signal: ac.signal,
+      onText: (t) => { latest = t; if (!timer) timer = setTimeout(flush, Math.max(0, 40 - (Date.now() - lastSent))); },
+    });
+    return { ...r, sections: ctx.sections, contextChars: ctx.chars, ms: Date.now() - t0 };
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (llmJobs.get(c.jobId) === ac) llmJobs.delete(c.jobId);
+    if (!sender.isDestroyed()) {
+      sender.removeListener('did-start-navigation', onNav);
+      sender.removeListener('destroyed', kill);
+      sender.removeListener('render-process-gone', kill);
+    }
+  }
+});
+ipcMain.handle('hq:llm:cancel', (_e, jobId) => {
+  const ac = llmJobs.get(String(jobId || ''));
+  if (!ac) return false;
+  ac.abort();
+  return true;
+});
 
 // ---- Commit drafter (Wave 4): claude -p over git diff -> conventional commit ----
 // MA: async via the sessions registry — the main process no longer freezes for

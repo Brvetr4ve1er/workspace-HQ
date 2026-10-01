@@ -32,6 +32,8 @@ import { manifest as watchtowerM } from '../realms/watchtower/manifest.js';
 import { view as watchtowerV } from '../realms/watchtower/view.js';
 import { manifest as summoningM } from '../realms/summoning/manifest.js';
 import { view as summoningV } from '../realms/summoning/view.js';
+import { manifest as oracleM } from '../realms/oracle/manifest.js';
+import { view as oracleV } from '../realms/oracle/view.js';
 import { manifest as chronicleM } from '../realms/chronicle/manifest.js';
 import { view as chronicleV } from '../realms/chronicle/view.js';
 // ATLAS realm merged into LEGACY per 2026-09-15 dead-weight audit — the two
@@ -65,6 +67,7 @@ register(medbayM, medbayV);
 register(observatoryM, observatoryV);
 register(watchtowerM, watchtowerV);
 register(summoningM, summoningV);
+register(oracleM, oracleV);   // PC-Brain Phase 2 — local-model chat (order 10.5)
 // Charter realms 11-13 — order fields (chronicle 11, conjure 13) place them
 // after the existing rail; registration order here is irrelevant since the
 // registry sorts by manifest.order. ATLAS (12) retired 2026-09-15 (audit).

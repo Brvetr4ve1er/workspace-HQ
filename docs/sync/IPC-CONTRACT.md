@@ -30,11 +30,10 @@ grep the channel name).
 | `reclaim(projPath, dirNames)` | `hq:reclaim` | abs path, dir names[] | async result | main |
 | `snapshot(projPath, name)` | `hq:snapshot` | abs path, snapshot name | async result | main |
 | **Capture** | | | | |
-| `captureSave(text)` | `hq:capture-save` | brain-dump text | — | capture window |
-| `captureCancel()` | `hq:capture-cancel` | — | `true` (closes window) | capture window |
+| `captureSave(text)` | `hq:capture-save` | brain-dump text | `true` \| `false` (empty text) — appends to `data/brain-dump.json`, re-assembles, reloads | v3 `capture:note` action (Med-Bay "Note for cleanup", HOME suggestion card's "Capture" outcome) — the frameless Ctrl+Alt+Space window and `hq:capture-cancel` were retired 2026-09-15 |
 | **Claude** | | | | |
 | `claudeQuest(projPath, prompt)` | `hq:claude-quest` | abs path, prompt | — (spawns terminal session) | main |
-| `draftCommit(projPath)` | `hq:draft-commit` | abs path | draft message (blocking spawnSync → MA converts) | main |
+| `draftCommit(projPath)` | `hq:draft-commit` | abs path | `{message, via:'local:<runtime>'\|'claude'}` \| `{error}` — local model first (30 s), Claude CLI fallback (90 s); async | main |
 | `doCommit(projPath, msg)` | `hq:do-commit` | abs path, message | commit result | main |
 | **Journal** | | | | |
 | `logDecision(projId, text)` | `hq:log-decision` | id, text | — | main |
@@ -101,6 +100,11 @@ this row omits `baseline` entirely; treat a missing field as `{state:'none'}`.
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 | **Social bridge** | | | | |
 | `getSocial()` | `hq:social-read` | — | `{inbox, outbox, accounts}` from `data/social/*` (read-only snapshot) \| `null` | main (SOCIAL realm) |
+| **PC-Brain — local model (owns `dashboard/llm-local.js`, `dashboard/llm-context.js`)** | | | | |
+| `probeLlm(opts?)` | `hq:llm:probe` | `{force?:boolean}` | `{available, runtime?:'ollama'\|'lmstudio', endpoint?, models?:[{id,size}], reason?}` — cached 30 s unless `force` | Med-Bay status row, ORACLE realm |
+| `llm.warm()` | `hq:llm:warm` | — | `{status:'warm'\|'skipped'\|'unavailable'\|'error', model?, reason?}` — loads the chat model into VRAM (8k ctx, keep_alive 30 m); coalesced, ≤ 1 load/min | ORACLE realm |
+| `llm.chat(req)` | `hq:llm:chat` | `{jobId:/^[a-z0-9-]{4,40}$/i, messages:[{role:'user'\|'assistant', content}] (≤20, ≤4000 chars each, last must be user), include:{scan,tasks,projects,health,browser,vault: boolean}}` | `{status:'done'\|'cancelled'\|'error'\|'unavailable', output, reason?, runtime?, model?, sections:[{id,label,chars,clipped,note?}], contextChars, ms}` — main builds the grounding CONTEXT itself; the renderer never sends one. Model output is shown ONLY in the ORACLE realm (ambient-companion honesty boundary) | ORACLE realm |
+| `llm.cancel(jobId)` | `hq:llm:cancel` | job id | `true` if a running job was aborted, else `false` | ORACLE realm |
 | **v3 STUDIO — screen capture (owns `dashboard/screen-capture.js`)** | | | | |
 | `studio.panelToggle()` | `hq:studio:panel-toggle` | — | `true` (shows/hides the FloatingPanel; creates it on first call) | tray / hotkey / STUDIO realm |
 | `studio.snipArm(kind)` | `hq:studio:snip-arm` | `{kind:'region'\|'full'\|'window'}` (default `'region'`) | `true` — main freezes every display via `desktopCapturer.getSources` at each display's native pixel size, spawns one transparent overlay BrowserWindow per Display, and pushes the freeze on `hq:studio:snip-frozen` | panel / Ctrl+Alt+S / STUDIO realm |
@@ -142,6 +146,7 @@ realm switches is the #1 porting hazard).
 | `onClaudeSessions(cb)` | `hq:claude-sessions` | full sessions list | any registry change (start/stream-end/linger-expiry) |
 | `onCanvas(cb)` | `hq:canvas` | full boards list | any `.canvas` file change in `data/canvas/` (300ms debounce) |
 | `onSessionOutput(cb)` | `hq:session-output` | `{jobId, chunk}` (chunk is untrusted text — render via `textContent`/`esc()` only; since 2026-08-19 chunk is PARSED text, see note below) | a `sessionStart` session emits stdout/stderr |
+| `llm.onDelta(cb)` | `hq:llm:delta` | `{jobId, text}` — the ACCUMULATED answer so far (not an increment), throttled ~25/s, so a realm that re-mounts mid-answer re-attaches cleanly. Untrusted model text — render via `mdLite()`/`textContent` only | an `llm.chat` job streams tokens |
 | `studio.recStatus(cb)` | `hq:studio:rec-status` | `{state:'recording'\|'backpressure'\|'drained'\|'stopped'\|'aborted'\|'auto-split'\|'stopped-lowdisk'\|'error', recId, elapsedMs?, bytes?, sourceLabel?, mic?, sysAudio?, lastPath?}` | 1 Hz push while any recording is live, plus one-shot state transitions |
 | `studio.onCaptureAdded(cb)` | `studio:capture-added` | `{kind:'shot'\|'rec', path, at, durationMs?, bytes?}` | atomic write of a shot or recording finishes; STUDIO realm prepends a tile without polling |
 | `studio.onSnipFrozen(cb)` | `hq:studio:snip-frozen` | `{displayId, pngDataUrl, bounds, scaleFactor, kind, displayIndex}` | overlay window is ready; main hands it the freeze so the paint is real pixels |

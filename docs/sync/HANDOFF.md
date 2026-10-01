@@ -12,6 +12,60 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-01 · FROM frontend (PC-BRAIN PHASE 2 — ORACLE realm) · main @ 56489ae
+DONE: ORACLE — a 15th v3 realm (rail order 10.5, after ASSISTANT; keys 1-9
+  unchanged) for chatting with the LOCAL model about the user's own data.
+
+  dashboard/llm-local.js: native Ollama /api/chat streaming (num_ctx 8192,
+    keep_alive 30m — the /v1 endpoint ignores both), SSE for LM Studio,
+    warm() preloads the model into VRAM, run() (draft-commit) now rides
+    stream(). LOCAL-ONLY: the chat model is pinned (HQ_LLM_MODEL env, default
+    qwen2.5:7b-instruct-q4_K_M) and Ollama *cloud* models (remote_host /
+    -cloud) are refused everywhere — they would proxy the CONTEXT and commit
+    diffs to ollama.com. probe() returns chatModel; the UI shows that.
+  dashboard/llm-context.js (new): builds the grounding CONTEXT main-side from
+    latest.json, pc-health.json, browser activity and a read-only keyword
+    search of VEEMO CORTEX. Honesty at the source: completion %, health
+    index, streak and build status are labelled estimates; LLM-authored
+    side-quests and stale insights/suggestions/roadmap are excluded; task
+    titles get live "now:" counts; GPU VRAM omitted (WMI bug); vault skips
+    30_Areas/Workspace Status/ snapshots and dates every hit. 4 KB/section,
+    12 KB total.
+  dashboard/main.js: hq:llm:warm / hq:llm:chat / hq:llm:cancel + push
+    hq:llm:delta (accumulated text, ~25/s). Job registered before any await;
+    aborted if the window reloads, navigates or dies. hq:llm:probe takes
+    {force}. Persona split at <!-- after-context -->: answer rules go AFTER
+    the data (a 7B model weights them most).
+  dashboard-v3/src/realms/oracle/: chat UI — source chips (scan/tasks/
+    projects default on), streaming bubble, Stop, New chat, per-day history
+    in localStorage, offline + "no local chat model" panels, grounded-in
+    footer. Model output reaches ONLY this realm (honesty boundary).
+  Also: roundtable/focus.js F-hotkey ignored TEXTAREA (typing "f" in any
+    textarea toggled focus mode) — fixed. browser-bridge exports
+    BROWSER_WINDOW_DAYS. Med-Bay status row shows the pinned chat model.
+    IPC-CONTRACT: llm rows added; stale captureCancel row removed;
+    draftCommit row updated.
+
+  Verified: live answers 1.5–2 s warm ("work on today?" → one pick, 22–39
+    words); follow-up history; honest "not in what I can see" refusal; vault
+    answers; Stop keeps partial; leave-realm-mid-answer re-attaches cleanly;
+    offline panel with Ollama killed; selftest 105 combos 0 errors; 64/64
+    unit tests. Review workflow wf_7147195b-6ae: 15 confirmed findings, all
+    fixed in this block (incl. the cloud-model leak and two high honesty
+    findings: model-judged build status, vault snapshots).
+
+IN-FLIGHT: nothing in the frontend lane. collector/collector.config.json,
+  data/quest-overrides.json, run-scan.ps1, schema/workspace-scan.schema.json
+  are modified in the tree but are NOT mine — left untouched.
+ASKS (structure lane): the 11 vanity-metric asks from 2026-09-15 still
+  stand. The ORACLE now labels those values as estimates in its context,
+  but fixing them at the source (VAN-04 first) makes every answer better.
+  Also: pc-health GPU VRAM via nvidia-smi instead of WMI AdapterRAM.
+BREAKS: none. hq:llm:probe gained an optional arg; draft-commit return
+  shape unchanged. Ollama must be running for ORACLE (it starts at login).
+
+---
+
 ## 2026-09-15 · FROM frontend (DEAD-WEIGHT AUDIT — 4 commits) · main @ f39ec2a
 DONE: comprehensive dead-weight audit executed against user-approved plan.
   Audit workflow wf_defbfc07-16d (45 agents, 39 candidates → 29 survived

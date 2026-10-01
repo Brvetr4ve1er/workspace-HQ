@@ -393,7 +393,7 @@ function renderRuntimeStatus(parent) {
   const label = LLM_STATUS == null
     ? 'AI runtime: probing…'
     : (LLM_STATUS.available
-      ? `AI runtime: ${LLM_STATUS.runtime}${LLM_STATUS.models?.[0]?.id ? ` · ${LLM_STATUS.models[0].id}` : ''}${LLM_STATUS.models?.length > 1 ? ` (+${LLM_STATUS.models.length - 1} more)` : ''}`
+      ? `AI runtime: ${LLM_STATUS.runtime} · ${LLM_STATUS.chatModel || 'no local chat model'}${LLM_STATUS.models?.length > 1 ? ` (${LLM_STATUS.models.length} models installed)` : ''}`
       : 'AI runtime: none detected — install Ollama or LM Studio to enable local model features');
   const cls = LLM_STATUS == null ? 'airs-probing' : (LLM_STATUS.available ? 'airs-ok' : 'airs-off');
   row.classList.add(cls);

@@ -13,7 +13,19 @@ contextBridge.exposeInMainWorld('hq', {
   draftCommit: (projPath) => ipcRenderer.invoke('hq:draft-commit', projPath),
   doCommit: (projPath, msg) => ipcRenderer.invoke('hq:do-commit', projPath, msg),
   // PC-Brain Phase 0/1: presence-check for a local LLM runtime (Ollama/LM Studio)
-  probeLlm: () => ipcRenderer.invoke('hq:llm:probe'),
+  probeLlm: (opts) => ipcRenderer.invoke('hq:llm:probe', opts),
+  // PC-Brain Phase 2: ORACLE chat. onDelta pushes the accumulated answer text;
+  // the chat() promise resolves with the final result. Unsubscribe on unmount.
+  llm: {
+    warm: () => ipcRenderer.invoke('hq:llm:warm'),
+    chat: (req) => ipcRenderer.invoke('hq:llm:chat', req),
+    cancel: (jobId) => ipcRenderer.invoke('hq:llm:cancel', jobId),
+    onDelta: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:llm:delta', handler);
+      return () => ipcRenderer.removeListener('hq:llm:delta', handler);
+    },
+  },
   logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
