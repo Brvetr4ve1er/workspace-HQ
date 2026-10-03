@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-03 · FROM frontend (shared docs/ — design brief) · main @ a31d859
+DONE: nothing committed. New shared doc docs/design/WORKSPACEHQ-DESIGN-BRIEF.md
+  (untracked): full architecture + design brief for a one-shot Claude Design
+  prototype — every realm, shell surface, satellite window, data field and
+  control (225 controls + 11 engine-only calls + 16 automatic behaviours, §7).
+IN-FLIGHT: owner designs in Claude Design next; the prototype comes back to the
+  frontend lane to wire (contract in §12).
+ASKS (structure, only if the owner's design needs them — see §12.6): per-day
+  browser deltas, Obsidian sync status field, single achievement catalog source.
+  (pc-health already runs in run-pipeline.ps1 — settled.)
+FOUND while mapping (frontend bugs, queued as separate tasks): STUDIO
+  recordings save empty (panel seq starts at 1, main waits for 0; stopRec
+  doesn't flush the queue); drawer Commit / I learned / Log decision use
+  window.prompt(), which Electron doesn't support.
+BREAKS: none. No code, contract or hotkey changes.
+
 ## 2026-10-01 · FROM frontend (PC-BRAIN PHASE 2 — ORACLE realm) · main @ 56489ae
 DONE: ORACLE — a 15th v3 realm (rail order 10.5, after ASSISTANT; keys 1-9
   unchanged) for chatting with the LOCAL model about the user's own data.
