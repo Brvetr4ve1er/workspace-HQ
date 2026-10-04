@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Same policy as dashboard-v3: no eval, no remote origins. Inline style
+       attributes are allowed because the Claude Design template is inline-styled. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' file:; font-src 'self';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WorkspaceHQ</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../dashboard-v3/icons/pngs/hq-32.png" />
+  <link rel="icon" type="image/png" sizes="256x256" href="../dashboard-v3/icons/pngs/hq-256.png" />
+  <link rel="stylesheet" href="./styles/app.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <!-- window.DATA: scans + sidecars baked by dashboard/build-data.mjs (the
+       renderer never fetches; main rebuilds + reloads after every write). -->
+  <script src="../dashboard/data.js"></script>
+  <!-- The design's helper scripts, loaded the way the prototype loads them
+       (classic scripts that define custom elements and window.HQFx). -->
+  <script src="./src/elements/hq-fx.js"></script>
+  <script src="./src/elements/hq-obj-viewer.js"></script>
+  <script src="./src/elements/hq-v3.js"></script>
+  <script type="module" src="./src/boot.js"></script>
+</body>
+</html>

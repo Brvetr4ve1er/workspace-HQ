@@ -1,0 +1,24 @@
+/* WorkspaceHQ v3 (Claude Design build) — global styles.
+   Everything per-component is inline in src/app.tpl.js, as authored. This file
+   is the prototype's <helmet> <style>, plus the font it pulled from Google
+   Fonts, vendored locally (CSP: no remote origins). */
+
+/* IBM Plex Mono, SIL OFL 1.1 (fonts/OFL.txt). Two files cover the three weights
+   the design asks for: 400/500 → Regular, 600 → Bold (no synthetic bolding). */
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/IBMPlexMono-Regular.ttf') format('truetype'); font-weight: 400 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/IBMPlexMono-Bold.ttf') format('truetype'); font-weight: 600 700; font-style: normal; font-display: swap; }
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#0d0d0f}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:var(--link);text-decoration:none} a:hover{color:var(--link-hover)}
+
+[data-hq-theme]{--bg:#0d0d0f;--bg2:#121214;--panel:rgba(16,16,18,.78);--card:rgba(22,22,24,.9);--card-hi:#1f1e21;--ink:#0a0a0b;--frame:#2c2a27;--frame-hi:#4d4841;--text:#e8e4dc;--muted:#a39d92;--faint:#6e695f;--gold:#d97757;--gold-2:#e8916f;--accent-text:#e8916f;--green:#86b98a;--red:#e5645a;--orange:#e0a35a;--yellow:#d8c26a;--blue:#7aa2d6;--purple:#b39ddb;--cyan:#7cc4c0;--link:#e8916f;--link-hover:#f2b394;--scrim:rgba(8,8,9,.62);--term:'IBM Plex Mono',ui-monospace,Menlo,monospace;--px:'IBM Plex Mono',ui-monospace,Menlo,monospace;--tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted)}
+[data-hq-theme="light"]{--bg:#e6e1d1;--bg2:#ddd7c5;--panel:rgba(228,223,206,.82);--card:rgba(241,237,226,.92);--card-hi:#f5f2e8;--ink:#dcd6c3;--frame:#bbb39e;--frame-hi:#7d7563;--text:#38342c;--muted:#5d584c;--faint:#847e6e;--gold:#b5583a;--gold-2:#9c4a30;--accent-text:#9c4a30;--green:#4f7a52;--red:#a83a30;--orange:#94601f;--yellow:#7d6a1c;--blue:#3d5f8f;--purple:#6b5694;--cyan:#2f706c;--link:#9c4a30;--link-hover:#38342c;--scrim:rgba(58,54,46,.3)}
+
+button:disabled{opacity:.4;cursor:not-allowed!important}
+::selection{background:#d97757;color:#1a0f0a}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:var(--frame)} ::-webkit-scrollbar-track{background:transparent}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}

@@ -147,8 +147,11 @@ function createWindow(show = true) {
     icon: path.join(DIR, 'icon.png'), show,
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
   });
-  const uiv = uiVersion();   // "v4" → dashboard-v4, "v3" → dashboard-v3, anything else → v2
-  win.loadFile(uiv === 'v4'
+  const uiv = uiVersion();   // "v5" → dashboard-v5 (Claude Design build), "v4" → dashboard-v4, "v3" → dashboard-v3, anything else → v2
+  if (uiv === 'v5') win.setBackgroundColor('#0d0d0f');   // v5's page colour, so the pre-paint frame doesn't flash
+  win.loadFile(uiv === 'v5'
+    ? path.join(DIR, '..', 'dashboard-v5', 'index.html')
+    : uiv === 'v4'
     ? path.join(DIR, '..', 'dashboard-v4', 'index.html')
     : uiv === 'v3'
       ? path.join(DIR, '..', 'dashboard-v3', 'index.html')
