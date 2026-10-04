@@ -149,7 +149,7 @@ export function renderVals() {
   // ----- palette -----
   const PI = S.paletteOpen ? this.paletteItems() : { groups: [], count: 0 };
   const palGroups = PI.groups.map((gr) => ({ name: gr.name, items: gr.items.map((it) => ({ glyph: it.glyph, label: it.label, hint: it.hint, run: () => { this.setState({ paletteOpen: false }); it.run(); }, hoverSel: () => this.setState({ paletteSel: it.idx }), style: { width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', border: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--term)', fontSize: 14, background: it.active ? 'var(--card-hi)' : 'transparent', color: it.active ? 'var(--text)' : 'var(--muted)', boxShadow: it.active ? 'inset 3px 0 0 var(--gold)' : 'none' } })) }));
-  const palModeTabs = [['go', 'Go & do'], ['ask', '✦ Ask local model']].map(([id, l]) => ({ label: l, go: () => this.setState({ paletteMode: id }), style: Object.assign(tabStyle(S.paletteMode === id), { height: 30, fontSize: 12 }) }));
+  const palModeTabs = [['go', 'Go & do'], ['ask', '✦ Ask local model']].map(([id, l]) => ({ label: l, go: () => { if (id === 'ask') this.warmModel(); this.setState({ paletteMode: id }); }, style: Object.assign(tabStyle(S.paletteMode === id), { height: 30, fontSize: 12 }) }));
   // ----- ask (model text renders as plain text; never outside this panel) -----
   const asks = S.askHistory.map((h) => ({ q: h.q, text: h.a.text || (h.a.status === 'thinking' ? '…' : ''), src: h.a.src || [], hasSrc: (h.a.src || []).length > 0, est: !!h.a.est, refusal: !!h.a.refusal }));
   // ----- runs: live casts, dev servers, opened terminals, then history -----
@@ -249,7 +249,7 @@ export function renderVals() {
     openPalette: () => { this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); FX().sfx('open'); },
     toggleFocus: () => this.toggleFocus(), toggleTheme: () => this.toggleTheme(), openSettings: () => this.setState({ settingsOpen: true }), openCheat: () => this.setState({ cheatOpen: true }),
     showAmbient: ok && (ambientDocked || S.ambientOverlay), showAmbientToggle: !ambientDocked, ambientOverlayOpen: !ambientDocked && S.ambientOverlay, toggleAmbientOverlay: () => this.setState({ ambientOverlay: !S.ambientOverlay }), amb, ambientStyle,
-    xpRef: this.xpRef, level, displayXp: live ? S.displayXp : this.xpAt(off), levelBar: level.pct, levelTitle: 'Level ' + level.l + ' · ' + level.t + (level.next ? ' · ' + level.toNext + ' xp to level ' + (level.l + 1) : ' · max level'),
+    xpRef: this.xpRef, level: Object.assign({}, level, { t: level.t.split(' ').pop() }), displayXp: live ? S.displayXp : this.xpAt(off), levelBar: level.pct, levelTitle: 'Level ' + level.l + ' · ' + level.t + (level.next ? ' · ' + level.toNext + ' xp to level ' + (level.l + 1) : ' · max level'),
     nav, bottomNav, moreOpen: S.moreOpen, moreNav,
     mainRef: this.mainRef, popIn: this.popIn, slideIn: this.slideIn, shimmer: this.shimmer, pulse: this.pulse, rise: this.rise, barsAnim: this.bars, stop: (e) => e.stopPropagation(),
     retry: () => (this.hq ? this.scanNow() : location.reload()),

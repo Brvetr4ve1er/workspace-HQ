@@ -45,8 +45,8 @@ export function moreVals(out, ctx) {
     run: async () => {
       if (ro()) return;
       if (!i.safe || !this.hq.healthFix) { this.copy(i.cmd, 'Copied · run it in a terminal (this fix isn’t on the safe list)'); return; }
-      const r = await this.call(() => this.hq.healthFix(i.cmd), 'Fix failed');
-      if (r) { this.toast(r.ok ? 'success' : 'error', (r.ok ? 'Ran · ' : 'Didn’t run · ') + String(r.output || '').split('\n').filter(Boolean).slice(-1)[0] || i.fix, { ms: 6000 }); if (r.ok) FX().event('cheer', 'Fixed!'); }
+      // safe-listed fixes can still delete things (%TEMP% purge): show the command, then run
+      this.sheet({ act: 'fix', cmd: i.cmd, fixTitle: i.fix, title: i.fix + '?', body: 'Runs this PowerShell command now:\n\n' + i.cmd, ok: 'Run fix', danger: /Remove-Item|-Force|\bdel\b|\brm\b|Stop-Process/i.test(i.cmd) });
     },
     copy: () => this.copy(i.cmd, 'Copied · ' + i.cmd) }));
   const vitals = H.VITALS.map((v) => ({ k: v[0], v: v[1], color: v[2] === 'ok' ? 'var(--green)' : v[2] === 'warn' ? 'var(--orange)' : v[2] === 'bad' ? 'var(--red)' : 'var(--faint)' }));

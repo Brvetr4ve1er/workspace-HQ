@@ -77,6 +77,8 @@ export class Component extends DCLogic {
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
     this.maybeLevelUp();
   }
+  // load the local model into VRAM before the first question (a cold load takes ~50s); main coalesces to once a minute
+  warmModel() { const l = this.LIVE.llm; if (this.hq && this.hq.llm && this.hq.llm.warm && (!l || (l.available && l.chatModel))) this.hq.llm.warm(); }
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
     clearInterval(this._focusT); FX().destroy();
@@ -372,6 +374,10 @@ export class Component extends DCLogic {
   async sheetOk() {
     const s = this.state.sheet; if (!s) return; this.setState({ sheet: null });
     if (s.act === 'archive') { this.toast('success', 'Archiving ' + this.pname(s.id) + ' · restore it from Projects › Archived'); this.defer('archive:' + s.id, () => this.call(() => this.hq.archiveProject(s.id), 'Archive failed')); }
+    if (s.act === 'fix') {
+      const r = await this.call(() => this.hq.healthFix(s.cmd), 'Fix failed');
+      if (r) { this.toast(r.ok ? 'success' : 'error', (r.ok ? 'Ran · ' : 'Didn’t run · ') + (String(r.output || '').split('\n').filter(Boolean).slice(-1)[0] || s.fixTitle), { ms: 6000 }); if (r.ok) FX().event('cheer', 'Fixed!'); }
+    }
     if (s.act === 'delete') { const r = await this.call(() => this.hq.studio.libraryDelete(s.path), 'Delete failed'); if (r !== null) { this.setState({ lightbox: null }); this.toast('success', 'Moved to the Recycle Bin · ' + s.name); this.store.refreshCaptures(); } }
   }
   async addJournal() {
@@ -476,7 +482,7 @@ export class Component extends DCLogic {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.setState({ paletteOpen: !S.paletteOpen, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); FX().sfx('open'); return; }
     if (e.key === 'Escape') { e.preventDefault(); this.closeTop(); return; }
     if (S.paletteOpen) {
-      if (e.key === 'Tab') { e.preventDefault(); this.setState({ paletteMode: S.paletteMode === 'go' ? 'ask' : 'go' }); return; }
+      if (e.key === 'Tab') { e.preventDefault(); if (S.paletteMode === 'go') this.warmModel(); this.setState({ paletteMode: S.paletteMode === 'go' ? 'ask' : 'go' }); return; }
       if (S.paletteMode === 'go') {
         const P = this.paletteItems();
         if (e.key === 'ArrowDown') { e.preventDefault(); this.setState({ paletteSel: Math.min(P.count - 1, S.paletteSel + 1) }); return; }

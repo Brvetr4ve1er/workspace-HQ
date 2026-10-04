@@ -138,6 +138,8 @@ function latest() {
 // swap needs zero channel changes). Anything else — missing file, "v2",
 // read error — stays v2, so rollback is one flip + restart away.
 function uiVersion() {
+  // HQ_UI_VERSION tries a renderer for one launch without touching the user-owned file
+  if (/^v[2-5]$/.test(process.env.HQ_UI_VERSION || '')) return process.env.HQ_UI_VERSION;
   try { return fs.readFileSync(path.join(DATA, '.ui-version'), 'utf8').trim(); } catch { return 'v2'; }
 }
 
