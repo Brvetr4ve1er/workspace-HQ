@@ -12,6 +12,35 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-04 · FROM frontend (v5 — the Claude Design build) · main @ 65630b2
+DONE: a7f2f2e + 65630b2 — dashboard-v5/, the owner's Claude Design prototype
+  ("Workspace HQ remake scope" › WorkspaceHQ v3.dc.html) as a new renderer,
+  wired to window.DATA + window.hq. NOT live: data/.ui-version still says v3.
+  Try it for one launch: HQ_UI_VERSION=v5 (new env override in uiVersion()).
+  Flip for good: data/.ui-version = v5 (owner's call). Rollback = flip back.
+  - src/dc/runtime.js: CSP-safe .dc renderer (Design's runtime needs React
+    from unpkg + new Function). Template kept verbatim in src/app.tpl.js.
+  - src/live/{adapter,catalog,store}: scans/sidecars → the design's shapes.
+  - 9 tabs → realm ids: home=roundtable · projects=forge (+map=lands) ·
+    tasks=hunts · automations=grimoire · claude=summoning+conjure ·
+    history=legacy+chronicle · system=medbay · life=watchtower+social+
+    observatory · studio=studio · ORACLE = the palette's "Ask local model".
+  - Tests 25/25 (runtime, adapter, catalog, llm-local). CDP: 36 screens on
+    real data, no unresolved bindings; real bridge verified read-only.
+IN-FLIGHT: the Design export was cut at 256 KiB mid-renderVals — the tail
+  (overlay values: palette placeholder, ask examples, onboarding, scrub
+  labels) is reconstructed and marked; swap in the original if re-exported.
+  Satellites (WorkspaceHQ v3 Satellites.dc.html) not started.
+CUT FOR NOW (UI says "isn't wired yet", owner decision): canvas pin/remove,
+  discard staged post, open/search vault, export stat card, per-file commit
+  staging (commits everything; refuses if a .env file is in the set), add
+  project (copies a collector.config.json entry), idea dismiss (local only).
+ASKS (structure): add-project channel (collector.config.json is yours);
+  single achievement catalog in data.js (v5 mirrors schema + parity test);
+  per-day browser deltas (screen time is a 3-day window, labelled so).
+BREAKS: main.js +2 small edits (v5 arm in the ui-version switch, env
+  override) — same precedent as the v4 arm. No IPC, contract or hotkey changes.
+
 ## 2026-10-03 · FROM frontend (shared docs/ — design brief) · main @ a31d859
 DONE: nothing committed. New shared doc docs/design/WORKSPACEHQ-DESIGN-BRIEF.md
   (untracked): full architecture + design brief for a one-shot Claude Design
