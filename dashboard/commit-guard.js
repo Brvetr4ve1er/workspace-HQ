@@ -9,7 +9,7 @@
 // Do NOT change session-api.js captureBaseline: its plain --porcelain is what the
 // session-attribution baseline relies on.
 //
-// init({ ipcMain, resolveProjectPath }) ; exports envHits(cwd) for hq:do-commit.
+// init({ ipcMain, resolveProjectPath }) ; exports envHits(cwd, opts?) for hq:do-commit.
 //
 // Paths are repo-root-relative with forward slashes, exactly as git prints them
 // (porcelain ignores status.relativePaths; diff is root-relative by default) —
@@ -21,12 +21,19 @@
 // change set (not a repo, git missing, output over maxBuffer, …). An empty array
 // there would read as "no .env found" and let do-commit's `add -A` run blind —
 // the exact bypass this module exists to close. do-commit refuses on any hit.
+// TIMEOUT. spawnSync blocks the whole main process, so one changeSet() shares a
+// GIT_TIMEOUT_MS budget (15 s) across all its git calls; a hung git (index.lock
+// wait, AV scan, network drive) ends as { error: 'git … timed out' } and envHits
+// answers ['<git error>'] — the fail-closed answer, never a blind "no .env".
+// opts.timeoutMs overrides the budget (tests). A spent budget skips the cosmetic
+// calls (branch, stat → '') rather than blocking past it.
 // Pure Node (child_process only), no Electron requires — commit-guard.test.mjs.
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;   // same cap as session-api.js; a monorepo's -uall list can be large
 const GIT_ERROR_HIT = '<git error>';
+const GIT_TIMEOUT_MS = 15000;              // whole-changeSet budget, see the header
 
 // Two steps: ENV_RE says "env-shaped", ENV_TEMPLATE_RE takes the templates back out.
 //   true : .env, .env.local, sub/.env.production, prod.env, .ENV, .env.example.local
@@ -66,11 +73,15 @@ function parsePorcelainZ(out) {
   return files;
 }
 
-function git(args, cwd) {
-  return spawnSync('git', args, { cwd, shell: false, windowsHide: true, encoding: 'utf8', maxBuffer: GIT_MAX_BUFFER });
+function git(args, cwd, timeoutMs) {
+  // timeout must stay > 0: spawnSync reads 0 as "no timeout"
+  return spawnSync('git', args, { cwd, shell: false, windowsHide: true, encoding: 'utf8', maxBuffer: GIT_MAX_BUFFER, timeout: Math.max(1, Math.ceil(timeoutMs)) });
 }
+// A synthetic spawnSync-shaped timeout result for a call the budget no longer covers.
+const timedOut = () => ({ error: Object.assign(new Error('git timed out'), { code: 'ETIMEDOUT' }), status: null, stdout: '', stderr: '' });
 function gitFailed(r) { return !!r.error || r.status !== 0; }
 function gitErr(r, what) {
+  if (r.error && r.error.code === 'ETIMEDOUT') return what + ' timed out';
   if (r.error) return what + ': ' + String(r.error.message || r.error);
   return String(r.stderr || '').trim().split(/\r?\n/).filter((l) => /^(fatal|error):/i.test(l))[0] || (what + ' failed');
 }
@@ -78,17 +89,20 @@ function gitErr(r, what) {
 // The whole change set `git add -A` would stage, file by file. Only `.error` or
 // a non-zero exit counts as failure — git writes warnings (CRLF etc.) to stderr
 // on success. Returns { error } instead of throwing.
-function changeSet(cwd) {
+function changeSet(cwd, opts) {
   try {
+    const budget = opts && Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : GIT_TIMEOUT_MS;
+    const deadline = Date.now() + budget;
+    const run = (args) => { const left = deadline - Date.now(); return left > 0 ? git(args, cwd, left) : timedOut(); };
     // A missing path OR a file: spawnSync's ENOENT would otherwise read as "git missing".
     let isDir = false;
     try { isDir = !!cwd && fs.statSync(cwd).isDirectory(); } catch { /* missing */ }
     if (!isDir) return { error: 'project folder not found' };
-    const st = git(['status', '--porcelain', '-z', '-uall', '--no-renames'], cwd);
+    const st = run(['status', '--porcelain', '-z', '-uall', '--no-renames']);
     if (gitFailed(st)) return { error: gitErr(st, 'git status') };
     // diff.relative=true in a repo's config would make diff print cwd-relative paths
     // (and only the cwd's subtree) — the union below needs root-relative ones.
-    const cached = git(['-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z'], cwd);   // works on an unborn HEAD too
+    const cached = run(['-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z']);   // works on an unborn HEAD too
     if (gitFailed(cached)) return { error: gitErr(cached, 'git diff --cached') };
 
     // Union by path. status already shows staged entries (X column); the cached
@@ -101,15 +115,15 @@ function changeSet(cwd) {
     // Branch: rev-parse fails (exit 128) on an unborn HEAD; symbolic-ref still
     // names the branch there. Detached HEAD → 'HEAD'. Unknown → ''.
     let branch = '';
-    const rp = git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
+    const rp = run(['rev-parse', '--abbrev-ref', 'HEAD']);
     if (!gitFailed(rp)) branch = String(rp.stdout || '').trim();
     else {
-      const sr = git(['symbolic-ref', '--short', '-q', 'HEAD'], cwd);
+      const sr = run(['symbolic-ref', '--short', '-q', 'HEAD']);
       if (!gitFailed(sr)) branch = String(sr.stdout || '').trim();
     }
 
     // Tracked changes vs HEAD; fails on a repo with no commits yet → ''.
-    const df = git(['-c', 'diff.relative=false', 'diff', 'HEAD', '--stat'], cwd);
+    const df = run(['-c', 'diff.relative=false', 'diff', 'HEAD', '--stat']);
     const stat = gitFailed(df) ? '' : String(df.stdout || '').trimEnd();
 
     return { files, stat, envHits: files.filter((f) => f.env).map((f) => f.path), branch };
@@ -117,10 +131,10 @@ function changeSet(cwd) {
 }
 
 // For hq:do-commit, BEFORE `add -A`: any non-empty result means refuse.
-// Fails closed — see the header.
-function envHits(cwd) {
+// Fails closed — see the header (a timeout is a failure too).
+function envHits(cwd, opts) {
   try {
-    const cs = changeSet(cwd);
+    const cs = changeSet(cwd, opts);
     if (!cs || cs.error || !Array.isArray(cs.envHits)) return [GIT_ERROR_HIT];
     return cs.envHits;
   } catch { return [GIT_ERROR_HIT]; }
@@ -136,4 +150,4 @@ function init({ ipcMain, resolveProjectPath }) {
   });
 }
 
-module.exports = { init, isEnvPath, envHits, changeSet, parsePorcelainZ, ENV_RE, ENV_TEMPLATE_RE, GIT_ERROR_HIT };
+module.exports = { init, isEnvPath, envHits, changeSet, parsePorcelainZ, ENV_RE, ENV_TEMPLATE_RE, GIT_ERROR_HIT, GIT_TIMEOUT_MS };

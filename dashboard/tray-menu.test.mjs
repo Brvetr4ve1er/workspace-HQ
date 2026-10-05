@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { trayTemplate, statusLine } = require('./tray-menu.js');
+const { trayTemplate, statusLine, scanCounts } = require('./tray-menu.js');
 
 // Placeholder scan (public repo): only the fields the tray reads.
 const proj = (id, name, { dirty = 0, unpushed = false, secrets = 0 } = {}) => ({
@@ -51,6 +51,24 @@ test('statusLine: no scan → em dash', () => {
 test('statusLine: a partial scan never throws', () => {
   assert.equal(statusLine({}), 'lv ?');
   assert.equal(statusLine({ account: { level: 2 }, projects: [null, {}, { metrics: {} }, proj('a', 'A', { dirty: 1 })] }), 'lv 2 · 1 uncommitted');
+});
+
+// ---------------------------------------------------------------- scanCounts
+// The mini HUD gets these same numbers (main.js miniPayload, K-6).
+test('scanCounts: uncommitted files and secrets summed, unpushed = projects', () => {
+  assert.deepEqual(scanCounts(SCAN), { level: 8, uncommitted: 34, secrets: 2, unpushed: 2 });
+});
+test('scanCounts agrees with the status line', () => {
+  const c = scanCounts(SCAN);
+  assert.equal(statusLine(SCAN), `lv ${c.level} · ${c.uncommitted} uncommitted · ${c.secrets} secrets`);
+});
+test('scanCounts: no scan / partial scan → zeros and a null level, never throws', () => {
+  const zero = { level: null, uncommitted: 0, secrets: 0, unpushed: 0 };
+  assert.deepEqual(scanCounts(null), zero);
+  assert.deepEqual(scanCounts(undefined), zero);
+  assert.deepEqual(scanCounts({}), zero);
+  assert.deepEqual(scanCounts({ account: { level: 2 }, projects: [null, {}, { metrics: {} }, proj('a', 'A', { dirty: -3, secrets: 'x' })] }),
+    { level: 2, uncommitted: 0, secrets: 0, unpushed: 0 });
 });
 
 // ---------------------------------------------------------------- layout

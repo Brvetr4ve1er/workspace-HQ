@@ -9,6 +9,13 @@
 //       pushAll/snapshotDirty get the scan projects the label counted, openUrgent the
 //       project it names — main keeps its confirm dialogs, notifications and rescans.
 //   statusLine(scan) → "lv 8 · 34 uncommitted · 2 secrets" (disabled first item)
+//   scanCounts(scan) → { level, uncommitted, secrets, unpushed } — the numbers behind
+//     the status line, also sent to the mini HUD (main.js miniPayload, IPC-CONTRACT
+//     K-6) so the tray and the HUD can never disagree:
+//       uncommitted = uncommitted FILES summed over projects (git_safety.dirty)
+//       secrets     = secrets_found summed over projects (risk_security)
+//       unpushed    = PROJECTS with commits not on the remote (git_safety.unpushed)
+//       level       = account.level, or null when the scan has none
 // Design (Satellites board): status line · Show · Scan now (uses Claude) · Mini HUD ✓ ·
 // Quick-run… · Summon… · Run ▸ · ─ · Quick actions · ─ · Quit.
 //
@@ -19,21 +26,29 @@
 //   Push all unpushed / Snapshot all dirty / Kill all dev servers / Open most-urgent →
 //   the same four quick actions, plain-language labels, shown only when they apply.
 // Pure: no Electron requires, never throws on a partial scan (tray-menu.test.mjs).
-// M4 (Phase 4) switches main.js buildTrayMenu over to it.
+// main.js buildTrayMenu builds the native menu from it (M4, Phase 4).
 
 const sum = (xs, f) => xs.reduce((n, x) => { const v = Number(f(x)); return n + (Number.isFinite(v) && v > 0 ? v : 0); }, 0);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const projectsOf = (scan) => (scan && Array.isArray(scan.projects) ? scan.projects.filter((p) => p && typeof p === 'object') : []);
 
+function scanCounts(scan) {
+  const projects = projectsOf(scan);
+  const level = scan && typeof scan === 'object' ? scan.account?.level : undefined;
+  return {
+    level: level ?? null,
+    uncommitted: sum(projects, (p) => p.metrics?.git_safety?.dirty),
+    secrets: sum(projects, (p) => p.metrics?.risk_security?.secrets_found),
+    unpushed: projects.filter((p) => p.metrics?.git_safety?.unpushed).length,
+  };
+}
+
 function statusLine(scan) {
   if (!scan || typeof scan !== 'object') return '—';
-  const level = scan.account?.level;
-  const projects = projectsOf(scan);
-  const dirty = sum(projects, (p) => p.metrics?.git_safety?.dirty);
-  const secrets = sum(projects, (p) => p.metrics?.risk_security?.secrets_found);
-  const parts = [`lv ${level ?? '?'}`];
-  if (dirty) parts.push(`${dirty} uncommitted`);
-  if (secrets) parts.push(plural(secrets, 'secret', 'secrets'));
+  const c = scanCounts(scan);
+  const parts = [`lv ${c.level ?? '?'}`];
+  if (c.uncommitted) parts.push(`${c.uncommitted} uncommitted`);
+  if (c.secrets) parts.push(plural(c.secrets, 'secret', 'secrets'));
   return parts.join(' · ');
 }
 
@@ -81,4 +96,4 @@ function trayTemplate(state, actions) {
   return items;
 }
 
-module.exports = { trayTemplate, statusLine };
+module.exports = { trayTemplate, statusLine, scanCounts };

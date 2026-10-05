@@ -220,6 +220,35 @@ test('envHits FAILS CLOSED: a folder that is not a git repo → [<git error>]', 
   assert.deepEqual(guard.envHits(notRepo), [guard.GIT_ERROR_HIT]);
 });
 
+// ---------------------------------------------------------------- timeout (M4 g)
+// spawnSync blocks main; a hung git must end in the fail-closed answer, not a freeze.
+test('the default git budget is 15 s', () => {
+  assert.equal(guard.GIT_TIMEOUT_MS, 15000);
+});
+
+test('a git call past the budget → { error: "… timed out" } and envHits FAILS CLOSED', () => {
+  const dir = mkTmp('hq-commit-guard-timeout-');
+  initRepo(dir);
+  fs.writeFileSync(path.join(dir, '.env'), 'PLACEHOLDER=1\n');
+  fs.writeFileSync(path.join(dir, 'app.js'), '1\n');
+  // 1 ms: starting a git process alone takes longer, so spawnSync's timeout fires
+  const cs = guard.changeSet(dir, { timeoutMs: 1 });
+  assert.match(String(cs.error), /timed out/);
+  assert.equal(cs.files, undefined, 'no partial change set is reported');
+  assert.deepEqual(guard.envHits(dir, { timeoutMs: 1 }), [guard.GIT_ERROR_HIT]);
+  // …and the same repo with the normal budget is read fine (the timeout was the only cause)
+  assert.deepEqual(guard.envHits(dir), ['.env']);
+});
+
+test('a nonsense timeout option falls back to the default budget', () => {
+  const dir = mkTmp('hq-commit-guard-timeout-opt-');
+  initRepo(dir);
+  fs.writeFileSync(path.join(dir, 'prod.env'), 'PLACEHOLDER=1\n');
+  for (const timeoutMs of [0, -5, NaN, 'soon', null]) {
+    assert.deepEqual(guard.envHits(dir, { timeoutMs }), ['prod.env'], String(timeoutMs));
+  }
+});
+
 // ---------------------------------------------------------------- IPC handler
 function fakeIpc() {
   const handlers = {};

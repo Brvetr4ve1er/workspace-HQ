@@ -16,6 +16,8 @@ const { startBridge } = require('./browser-bridge');
 const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
 const llmLocal = require('./llm-local');               // PC-Brain L3: local model adapter (Ollama/LM Studio)
 const screenCapture = require('./screen-capture');     // v3 STUDIO: snip + record + library (Group 1)
+const trayMenu = require('./tray-menu');               // v5 M4: tray menu as data (trayTemplate) + scanCounts (tray + mini HUD)
+const { launchClaudeTerminal } = require('./claude-launch');   // v5 M4: hq:claude-quest + snip "send to Claude" (K-5); HQ_DRY_LAUNCH=1 only logs
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
 // whole main process (and every window) down. Log and keep the app alive.
@@ -39,6 +41,7 @@ const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'bui
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
 let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null, canvasWatcher = null;
 let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
+let navBridge = null;   // v5 M4: nav-bridge init() result ({ openAt }) — tray Show / Open Automations
 const activeDevServers = new Map();
 
 // Push the live browser tab (from the bridge extension) to any open windows so
@@ -178,12 +181,15 @@ function miniPayload() {
     .filter((q) => q.status === 'open' || q.status === 'in_progress')
     .sort((x, y) => (rank[x.tier] - rank[y.tier]) || (y.xp - x.xp) || (y.age_days - x.age_days))[0];
   const xpPct = a.xp_to_next ? (a.xp_into_level / (a.xp_into_level + a.xp_to_next)) * 100 : 100;
+  const counts = trayMenu.scanCounts(s);   // v5 M4 (K-6): the tray status line's numbers, so HUD and tray agree
+  const topProj = top && top.project_id ? (s.projects || []).find((p) => p && p.id === top.project_id) : null;
   return {
     level: a.level, title: a.title || '',
     xpPct: Math.round(xpPct), xp: a.xp, xpToNext: a.xp_to_next,
     hp: a.health_index, streak: a.streak?.scan_days ?? 0,
     openQuests: a.totals.open_quests, redQuests: a.totals.red_quests,
-    topQuest: top ? { title: top.title, tier: top.tier, xp: top.xp } : null,
+    secrets: counts.secrets, uncommitted: counts.uncommitted, unpushed: counts.unpushed,
+    topQuest: top ? { title: top.title, tier: top.tier, xp: top.xp, projectId: top.project_id || null, project: topProj ? topProj.name || topProj.id : null } : null,
     spells: topSpells(3),   // one-click cast buttons on the HUD
   };
 }
@@ -242,41 +248,38 @@ function hideMini() {
 }
 function toggleMini() { (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) ? hideMini() : showMini(); }
 
-// Tray menu rebuilt from the latest scan: static items + dynamic power "quick actions"
-// (push all unpushed / snapshot all dirty / kill all dev servers / open most-urgent).
+// Tray menu (v5 M4 / S7): the layout is data in tray-menu.js (pure, unit-tested —
+// status line, Show, Scan now, Mini HUD ✓, Quick-run…, Summon…, Run ▸, then the
+// Quick actions below a separator); main hands it the state and the actions, with
+// the same confirms, notifications and rescans as the pre-v5 menu. Show and Open
+// Automations go through nav-bridge openAt (v3 ignores the hq:navigate push, so
+// there they only show the window); the old show code is the fallback.
+function showMainAt(route) {
+  if (navBridge && navBridge.openAt(route)) return;
+  if (!win) createWindow(); else { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+}
+function trayNotify(title, body) {
+  if (Notification.isSupported()) new Notification({ title, body, icon: path.join(DIR, 'icon.png') }).show();
+}
 function buildTrayMenu() {
-  const s = latest();
-  const items = [
-    { label: 'Show WorkspaceHQ', click: () => { if (!win) createWindow(); else win.show(); } },
-    { label: 'Toggle mini HUD', click: toggleMini },
-    { label: 'Summon widget (Ctrl+Alt+G)', click: openSummon },
-    { label: 'Cast a spell… (Ctrl+Alt+X)', click: openCastPalette },
-    { label: 'Scan now', click: runScan },
-  ];
-  const favs = topSpells(3);
-  if (favs.length) {
-    items.push({
-      label: 'Cast',
-      submenu: [
-        ...favs.map((sp) => ({ label: `${sp.icon || '✴️'} ${sp.name}`, click: () => castFromShell(sp.id) })),
-        { type: 'separator' },
-        { label: 'Open Spellbook', click: () => { if (!win) createWindow(); else win.show(); } },
-      ],
-    });
-  }
-  if (s) {
-    const unpushed = s.projects.filter((p) => p.metrics.git_safety.unpushed);
-    const dirty = s.projects.filter((p) => p.metrics.git_safety.dirty > 0);
-    const quick = [];
-    if (unpushed.length) quick.push({ label: `Push all unpushed (${unpushed.length})`, click: () => confirmThen(`Push ${unpushed.length} repo(s)?`, unpushed.map((p) => p.name).join(', '), () => { const ok = gitEach(unpushed, ['push']); if (Notification.isSupported()) new Notification({ title: '⬆ Pushed', body: `${ok}/${unpushed.length} repos`, icon: path.join(DIR, 'icon.png') }).show(); runScan(); }) });
-    if (dirty.length) quick.push({ label: `Snapshot all dirty (${dirty.length})`, click: () => confirmThen(`Snapshot ${dirty.length} dirty repo(s)?`, 'Filtered backup copy to backups/ — safe, non-disruptive.', () => { let ok = 0; for (const p of dirty) { const b = resolveProjectPath(p.path); if (b && snapshotProject(b, p.name)) ok++; } if (Notification.isSupported()) new Notification({ title: '📦 Snapshotted', body: `${ok}/${dirty.length} repos → backups/`, icon: path.join(DIR, 'icon.png') }).show(); }) });
-    if (activeDevServers.size) quick.push({ label: `Kill all dev servers (${activeDevServers.size})`, click: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); } activeDevServers.clear(); } });
-    const top = (s.account?.daily_top3 || [])[0];
-    if (top?.project_id) { const tp = s.projects.find((p) => p.id === top.project_id); if (tp) quick.push({ label: `Open most-urgent: ${tp.name}`, click: () => { const b = resolveProjectPath(tp.path); if (b) shell.openPath(b); } }); }
-    if (quick.length) items.push({ type: 'separator' }, { label: 'Quick actions', enabled: false }, ...quick);
-  }
-  items.push({ type: 'separator' }, { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } });
-  return Menu.buildFromTemplate(items);
+  // the HUD window doesn't exist yet on the first build (createTray runs first) → the saved pref
+  const hudVisible = miniWin && !miniWin.isDestroyed() ? miniWin.isVisible() : hudPrefVisible();
+  return Menu.buildFromTemplate(trayMenu.trayTemplate(
+    { scan: latest(), hudVisible, spells: topSpells(3), devServers: activeDevServers.size },
+    {
+      show: () => showMainAt({ tab: 'home' }),
+      scan: () => { if (!runScan()) trayNotify('WorkspaceHQ', liveState.snapshot().scan.state === 'running' ? 'A scan is already running.' : 'The scan didn’t start.'); },
+      toggleHud: toggleMini,
+      quickRun: openCastPalette,
+      summon: openSummon,
+      openAutomations: () => showMainAt({ tab: 'automations' }),
+      cast: (id) => castFromShell(id),
+      pushAll: (unpushed) => confirmThen(`Push ${unpushed.length} repo(s)?`, unpushed.map((p) => p.name).join(', '), () => { const ok = gitEach(unpushed, ['push']); trayNotify('⬆ Pushed', `${ok}/${unpushed.length} repos`); runScan(); }),
+      snapshotDirty: (dirty) => confirmThen(`Snapshot ${dirty.length} dirty repo(s)?`, 'Filtered backup copy to backups/ — safe, non-disruptive.', () => { let ok = 0; for (const p of dirty) { const b = resolveProjectPath(p.path); if (b && snapshotProject(b, p.name)) ok++; } trayNotify('📦 Snapshotted', `${ok}/${dirty.length} repos → backups/`); }),
+      killServers: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); } activeDevServers.clear(); pushMachine(); updateTray(); },
+      openUrgent: (tp) => { const b = resolveProjectPath(tp.path); if (b) shell.openPath(b); },
+      quit: () => { app.isQuitting = true; app.quit(); },
+    }));
 }
 function updateTray() {
   if (!tray) return;
@@ -435,7 +438,7 @@ function runScan() {
 }
 
 // IPC
-ipcMain.handle('hq:scan', () => { runScan(); return true; });
+ipcMain.handle('hq:scan', () => runScan());   // v5 M4: false = not started (one is already running); v3/v4 ignore the value
 ipcMain.handle('hq:open-repo', (_e, rel) => {
   const target = resolveProjectPath(rel);
   if (!target) { dialog.showErrorBox('Open folder', `Refused to open path outside Documents: ${rel}`); return false; }
@@ -733,13 +736,29 @@ function respawnShards() {
 }
 
 // ---- Scoped Claude launcher: open an interactive Claude session cd'd to a project ----
+// v5 M4 (K-5): the snip bar's "send to Claude" — screenCapture.init gets the project
+// picker (latest scan, paths resolved + containment-checked, unresolvable ones
+// dropped) and the launcher, which re-checks the cwd it is handed (untrusted input).
+function studioProjects() {
+  const s = latest();
+  const out = [];
+  for (const p of (s && Array.isArray(s.projects) ? s.projects : [])) {
+    if (!p || typeof p.id !== 'string' || !p.id || typeof p.path !== 'string' || !p.path) continue;
+    const abs = resolveProjectPath(p.path);
+    if (abs) out.push({ id: p.id, name: String(p.name || p.id), path: abs });
+  }
+  return out;
+}
+function studioLaunchClaude(cwd, prompt) {
+  const abs = typeof cwd === 'string' && cwd ? resolveProjectPath(cwd) : null;
+  return abs ? launchClaudeTerminal(abs, prompt) : false;
+}
+// v5 M4: the launch itself is claude-launch.js launchClaudeTerminal (shared with
+// screen-capture's "send to Claude", K-5); HQ_DRY_LAUNCH=1 logs instead of opening.
 ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return false;
-  const p = String(prompt || '').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ').slice(0, 500);
-  // new terminal window, cd into the project, launch claude with the quest as the seed prompt
-  spawnSync('cmd.exe', ['/c', 'start', '', 'cmd', '/k', `cd /d "${cwd}" && claude "${p}"`], { windowsHide: false });
-  return true;
+  return launchClaudeTerminal(cwd, prompt);
 });
 
 // ---- PC-Brain L3: local model runtime probe -----------------------------------
@@ -1347,10 +1366,28 @@ ipcMain.handle('hq:spellbook-rescan', async () => {
   return { ok: true };
 });
 // Lightweight telemetry view for the palette / mini HUD (favorites + recency).
+// v5 M4 (K-6): each entry also says how the spell's LAST cast ended — read from
+// the newest casts[] entry (casts are pushed when they end), not persisted: the
+// rollup only ever counts successes (the economy, collector/lib/spellcraft.mjs),
+// so a spell that has only failed gets a view-only entry with zero counts.
+// last_outcome 'ok'|'failed'|'channeled'|null · last_exit number|null ·
+// last_outcome_at = that cast's started_at (last_cast stays the success watermark).
+const CAST_OUTCOME = { resolved: 'ok', fizzled: 'failed', channeled: 'channeled' };
 ipcMain.handle('hq:spell-telemetry', () => {
   const t = readTelemetry();
   const rollup = {};
-  for (const [id, r] of Object.entries(t.rollup)) rollup[id] = { last_cast: r.last_cast, lifetime_casts: r.lifetime_casts, distinct_days: r.distinct_days.length };
+  for (const [id, r] of Object.entries(t.rollup || {})) rollup[id] = { last_cast: r.last_cast, lifetime_casts: r.lifetime_casts, distinct_days: (r.distinct_days || []).length, last_outcome: null, last_exit: null, last_outcome_at: null };
+  const seen = new Set();
+  const casts = Array.isArray(t.casts) ? t.casts : [];
+  for (let i = casts.length - 1; i >= 0; i--) {
+    const c = casts[i];
+    if (!c || typeof c.spell_id !== 'string' || seen.has(c.spell_id)) continue;
+    seen.add(c.spell_id);
+    const r = rollup[c.spell_id] || (rollup[c.spell_id] = { last_cast: null, lifetime_casts: 0, distinct_days: 0 });
+    r.last_outcome = CAST_OUTCOME[c.outcome] || null;
+    r.last_exit = Number.isFinite(c.exit_code) ? c.exit_code : null;
+    r.last_outcome_at = typeof c.started_at === 'string' ? c.started_at : null;
+  }
   return { favorites: t.favorites, rollup, confirmed: Object.keys(t.confirmed_hashes) };
 });
 
@@ -1404,6 +1441,7 @@ ipcMain.handle('hq:cast-palette-hide', () => { if (castWin && !castWin.isDestroy
 
 function sendDevStatus(payload) {
   if (win && !win.isDestroyed()) win.webContents.send('hq:dev-status', payload);
+  try { updateTray(); } catch (e) { console.error('[tray] refresh failed', e); }   // v5 M4: keeps "Stop all running dev servers (N)" current
 }
 
 ipcMain.handle('hq:dev-start', (_e, id) => {
@@ -1507,7 +1545,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     rebuildData();
     require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
-    require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at
+    navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();
     if (hudPrefVisible()) createMiniWindow();   // ambient HUD floats even when started to tray
@@ -1518,7 +1556,7 @@ if (!app.requestSingleInstanceLock()) {
     startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
     try { globalShortcut.register('CommandOrControl+Alt+G', openSummon); } catch (e) { console.error('summon hotkey failed:', e); }
     // v3 STUDIO — mount the main-process capture wire (owns its IPC + panel/overlay windows).
-    try { screenCapture.init({ ipcMain, app, BrowserWindow, screen, desktopCapturer, globalShortcut }); } catch (e) { console.error('studio init failed:', e); }
+    try { screenCapture.init({ ipcMain, app, BrowserWindow, screen, desktopCapturer, globalShortcut, getProjects: studioProjects, launchClaude: studioLaunchClaude }); } catch (e) { console.error('studio init failed:', e); }   // v5 M4: K-5 send-to-Claude seams
     // The two "still free" global hotkeys the design specifies. Shift-variants
     // and Ctrl+Alt+L are registered inside screen-capture.js.
     try { globalShortcut.register('CommandOrControl+Alt+S', () => screenCapture.snipArm('region')); } catch (e) { console.error('studio snip hotkey failed:', e); }

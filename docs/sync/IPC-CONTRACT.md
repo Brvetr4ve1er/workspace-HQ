@@ -224,8 +224,8 @@ New main-side logic lives in NEW files with a one-line init hook in `main.js`
 | `onNavigate(cb)` | push `hq:navigate` | the validated route (sent after `did-finish-load` if the window is loading) | disposer | `nav-bridge.js` · v5 (v3 ignores it) |
 | `commitPreview(projPath)` | `hq:commit-preview` | abs project path (containment-checked like `resolveProjectPath`) | `{files:[{path, status, env}], stat, envHits:[path], branch}` \| `{error}` — union of `git status --porcelain -z -uall --no-renames` and `git diff --cached --name-only -z`, so files inside untracked folders are listed individually | `dashboard/commit-guard.js` · v5 commit sheet |
 | `studio.recPause(recId, paused)` | send `hq:studio:rec-pause` | `{recId, paused:bool}` | — (status pushes carry `paused`; `elapsedMs` excludes paused time) | `screen-capture.js` · record panel |
-| `studio.panelMode(mode)` | `hq:studio:panel-mode` | `{mode:'setup'\|'live'}` | `true` (main sets the panel bounds: setup ≈340×180, live pill ≈230×44) | `screen-capture.js` · record panel |
-| `studio.onRecCommand(cb)` | push `hq:studio:rec-command` | `{cmd:'stop', reason:'hotkey'\|'lowdisk'\|'limit'}` → record panel only; main hard-stops if the panel hasn't finished in 3 s | disposer | `screen-capture.js` · record panel |
+| `studio.panelMode(mode)` | `hq:studio:panel-mode` | `{mode:'setup'\|'live'}` | `true` (main sets the panel bounds: setup ≈340×180, live pill ≈230×44) \| `false` (no panel window, unknown mode, or the bounds could not be set — the panel keeps its size) | `screen-capture.js` · record panel |
+| `studio.onRecCommand(cb)` | push `hq:studio:rec-command` | `{cmd:'stop', reason:'hotkey'\|'lowdisk'\|'limit', recId}` → the recording's owner panel only; main hard-stops if the panel hasn't finished in 3 s (immediately when there is no panel to ask) | disposer | `screen-capture.js` · record panel |
 
 **Additive fields on existing channels**
 
@@ -233,17 +233,33 @@ New main-side logic lives in NEW files with a one-line init hook in `main.js`
 |---|---|
 | `hq:do-commit` | may return `{error:'refused: .env in change set', envHits:[path]}` and stage nothing. "Env-shaped" = `commit-guard.isEnvPath()`: `.env`, `.env.<anything>`, the copies people make (`.env - Copy`, `.env~`, `.env (1)`, `.env_prod`), `<name>.env`; templates are allowed (`.env.example/.sample/.template/.dist/.defaults`, also `-`/`_` separated). A git error fails closed (`envHits:['<git error>']`) |
 | `hq:sessions-list`, `hq:claude-sessions` | entries started via `hq:session-start` gain `cwd` (side table in `session-tails.js`; `claude-sessions.js` untouched) |
-| `hq:spell-telemetry` | each rollup entry gains `last_outcome` (`resolved`\|`fizzled`\|`channeled`) and `last_exit`, taken from the newest entry in `casts[]` |
-| `hq:mini-data`, `hq:mini-update` | gain `secrets`, `uncommitted`, `unpushed` (counts) and `topQuest.projectId`, `topQuest.project` |
+| `hq:spell-telemetry` | (K-6) each rollup entry gains `last_outcome` (`'ok'`\|`'failed'`\|`'channeled'`\|`null`), `last_exit` (number\|`null`) and `last_outcome_at` (ISO `started_at` of that cast\|`null`), read from the newest entry in `casts[]` (casts are pushed when they END; `resolved`→`ok`, `fizzled`→`failed` incl. timeouts, `channeled`→`channeled`). Nothing new is persisted. A spell whose casts all failed (the rollup only counts successes) gets a view-only entry `{last_cast:null, lifetime_casts:0, distinct_days:0, …}`; `last_cast` stays the SUCCESS watermark, so "failed 2d ago" reads `last_outcome_at`. Absent fields = older main |
+| `hq:mini-data`, `hq:mini-update` | (K-6) gain `uncommitted` (uncommitted FILES summed over projects, `git_safety.dirty`), `secrets` (`risk_security.secrets_found` summed), `unpushed` (number of PROJECTS with unpushed commits) — the same `tray-menu.js` `scanCounts()` numbers as the tray status line — and `topQuest.projectId` (string\|`null`), `topQuest.project` (project name\|`null`). Consumers tolerate absence (older main) |
+| `hq:scan` | returns `runScan()`'s boolean instead of a constant `true`: `false` = no scan started (one is already running — `hq:live-state` `scan.state === 'running'` — or the pipeline could not be spawned). v3/v4 ignore the value; v5 toasts "A scan is already running" |
+| `hq:claude-quest` | returns `true` (terminal opened) \| `false` (path refused, folder missing, spawn failed). The launch is `dashboard/claude-launch.js` `launchClaudeTerminal(cwd, prompt)`: prompt flattened to one line, capped at 500 chars, `"` → `'`. Neither the folder nor the prompt is ever put on a cmd command line (R-P4 fix — the pre-v5 `cd /d "<cwd>" && claude "<prompt>"` argument never reached claude, and its prompt sat outside cmd's quotes, so `&`/`\|` in a quest title ran as commands): a fixed `cmd /d /v:off /c start "" cmd /d /v:off /k "<dashboard>\claude-launch.cmd"` is spawned with the project as its working directory and the prompt in env `HQ_LAUNCH_PROMPT`; the static helper runs `claude "%HQ_LAUNCH_PROMPT%"` with delayed expansion off. **Env `HQ_DRY_LAUNCH=1`** (read per call, exact value `1`): logs `[dry-launch] <cwd> :: <prompt>` to main's stdout, opens nothing, returns `true` — for gates and tests |
 | `hq:studio:rec-status` | gains `paused` |
-| `hq:studio:snip-frozen` | gains `projects:[{id, name}]` (for the send-to-Claude picker) |
-| `hq:studio:snip-commit` | gains `action:'save'\|'copy'\|'claude'` and `projectId`; absent `action` = today's save+copy |
+| `hq:studio:rec-stop` | the result is an object, not a bare path (it already was before v5 — the row above is stale): `{path, bytes, durationMs, gaps, reason}` \| `null`; v5 adds `gaps` (chunk gaps logged by `rec-queue.js` while draining, `null` if unknown) and `reason` (`'hotkey'`\|`'lowdisk'`\|`'limit'` for a main-initiated stop, else `null`) |
+| `hq:studio:snip-frozen` | gains `projects:[{id, name}]` (for the send-to-Claude picker); `[]` unless main wired BOTH K-5 functions — the overlay disables send-to-Claude (and says why) on an empty list |
+| `hq:studio:snip-commit` | gains `action:'save'\|'copy'\|'claude'` and `projectId`; absent `action` = today's save+copy. `copy` writes no file; `claude` saves, then resolves `projectId` main-side (paths never come from IPC) and launches with `Look at this screenshot: <abs path> — ` |
+| `hq:studio:rec-command` payload | carries `recId` (see the row above) |
+| `hq:studio:settings-get`, `hq:studio:settings-set` | `rootOverride` reads back the library root actually in use: **env `HQ_STUDIO_ROOT`** (absolute path, read once at launch, never saved) wins over the saved value. `settings-set` still refuses `rootOverride` (it bounds library-reveal / library-delete), so tests point the library elsewhere with the env var and confirm via `settings-get` before recording |
 | `hq:log-decision` | also appends `{id, date, text, completed:false, kind:'decision'}` to `data/project-notes.json` (frontend-owned store) so the journal can show decisions |
 
+**Main-internal seams (not IPC — init contracts between main.js and its helper modules)**
+
+| Contract | Shape | Notes |
+|---|---|---|
+| **K-5** `screenCapture.init(opts)` (main.js → `screen-capture.js`) | gains `opts.getProjects()` → `[{id, name, path}]` and `opts.launchClaude(cwd, prompt)` → boolean | `getProjects`: the projects of the latest `latest.json`, `path` absolute and containment-checked via `resolveProjectPath` (entries without a resolvable path are dropped; `[]` with no scan). `launchClaude`: re-resolves `cwd` the same way, then `launchClaudeTerminal` — `false` when refused or failed; honours `HQ_DRY_LAUNCH=1`. Either may be absent (older main): screen-capture must then deny the claude action honestly ("not wired"), never fake success. Feeds `hq:studio:snip-frozen` `projects` (send `{id, name}` only — paths stay main-side) and `hq:studio:snip-commit` `action:'claude'` + `projectId` |
+| **K-7** record panel ↔ `screen-capture.js` | `hq:studio:rec-pause`, `hq:studio:panel-mode`, push `hq:studio:rec-command` (rows above) + `hq:studio:rec-status` `paused` | the handlers live INSIDE `screen-capture.js` (registered by its `init`), not in main.js; the preload methods `studio.recPause` / `panelMode` / `onRecCommand` already exist |
+| **Tray** (main.js `buildTrayMenu` → `tray-menu.js` `trayTemplate`) | disabled status line `lv N · X uncommitted · Y secret(s)` · Show workspace-hq · Scan now (uses Claude) · Mini HUD ☑ · Quick-run… · Summon… · Run ▸ favourites + Open Automations · ─ · Quick actions (only those that apply) · ─ · Quit | Show → `openAt({tab:'home'})`, Open Automations → `openAt({tab:'automations'})` (v3 ignores the push and only shows the window); the tray icon click still just shows the window. Not a channel — listed so the satellites agree on the numbers |
+
 **HTTP (browser extension, `dashboard/social-bridge.js`)**: `POST /social/outbox/cancel`
-`{id}` → `{ok, id, status:'canceled'}`; only `staged` entries change, an unknown id
-is 404, a missing/invalid token 403. Cancelling never publishes (CONTRACT.md
-write-gate amendment lands with it).
+`{id}` → `{ok, id, status:'canceled'}`; only `staged` entries change (any other
+status → 409 `{ok:false, error:'not staged', id, status}`, file untouched), an unknown id
+is 404, a missing id or bad JSON 400, an oversized body 413, a missing/invalid token 403.
+The canceled entry gains an optional `canceled_at` (ISO). `canceled` is terminal: `GET /social/outbox` stops listing
+it and `/result` ignores it. Cancelling never publishes (CONTRACT.md write-gate
+amendment lands with it).
 
 ## Rules
 
