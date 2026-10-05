@@ -13,9 +13,11 @@ export function studioVals(ctx) {
   return {
     days, hasCaps: caps.length > 0, noCaps: caps.length === 0, latest: latest || {}, hasLatest: !!latest, openLatest: () => latest && this.setState({ lightbox: latest.id }), studioFilters,
     snip: () => { if (!studio) return this.denied(); studio.snipArm('region'); },
+    // opens the record panel (recording starts there), it doesn't start recording
     record: () => { if (!studio) return this.denied(); studio.panelToggle(); },
     hasLightbox: !!lbC, lb: lbC ? { name: lbC.name, meta: lbC.day + ' ' + lbC.time + ' · ' + lbC.size, isRec: lbC.kind === 'rec' } : {}, closeLightbox: () => this.setState({ lightbox: null }),
-    lbOpen: () => lbC && studio && studio.libraryReveal(lbC.path), lbCopy: () => lbC && this.copy(lbC.path, 'Copied the file path'), lbReveal: () => lbC && studio && studio.libraryReveal(lbC.path),
+    // there is no "open this capture" channel yet; it used to call libraryReveal, i.e. "Show in folder" again
+    lbOpen: () => lbC && this.notWired('Opening a capture in its own app'), lbCopy: () => lbC && this.copy(lbC.path, 'Copied the file path'), lbReveal: () => lbC && studio && studio.libraryReveal(lbC.path),
     lbDelete: () => lbC && !ro() && this.sheet({ act: 'delete', path: lbC.path, name: lbC.name, title: 'Delete ' + lbC.name + '?', body: 'It goes to the Recycle Bin.', ok: 'Delete', danger: true }),
   };
 }

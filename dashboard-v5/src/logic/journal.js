@@ -8,8 +8,11 @@ export const journalLogic = {
     const txt = this.state.journalDraft.trim(); const pid = this.state.route && this.state.route.id; if (!txt || !pid) return;
     const kind = this.state.journalKind;
     const fn = kind === 'learning' ? () => this.hq.learn(pid, txt) : kind === 'decision' ? () => this.hq.logDecision(pid, txt) : () => this.hq.saveNote(pid, txt);
-    const ok = await this.call(fn, 'Not saved');
-    if (!ok) return;
+    // main answers true once written and false when it couldn't (project not in the latest scan,
+    // empty text); anything but true is reported, never a silent no-op
+    let ok = null, why = '';
+    try { ok = await fn(); } catch (e) { why = (e && e.message) || String(e); }
+    if (ok !== true) { this.toast('error', 'Not saved · ' + (why || (ok && ok.error) || (kind === 'decision' ? 'the decision' : kind === 'learning' ? 'the learning' : 'the note') + ' wasn’t written')); return; }
     this.setState((s) => ({ journalAdds: Object.assign({}, s.journalAdds, { [pid]: [{ k: kind, t: txt, d: 'Today' }].concat(s.journalAdds[pid] || []) }), journalDraft: '' }));
     this.toast('success', kind === 'decision' ? 'Decision logged in the project’s vault note' : kind === 'learning' ? 'Learning saved · +knowledge xp' : 'Note saved · mirrored to the vault');
     FX().event('cheer', 'Noted.');

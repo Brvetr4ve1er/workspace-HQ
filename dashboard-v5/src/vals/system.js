@@ -15,10 +15,19 @@ export function systemVals(ctx) {
     copy: () => this.copy(i.cmd, 'Copied · ' + i.cmd) }));
   const vitals = H.VITALS.map((v) => ({ k: v[0], v: v[1], color: v[2] === 'ok' ? 'var(--green)' : v[2] === 'warn' ? 'var(--orange)' : v[2] === 'bad' ? 'var(--red)' : 'var(--faint)' }));
   if (LIVE.machine) vitals.unshift({ k: 'Now', v: 'CPU ' + Math.round(LIVE.machine.cpu) + '% · RAM ' + Math.round(LIVE.machine.ram) + '%', color: 'var(--blue)' });
-  const clutter = H.CLUTTER.filter((c) => !S.fixed.includes(c.id)).map((c) => ({ title: c.title, detail: c.detail, verb: c.verb, danger: c.danger, safe: !c.danger, act: () => { if (!this.hq) return this.denied(); this.call(() => this.hq.openRepo('.'), 'Couldn’t open Documents'); this.toast('info', 'Opened Documents · ' + c.detail, { ms: 6000 }); } }));
+  const clutter = H.CLUTTER.filter((c) => !S.fixed.includes(c.id)).map((c) => ({ title: c.title, detail: c.detail, verb: c.verb, danger: c.danger, safe: !c.danger, act: async () => {
+    if (!this.hq) return this.denied();
+    // shell.openPath answers '' on success and an error string on failure; main answers false when it refuses
+    const r = await this.call(() => this.hq.openRepo('.'), 'Couldn’t open Documents');
+    if (r === null) return;
+    if (r === false || (typeof r === 'string' && r)) return this.toast('error', 'Couldn’t open Documents' + (typeof r === 'string' ? ' · ' + r : ''));
+    this.toast('info', 'Opened Documents · ' + c.detail, { ms: 6000 });
+  } }));
   const verdictBad = issues.length > 0;
+  // no pc-health sidecar and nothing flagged: unknown, not "OK"
+  const unchecked = !verdictBad && !H.pcScannedAt;
   return {
-    isMachine: sub === 'machine', isClutter: sub === 'clutter', issues, hasIssues: issues.length > 0, verdict: verdictBad ? issues.length + ' issue' + (issues.length > 1 ? 's' : '') + ' to look at' : 'Machine OK', verdictColor: verdictBad ? 'var(--orange)' : 'var(--green)', verdictHex: verdictBad ? '#e0a35a' : '#86b98a',
+    isMachine: sub === 'machine', isClutter: sub === 'clutter', issues, hasIssues: issues.length > 0, verdict: verdictBad ? issues.length + ' issue' + (issues.length > 1 ? 's' : '') + ' to look at' : unchecked ? 'Not checked yet' : 'Machine OK', verdictColor: verdictBad ? 'var(--orange)' : unchecked ? 'var(--muted)' : 'var(--green)', verdictHex: verdictBad ? '#e0a35a' : unchecked ? '#a39d92' : '#86b98a',
     verdictSub: (H.pcScannedAt ? 'Checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ' with the scan' : 'No machine check yet') + ' · drag the monitor to spin it',
     vitals, clutter, hasClutter: clutter.length > 0, noClutter: clutter.length === 0,
   };

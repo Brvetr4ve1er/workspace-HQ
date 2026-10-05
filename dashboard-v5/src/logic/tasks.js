@@ -8,6 +8,9 @@ export const tasksLogic = {
     if (!this.canWrite()) return this.denied();
     const t = this.M.T0.find((x) => x.id === id); if (!t || this.state.completed.includes(id)) return;
     const p = this.pt(e);
+    // finishing the task Focus mode is on: the done entry carries the focus time
+    // (endFocus is not called — that would log a second, unresolved entry)
+    const f = this.state.focus, focused = !!(f && f.taskId === id), secs = focused ? Math.max(0, Math.round((Date.now() - f.start) / 1000)) : 0;
     this.setState((s) => ({ completed: s.completed.concat([id]), recentDone: s.recentDone.concat([id]), focus: s.focus && s.focus.taskId === id ? null : s.focus }));
     setTimeout(() => this.setState((s) => ({ recentDone: s.recentDone.filter((x) => x !== id) })), 1500);
     FX().sfx('done'); FX().floatText(p.x, p.y - 10, '+' + t.xp + ' xp'); FX().asciiBurst && FX().asciiBurst(p.x, p.y, '✓');
@@ -15,15 +18,18 @@ export const tasksLogic = {
     this.toast('success', 'Done · ' + t.title, { undo: id });
     FX().coinFly(p.x, p.y, this._xpEl).then(() => this.gainXp(t.xp));
     this.defer('done:' + id, () => {
-      this.hq.actedOn && this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, resolved: true, marked_done: true, via: 'board' });
+      this.hq.actedOn && this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, resolved: true, marked_done: true, via: focused ? 'focus' : 'board', seconds: secs });
       this.call(() => this.hq.markQuestDone(id), 'Couldn’t save');   // main re-assembles today and reloads
     });
+    if (focused) this._pending['done:' + id].focusSecs = secs;   // Undo still keeps the time that was spent
   },
   undoTask(id) {
     const p = this._pending['done:' + id];
     const t = this.M.T0.find((x) => x.id === id) || this.M.IDEAS.find((x) => x.id === id);
     if (!p) { this.toast('info', 'Already saved · it can’t be undone from here'); return; }
     clearTimeout(p.timer); delete this._pending['done:' + id];
+    // the focus session happened even if the task isn't done: log it the way endFocus would
+    if (t && p.focusSecs >= 5 && this.hq && this.hq.actedOn) this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, seconds: p.focusSecs, resolved: false, via: 'focus' });
     const xp = (t && t.xp) || 0;
     this.setState((s) => ({ completed: s.completed.filter((x) => x !== id), xp: s.xp - xp, displayXp: s.xp - xp, toasts: s.toasts.filter((k) => k.undo !== id) }));
     this.toast('info', 'Restored · ' + (t ? t.title : 'task'));

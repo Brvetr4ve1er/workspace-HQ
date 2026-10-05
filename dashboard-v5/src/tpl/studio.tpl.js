@@ -6,7 +6,7 @@ export default String.raw`        <sc-if value="{{ v.studio }}" hint-placeholder
           <div style="display:flex;flex-direction:column;gap:24px">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
               <button type="button" onClick="{{ snip }}" disabled="{{ cantWrite }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="filter:brightness(1.1);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)">✂ Snip</button>
-              <button type="button" onClick="{{ record }}" disabled="{{ cantWrite }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;font-size:12px;background:color-mix(in oklab,var(--red) 10%,transparent);color:var(--red);border:1px solid color-mix(in oklab,var(--red) 45%,transparent);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="background:color-mix(in oklab,var(--red) 20%,transparent)" style-active="transform:translateY(1px) scale(.98)">● Record</button>
+              <!-- v5: the button opens the record panel; recording starts there --><button type="button" onClick="{{ record }}" disabled="{{ cantWrite }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;font-size:12px;background:color-mix(in oklab,var(--red) 10%,transparent);color:var(--red);border:1px solid color-mix(in oklab,var(--red) 45%,transparent);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="background:color-mix(in oklab,var(--red) 20%,transparent)" style-active="transform:translateY(1px) scale(.98)">● Open recorder</button>
               <span style="flex:1"></span>
               <sc-for list="{{ studioFilters }}" as="f" hint-placeholder-count="3"><button onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }}</button></sc-for>
             </div>
@@ -29,7 +29,7 @@ export default String.raw`        <sc-if value="{{ v.studio }}" hint-placeholder
                 </div>
               </section>
             </sc-for>
-            <sc-if value="{{ noCaps }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:var(--muted)">No captures yet. Ctrl Alt S to snip, Ctrl Alt R to record.</div></sc-if>
+            <sc-if value="{{ noCaps }}" hint-placeholder-val="{{ false }}"><!-- v5: Ctrl Alt R opens the record panel, it does not start a recording --><div style="font-size:14px;color:var(--muted)">No captures yet. Ctrl Alt S to snip, Ctrl Alt R opens the recorder.</div></sc-if>
           </div>
         </sc-if>
 `;

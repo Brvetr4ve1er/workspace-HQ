@@ -41,7 +41,8 @@ export default String.raw`        <sc-if value="{{ v.automations }}" hint-placeh
             </sc-if>
             <sc-if value="{{ isLibrary }}" hint-placeholder-val="{{ false }}">
               <div style="max-width:760px">
-                <div style="font-size:14px;color:var(--muted);margin-bottom:16px;text-wrap:pretty">980 things are catalogued. Only 29 can run from here; plugins and agents are reference only, so they never show a Run button.</div>
+                <!-- v5: the counts come from the spellbook (autoTotal, AUTOS, INTERACTIVE), not fixed numbers; agents open a terminal, they are not reference only -->
+                <div style="font-size:14px;color:var(--muted);margin-bottom:16px;text-wrap:pretty">{{ libIntro }}</div>
                 <div ref="{{ barsAnim }}" style="display:flex;flex-direction:column;gap:12px">
                   <sc-for list="{{ lib }}" as="l" hint-placeholder-count="6">
                     <div style="display:grid;grid-template-columns:minmax(110px,160px) 1fr auto;gap:12px;align-items:center">

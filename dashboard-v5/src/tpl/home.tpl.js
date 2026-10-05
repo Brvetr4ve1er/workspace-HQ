@@ -23,6 +23,7 @@ export default String.raw`        <sc-if value="{{ v.home }}" hint-placeholder-v
                       <span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--accent-text)">Next action</span>
                       <span style="font-size:12px;color:var(--faint)">picked by fixed rules · not AI</span>
                       <span style="flex:1"></span>
+                      <!-- v5: in_progress quests are on the board too; say which ones are already started --><sc-if value="{{ home.next.inProgress }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:11px;white-space:nowrap;color:var(--tone-blue);border:1px solid color-mix(in oklab,var(--tone-blue) 45%,transparent);background:color-mix(in oklab,var(--tone-blue) 10%,transparent)">in progress</span></sc-if>
                       <span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:{{ home.next.color }}">{{ home.next.tier }}</span>
                     </div>
                     <div style="font-size:clamp(20px,2.4vw,29px);line-height:1.05;text-wrap:balance"><x-import component-from-global-scope="hq-scramble" intro="" text="{{ home.next.title }}" hint-size="auto,1em"></x-import></div>

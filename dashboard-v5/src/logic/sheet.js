@@ -11,6 +11,13 @@ export const sheetLogic = {
       const r = await this.call(() => this.hq.healthFix(s.cmd), 'Fix failed');
       if (r) { this.toast(r.ok ? 'success' : 'error', (r.ok ? 'Ran · ' : 'Didn’t run · ') + (String(r.output || '').split('\n').filter(Boolean).slice(-1)[0] || s.fixTitle), { ms: 6000 }); if (r.ok) FX().event('cheer', 'Fixed!'); }
     }
-    if (s.act === 'delete') { const r = await this.call(() => this.hq.studio.libraryDelete(s.path), 'Delete failed'); if (r !== null) { this.setState({ lightbox: null }); this.toast('success', 'Moved to the Recycle Bin · ' + s.name); this.store.refreshCaptures(); } }
+    if (s.act === 'delete') {
+      // main answers true only when the file reached the Recycle Bin; false/null = refused or failed
+      // (not this.call(): it returns null both for a throw and for a plain null answer)
+      let r = null, why = '';
+      try { r = await this.hq.studio.libraryDelete(s.path); } catch (e) { why = ' · ' + ((e && e.message) || e); }
+      if (r !== true) { this.toast('error', 'Couldn’t delete ' + s.name + (why || (r && r.error ? ' · ' + r.error : ''))); FX().sfx('error'); return; }
+      this.setState({ lightbox: null }); this.toast('success', 'Moved to the Recycle Bin · ' + s.name); this.store.refreshCaptures();
+    }
   },
 };
