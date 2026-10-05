@@ -386,17 +386,59 @@ export class DCLogic {
   renderVals() { return {}; }
 }
 
+// Render failures, counted for the selftest and the CDP gate. A failing FIRST
+// render used to leave a blank window (and componentDidMount never ran); it now
+// shows a static error panel until a render succeeds. A later failure keeps
+// the last good DOM, as before.
+export const failures = { count: 0, last: '' };
+// a thrown value as text; never throws itself (a null-prototype object or a throwing
+// toString/message getter must not take the error panel down with it)
+export function errorText(e) {
+  try { const m = e && e.message; return String(m || e); } catch { try { return Object.prototype.toString.call(e); } catch { return 'unknown error'; } }
+}
+
+// Static DOM only: the message can carry text from the data bundle, so it goes
+// in through textContent and nothing here is parsed as HTML.
+export function renderErrorPanel(root, err) {
+  const doc = root.ownerDocument || document;
+  const el = (tag, css, text) => { const n = doc.createElement(tag); Object.assign(n.style, css); if (text != null) n.textContent = text; return n; };
+  const box = el('div', { maxWidth: '640px', margin: '10vh auto 0', padding: '24px', background: 'var(--card, #17171a)', color: 'var(--text, #e8e6e3)', border: '1px solid var(--red, #d0605e)', borderRadius: '12px', fontFamily: 'var(--term, ui-monospace, Consolas, monospace)' });
+  box.setAttribute('role', 'alert');
+  box.setAttribute('data-dc', 'error');
+  const btn = el('button', { height: '34px', padding: '0 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12px', fontWeight: '600', background: 'var(--gold, #d8b25a)', color: '#1a0f0a', border: '1px solid var(--gold, #d8b25a)', borderRadius: '8px' }, 'Reload');
+  btn.type = 'button';
+  btn.addEventListener('click', () => location.reload());
+  box.append(
+    el('div', { fontSize: '11px', color: 'var(--red, #d0605e)' }, 'couldn’t draw this screen'),
+    el('div', { fontSize: '20px', margin: '10px 0 6px' }, 'WorkspaceHQ hit an error while rendering'),
+    el('div', { fontSize: '12px', background: 'var(--ink, #0d0d0f)', padding: '10px 12px', margin: '16px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }, errorText(err)),
+    btn,
+  );
+  root.replaceChildren(box);
+  return box;
+}
+
 export function mount(root, Logic, template, props) {
   const render = compile(template);
   const logic = new Logic(props || {});
-  let tree = [], queued = false, mounted = false, cbs = [], prevProps = logic.props;
+  let tree = [], queued = false, mounted = false, cbs = [], prevProps = logic.props, panel = null;
+  const fail = (e, what) => {
+    failures.count++; failures.last = errorText(e);
+    console.error('[dc] ' + what + ':', e);
+    if (mounted) return;   // keep the last good DOM
+    tree.forEach(detachRefs); tree = [];
+    panel = renderErrorPanel(root, e);
+  };
   const flush = () => {
     queued = false;
-    let vals;
-    try { vals = { ...logic.props, ...(logic.renderVals() || {}) }; }
-    catch (e) { console.error('[dc] renderVals failed:', e); return; }
-    const next = render(vals), after = [];
-    patchKids(root, tree, next, null, after);
+    let next;
+    try { next = render({ ...logic.props, ...(logic.renderVals() || {}) }); }
+    catch (e) { fail(e, 'renderVals failed'); return; }
+    if (panel) { root.replaceChildren(); panel = null; }
+    const after = [];
+    // a throw mid-patch leaves `tree` on the previous render (never mark a half-applied one as current)
+    try { patchKids(root, tree, next, null, after); }
+    catch (e) { fail(e, 'patch failed'); return; }
     tree = next;
     after.forEach((f) => { try { f(); } catch (e) { console.error('[dc] ref failed:', e); } });
     const done = cbs; cbs = [];
@@ -417,6 +459,6 @@ export function mount(root, Logic, template, props) {
   return {
     logic,
     setProps(p) { logic.props = { ...logic.props, ...p }; logic.__host.schedule(); },
-    unmount() { try { logic.componentWillUnmount(); } catch (e) { console.error(e); } logic.__host = null; tree.forEach(remove); tree = []; },
+    unmount() { try { logic.componentWillUnmount(); } catch (e) { console.error(e); } logic.__host = null; tree.forEach(remove); tree = []; if (panel) { panel.remove(); panel = null; } },
   };
 }
