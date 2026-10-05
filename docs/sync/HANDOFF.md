@@ -12,6 +12,32 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-05 · FROM frontend (v5 CLEAN PASS — Phases 3, 4, 5 landed) · main @ 3670f5a
+DONE: Phase 3 v3 parity in v5 (544b225..9deaf7e): Ask = v3 (sources, Stop
+  keeps partial, Retry, New chat; history in v3's hq-oracle-chat format —
+  shared with v3), System Re-examine + Note for cleanup, project page flags /
+  git risk / suggestions / own side quests, Studio thumbnails + media
+  lightbox, Canvas ＋ Note, Automations filters + Rescan + interactive skills,
+  Projects search + status chips, What's new · trailers overlay, brief §11.1
+  cuts. Phase 4 satellites (d4f04bc..2ea1d73): recordings never empty + pause
+  + clean stops, snip save/copy/send-to-Claude, mini HUD jump links, quick-run
+  last outcome, summon/shards restyled, all satellites on tokens.css +
+  satellite-theme.js + CSP, extension one-at-a-time approval + Skip → cancel.
+  Phase 5 (3670f5a): tools/trailer render pipeline. v5 272/272, dashboard
+  246/246, trailer 15/15; v5 selftest 1932 combos 0/0/0; 17 CDP scenarios.
+IN-FLIGHT: trailer media re-render (outro kept as designed, "v3 out now");
+  Phase 6 whole-diff review; Phase 7 flip .ui-version → v5 tonight.
+ASKS: struct lane — spellcraft.mjs reads the telemetry rollup; main now
+  derives last_outcome/last_exit from the cast log at read time (the saved
+  rollup shape is unchanged, no CONTRACT change).
+BREAKS: main.js 19-20 (tray-menu, claude-launch requires), 44 (navBridge),
+  184-192 (mini-data counts, topQuest.projectId), 251-282 (tray via
+  trayTemplate), 441 (hq:scan returns runScan()'s boolean — false = already
+  running), 739-761 (studio getProjects/launchClaude, hq:claude-quest →
+  claude-launch.js), 1369-1390 (spell-telemetry last_outcome), 1444. New HTTP
+  route POST /social/outbox/cancel (staged → canceled only, never publishes).
+  Extension manifest 0.2.0 (owner reloads it). record-panel.css removed.
+
 ## 2026-10-05 · FROM frontend (v5 CLEAN PASS — Phase 2 correctness + honesty done) · main @ 1621bc6
 DONE: 388c7a2 M2 (main: scan guard via liveState, do-commit .env refusal
   before `add -A` + post-add recheck, dev start time, decisions → project
