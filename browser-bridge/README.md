@@ -47,6 +47,27 @@ Works in Edge/Brave too (same folder, `edge://extensions`).
   app, and paste the same value into the popup's Settings → Token. The endpoint
   then also requires `X-HQ-Token`.
 
+## Social posts: approve or skip
+
+Claude can *stage* a social post (MCP `hq_social_post` / `hq_social_reply`), but
+it can't publish one. The popup shows staged posts one at a time ("awaiting
+approval · 1 of N") with the full payload, its character and link count, and two
+buttons:
+
+- **approve & send**: the extension first asks the app whether that exact post
+  is still staged and unchanged. If it is, the extension sends it from your
+  logged-in tab. If not, nothing is sent.
+- **skip**: `POST /social/outbox/cancel` marks the post `canceled` in the app.
+  Skipping never publishes anything.
+
+The header shows **● connected** when the app answers on its endpoint. When it
+doesn't, the popup shows *Not connected* and a **check again** button. The popup
+follows your OS light/dark setting; it can't read the app's theme choice.
+
+After updating these files, reload the extension at `chrome://extensions`
+(click the circular-arrow icon on the card). Chrome doesn't pick up changes to
+an unpacked extension on its own.
+
 ## How Claude uses it
 
 Two complementary paths:

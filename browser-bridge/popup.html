@@ -1,56 +1,80 @@
 <!doctype html>
-<html>
+<html data-hq-theme="dark">
 <head>
   <meta charset="utf-8" />
+  <title>WorkspaceHQ Bridge</title>
   <link rel="stylesheet" href="popup.css" />
+  <!-- sets data-hq-theme from the OS preference before first paint -->
+  <script src="popup-theme.js"></script>
 </head>
 <body>
-  <header>
-    <span class="logo">◆</span>
-    <span class="name">WorkspaceHQ Bridge</span>
-    <span id="dot" class="dot off" title="connection"></span>
+  <header class="hd">
+    <span class="mark" aria-hidden="true">✻</span>
+    <span class="name">workspace-hq</span>
+    <span class="grow"></span>
+    <span id="conn" class="conn" data-state="checking">◌ checking…</span>
   </header>
 
-  <div class="now">
-    <div class="now-k">WORKING ON NOW</div>
-    <div id="now-domain" class="now-domain">—</div>
+  <!-- the app isn't answering on the endpoint -->
+  <section id="offline" class="offline" hidden>
+    <div class="off-mark" aria-hidden="true">✻</div>
+    <div id="off-title" class="off-t">Not connected</div>
+    <div id="off-msg" class="off-m">Open workspace-hq on this PC, then check again. Data stays on this machine.</div>
+    <div id="off-err" class="off-err"></div>
+    <button id="retry" class="btn">check again</button>
+  </section>
+
+  <section class="blk">
+    <div class="k">working on now</div>
+    <div class="now-line"><span id="now-host" class="now-host">— idle —</span><span id="now-dur" class="now-dur"></span></div>
     <div id="now-title" class="now-title"></div>
-  </div>
+    <div id="cap" class="cap"></div>
+  </section>
 
-  <div class="stat">
-    <div><b id="s-queued">0</b><span>queued</span></div>
-    <div><b id="s-conn">off</b><span>app link</span></div>
-  </div>
-
-  <div class="social">
-    <div class="social-head">
-      <span class="social-k">SOCIAL OUTBOX</span>
-      <button id="social-sync" class="mini" title="Scrape your logged-in social tabs into the app now">Sync</button>
+  <section id="appr" class="blk" hidden>
+    <div class="appr-head">
+      <span id="appr-k" class="k">awaiting approval</span>
+      <span class="grow"></span>
+      <button id="prev" class="nav" title="Previous staged post" aria-label="previous staged post" hidden>‹</button>
+      <button id="next" class="nav" title="Next staged post" aria-label="next staged post" hidden>›</button>
+      <button id="social-sync" class="mini" title="Read your logged-in social tabs into the app now (read-only)">sync</button>
     </div>
-    <div id="social-list" class="social-list"><div class="social-empty">—</div></div>
-    <div class="social-note">Claude stages posts here — nothing sends until you approve.</div>
-  </div>
+    <div id="appr-empty" class="m empty">nothing staged</div>
+    <div id="card" hidden>
+      <div id="c-who" class="who"></div>
+      <div id="c-reply" class="c-field" hidden></div>
+      <div id="c-title" class="c-title" hidden></div>
+      <div id="c-text" class="payload"></div>
+      <div id="c-meta" class="meta"></div>
+      <div class="acts">
+        <button id="approve" class="btn gold">approve &amp; send</button>
+        <button id="skip" class="btn quiet" title="Cancel this staged post. It is never sent.">skip</button>
+      </div>
+    </div>
+    <div id="c-status" class="c-status" role="status"></div>
+    <div class="note">Claude stages posts here. Nothing is sent until you press approve &amp; send; skip cancels a post for good.</div>
+  </section>
 
   <label class="row">
     <input type="checkbox" id="paused" />
-    <span>Pause capture</span>
+    <span>pause capture</span>
   </label>
 
   <details>
-    <summary>Settings</summary>
+    <summary>settings</summary>
     <label class="field">App endpoint
-      <input type="text" id="endpoint" placeholder="http://127.0.0.1:47821" />
+      <input type="text" id="endpoint" placeholder="http://127.0.0.1:47821" spellcheck="false" />
     </label>
     <label class="field">Token <span class="hint">(optional — only if you locked the app)</span>
-      <input type="text" id="token" placeholder="leave blank unless required" />
+      <input type="password" id="token" placeholder="leave blank unless required" autocomplete="off" />
     </label>
-    <button id="save">Save</button>
+    <button id="save" class="btn set-btn">save</button>
     <div id="saved" class="saved"></div>
 
     <label class="field">Mastodon instance <span class="hint">(your server, for social)</span>
-      <input type="text" id="masto" placeholder="https://mastodon.social" />
+      <input type="text" id="masto" placeholder="https://mastodon.social" spellcheck="false" />
     </label>
-    <button id="masto-connect">Connect Mastodon</button>
+    <button id="masto-connect" class="btn set-btn">connect mastodon</button>
     <div id="masto-status" class="saved"></div>
   </details>
 

@@ -488,10 +488,37 @@ async function socialTick() {
   if (accounts.length) await socialSendToApp('/social/accounts', { accounts }).catch(() => {});
 }
 
+// The fields that make up what gets published. The popup showed the human one
+// copy; the app's outbox holds the authoritative one. They must match.
+const SOCIAL_PAYLOAD_KEYS = ['platform', 'op', 'text', 'reply_to', 'target', 'title'];
+function socialSamePayload(a, b) {
+  return SOCIAL_PAYLOAD_KEYS.every((k) => (a[k] == null ? '' : String(a[k])) === (b[k] == null ? '' : String(b[k])));
+}
+
+// Before publishing, ask the app whether this exact post is still staged. A post
+// that was skipped / canceled (popup, MCP hq_social_cancel), already sent, or
+// changed since the popup rendered it is refused — and nothing is reported back,
+// because nothing was attempted. If the app can't be reached we refuse too:
+// "can't confirm" never means "send anyway".
+async function socialConfirmStaged(shown) {
+  let d;
+  try { d = await socialGetFromApp('/social/outbox'); }
+  catch (e) { return { ok: false, error: "app link off — can't confirm the post is still staged, not sent" }; }
+  if (!d || d.ok === false) return { ok: false, error: 'the app refused the outbox read (' + ((d && d.error) || 'no answer') + ') — not sent' };
+  const fresh = (Array.isArray(d.actions) ? d.actions : []).find((a) => a && a.id === shown.id);
+  if (!fresh || fresh.status !== 'staged') return { ok: false, error: 'no longer staged (skipped, canceled or already sent) — not sent' };
+  if (!socialSamePayload(fresh, shown)) return { ok: false, error: 'the post changed since it was shown — not sent; review it again' };
+  return { ok: true, action: fresh };
+}
+
 // WRITE pass: only ever called for an action the human approved in the popup.
-async function socialSend(action) {
-  const ad = SOCIAL_ADAPTERS[action && action.platform];
-  if (!ad) return { ok: false, error: 'no adapter for ' + (action && action.platform) };
+async function socialSend(shown) {
+  if (!shown || !shown.id) return { ok: false, error: 'no action id' };
+  const check = await socialConfirmStaged(shown);
+  if (!check.ok) return check;
+  const action = check.action;
+  const ad = SOCIAL_ADAPTERS[action.platform];
+  if (!ad) return { ok: false, error: 'no adapter for ' + action.platform };
   const cfg = await socialCfg();
   const tab = await firstTabFor(ad, cfg);
   if (!tab) return { ok: false, error: 'open a logged-in ' + action.platform + ' tab first' };

@@ -117,6 +117,8 @@ chrome.alarms.onAlarm.addListener((a) => {
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'social:send' && msg.action) { socialSend(msg.action).then(reply); return true; }
   if (msg && msg.type === 'social:sync') { socialTick().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
+  // popup "check again": deliver queued focus sessions now instead of on the next alarm
+  if (msg && msg.type === 'bridge:flush') { flush().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
   return false;
 });
 

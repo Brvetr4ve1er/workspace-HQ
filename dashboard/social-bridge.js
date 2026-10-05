@@ -13,6 +13,7 @@
 //     tendril model doesn't cover:
 //       GET  /social/outbox         -> staged actions awaiting YOUR approval
 //       POST /social/outbox/result  -> extension reports a send outcome
+//       POST /social/outbox/cancel  -> popup "Skip": staged -> canceled, never publishes
 //       POST /social/accounts       -> extension registers connected accounts
 //
 // THE GATE: MCP only ever writes actions with status:"staged". This module NEVER
@@ -122,6 +123,32 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
       d.updated = new Date().toISOString();
       writeAtomic(outboxFile, JSON.stringify(d, null, 2));
       send(200, { ok: true, id, status: a.status });
+    });
+    return true;
+  }
+
+  // Popup "Skip": the human declines a staged post. Flips ONE staged action to
+  // 'canceled' and does nothing else — no adapter, no extension message, no
+  // sent_at/result. 'canceled' is terminal: GET /social/outbox stops listing it
+  // and /result ignores it (status !== 'staged'). Anything not staged is
+  // refused with 409 and the file is left untouched. The MCP twin is
+  // hq_social_cancel (dashboard-v3/mcp/server.mjs); both obey the same gate.
+  if (req.method === 'POST' && url === '/social/outbox/cancel') {
+    if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
+    readBody(req, (err, body) => {
+      if (err) { send(err === 'too big' ? 413 : 400, { ok: false, error: String(err) }); return; }
+      const id = clamp(String((body && body.id) || ''), 80);
+      if (!id) { send(400, { ok: false, error: 'id required' }); return; }
+      const d = readJsonOr(outboxFile, { actions: [] });
+      const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
+      if (!a) { send(404, { ok: false, error: 'unknown action id' }); return; }
+      if (a.status !== 'staged') { send(409, { ok: false, error: 'not staged', id, status: a.status }); return; }
+      a.status = 'canceled';
+      a.canceled_at = new Date().toISOString();
+      d.updated = a.canceled_at;
+      try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
+      catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
+      send(200, { ok: true, id, status: 'canceled' });
     });
     return true;
   }

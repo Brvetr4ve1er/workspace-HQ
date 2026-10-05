@@ -58,7 +58,7 @@ golden fixture. All `data/social/*` is **gitignored** (personal content + sessio
 | File | Written by | Read by | Shape |
 |---|---|---|---|
 | `data/social/inbox.json` | app relay (extension ingest) | `hq_social_feed/_mentions/_metrics` | tendril doc: `{updated, live, events[]}`; each event `{platform, kind:'feed'\|'mention'\|'notification'\|'metrics', id, ts, author?, text?, url?, uri?, counts?{likes,reposts,replies}, metrics?{followers,following,posts}}` |
-| `data/social/outbox.json` | `hq_social_post/_reply` (stage), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, target?, title?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, result?{url,uri}, error?, by}`. `target`/`title` are additive optional platform routing (Reddit subreddit + title). |
+| `data/social/outbox.json` | `hq_social_post/_reply` (stage), `hq_social_cancel` + popup Skip (cancel), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, target?, title?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, canceled_at?, result?{url,uri}, error?, by}`. `target`/`title` are additive optional platform routing (Reddit subreddit + title). `canceled_at` (additive, optional) is set by the popup's Skip route; the MCP cancel leaves it absent. |
 | `data/social/accounts.json` | extension (on connect) | `hq_social_status` | `{updated, accounts[]}`; account `{platform, handle, display?, connected_at}` |
 
 **Write-gate invariant (load-bearing):** MCP `hq_social_post/_reply` only ever
@@ -66,3 +66,18 @@ append an action with `status:"staged"`. **Nothing transitions to `sent` except 
 human click in the extension popup** — there is deliberately NO MCP approve tool, so
 Claude can stage a post but can never publish one. Don't add a server-side or MCP
 auto-approve path without a security review here first.
+
+**Amendment (v5 clean pass, S8) — cancel never publishes.** There are two ways to cancel,
+and both only flip `staged → canceled`: MCP `hq_social_cancel` and the popup's **Skip**,
+which calls `POST /social/outbox/cancel {id}` on the app relay (`dashboard/social-bridge.js`;
+same `X-HQ-Bridge` + optional `X-HQ-Token` gate as the other routes). The route answers
+`200 {ok, id, status:'canceled'}` and stamps `canceled_at`. It refuses anything that isn't
+`staged` with `409 {ok:false, error:'not staged', status}` and leaves the file byte-identical.
+An unknown id gets 404, a missing id 400, a failed auth check 403. A cancel never calls
+an adapter or messages the extension, and never writes `sent_at`/`result`. `canceled` is
+terminal: `GET /social/outbox` stops listing it and `/social/outbox/result` ignores it.
+On the extension side, `socialSend` re-reads the outbox before it publishes. It refuses
+(and reports nothing) when the post is no longer staged, when its payload
+(`platform/op/text/reply_to/target/title`) differs from what the popup showed, or when the
+app can't confirm either. So a post skipped or canceled while the popup was open can't
+be sent from a stale card. Pinned by `dashboard/social-cancel.test.mjs`.
