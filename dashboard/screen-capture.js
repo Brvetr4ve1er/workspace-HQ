@@ -30,10 +30,25 @@
 //     labels and disk paths never hit console.log. The registry keys sessions by opaque recId.
 //   - MediaRecorder itself runs in the renderer (Group 3, record-panel.js) — this module never
 //     touches getUserMedia / getDisplayMedia. Chunks arrive over ipcRenderer.send as ArrayBuffers.
+//
+// v5 clean pass (S1, IPC-CONTRACT "Pending — v5 clean pass"):
+//   - chunks go through rec-queue.js (seq from 0, written in order, the parked tail drained on
+//     stop, gaps logged as counts) — the "recordings save empty" fix;
+//   - hq:studio:rec-pause excludes paused time from elapsedMs; rec-status gains `paused`;
+//   - hq:studio:panel-mode sizes the panel (setup ≈340×180 ↔ live pill ≈230×44);
+//   - main-initiated stops (hotkey / low disk / 30-min limit) first push hq:studio:rec-command
+//     to the recording's panel so it stops cleanly, and hard-stop after 3 s;
+//   - snip-commit gains action 'save' | 'copy' | 'claude' (absent = save + copy, as before);
+//     'claude' saves, then opts.launchClaude(<project path>, 'Look at this screenshot: <abs> — ').
+//     The project is resolved main-side from opts.getProjects() by id — the renderer never
+//     supplies a path — and the screenshot stays in the library (never copied into a repo).
+//   - HQ_STUDIO_ROOT (absolute path, env only, never persisted) points the library at another
+//     folder for one launch — the test seam rootOverride's IPC refusal below always intended.
 
 const path = require('node:path');
 const fs = require('node:fs');
 const { nativeImage, shell, clipboard } = require('electron');
+const { createQueue } = require('./rec-queue');
 
 const CH = {
   PANEL_TOGGLE: 'hq:studio:panel-toggle',
@@ -55,7 +70,87 @@ const CH = {
   SET_SET: 'hq:studio:settings-set',
   CAPTURE_ADDED: 'studio:capture-added',
   OPEN_REALM: 'hq:studio:open-realm',
+  // v5 clean pass (K-7)
+  REC_PAUSE: 'hq:studio:rec-pause',
+  PANEL_MODE: 'hq:studio:panel-mode',
+  REC_COMMAND: 'hq:studio:rec-command',
 };
+
+// Panel window sizes per mode (IPC-CONTRACT: setup ≈340×180, live pill ≈230×44).
+const PANEL_SIZE = Object.freeze({
+  setup: Object.freeze({ width: 340, height: 180 }),
+  live: Object.freeze({ width: 230, height: 44 }),
+});
+const HARD_STOP_MS = 3000;              // a main-initiated stop waits this long for the panel
+const REC_LIMIT_MS = 30 * 60 * 1000;    // recorded (unpaused) time before the 'limit' stop
+const FINISHED_TTL_MS = 60 * 1000;      // a stop result stays answerable this long (late recStop)
+const SNIP_ACTIONS = Object.freeze(['save', 'copy', 'claude']);
+
+// -------------------------- pure helpers (exported as _pure for tests) --------------------------
+
+// 'save' | 'copy' | 'claude', or null for "absent / unknown" = today's save + copy.
+function normalizeSnipAction(a) {
+  return SNIP_ACTIONS.includes(a) ? a : null;
+}
+
+// What a snip commit does for each action. Absent = the pre-v5 behaviour (file + thumb +
+// clipboard). copy = clipboard only: no file, no thumb, no capture-added (consumers expect a path).
+function snipPlan(action) {
+  switch (normalizeSnipAction(action)) {
+    case 'save':   return { file: true,  clipboard: false, claude: false };
+    case 'copy':   return { file: false, clipboard: true,  claude: false };
+    case 'claude': return { file: true,  clipboard: false, claude: true };
+    default:       return { file: true,  clipboard: true,  claude: false };
+  }
+}
+
+const validProject = (p) => !!p && typeof p === 'object'
+  && typeof p.id === 'string' && p.id.length > 0 && p.id.length <= 200
+  && typeof p.path === 'string' && path.isAbsolute(p.path);
+
+// The renderer-facing project list: {id, name} only — paths stay main-side.
+function publicProjects(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const p of list) {
+    if (!validProject(p)) continue;
+    out.push({ id: p.id, name: String(p.name || p.id).slice(0, 120) });
+    if (out.length >= 500) break;
+  }
+  return out;
+}
+
+// Resolve a renderer-supplied project id against main's own list. Never trusts a path from IPC.
+function pickProject(list, id) {
+  if (!Array.isArray(list) || typeof id !== 'string' || !id) return null;
+  return list.find((p) => validProject(p) && p.id === id) || null;
+}
+
+function claudePrompt(absPath) {
+  return `Look at this screenshot: ${absPath} — `;
+}
+
+// New panel bounds for a mode: the top-left corner stays put, clamped into the work area so a
+// pill that started near an edge never ends up off-screen. null for an unknown mode.
+function panelBounds(mode, cur, workArea) {
+  const size = Object.prototype.hasOwnProperty.call(PANEL_SIZE, mode) ? PANEL_SIZE[mode] : null;
+  if (!size) return null;
+  let x = cur && Number.isFinite(cur.x) ? Math.round(cur.x) : 0;
+  let y = cur && Number.isFinite(cur.y) ? Math.round(cur.y) : 0;
+  const wa = workArea;
+  if (wa && [wa.x, wa.y, wa.width, wa.height].every(Number.isFinite)) {
+    x = Math.min(Math.max(x, wa.x), wa.x + Math.max(0, wa.width - size.width));
+    y = Math.min(Math.max(y, wa.y), wa.y + Math.max(0, wa.height - size.height));
+  }
+  return { x, y, width: size.width, height: size.height };
+}
+
+// HQ_STUDIO_ROOT must be an absolute path; anything else is ignored (and said so).
+function envRootFrom(v) {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  const p = v.trim();
+  return path.isAbsolute(p) ? path.resolve(p) : null;
+}
 
 const SETTINGS_DEFAULTS = Object.freeze({
   rootOverride: null,
@@ -70,11 +165,14 @@ const SETTINGS_DEFAULTS = Object.freeze({
 const SETTINGS_KEYS = Object.freeze(Object.keys(SETTINGS_DEFAULTS));
 
 // Module state.
-let deps = null;             // { app, BrowserWindow, screen, desktopCapturer, ipcMain, globalShortcut, send }
+let deps = null;             // { app, BrowserWindow, screen, desktopCapturer, ipcMain, globalShortcut, send, ... }
 let settings = null;
+let envRoot = null;          // HQ_STUDIO_ROOT for this launch only — never written to settings
 let panelWindow = null;
 let overlayWindows = [];     // one per Display when a snip is armed
-const recorders = new Map(); // recId -> { stream, tmpPath, finalPath, queue, nextSeq, bytes, ... }
+let panelHiddenForSnip = false;
+const recorders = new Map(); // recId -> { stream, tmpPath, finalPath, q (rec-queue), bytes, owner, ... }
+const finished = new Map();  // recId -> stop result, briefly, so a late recStop still gets the path
 let recStatusTimer = null;
 let diskWatchdogTick = 0;
 let bootTime = Date.now();
@@ -82,6 +180,7 @@ let bootTime = Date.now();
 // -------------------------- storage paths --------------------------
 
 function rootDir() {
+  if (envRoot) return envRoot;
   const override = settings && settings.rootOverride;
   if (override && typeof override === 'string') return override;
   return path.join(deps.app.getPath('videos'), 'WorkspaceHQ');
@@ -146,6 +245,9 @@ function loadSettings() {
   if (raw) { try { parsed = JSON.parse(raw); } catch { parsed = null; } }
   settings = Object.assign({}, SETTINGS_DEFAULTS, parsed && typeof parsed === 'object' ? parsed : {});
 }
+function effectiveSettings() {
+  return Object.assign({}, settings, envRoot ? { rootOverride: envRoot } : {});
+}
 function saveSettings() {
   try {
     fs.mkdirSync(deps.app.getPath('userData'), { recursive: true });
@@ -162,7 +264,8 @@ function patchSettings(patch) {
     if (!(k in patch)) continue;
     // rootOverride is the sole containment check for library-reveal/library-delete
     // (see withinRoot). An IPC-writable rootOverride would turn shell.trashItem into
-    // an arbitrary-file trash primitive, so refuse it here — set it via env/CLI in init().
+    // an arbitrary-file trash primitive, so refuse it here — set it with the
+    // HQ_STUDIO_ROOT env var at launch (init()), or by hand in studio-settings.json.
     if (k === 'rootOverride') continue;
     settings[k] = patch[k];
   }
@@ -228,10 +331,12 @@ function makePanel() {
   }
   const pos = (settings && settings.panelPosition) || {};
   panelWindow = new deps.BrowserWindow({
-    width: 340, height: 180,
+    width: PANEL_SIZE.setup.width, height: PANEL_SIZE.setup.height,
     x: Number.isFinite(pos.x) ? pos.x : undefined,
     y: Number.isFinite(pos.y) ? pos.y : undefined,
-    frame: false, transparent: false, resizable: false,
+    // v5: transparent so the setup card's rounded corners and the live pill's
+    // 999px radius read as shapes, not as square window corners.
+    frame: false, transparent: true, backgroundColor: '#00000000', resizable: false,
     alwaysOnTop: true, skipTaskbar: true, show: false,
     minimizable: false, maximizable: false, fullscreenable: false,
     title: 'WorkspaceHQ Studio',
@@ -258,6 +363,31 @@ function makePanel() {
   });
   panelWindow.loadFile(html).catch((e) => console.error('[studio] panel load failed:', e.message));
   return panelWindow;
+}
+
+// hq:studio:panel-mode — setup card ↔ live pill. Non-resizable windows can ignore
+// setBounds on Windows, so resizability is lifted for the one call.
+function setPanelMode(mode) {
+  const w = panelWindow;
+  if (!w || w.isDestroyed()) return false;
+  let cur = null;
+  try { cur = w.getBounds(); } catch { return false; }
+  let workArea = null;
+  try { workArea = deps.screen.getDisplayMatching(cur).workArea; } catch { /* keep unclamped */ }
+  const b = panelBounds(mode, cur, workArea);
+  if (!b) return false;
+  let wasResizable = false;
+  try { wasResizable = w.isResizable(); } catch { /* ignore */ }
+  try {
+    if (!wasResizable) w.setResizable(true);
+    w.setBounds(b);
+  } catch (e) {
+    console.error('[studio] panel-mode failed:', e.message);
+    return false;
+  } finally {
+    try { if (!wasResizable) w.setResizable(false); } catch { /* window gone */ }
+  }
+  return true;
 }
 
 function togglePanel() {
@@ -308,10 +438,16 @@ async function snipArm(kindArg) {
     return;
   }
 
-  // Hide the panel while we snip so we never race with its own paint.
+  // Hide the panel while we snip so we never race with its own paint (and remember
+  // whether it was up, so closing the overlays doesn't pop a hidden panel back).
+  panelHiddenForSnip = false;
   if (panelWindow && !panelWindow.isDestroyed()) {
-    try { panelWindow.hide(); } catch { /* ignore */ }
+    try { if (panelWindow.isVisible()) { panelWindow.hide(); panelHiddenForSnip = true; } } catch { /* ignore */ }
   }
+
+  // The send-to-Claude picker. Only offered when main wired BOTH halves of K-5; an
+  // empty list is how the overlay knows to disable the button (and say why).
+  const projects = claudeWired() ? publicProjects(readProjects()) : [];
 
   for (let i = 0; i < displays.length; i++) {
     const d = displays[i];
@@ -345,7 +481,7 @@ async function snipArm(kindArg) {
     w.__hqDisplayBounds = d.bounds;
     w.__hqScaleFactor = d.scaleFactor;
     w.__hqFrozenPng = pngDataUrl;
-    w.__hqNativeImage = (pngDataUrl && nativeImage.createFromDataURL(pngDataUrl)) || null;
+    w.__hqNativeImage = (pngDataUrl && deps.nativeImage.createFromDataURL(pngDataUrl)) || null;
     try { w.setContentProtection(true); } catch { /* ignore */ }
     overlayWindows.push(w);
 
@@ -361,6 +497,7 @@ async function snipArm(kindArg) {
           scaleFactor: d.scaleFactor,
           kind,
           displayIndex: i,
+          projects,
         });
       } catch { /* window vanished */ }
     });
@@ -376,18 +513,61 @@ function closeOverlays() {
     try { if (!w.isDestroyed()) w.close(); } catch { /* ignore */ }
   }
   overlayWindows = [];
-  if (panelWindow && !panelWindow.isDestroyed()) {
-    try { panelWindow.show(); } catch { /* ignore */ }
+  if (panelHiddenForSnip && panelWindow && !panelWindow.isDestroyed()) {
+    try { panelWindow.showInactive(); } catch { /* ignore */ }
+  }
+  panelHiddenForSnip = false;
+}
+
+// K-5 — both halves must be functions for the send-to-Claude action to exist.
+function claudeWired() {
+  return !!(deps && typeof deps.getProjects === 'function' && typeof deps.launchClaude === 'function');
+}
+function readProjects() {
+  if (!deps || typeof deps.getProjects !== 'function') return [];
+  try {
+    const list = deps.getProjects();
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    console.error('[studio] getProjects failed:', e.message);
+    return [];
   }
 }
 
-// Renderer commits a region via IPC; we crop the frozen bitmap main-side, write
-// the file atomically, drop a thumbnail sidecar, and copy to clipboard.
+// action 'claude', after the file is written: open an interactive Claude terminal in the
+// chosen project with the absolute screenshot path in the prompt. Refusals are logged (the
+// commit is fire-and-forget) and never lose the capture — the file is already saved.
+async function sendShotToClaude(absPath, projectId) {
+  if (!claudeWired()) {
+    console.warn('[studio] send-to-Claude refused: launchClaude/getProjects not wired — screenshot saved only');
+    return false;
+  }
+  const project = pickProject(readProjects(), projectId);
+  if (!project) {
+    console.warn('[studio] send-to-Claude refused: unknown project id — screenshot saved only');
+    return false;
+  }
+  try {
+    const ok = await deps.launchClaude(project.path, claudePrompt(absPath));
+    if (!ok) console.warn('[studio] send-to-Claude: launchClaude returned false');
+    return !!ok;
+  } catch (e) {
+    console.error('[studio] send-to-Claude failed:', e.message);
+    return false;
+  }
+}
+
+// Renderer commits a region via IPC; we crop the frozen bitmap main-side, then by action:
+// absent → write the file atomically + thumbnail sidecar + clipboard (pre-v5 behaviour);
+// 'save' → file + thumb; 'copy' → clipboard only (no file); 'claude' → file + thumb, then
+// sendShotToClaude. Returns the written path, or null (copy, or a failure).
 async function commitSnip(arg) {
   const payload = arg && typeof arg === 'object' ? arg : {};
   const displayId = payload.displayId;
   const rectDIP = payload.rectDIP || null;
   const mode = payload.mode === 'full' ? 'full' : (payload.mode === 'window' ? 'window' : 'region');
+  const plan = snipPlan(payload.action);
+  const projectId = typeof payload.projectId === 'string' ? payload.projectId.slice(0, 200) : null;
 
   const overlay = overlayWindows.find((w) => w.__hqDisplayId === displayId);
   const image = overlay ? overlay.__hqNativeImage : null;
@@ -413,6 +593,12 @@ async function commitSnip(arg) {
     return null;
   }
 
+  if (!plan.file) {
+    // 'copy' — the clipboard is the whole job; nothing lands on disk.
+    try { deps.clipboard.writeImage(out); } catch (e) { console.error('[studio] clipboard write failed:', e.message); }
+    return null;
+  }
+
   ensureTree();
   const target = uniquePath(shotsDir(), slug(), '.png');
   const tmp = target + '.part';
@@ -433,9 +619,12 @@ async function commitSnip(arg) {
     const thumbPath = path.join(shotsThumbsDir(), path.basename(target, '.png') + '.thumb.jpg');
     fs.writeFileSync(thumbPath, thumbBuf);
   } catch { /* thumb is nice-to-have, never a blocker */ }
-  try { clipboard.writeImage(out); } catch { /* clipboard busy */ }
+  if (plan.clipboard) {
+    try { deps.clipboard.writeImage(out); } catch { /* clipboard busy */ }
+  }
 
   broadcast(CH.CAPTURE_ADDED, { kind: 'shot', path: target, at: Date.now() });
+  if (plan.claude) await sendShotToClaude(target, projectId);
   return target;
 }
 
@@ -489,25 +678,40 @@ function stopRecStatusPushIfIdle() {
   }
 }
 
+// One rec-status 'recording' payload. elapsedMs excludes paused time (rec-queue accounting).
+function recordingStatus(recId, r, now = Date.now()) {
+  return {
+    state: 'recording',
+    recId,
+    elapsedMs: r.q.elapsed(now, r.startedAt),
+    bytes: r.bytes,
+    paused: r.q.paused,
+    sourceLabel: r.sourceLabel,
+    mic: r.mic,
+    sysAudio: r.sysAudio,
+    lastPath: null,
+  };
+}
+
 function recStatusTick() {
   const now = Date.now();
   for (const [recId, r] of recorders) {
-    broadcast(CH.REC_STATUS, {
-      state: 'recording',
-      recId,
-      elapsedMs: now - r.startedAt,
-      bytes: r.bytes,
-      sourceLabel: r.sourceLabel,
-      mic: r.mic,
-      sysAudio: r.sysAudio,
-      lastPath: null,
-    });
+    if (r.stopping) continue;
+    const status = recordingStatus(recId, r, now);
+    broadcast(CH.REC_STATUS, status);
+    // 30 min of recorded (unpaused) time → stop. 'auto-split' is the existing state name;
+    // recording does NOT continue in a new file (that continuation is a recorded cut).
+    if (status.elapsedMs >= REC_LIMIT_MS && !r.stopRequested) {
+      broadcast(CH.REC_STATUS, { state: 'auto-split', recId, lastPath: r.finalPath });
+      requestStop(recId, 'limit');
+    }
   }
   // Disk-space watchdog — every 10th tick (~10s) is enough on a hot loop and
   // never blocks the tick.
   diskWatchdogTick = (diskWatchdogTick + 1) % 10;
   if (diskWatchdogTick === 0 && recorders.size && typeof fs.statfsSync === 'function') {
     for (const [recId, r] of recorders) {
+      if (r.stopping || r.stopRequested) continue;
       let freeBytes = Infinity;
       try {
         const s = fs.statfsSync(path.dirname(r.tmpPath));
@@ -518,14 +722,15 @@ function recStatusTick() {
           state: 'stopped-lowdisk', recId, bytes: r.bytes,
           sourceLabel: r.sourceLabel, lastPath: r.finalPath,
         });
-        stopRec(recId).catch(() => { /* already dying */ });
+        requestStop(recId, 'lowdisk');
       }
     }
   }
   stopRecStatusPushIfIdle();
 }
 
-function startRec(optsIn) {
+// owner = the webContents that called rec-start (the record panel feeding the chunks).
+function startRec(optsIn, owner) {
   const opts = optsIn && typeof optsIn === 'object' ? optsIn : {};
   ensureTree();
   const target = uniquePath(recsDir(), slug(), '.webm');
@@ -542,8 +747,7 @@ function startRec(optsIn) {
     stream,
     tmpPath,
     finalPath: target,
-    queue: new Map(),   // seq -> ArrayBuffer/Uint8Array (out-of-order buffer)
-    nextSeq: 0,
+    q: null,             // rec-queue: in-order writes, parked tail, pause accounting
     startedAt: Date.now(),
     bytes: 0,
     sourceId: opts.sourceId || null,
@@ -552,23 +756,41 @@ function startRec(optsIn) {
     fps: Number.isFinite(opts.fps) ? opts.fps : (settings.defaultFps || 30),
     sourceLabel: String(opts.sourceLabel || ''),
     stopping: false,
-    // 30-min auto-split so a runaway record produces chunked files rather than
-    // a single uncroppable monster.
-    autoSplitTimer: setTimeout(() => {
-      broadcast(CH.REC_STATUS, { state: 'auto-split', recId, lastPath: target });
-      stopRec(recId).catch(() => { /* ignore */ });
-    }, 30 * 60 * 1000),
+    stopPromise: null,
+    stopRequested: null, // reason of a pending main-initiated stop
+    hardStopTimer: null,
+    backpressured: false,
+    owner: owner && typeof owner.send === 'function' ? owner : null,
+    onOwnerGone: null,
   };
+  r.q = createQueue({
+    write(b) {
+      r.bytes += b.length;
+      const ok = r.stream.write(b);
+      if (!ok && !r.backpressured) {
+        // Backpressure — nudge the panel to pause its MediaRecorder; one drain
+        // listener at a time, however many writes came back false.
+        r.backpressured = true;
+        broadcast(CH.REC_STATUS, { state: 'backpressure', recId, bytes: r.bytes });
+        r.stream.once('drain', () => {
+          r.backpressured = false;
+          broadcast(CH.REC_STATUS, { state: 'drained', recId, bytes: r.bytes });
+        });
+      }
+    },
+  });
   stream.on('error', (e) => {
     console.error('[studio] rec stream error:', e.message);
     broadcast(CH.REC_STATUS, { state: 'error', recId });
   });
+  // The panel went away mid-recording (closed, crashed, reloaded): keep what arrived.
+  if (r.owner && typeof r.owner.once === 'function') {
+    r.onOwnerGone = () => { if (recorders.get(recId) === r) stopRec(recId).catch(() => {}); };
+    try { r.owner.once('destroyed', r.onOwnerGone); } catch { r.onOwnerGone = null; }
+  }
   recorders.set(recId, r);
   ensureRecStatusPush();
-  broadcast(CH.REC_STATUS, {
-    state: 'recording', recId, elapsedMs: 0, bytes: 0,
-    sourceLabel: r.sourceLabel, mic: r.mic, sysAudio: r.sysAudio,
-  });
+  broadcast(CH.REC_STATUS, recordingStatus(recId, r));
   return { recId, tmpPath };
 }
 
@@ -583,77 +805,147 @@ function writeChunk(recId, seq, buf) {
   else if (buf instanceof Uint8Array) asBuf = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
   else if (buf instanceof ArrayBuffer) asBuf = Buffer.from(buf);
   else return false;
-
-  r.queue.set(Number(seq) | 0, asBuf);
-  // Drain contiguous frames in order. Out-of-order IPC frames stay parked.
-  while (r.queue.has(r.nextSeq)) {
-    const b = r.queue.get(r.nextSeq);
-    r.queue.delete(r.nextSeq);
-    r.nextSeq++;
-    r.bytes += b.length;
-    const ok = r.stream.write(b);
-    if (!ok) {
-      // Backpressure — nudge the panel to pause its MediaRecorder. Group 3's
-      // panel.js honors { state: 'backpressure' } and calls MediaRecorder.pause().
-      broadcast(CH.REC_STATUS, { state: 'backpressure', recId, bytes: r.bytes });
-      r.stream.once('drain', () => {
-        broadcast(CH.REC_STATUS, { state: 'drained', recId, bytes: r.bytes });
-      });
-    }
+  // Out-of-order IPC frames park in the queue until their turn; junk seqs are ignored.
+  try { r.q.push(seq, asBuf); }
+  catch (e) {
+    // rec-queue contract: stop on a write error rather than keep pushing.
+    console.error('[studio] rec write failed:', e.message);
+    broadcast(CH.REC_STATUS, { state: 'error', recId });
+    stopRec(recId).catch(() => {});
+    return false;
   }
   return true;
 }
 
-async function stopRec(recId) {
+// hq:studio:rec-pause — user pause/resume; the panel pauses its own MediaRecorder.
+function recPause(recId, paused) {
   const r = recorders.get(recId);
-  if (!r || r.stopping) return null;
+  if (!r || r.stopping) return false;
+  if (paused) r.q.pause(); else r.q.resume();
+  broadcast(CH.REC_STATUS, recordingStatus(recId, r));
+  return true;
+}
+
+// A stop main decides on (hotkey, low disk, 30-min limit, write error): ask the panel that
+// feeds the recording to stop cleanly (flush its last chunk, then recStop), and hard-stop
+// with whatever arrived if it hasn't finished within HARD_STOP_MS. No live panel → hard-stop now.
+function requestStop(recId, reason) {
+  const r = recorders.get(recId);
+  if (!r || r.stopping) return false;
+  if (r.stopRequested) return true;
+  r.stopRequested = reason;
+  let wc = r.owner && !(typeof r.owner.isDestroyed === 'function' && r.owner.isDestroyed()) ? r.owner : null;
+  if (!wc && panelWindow && !panelWindow.isDestroyed()) wc = panelWindow.webContents;
+  let asked = false;
+  if (wc) {
+    try { wc.send(CH.REC_COMMAND, { cmd: 'stop', reason, recId }); asked = true; } catch { /* panel mid-teardown */ }
+  }
+  if (!asked) { stopRec(recId).catch(() => {}); return true; }
+  const ms = Number.isFinite(deps.hardStopMs) ? deps.hardStopMs : HARD_STOP_MS;
+  r.hardStopTimer = setTimeout(() => {
+    r.hardStopTimer = null;
+    if (recorders.get(recId) !== r || r.stopping) return;
+    console.warn('[studio] rec', recId, 'panel did not stop within', ms, 'ms (' + reason + ') — hard stop');
+    stopRec(recId).catch(() => {});
+  }, ms);
+  return true;
+}
+
+// Resolve once the write stream's fd is closed (end = flush first; destroy = discard).
+function closeStream(stream, how) {
+  return new Promise((resolve) => {
+    if (!stream || stream.closed) { resolve(); return; }
+    stream.once('close', resolve);
+    try { if (how === 'destroy') stream.destroy(); else stream.end(); } catch { resolve(); }
+  });
+}
+
+function clearRecTimers(r) {
+  if (r.hardStopTimer) { clearTimeout(r.hardStopTimer); r.hardStopTimer = null; }
+  if (r.onOwnerGone && r.owner && typeof r.owner.removeListener === 'function') {
+    try { r.owner.removeListener('destroyed', r.onOwnerGone); } catch { /* ignore */ }
+  }
+  r.onOwnerGone = null;
+}
+
+function rememberFinished(recId, result) {
+  finished.set(recId, result);
+  const t = setTimeout(() => finished.delete(recId), FINISHED_TTL_MS);
+  if (t && typeof t.unref === 'function') t.unref();
+}
+
+// Drain the parked tail in order (gaps logged as counts), close + fsync + rename. Concurrent
+// callers (the panel's recStop racing a hard stop) share one promise; a recStop that lands
+// after the recording finished gets the remembered result instead of null.
+function stopRec(recId) {
+  const r = recorders.get(recId);
+  if (!r) return Promise.resolve(finished.get(recId) || null);
+  if (r.stopping) return r.stopPromise;
   r.stopping = true;
-  if (r.autoSplitTimer) { clearTimeout(r.autoSplitTimer); r.autoSplitTimer = null; }
+  clearRecTimers(r);
+  r.stopPromise = (async () => {
+    let drained = null;
+    try { drained = r.q.stop(); }
+    catch (e) { console.error('[studio] rec drain failed:', e.message); }
+    if (drained && drained.gaps.length) {
+      const g = drained.gaps;
+      console.warn('[studio] rec', recId, 'saved with', g.length, 'missing chunk(s):',
+        g.slice(0, 20).join(',') + (g.length > 20 ? ',…' : ''), '· written', drained.written);
+    }
+    const endedAt = Date.now();
+    const durationMs = r.q.elapsed(endedAt, r.startedAt);
+    await closeStream(r.stream, 'end');
+    try {
+      const fd = fs.openSync(r.tmpPath, 'r+');
+      try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    } catch { /* best-effort fsync */ }
+    try { fs.renameSync(r.tmpPath, r.finalPath); }
+    catch (e) { console.error('[studio] rec rename failed:', e.message); }
 
-  await new Promise((resolve) => {
-    try { r.stream.end(resolve); } catch { resolve(); }
-  });
-  try {
-    const fd = fs.openSync(r.tmpPath, 'r+');
-    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  } catch { /* best-effort fsync */ }
-  try { fs.renameSync(r.tmpPath, r.finalPath); }
-  catch (e) { console.error('[studio] rec rename failed:', e.message); }
+    recorders.delete(recId);
+    stopRecStatusPushIfIdle();
 
-  recorders.delete(recId);
-  stopRecStatusPushIfIdle();
-
-  broadcast(CH.CAPTURE_ADDED, {
-    kind: 'rec', path: r.finalPath, at: Date.now(),
-    durationMs: Date.now() - r.startedAt, bytes: r.bytes,
-  });
-  broadcast(CH.REC_STATUS, {
-    state: 'stopped', recId, elapsedMs: Date.now() - r.startedAt, bytes: r.bytes,
-    sourceLabel: r.sourceLabel, lastPath: r.finalPath,
-  });
-  return { path: r.finalPath, bytes: r.bytes, durationMs: Date.now() - r.startedAt };
+    const result = {
+      path: r.finalPath, bytes: r.bytes, durationMs,
+      gaps: drained ? drained.gaps.length : null,
+      reason: r.stopRequested || null,
+    };
+    rememberFinished(recId, result);
+    broadcast(CH.CAPTURE_ADDED, {
+      kind: 'rec', path: r.finalPath, at: endedAt, durationMs, bytes: r.bytes,
+    });
+    broadcast(CH.REC_STATUS, {
+      state: 'stopped', recId, elapsedMs: durationMs, bytes: r.bytes, paused: false,
+      sourceLabel: r.sourceLabel, lastPath: r.finalPath,
+    });
+    return result;
+  })();
+  return r.stopPromise;
 }
 
 async function abortRec(recId) {
   const r = recorders.get(recId);
-  if (!r) return;
+  if (!r || r.stopping) return;
   r.stopping = true;
-  if (r.autoSplitTimer) { clearTimeout(r.autoSplitTimer); r.autoSplitTimer = null; }
-  try { r.stream.destroy(); } catch { /* ignore */ }
+  clearRecTimers(r);
+  try { r.q.stop(); } catch { /* discarding anyway */ }
+  // Unlink only once the fd is closed: the stream opens asynchronously, so an unlink right
+  // after destroy() can run before the file exists, and the open then leaves an empty .part.
+  await closeStream(r.stream, 'destroy');
   try { fs.unlinkSync(r.tmpPath); } catch { /* already gone */ }
   recorders.delete(recId);
   stopRecStatusPushIfIdle();
   broadcast(CH.REC_STATUS, { state: 'aborted', recId });
 }
 
-// Hotkey path. If anything is recording, stop it; otherwise start with either
-// the caller's opts or the saved defaults; if we still have no source, open
-// the panel so the user can pick one.
+// Hotkey path. If anything is recording, ask its panel to stop (hard stop after 3 s);
+// otherwise start with the caller's opts or the saved defaults; if we still have no source,
+// open the panel so the user can pick one.
 function recToggle(optsIn) {
   const opts = optsIn && typeof optsIn === 'object' ? optsIn : {};
   if (recorders.size > 0) {
     const [firstId] = recorders.keys();
-    stopRec(firstId).catch(() => { /* ignore */ });
+    requestStop(firstId, 'hotkey');
     return { toggled: 'stopped', recId: firstId };
   }
   // MediaRecorder lives in the record-panel renderer — without a caller who is
@@ -671,7 +963,7 @@ function recToggle(optsIn) {
     fps: Number.isFinite(opts.fps) ? opts.fps : (settings && settings.defaultFps) || 30,
     sourceLabel: opts.sourceLabel || '',
   };
-  return startRec(merged);
+  return startRec(merged, null);
 }
 
 // -------------------------- library --------------------------
@@ -731,19 +1023,19 @@ function listLibrary(queryIn) {
 
 async function revealPath(p) {
   if (typeof p !== 'string' || !withinRoot(p)) return false;
-  try { shell.showItemInFolder(p); return true; } catch { return false; }
+  try { deps.shell.showItemInFolder(p); return true; } catch { return false; }
 }
 async function trashPath(p) {
   if (typeof p !== 'string' || !withinRoot(p)) return false;
   try {
-    await shell.trashItem(p);
+    await deps.shell.trashItem(p);
     // Also trash a matching thumb sidecar, best-effort.
     try {
       const dir = path.dirname(p);
       const thumbsDir = path.join(dir, '.thumbs');
       const baseNoExt = path.basename(p).replace(/\.(png|webm)$/i, '');
       const thumbPath = path.join(thumbsDir, baseNoExt + '.thumb.jpg');
-      if (fs.existsSync(thumbPath)) await shell.trashItem(thumbPath);
+      if (fs.existsSync(thumbPath)) await deps.shell.trashItem(thumbPath);
     } catch { /* sidecar orphaned — harmless */ }
     return true;
   } catch (e) {
@@ -786,7 +1078,7 @@ async function quickFullSnap() {
     try { fs.unlinkSync(tmp); } catch { /* ignore */ }
     return;
   }
-  try { clipboard.writeImage(src.thumbnail); } catch { /* ignore */ }
+  try { deps.clipboard.writeImage(src.thumbnail); } catch { /* ignore */ }
   broadcast(CH.CAPTURE_ADDED, { kind: 'shot', path: target, at: Date.now() });
 }
 
@@ -805,8 +1097,18 @@ function init(bag) {
     ipcMain: bag.ipcMain,
     globalShortcut: bag.globalShortcut || null,
     send: typeof bag.send === 'function' ? bag.send : broadcast,
+    // K-5 (main.js wires these; either may be missing — the claude action then refuses)
+    getProjects: typeof bag.getProjects === 'function' ? bag.getProjects : null,
+    launchClaude: typeof bag.launchClaude === 'function' ? bag.launchClaude : null,
+    // Electron modules, injectable so screen-capture.test.mjs can run under plain Node.
+    clipboard: bag.clipboard || clipboard,
+    nativeImage: bag.nativeImage || nativeImage,
+    shell: bag.shell || shell,
+    hardStopMs: Number.isFinite(bag.hardStopMs) ? bag.hardStopMs : HARD_STOP_MS,
   };
   bootTime = Date.now();
+  envRoot = envRootFrom(process.env.HQ_STUDIO_ROOT);
+  if (process.env.HQ_STUDIO_ROOT && !envRoot) console.warn('[studio] HQ_STUDIO_ROOT ignored — it must be an absolute path');
   loadSettings();
   ensureTree();
   recoverPartials();
@@ -820,22 +1122,27 @@ function init(bag) {
   ipcMain.on(CH.SNIP_CANCEL, () => { closeOverlays(); });
 
   ipcMain.handle(CH.REC_SOURCES, () => listRecSources());
-  ipcMain.handle(CH.REC_START,  (_e, opts) => startRec(opts));
+  ipcMain.handle(CH.REC_START,  (e, opts) => startRec(opts, e && e.sender));
   ipcMain.on(CH.REC_CHUNK, (_e, arg) => {
     if (!arg) return;
     const buf = arg.buf != null ? arg.buf : arg.chunk;
-    writeChunk(arg.recId, arg.seq | 0, buf);
+    // seq goes to rec-queue as sent: it validates integers itself ("seq | 0" turned junk into 0).
+    writeChunk(arg.recId, arg.seq, buf);
   });
   ipcMain.handle(CH.REC_STOP,  (_e, arg) => stopRec(arg && arg.recId));
   ipcMain.on(CH.REC_ABORT,     (_e, arg) => { abortRec(arg && arg.recId); });
   ipcMain.handle(CH.REC_TOGGLE, (_e, opts) => recToggle(opts));
+  ipcMain.on(CH.REC_PAUSE,      (_e, arg) => { if (arg) recPause(arg.recId, !!arg.paused); });
+  ipcMain.handle(CH.PANEL_MODE, (_e, arg) => setPanelMode(arg && arg.mode));
 
   ipcMain.handle(CH.LIB_LIST,   (_e, q)   => listLibrary(q));
   ipcMain.handle(CH.LIB_REVEAL, (_e, p)   => revealPath(p));
   ipcMain.handle(CH.LIB_DELETE, (_e, p)   => trashPath(p));
 
-  ipcMain.handle(CH.SET_GET, () => Object.assign({}, settings));
-  ipcMain.handle(CH.SET_SET, (_e, patch) => { patchSettings(patch); return Object.assign({}, settings); });
+  // rootOverride reads back the EFFECTIVE override (HQ_STUDIO_ROOT wins), so a test can
+  // confirm where captures will land before it records anything.
+  ipcMain.handle(CH.SET_GET, () => effectiveSettings());
+  ipcMain.handle(CH.SET_SET, (_e, patch) => { patchSettings(patch); return effectiveSettings(); });
 
   // Module-owned hotkeys (main.js registers the two "still free" ones, we take
   // the Shift variants and the STUDIO-realm opener).
@@ -859,6 +1166,8 @@ function init(bag) {
 module.exports = {
   init,
   CH,
+  // pure helpers, for screen-capture.test.mjs
+  _pure: { normalizeSnipAction, snipPlan, publicProjects, pickProject, claudePrompt, panelBounds, envRootFrom, PANEL_SIZE },
   snipArm: (kind) => snipArm(kind),
   recToggle: (opts) => recToggle(opts),
   togglePanel: () => togglePanel(),

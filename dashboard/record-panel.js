@@ -1,23 +1,24 @@
-/* record-panel.js — v3 STUDIO record cockpit
+/* record-panel.js — the recorder satellite (v5 clean pass S2).
  *
- * Owned by Group 3 (frontend lane). Contract with Group 1 (main-process
- * screen-capture module) is via window.hq.studio.rec* + snip-sources.
+ * Setup card (kind · source · mic / system audio · start) → live pill (elapsed · pause/resume ·
+ * stop) → back to setup with "saved <file> · reveal". MediaRecorder runs here; main
+ * (screen-capture.js) owns the file. Contract with main: window.hq.studio.rec*, panelMode,
+ * onRecCommand (IPC-CONTRACT "v3 STUDIO" + "Pending — v5 clean pass").
  *
- * Behaviour:
- *   - list sources with recSources() and render a thumbnail grid
- *   - one-click select, then click the big red REC to start
- *   - MediaRecorder(video/webm;codecs=vp9,opus), 500ms timeslice
- *   - every ondataavailable → arrayBuffer → recChunk(recId, seq, buf)
- *   - onstop → recStop(recId); saved state shows Reveal
- *   - mic and system-audio toggles composed into a single MediaStream
- *   - status pushes from main (backpressure / drained / stopped / lowdisk / error)
- *     handled via onRecStatus so pause/resume happens without polling
+ * The empty-recording fix, in this file:
+ *   - every non-empty chunk gets its seq SYNCHRONOUSLY in ondataavailable, from 0, BEFORE
+ *     `await blob.arrayBuffer()` — so seqs match MediaRecorder's order however the reads resolve
+ *     (main used to wait for 0 while this file numbered from 1);
+ *   - onstop awaits every pending send before calling recStop, so the final chunk can't race
+ *     the stop.
+ * Pausing: a user pause (sent to main with recPause, which excludes it from elapsedMs) and a
+ * backpressure pause (rec-status 'backpressure' / 'drained') are tracked separately; the
+ * MediaRecorder runs only while neither holds, so 'drained' never resumes a user pause.
+ * Main-initiated stops (hotkey, low disk, 30-min limit) arrive on onRecCommand and take the same
+ * clean path; if this panel hasn't finished in 3 s main hard-stops and pushes rec-status 'stopped'.
  *
- * XSS: every source label + every timer + every status message is written with
- * textContent. No innerHTML anywhere on untrusted data.
- *
- * Button discipline: every control that would call a missing bridge method
- * starts disabled with a title="<reason>". No dead or lying controls.
+ * XSS: source labels, file names and errors are written with textContent only.
+ * Button discipline: a control whose bridge method is missing starts disabled with a title saying why.
  */
 'use strict';
 
@@ -26,40 +27,63 @@ const bridge = (window.hq && window.hq.studio) || null;
 // ---- DOM handles -----------------------------------------------------------
 const $ = (id) => document.getElementById(id);
 const els = {
-  body:         document.body,
-  sources:      $('sources'),
-  sourcesEmpty: $('sourcesEmpty'),
-  optMic:       $('optMic'),
-  optSys:       $('optSys'),
-  btnRec:       $('btnRec'),
-  btnRecLbl:    $('btnRecLbl'),
-  btnReveal:    $('btnReveal'),
-  btnRefresh:   $('btnRefresh'),
-  timer:        $('timer'),
-  statusText:   $('statusText'),
+  body:       document.body,
+  setup:      $('setup'),
+  live:       $('live'),
+  kindBtns:   Array.from(document.querySelectorAll('[data-kind]')),
+  source:     $('source'),
+  btnRefresh: $('btnRefresh'),
+  btnHide:    $('btnHide'),
+  optMic:     $('optMic'),
+  optSys:     $('optSys'),
+  btnRec:     $('btnRec'),
+  statusText: $('statusText'),
+  btnReveal:  $('btnReveal'),
+  timer:      $('timer'),
+  btnPause:   $('btnPause'),
+  btnStop:    $('btnStop'),
+};
+
+// Why a recording ended, as the setup card says it afterwards ('' = the user's own stop).
+const STOP_TEXT = {
+  user: '',
+  hotkey: 'Stopped by hotkey',
+  lowdisk: 'Stopped — low disk space',
+  limit: 'Stopped — 30 min limit',
+  'source-ended': 'Source closed',
+  'main-error': 'Recorder error',
+  main: 'Stopped (main)',        // main stopped it and didn't say why — no guessing
 };
 
 // ---- Runtime state ---------------------------------------------------------
 const state = {
   sources: [],
-  selectedId: null,        // string sourceId or null
+  kind: 'screen',          // 'screen' | 'window' (region recording is a recorded cut)
+  selectedId: null,
+  mic: false,
+  sys: false,
   recording: false,
-  finishing: false,        // stop button pressed, awaiting flush
-  recId: null,             // opaque id from main
-  seq: 0,                  // monotonic chunk sequence
+  finishing: false,        // stop requested, awaiting the last chunk + recStop
+  recId: null,
+  seq: 0,                  // next chunk seq — starts at 0, assigned synchronously
+  pending: new Set(),      // in-flight arrayBuffer → recChunk sends
   startedAt: 0,
+  pausedAt: null,          // open user pause (ms), or null
+  pausedTotal: 0,          // closed user-paused spans (ms)
+  userPaused: false,
+  bpPaused: false,         // paused by main's backpressure push
   timerHandle: 0,
-  stream: null,            // MediaStream
-  micStream: null,         // separate for cleanup
-  sysStream: null,         // separate for cleanup
-  recorder: null,          // MediaRecorder
-  lastPath: null,          // final path on success
+  stream: null, videoStream: null, micStream: null, sysStream: null,
+  recorder: null,
+  lastPath: null,
   bytes: 0,
-  bpPaused: false,         // paused for backpressure
+  stopReason: null,
+  notes: [],               // degradations to report once saved ("no system audio" …)
 };
 
 // ---- Bridge helpers --------------------------------------------------------
 function have(name) { return !!(bridge && typeof bridge[name] === 'function'); }
+const errMsg = (e) => (e && e.message ? e.message : 'unknown');
 
 function disableWithReason(btn, reason) {
   btn.disabled = true;
@@ -69,11 +93,10 @@ function disableWithReason(btn, reason) {
 function ensureBridge() {
   if (!bridge) {
     setStatus('Bridge unavailable — reload the app', 'err');
-    disableWithReason(els.btnRec,     'window.hq.studio is not exposed');
-    disableWithReason(els.btnRefresh, 'window.hq.studio is not exposed');
-    disableWithReason(els.btnReveal,  'window.hq.studio is not exposed');
-    els.optMic.disabled = true; els.optMic.title = 'Bridge unavailable';
-    els.optSys.disabled = true; els.optSys.title = 'Bridge unavailable';
+    for (const b of [els.btnRec, els.btnRefresh, els.btnReveal, els.optMic, els.optSys]) {
+      disableWithReason(b, 'window.hq.studio is not exposed');
+    }
+    els.source.disabled = true;
     return false;
   }
   if (!have('recSources')) disableWithReason(els.btnRefresh, 'recSources missing on bridge');
@@ -81,12 +104,15 @@ function ensureBridge() {
     disableWithReason(els.btnRec, 'recStart / recChunk / recStop missing on bridge');
   }
   if (!have('libraryReveal')) disableWithReason(els.btnReveal, 'libraryReveal missing on bridge');
+  if (!have('recPause')) disableWithReason(els.btnPause, 'recPause missing on bridge — this main process cannot pause');
+  if (!have('panelToggle')) disableWithReason(els.btnHide, 'panelToggle missing on bridge');
   return true;
 }
 
 // ---- Status / timer --------------------------------------------------------
 function setStatus(text, kind) {
   els.statusText.textContent = String(text || '');
+  els.statusText.title = String(text || '');
   els.body.classList.remove('err', 'saved', 'warn');
   if (kind) els.body.classList.add(kind);
 }
@@ -96,23 +122,22 @@ function fmtElapsed(ms) {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  const pad = (n) => n < 10 ? '0' + n : String(n);
+  const pad = (n) => (n < 10 ? '0' + n : String(n));
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-function fmtBytes(n) {
-  if (!n || n < 1024) return `${n | 0} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+// Recorded time: wall time since start minus user-paused spans (main's accounting, mirrored).
+function elapsedMs(now = Date.now()) {
+  const open = state.pausedAt != null ? now - state.pausedAt : 0;
+  return Math.max(0, now - state.startedAt - state.pausedTotal - open);
 }
+
+function renderTimer() { els.timer.textContent = fmtElapsed(elapsedMs()); }
 
 function startTimer() {
   clearInterval(state.timerHandle);
-  state.timerHandle = setInterval(() => {
-    const ms = Date.now() - state.startedAt;
-    els.timer.textContent = fmtElapsed(ms);
-  }, 250);
+  renderTimer();
+  state.timerHandle = setInterval(renderTimer, 250);
 }
 
 function stopTimer() {
@@ -120,103 +145,78 @@ function stopTimer() {
   state.timerHandle = 0;
 }
 
-// ---- Source rendering ------------------------------------------------------
-function clearSources() {
-  while (els.sources.firstChild) els.sources.removeChild(els.sources.firstChild);
+// ---- Mode: setup card ↔ live pill -----------------------------------------
+function setMode(mode) {
+  const live = mode === 'live';
+  els.setup.hidden = live;
+  els.live.hidden = !live;
+  els.body.classList.toggle('live', live);
+  if (have('panelMode')) {
+    Promise.resolve(bridge.panelMode(mode)).catch(() => { /* window keeps its size; surfaces sit top-left */ });
+  }
+}
+
+// ---- Sources ---------------------------------------------------------------
+function sourcesOfKind() {
+  return state.sources.filter((s) => (state.kind === 'window' ? s.kind === 'window' : s.kind === 'screen'));
+}
+
+function autoPick(list) {
+  const auto = list.find((s) => s.kind === 'screen' && s.primary) || list[0];
+  return auto ? auto.sourceId : null;
+}
+
+function sourceLabel(src, i) {
+  if (src.kind === 'screen') {
+    const dims = src.width && src.height ? ` · ${src.width}×${src.height}` : '';
+    return `${src.label || 'Screen ' + (i + 1)}${src.primary ? ' ★' : ''}${dims}`;
+  }
+  return String(src.label || '(untitled window)');
 }
 
 function renderSources() {
-  clearSources();
-  if (!state.sources.length) {
-    els.sourcesEmpty.hidden = false;
-    return;
+  const list = sourcesOfKind();
+  if (!list.some((s) => s.sourceId === state.selectedId)) state.selectedId = autoPick(list);
+  while (els.source.firstChild) els.source.removeChild(els.source.firstChild);
+  if (!list.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.disabled = true;
+    opt.selected = true;
+    opt.textContent = state.sources.length ? `no ${state.kind}s found` : 'no sources';
+    els.source.appendChild(opt);
   }
-  els.sourcesEmpty.hidden = true;
-
-  for (const src of state.sources) {
-    const tile = document.createElement('div');
-    tile.className = 'src';
-    tile.setAttribute('role', 'radio');
-    tile.setAttribute('tabindex', '0');
-    tile.setAttribute('aria-checked', String(src.sourceId === state.selectedId));
-    tile.dataset.sourceId = src.sourceId;
-
-    const thumb = document.createElement('div');
-    thumb.className = 'thumb';
-    if (src.thumbnail && typeof src.thumbnail === 'string' && src.thumbnail.startsWith('data:image/')) {
-      // data: URLs allowed under CSP default-src 'self' img-src fallback — main
-      // provides them; we only trust the data: scheme prefix, never inline HTML.
-      thumb.style.backgroundImage = `url("${src.thumbnail}")`;
-    } else {
-      thumb.classList.add('placeholder');
-      thumb.textContent = 'no preview';
-    }
-    tile.appendChild(thumb);
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-
-    const kind = document.createElement('span');
-    kind.className = 'kind ' + (src.kind === 'screen' ? 'screen' : 'window');
-    kind.textContent = src.kind === 'screen' ? 'Screen' : 'Window';
-    meta.appendChild(kind);
-
-    const name = document.createElement('span');
-    name.className = 'name';
-    name.textContent = String(src.label || '(unnamed)');
-    name.title = String(src.label || '(unnamed)') + (src.width && src.height ? ` — ${src.width}×${src.height}` : '');
-    meta.appendChild(name);
-
-    if (src.primary) {
-      const prim = document.createElement('span');
-      prim.className = 'prim';
-      prim.textContent = '★';
-      prim.title = 'Primary display';
-      meta.appendChild(prim);
-    }
-
-    tile.appendChild(meta);
-
-    tile.addEventListener('click', () => selectSource(src.sourceId));
-    tile.addEventListener('keydown', (e) => {
-      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); selectSource(src.sourceId); }
-    });
-
-    els.sources.appendChild(tile);
-  }
+  list.forEach((src, i) => {
+    const opt = document.createElement('option');
+    opt.value = src.sourceId;
+    opt.textContent = sourceLabel(src, i);
+    opt.selected = src.sourceId === state.selectedId;
+    els.source.appendChild(opt);
+  });
+  els.source.title = list.length ? (els.source.selectedOptions[0] || {}).textContent || '' : '';
+  for (const b of els.kindBtns) b.setAttribute('aria-checked', String(b.dataset.kind === state.kind));
+  refreshRecButton();
 }
 
-function selectSource(sourceId) {
-  if (state.recording || state.finishing) return; // don't hot-swap mid-record
-  state.selectedId = sourceId;
-  for (const tile of els.sources.querySelectorAll('.src')) {
-    tile.setAttribute('aria-checked', String(tile.dataset.sourceId === sourceId));
-  }
-  refreshRecButton();
+function setKind(kind) {
+  if (state.recording || state.finishing) return;
+  if (kind !== 'screen' && kind !== 'window') return;
+  state.kind = kind;
+  renderSources();
 }
 
 function refreshRecButton() {
   if (!have('recStart') || !have('recChunk') || !have('recStop')) return; // already disabled with reason
-  if (state.recording) {
-    els.btnRec.disabled = false;
-    els.btnRec.title = 'Stop recording';
-    els.btnRecLbl.textContent = 'Stop';
-    return;
-  }
-  if (state.finishing) {
-    els.btnRec.disabled = true;
-    els.btnRec.title = 'Finalizing…';
-    els.btnRecLbl.textContent = 'Saving…';
+  if (state.recording || state.finishing) {
+    disableWithReason(els.btnRec, 'Recording');
     return;
   }
   if (!state.selectedId) {
     disableWithReason(els.btnRec, 'Pick a source first');
-    els.btnRecLbl.textContent = 'Record';
     return;
   }
   els.btnRec.disabled = false;
   els.btnRec.title = 'Start recording';
-  els.btnRecLbl.textContent = 'Record';
 }
 
 async function loadSources() {
@@ -225,28 +225,44 @@ async function loadSources() {
   try {
     const list = await bridge.recSources();
     state.sources = Array.isArray(list) ? list : [];
-    // Preserve selection if still valid; otherwise auto-pick primary screen.
-    if (state.selectedId && !state.sources.some((s) => s.sourceId === state.selectedId)) {
-      state.selectedId = null;
-    }
-    if (!state.selectedId) {
-      const auto = state.sources.find((s) => s.kind === 'screen' && s.primary)
-                || state.sources.find((s) => s.kind === 'screen')
-                || state.sources[0];
-      state.selectedId = auto ? auto.sourceId : null;
-    }
     renderSources();
-    refreshRecButton();
-    setStatus(state.sources.length
-      ? `${state.sources.length} source${state.sources.length === 1 ? '' : 's'} — ready`
-      : 'No sources available');
+    const n = sourcesOfKind().length;
+    setStatus(state.sources.length ? `${n} ${state.kind}${n === 1 ? '' : 's'} · ready` : 'No sources available');
   } catch (e) {
-    // e.message is a chromium error, not user-supplied — but still route via
-    // textContent path (setStatus does that).
-    setStatus('Failed to list sources: ' + (e && e.message ? e.message : 'unknown'), 'err');
     state.sources = [];
     renderSources();
+    setStatus('Failed to list sources: ' + errMsg(e), 'err');
   }
+}
+
+// ---- Audio toggles -----------------------------------------------------------
+function renderToggles() {
+  els.optMic.setAttribute('aria-pressed', String(state.mic));
+  els.optMic.textContent = state.mic ? 'mic on' : 'mic off';
+  els.optSys.setAttribute('aria-pressed', String(state.sys));
+  els.optSys.textContent = state.sys ? 'system audio on' : 'system audio off';
+}
+
+function toggleAudio(which) {
+  if (state.recording || state.finishing) return;
+  state[which] = !state[which];
+  renderToggles();
+  // Remembered as the panel's defaults (settings keys main already allows).
+  if (have('settingsSet')) {
+    Promise.resolve(bridge.settingsSet(which === 'mic' ? { defaultMic: state.mic } : { defaultSysAudio: state.sys })).catch(() => {});
+  }
+}
+
+async function loadDefaults() {
+  if (!have('settingsGet')) return;
+  try {
+    const s = await bridge.settingsGet();
+    if (s && typeof s === 'object') {
+      state.mic = !!s.defaultMic;
+      state.sys = !!s.defaultSysAudio;
+      renderToggles();
+    }
+  } catch { /* keep off/off */ }
 }
 
 // ---- MediaRecorder plumbing ------------------------------------------------
@@ -279,42 +295,30 @@ async function acquireStream(sourceId, opts) {
 
   let sysStream = null;
   if (opts.sysAudio) {
-    // Try to bind loopback audio to the same desktop source (Windows path).
+    // Loopback audio bound to the same desktop source (the Windows path).
     try {
       sysStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: sourceId,
-          },
-        },
+        audio: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId } },
         video: videoConstraints,
       });
-    } catch (e) {
-      // System audio failed — surface but keep going with video-only path.
-      setStatus('System audio unavailable — recording without it', 'warn');
+    } catch {
+      state.notes.push('no system audio');
       sysStream = null;
     }
   }
 
-  // If sysStream succeeded it already has the video track; otherwise grab video alone.
+  // If sysStream succeeded it already carries the video track; otherwise grab video alone.
   let videoStream = sysStream;
   if (!videoStream) {
-    videoStream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: videoConstraints,
-    });
+    videoStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: videoConstraints });
   }
 
   let micStream = null;
   if (opts.mic) {
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: false,
-      });
-    } catch (e) {
-      setStatus('Mic unavailable — recording without it', 'warn');
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch {
+      state.notes.push('no mic');
       micStream = null;
     }
   }
@@ -335,11 +339,76 @@ function stopAllTracks(...streams) {
   }
 }
 
+function releaseMedia() {
+  stopAllTracks(state.stream, state.videoStream, state.micStream, state.sysStream);
+  state.stream = state.videoStream = state.micStream = state.sysStream = null;
+  state.recorder = null;
+}
+
+// ondataavailable: seq is taken synchronously, BEFORE the async read, from 0.
+function onChunk(evt) {
+  if (!evt.data || evt.data.size === 0) return;   // empty chunks don't consume a seq
+  const recId = state.recId;
+  const seq = state.seq++;
+  const send = evt.data.arrayBuffer().then((buf) => {
+    state.bytes += buf.byteLength;
+    bridge.recChunk(recId, seq, buf);
+  }).catch((e) => {
+    // main reports the hole when it stops; say it here too
+    state.notes.push('chunk ' + seq + ' lost');
+    console.error('[record-panel] chunk', seq, 'lost:', errMsg(e));
+  });
+  const pending = state.pending;
+  pending.add(send);
+  send.then(() => pending.delete(send));
+}
+
+// onstop: the final dataavailable has fired, but its read may still be in flight.
+async function onRecorderStop() {
+  try {
+    while (state.pending.size) await Promise.allSettled([...state.pending]);
+  } finally {
+    await finalizeRecord();
+  }
+}
+
+// User pause and backpressure pause, combined: the recorder runs only when neither holds.
+function applyRecorderPause() {
+  const r = state.recorder;
+  if (!r) return;
+  const want = state.userPaused || state.bpPaused;
+  try {
+    if (want && r.state === 'recording') r.pause();
+    else if (!want && r.state === 'paused') r.resume();
+  } catch { /* recorder stopping */ }
+}
+
+function renderPause() {
+  els.body.classList.toggle('paused', state.userPaused);
+  els.btnPause.textContent = state.userPaused ? '▶' : '❚❚';
+  els.btnPause.title = state.userPaused ? 'Resume' : 'Pause';
+  els.btnPause.setAttribute('aria-label', state.userPaused ? 'Resume' : 'Pause');
+  els.live.title = state.userPaused ? 'Paused — paused time is not recorded' : (state.bpPaused ? 'Waiting for the disk to catch up' : '');
+}
+
+function togglePause() {
+  if (!state.recording || state.finishing || !have('recPause')) return;
+  const now = Date.now();
+  state.userPaused = !state.userPaused;
+  if (state.userPaused) state.pausedAt = now;
+  else if (state.pausedAt != null) { state.pausedTotal += now - state.pausedAt; state.pausedAt = null; }
+  try { bridge.recPause(state.recId, state.userPaused); } catch { /* main keeps counting; display still honest locally */ }
+  applyRecorderPause();
+  renderPause();
+  renderTimer();
+}
+
 async function beginRecord() {
   if (!have('recStart') || !have('recChunk') || !have('recStop')) {
     setStatus('Recorder bridge is missing', 'err');
     return;
   }
+  if (state.recording || state.finishing) return;
   if (!state.selectedId) {
     setStatus('Pick a source first', 'warn');
     return;
@@ -349,158 +418,147 @@ async function beginRecord() {
     setStatus('No supported WebM codec on this Chromium build', 'err');
     return;
   }
-
+  const src = state.sources.find((s) => s.sourceId === state.selectedId) || null;
   const opts = {
     sourceId: state.selectedId,
-    mic:      !!els.optMic.checked,
-    sysAudio: !!els.optSys.checked,
-    fps:      30,
+    sourceLabel: src ? String(src.label || '') : '',
+    mic: state.mic,
+    sysAudio: state.sys,
+    fps: 30,
   };
 
-  // Freeze the picker UI + hide any prior Reveal so the state is unambiguous.
   els.btnReveal.hidden = true;
-  els.body.classList.remove('saved', 'err', 'warn');
-  els.btnRec.disabled = true;
-  els.btnRec.title = 'Starting…';
+  state.notes = [];
+  if (fallback) state.notes.push('codec ' + mime);
+  disableWithReason(els.btnRec, 'Starting…');
   setStatus('Starting recorder…');
 
-  // 1. Acquire the media stream FIRST — that's where the user sees a permission
-  //    dialog or a driver-level failure. If it fails we haven't reserved a file.
+  // 1. Acquire the media stream FIRST — a permission or driver failure reserves no file.
   let acquired;
   try {
     acquired = await acquireStream(opts.sourceId, opts);
   } catch (e) {
-    setStatus('Capture failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
+    setStatus('Capture failed: ' + errMsg(e), 'err');
     refreshRecButton();
     return;
   }
+  const dropAcquired = () => stopAllTracks(acquired.composed, acquired.videoStream, acquired.micStream, acquired.sysStream);
 
   // 2. Ask main to open the .part file and hand us a recId.
   let startInfo;
   try {
     startInfo = await bridge.recStart(opts);
   } catch (e) {
-    stopAllTracks(acquired.composed, acquired.videoStream, acquired.micStream, acquired.sysStream);
-    setStatus('recStart failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
+    dropAcquired();
+    setStatus('recStart failed: ' + errMsg(e), 'err');
     refreshRecButton();
     return;
   }
   if (!startInfo || !startInfo.recId) {
-    stopAllTracks(acquired.composed, acquired.videoStream, acquired.micStream, acquired.sysStream);
-    setStatus('Recorder rejected start', 'err');
+    dropAcquired();
+    setStatus('Recorder rejected start' + (startInfo && startInfo.error ? ': ' + startInfo.error : ''), 'err');
     refreshRecButton();
     return;
   }
 
-  state.recId = startInfo.recId;
-  state.seq = 0;
-  state.bytes = 0;
-  state.bpPaused = false;
-  state.stream = acquired.composed;
-  state.micStream = acquired.micStream;
-  state.sysStream = acquired.sysStream;
+  Object.assign(state, {
+    recId: startInfo.recId, seq: 0, bytes: 0, pending: new Set(),
+    userPaused: false, bpPaused: false, pausedAt: null, pausedTotal: 0, stopReason: null,
+    stream: acquired.composed, videoStream: acquired.videoStream,
+    micStream: acquired.micStream, sysStream: acquired.sysStream,
+  });
 
-  // 3. MediaRecorder — VP9+Opus preferred, gracefully falls back if unsupported.
+  // 3. MediaRecorder — VP9+Opus preferred, falls back if unsupported.
   let recorder;
   try {
     recorder = new MediaRecorder(state.stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
   } catch (e) {
-    stopAllTracks(state.stream, acquired.videoStream, state.micStream, state.sysStream);
-    await bridge.recAbort(state.recId).catch(() => {});
-    setStatus('MediaRecorder init failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
+    releaseMedia();
+    if (have('recAbort')) bridge.recAbort(state.recId);
     state.recId = null;
+    setStatus('MediaRecorder init failed: ' + errMsg(e), 'err');
     refreshRecButton();
     return;
   }
   state.recorder = recorder;
-
-  recorder.ondataavailable = async (evt) => {
-    if (!evt.data || evt.data.size === 0) return;
-    try {
-      const buf = await evt.data.arrayBuffer();
-      state.bytes += buf.byteLength;
-      bridge.recChunk(state.recId, ++state.seq, buf);
-      // 1Hz footer refresh so we don't spam DOM during recording.
-      if (state.seq % 2 === 0) {
-        const elapsed = fmtElapsed(Date.now() - state.startedAt);
-        setStatus(`● ${elapsed} · ${fmtBytes(state.bytes)}`);
-      }
-    } catch (e) {
-      setStatus('Chunk drop: ' + (e && e.message ? e.message : 'unknown'), 'warn');
-    }
-  };
-
+  recorder.ondataavailable = onChunk;
   recorder.onerror = (evt) => {
     const err = evt && evt.error;
-    setStatus('Recorder error: ' + (err && err.message ? err.message : 'unknown'), 'err');
+    state.notes.push('recorder error: ' + errMsg(err));
+    endRecord('main-error');
   };
-
   recorder.onstop = () => {
-    // The final ondataavailable has already fired synchronously in Chromium's
-    // MediaRecorder before onstop, so state.seq is fully flushed by now.
-    finalizeRecord().catch((e) => {
-      setStatus('Finalize failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
-    });
+    onRecorderStop().catch((e) => setStatus('Finalize failed: ' + errMsg(e), 'err'));
   };
 
   try {
-    recorder.start(500); // 500 ms timeslice — chunk cadence per Group 3 spec
+    recorder.start(500); // 500 ms timeslice
   } catch (e) {
-    stopAllTracks(state.stream, acquired.videoStream, state.micStream, state.sysStream);
-    await bridge.recAbort(state.recId).catch(() => {});
-    setStatus('start() failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
+    releaseMedia();
+    if (have('recAbort')) bridge.recAbort(state.recId);
     state.recId = null;
+    setStatus('start() failed: ' + errMsg(e), 'err');
     refreshRecButton();
     return;
   }
 
   state.recording = true;
   state.startedAt = Date.now();
-  els.body.classList.add('rec');
-  els.optMic.disabled = true; els.optSys.disabled = true;
-  els.btnRefresh.disabled = true;
-  els.timer.textContent = '00:00';
+  for (const b of [els.optMic, els.optSys, els.btnRefresh]) b.disabled = true;
+  els.source.disabled = true;
+  els.btnStop.disabled = false;
+  if (have('recPause')) els.btnPause.disabled = false;
+  renderPause();
+  setMode('live');
   startTimer();
   refreshRecButton();
-  setStatus(fallback ? `● Recording (codec fallback: ${mime})` : '● Recording');
+  setStatus('● Recording');
 
-  // If the video track ends outside our control (user stopped sharing at OS
-  // level), stop cleanly. Only fires for tracks we didn't stop ourselves.
+  // The source went away outside our control (window closed, sharing stopped): stop cleanly.
   const videoTrack = state.stream.getVideoTracks()[0];
   if (videoTrack) {
-    videoTrack.addEventListener('ended', () => {
-      if (state.recording) endRecord({ reason: 'source-ended' });
-    });
+    videoTrack.addEventListener('ended', () => { if (state.recording) endRecord('source-ended'); });
   }
 }
 
 function endRecord(reason) {
   if (!state.recording || state.finishing) return;
   state.finishing = true;
+  state.stopReason = reason || 'user';
   els.body.classList.add('finishing');
-  els.btnRec.disabled = true;
-  els.btnRec.title = 'Finalizing…';
-  els.btnRecLbl.textContent = 'Saving…';
+  els.btnStop.disabled = true;
+  els.btnPause.disabled = true;
   stopTimer();
-  setStatus('Stopping…');
+  renderTimer();
+  els.timer.textContent = 'saving…';
+  // A recorder paused by the user stops fine from 'paused'; close the open span first.
+  if (state.pausedAt != null) { state.pausedTotal += Date.now() - state.pausedAt; state.pausedAt = null; }
   try {
     if (state.recorder && state.recorder.state !== 'inactive') {
-      state.recorder.stop();
+      state.recorder.stop();            // → last dataavailable → onstop → onRecorderStop
     } else {
-      // No recorder — go straight to finalize.
-      finalizeRecord().catch(() => {});
+      onRecorderStop().catch(() => {});
     }
   } catch (e) {
-    setStatus('Stop failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
+    setStatus('Stop failed: ' + errMsg(e), 'err');
+    onRecorderStop().catch(() => {});
   }
 }
 
-async function finalizeRecord() {
-  // Tear down media first — releases the display capture handle.
-  stopAllTracks(state.stream, state.micStream, state.sysStream);
-  state.stream = state.micStream = state.sysStream = null;
-  state.recorder = null;
+function savedText(p, verb) {
+  const stem = String(p).split(/[/\\]/).pop() || 'recording.webm';
+  const lead = STOP_TEXT[state.stopReason] || '';
+  return [lead, `${verb} ${stem}`].concat(state.notes).filter(Boolean).join(' · ');
+}
 
+function showReveal(p) {
+  state.lastPath = String(p);
+  els.btnReveal.hidden = !have('libraryReveal');
+  els.btnReveal.title = 'Show in folder';
+}
+
+async function finalizeRecord() {
+  releaseMedia();
   const recId = state.recId;
   state.recId = null;
   state.recording = false;
@@ -511,35 +569,38 @@ async function finalizeRecord() {
   }
   try {
     const res = await bridge.recStop(recId);
-    const path = (typeof res === 'string') ? res : (res && res.path);
-    if (path) {
-      state.lastPath = String(path);
-      const stem = state.lastPath.split(/[/\\]/).pop() || 'recording.webm';
-      setStatus('Saved ' + stem, 'saved');
-      els.btnReveal.hidden = !have('libraryReveal');
-      els.btnReveal.title = have('libraryReveal') ? 'Open the containing folder' : 'libraryReveal missing on bridge';
+    const p = (typeof res === 'string') ? res : (res && res.path);
+    if (p) {
+      if (res && res.gaps) state.notes.push(res.gaps + ' chunk(s) missing');
+      setStatus(savedText(p, 'saved'), state.notes.length ? 'warn' : 'saved');
+      showReveal(p);
     } else if (res && res.error) {
       setStatus('Save failed: ' + res.error, 'err');
     } else {
-      setStatus('Saved');
+      setStatus('Stopped — main returned no file', 'warn');
     }
   } catch (e) {
-    setStatus('recStop failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
+    setStatus('recStop failed: ' + errMsg(e), 'err');
   } finally {
     finishUiReset();
   }
 }
 
 function finishUiReset() {
+  stopTimer();
   state.finishing = false;
-  els.body.classList.remove('rec', 'finishing');
-  els.optMic.disabled = false; els.optSys.disabled = false;
-  els.btnRefresh.disabled = false;
+  state.recording = false;
+  state.userPaused = state.bpPaused = false;
+  els.body.classList.remove('finishing', 'paused');
+  for (const b of [els.optMic, els.optSys]) b.disabled = false;
+  if (have('recSources')) els.btnRefresh.disabled = false;
+  els.source.disabled = false;
   els.timer.textContent = '00:00';
+  setMode('setup');
   refreshRecButton();
 }
 
-// ---- Main-process status stream --------------------------------------------
+// ---- Main-process pushes ---------------------------------------------------
 function wireStatus() {
   if (!have('recStatus')) return;
   bridge.recStatus((payload) => {
@@ -547,104 +608,107 @@ function wireStatus() {
     if (payload.recId && state.recId && payload.recId !== state.recId) return;
     switch (payload.state) {
       case 'backpressure':
-        if (state.recorder && state.recorder.state === 'recording' && !state.bpPaused) {
-          try { state.recorder.pause(); state.bpPaused = true; } catch { /* ignore */ }
-          setStatus('Paused (backpressure)…', 'warn');
-        }
+        if (state.recording && !state.bpPaused) { state.bpPaused = true; applyRecorderPause(); renderPause(); }
         break;
       case 'drained':
-        if (state.recorder && state.recorder.state === 'paused' && state.bpPaused) {
-          try { state.recorder.resume(); state.bpPaused = false; } catch { /* ignore */ }
-          setStatus('● Recording (resumed)');
-        }
+        if (state.bpPaused) { state.bpPaused = false; applyRecorderPause(); renderPause(); }
         break;
       case 'auto-split':
-        setStatus('Auto-split — recording continues in a new file', 'warn');
+        // Main stops at the 30-min limit (recording does not continue in a new file);
+        // the stop itself arrives as a rec-command.
+        if (state.recording) state.stopReason = 'limit';
         break;
       case 'stopped-lowdisk':
-        setStatus('Stopped — low disk space', 'err');
-        endRecord({ reason: 'lowdisk' });
+        endRecord('lowdisk');
         break;
       case 'error':
-        setStatus('Recorder error (main)', 'err');
-        endRecord({ reason: 'main-error' });
+        endRecord('main-error');
         break;
       case 'stopped':
       case 'aborted':
-        // Main-initiated stop (hotkey, tray, etc.): tear down the local
-        // recorder without calling recStop again — main has already finalized.
+        // Main finalized without us (hard stop after 3 s, or the panel was slow): tear down
+        // locally without calling recStop — the file is already closed.
         if (state.recording && !state.finishing) {
           state.finishing = true;
-          els.body.classList.add('finishing');
-          els.btnRec.disabled = true;
-          stopTimer();
-          try {
-            if (state.recorder && state.recorder.state !== 'inactive') {
-              state.recorder.stop();
-            }
-          } catch { /* ignore */ }
-          stopAllTracks(state.stream, state.micStream, state.sysStream);
-          state.stream = state.micStream = state.sysStream = null;
-          state.recorder = null;
+          if (!state.stopReason) state.stopReason = 'main';
+          try { if (state.recorder && state.recorder.state !== 'inactive') { state.recorder.onstop = null; state.recorder.stop(); } } catch { /* ignore */ }
+          releaseMedia();
           state.recId = null;
           state.recording = false;
-          if (payload.lastPath) {
-            state.lastPath = String(payload.lastPath);
-            const stem = state.lastPath.split(/[/\\]/).pop() || 'recording.webm';
-            setStatus((payload.state === 'aborted' ? 'Aborted ' : 'Saved ') + stem, payload.state === 'aborted' ? 'warn' : 'saved');
-            if (payload.state === 'stopped') {
-              els.btnReveal.hidden = !have('libraryReveal');
-              els.btnReveal.title = have('libraryReveal') ? 'Open the containing folder' : 'libraryReveal missing on bridge';
-            }
+          if (payload.state === 'stopped' && payload.lastPath) {
+            setStatus(savedText(payload.lastPath, 'saved'), 'saved');
+            showReveal(payload.lastPath);
           } else {
-            setStatus(payload.state === 'aborted' ? 'Aborted (main)' : 'Stopped (main)', payload.state === 'aborted' ? 'warn' : 'saved');
+            setStatus(payload.state === 'aborted' ? 'Recording discarded (main)' : 'Stopped (main)', 'warn');
           }
           finishUiReset();
         }
         break;
       default:
-        // 'recording' handled locally; ignore duplicates from main.
-        break;
+        break;   // 'recording' ticks: the pill keeps its own (identical) clock
     }
   });
 }
 
+function wireCommands() {
+  if (!have('onRecCommand')) return;
+  bridge.onRecCommand((cmd) => {
+    if (!cmd || cmd.cmd !== 'stop') return;
+    if (cmd.recId && state.recId && cmd.recId !== state.recId) return;
+    endRecord(Object.prototype.hasOwnProperty.call(STOP_TEXT, cmd.reason) ? cmd.reason : 'main');
+  });
+}
+
 // ---- Wiring ----------------------------------------------------------------
+function hidePanel() {
+  if (state.recording || state.finishing || !have('panelToggle')) return;
+  Promise.resolve(bridge.panelToggle()).catch(() => {});
+}
+
 function wireControls() {
-  els.btnRec.addEventListener('click', () => {
-    if (state.finishing) return;
-    if (state.recording) endRecord({ reason: 'user' });
-    else beginRecord();
+  for (const b of els.kindBtns) b.addEventListener('click', () => setKind(b.dataset.kind));
+  els.source.addEventListener('change', () => {
+    state.selectedId = els.source.value || null;
+    els.source.title = (els.source.selectedOptions[0] || {}).textContent || '';
+    refreshRecButton();
   });
-
-  els.btnRefresh.addEventListener('click', () => {
-    if (state.recording || state.finishing) return;
-    loadSources();
-  });
-
+  els.btnRefresh.addEventListener('click', () => { if (!state.recording && !state.finishing) loadSources(); });
+  els.btnHide.addEventListener('click', hidePanel);
+  els.optMic.addEventListener('click', () => toggleAudio('mic'));
+  els.optSys.addEventListener('click', () => toggleAudio('sys'));
+  els.btnRec.addEventListener('click', () => { if (!state.recording && !state.finishing) beginRecord(); });
+  els.btnPause.addEventListener('click', togglePause);
+  els.btnStop.addEventListener('click', () => endRecord('user'));
   els.btnReveal.addEventListener('click', () => {
     if (!have('libraryReveal') || !state.lastPath) return;
-    bridge.libraryReveal(state.lastPath).catch((e) => {
-      setStatus('Reveal failed: ' + (e && e.message ? e.message : 'unknown'), 'err');
-    });
+    Promise.resolve(bridge.libraryReveal(state.lastPath)).catch((e) => setStatus('Reveal failed: ' + errMsg(e), 'err'));
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !state.recording && !state.finishing) { e.preventDefault(); hidePanel(); }
   });
 
-  // Guard against page unload while recording — stop cleanly so the take is saved.
-  // (Abort would delete the .part file; only the explicit discard path should do that.)
+  // Page going away mid-recording: ask main to keep what it has (it also stops the
+  // recording itself when this window's webContents is destroyed).
   window.addEventListener('beforeunload', () => {
     if (state.recording) {
-      try { state.recorder && state.recorder.stop(); } catch { /* ignore */ }
+      try { if (state.recorder) { state.recorder.onstop = null; state.recorder.stop(); } } catch { /* ignore */ }
       if (state.recId && have('recStop')) bridge.recStop(state.recId);
-      stopAllTracks(state.stream, state.micStream, state.sysStream);
+      releaseMedia();
     }
   });
 }
 
 // ---- Boot ------------------------------------------------------------------
 function boot() {
+  renderToggles();
+  els.btnPause.disabled = true;
+  els.btnStop.disabled = true;
   if (!ensureBridge()) return;
   wireControls();
   wireStatus();
+  wireCommands();
+  setMode('setup');   // a reload mid-recording leaves the window pill-sized; the take was saved by main
+  loadDefaults();
   loadSources();
 }
 
