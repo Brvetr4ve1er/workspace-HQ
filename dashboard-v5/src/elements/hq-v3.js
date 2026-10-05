@@ -1,5 +1,50 @@
 // WorkspaceHQ v3 — ascii background, text animations, animated icons. Plain custom elements.
 (function () {
+  // ---------- pure planning helpers (no DOM; hq-v3.test.mjs drives them through the hook below) ----------
+  // linesPlan(prev, next): how <hq-lines> gets from the text it rendered last to the new text.
+  //   reset       → clear and render every line (nothing rendered yet, or the new text is unrelated)
+  //   drop        → remove the first `drop` rendered lines (a rolling window that scrolled, e.g. slice(-60))
+  //   replaceLast → the kept line at startIndex-1 grew (a chunk ended mid-line): re-render it in place
+  //   startIndex  → append next's lines from here
+  // A rolling-window match needs ≥2 surviving lines, one of them non-blank, so a stray shared line between two
+  // unrelated texts doesn't count (and even when it does, the result is still exactly next — only the entrance
+  // animation is skipped for the kept lines).
+  const LINES_SCAN_MAX = 600;
+  function linesPlan(prev, next) {
+    const nl = String(next ?? '').split('\n'), RESET = { reset: true, drop: 0, startIndex: 0, replaceLast: false };
+    if (prev == null) return RESET;
+    prev = String(prev);
+    const pl = prev.split('\n'), P = pl.length, last = pl[P - 1];
+    // plain append (text-prefix ⇒ every earlier line is equal; only the last one may have grown)
+    if (String(next ?? '').startsWith(prev)) return { reset: false, drop: 0, startIndex: P, replaceLast: nl[P - 1] !== last };
+    if (P > LINES_SCAN_MAX) return RESET;
+    // rolling window: prev minus its first k lines is a prefix of next (largest overlap first)
+    for (let k = 1; k <= P - 2; k++) {
+      const m = P - k;
+      if (m > nl.length || pl[k] !== nl[0] || !nl[m - 1].startsWith(last)) continue;
+      let same = true, ink = false;
+      for (let j = 0; j < m - 1 && same; j++) { same = pl[k + j] === nl[j]; ink = ink || !!pl[k + j].trim(); }
+      if (same && ink) return { reset: false, drop: k, startIndex: m, replaceLast: nl[m - 1] !== last };
+    }
+    return RESET;
+  }
+  // typePlan(shown, next, {stream, reduced}): <hq-type> keeps what is already on screen when the new text
+  // continues it (a streaming answer grows ~25×/s and must visibly progress), else retypes from 0.
+  // A new text that is a prefix of what's shown is cut back to, not retyped: Ask streams the raw text and then
+  // settles on the trimmed final answer, and a trailing newline must not blank the whole answer and retype it.
+  // instant → render the whole text now (streaming, or reduced motion); the cursor stays.
+  function typePlan(shown, next, opts) {
+    const s = String(shown ?? ''), n = String(next ?? ''), o = opts || {};
+    return { keep: n.startsWith(s) ? s.length : s.startsWith(n) ? n.length : 0, instant: !!(o.stream || o.reduced) };
+  }
+  // one typing step; never leaves half a surrogate pair (emoji) on screen
+  function typeStep(text, i) { let j = Math.min(text.length, i + 1); const c = text.charCodeAt(j - 1); if (c >= 0xD800 && c <= 0xDBFF && j < text.length) j++; return j; }
+  // per-line colouring for <hq-lines> (diff + run output)
+  function lineColor(l) { return l.startsWith('+') ? 'var(--green)' : l.startsWith('-') || l.startsWith('✗') ? 'var(--red)' : l.startsWith('@@') ? 'var(--blue)' : ''; }
+  // <hq-ascii-bg> frame captions: decoration only — no numbers, nothing that reads like a status or measurement
+  const BG_LABELS = ['workspace', 'local', '·'];
+  if (typeof window !== 'undefined' && window.__HQ_TEST_HOOK__) window.__HQ_TEST_HOOK__({ linesPlan, typePlan, typeStep, lineColor, BG_LABELS });
+
   const RM = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.hqReduce === '1';
   const css = (el, n, f) => (getComputedStyle(el).getPropertyValue(n) || f).trim() || f;
 
@@ -41,7 +86,7 @@
       c.globalAlpha = 1;
     }
     seed(W, H) {
-      const L = ['node.a · stable', 'scan · idle', 'git.mon · 8 repos', 'pod.042', 'mem · nominal'];
+      const L = BG_LABELS;   // the design's captions read as live telemetry (repo counts, "stable"); now neutral
       this.frames = Array.from({ length: 3 }, (_, i) => ({ x: 60 + Math.random() * (W - 340), y: 80 + Math.random() * (H - 240), w: 140 + Math.random() * 160, h: 70 + Math.random() * 80, label: L[i % L.length], ph: Math.random() * 6 }));
     }
   });
@@ -82,12 +127,22 @@
   window.HQAlive = { stagger: () => setTimeout(() => stagger(document), 30), enliven: () => enliven(document) };
 
   // ---------- <hq-ember days> : small flickering streak flame ----------
+  // days/title are observed (the streak changes after a scan without the element being re-created); the flame is
+  // built once so a new number doesn't restart its flicker.
   if (!customElements.get('hq-ember')) customElements.define('hq-ember', class extends HTMLElement {
-    connectedCallback() {
-      const rt = this.shadowRoot || this.attachShadow({ mode: 'open' }), n = +(this.getAttribute('days') || 0);
-      rt.innerHTML = '<span style="display:inline-flex;align-items:baseline;gap:3px;font-size:12px"><svg viewBox="0 0 10 14" width="10" height="14" style="overflow:visible"><path d="M5 0C6 3 9 5 9 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3C4 6 4 3 5 0z" fill="#e0a35a"/><path d="M5 6c1 1.5 2 2.4 2 4a2 2 0 0 1-4 0c0-1 .6-1.6 1.2-2C4.4 9 5 9.3 5 6z" fill="#d97757"/></svg><b style="font-weight:600;color:var(--accent-text)">' + n + '</b></span>';
-      if (!RM()) rt.querySelectorAll('path').forEach((p, i) => p.animate([{ transform: 'scale(1,1)' }, { transform: 'scale(.92,1.12)' }, { transform: 'scale(1.04,.94)' }, { transform: 'scale(1,1)' }], { duration: 900 + i * 300, iterations: Infinity, easing: 'ease-in-out' }));
-      rt.querySelectorAll('path').forEach(p => { p.style.transformOrigin = '50% 100%'; p.style.transformBox = 'fill-box'; });
+    static get observedAttributes() { return ['days', 'title']; }
+    connectedCallback() { this.render(); }
+    attributeChangedCallback(n, o, v) { if (this.isConnected && o !== v) this.render(); }
+    render() {
+      const rt = this.shadowRoot || this.attachShadow({ mode: 'open' }), d = Math.floor(+(this.getAttribute('days') || 0)), n = Number.isFinite(d) && d > 0 ? d : 0;
+      if (!this.num) {
+        rt.innerHTML = '<span role="img" style="display:inline-flex;align-items:baseline;gap:3px;font-size:12px"><svg viewBox="0 0 10 14" width="10" height="14" style="overflow:visible" aria-hidden="true"><path d="M5 0C6 3 9 5 9 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3C4 6 4 3 5 0z" fill="#e0a35a"/><path d="M5 6c1 1.5 2 2.4 2 4a2 2 0 0 1-4 0c0-1 .6-1.6 1.2-2C4.4 9 5 9.3 5 6z" fill="#d97757"/></svg><b style="font-weight:600;color:var(--accent-text)"></b></span>';
+        this.box = rt.firstChild; this.num = rt.querySelector('b');
+        if (!RM()) rt.querySelectorAll('path').forEach((p, i) => p.animate([{ transform: 'scale(1,1)' }, { transform: 'scale(.92,1.12)' }, { transform: 'scale(1.04,.94)' }, { transform: 'scale(1,1)' }], { duration: 900 + i * 300, iterations: Infinity, easing: 'ease-in-out' }));
+        rt.querySelectorAll('path').forEach(p => { p.style.transformOrigin = '50% 100%'; p.style.transformBox = 'fill-box'; });
+      }
+      this.num.textContent = String(n);
+      this.box.setAttribute('aria-label', this.getAttribute('title') || n + '-day streak');
     }
   });
   // ---------- <hq-prompt hints> : rotating typewriter placeholder ----------
@@ -113,19 +168,38 @@
   const SR = el => el.shadowRoot || el.attachShadow({ mode: 'open' });
   const GL = '!<>-_\\/[]{}—=+*^?#%01ABCDEF';
   function blink(el) { if (!RM()) el.animate([{ opacity: 1 }, { opacity: 1, offset: .5 }, { opacity: 0, offset: .51 }, { opacity: 0 }], { duration: 1000, iterations: Infinity }); }
+  // <hq-type text [speed] [stream] [hide-cursor]>: types towards `text`. A change that continues what is shown keeps
+  // it and types on from there (one running interval that reads this.target, so 25 updates/s don't reset its
+  // phase); anything else retypes from 0. `stream` (or reduced motion) renders the full text at once with the
+  // cursor kept. stream="false" counts as absent: the dc runtime writes custom-element booleans as strings.
   if (!customElements.get('hq-type')) customElements.define('hq-type', class extends HTMLElement {
-    static get observedAttributes() { return ['text']; }
+    static get observedAttributes() { return ['text', 'stream']; }
     connectedCallback() { this.style.display = 'inline'; this.run(); }
-    attributeChangedCallback() { if (this.isConnected) this.run(); }
+    attributeChangedCallback(n, o, v) { if (this.isConnected && o !== v) this.run(); }
     run() {
-      const txt = this.getAttribute('text') || ''; clearInterval(this.iv);
-      const rt = SR(this); rt.innerHTML = '<span></span><span style="display:inline-block;width:.55em;height:1em;margin-left:.08em;vertical-align:-.12em;background:var(--gold)"></span>';
-      const s = rt.firstChild, cur = rt.lastChild; blink(cur);
-      if (RM()) { s.textContent = txt; return; }
-      let i = 0; const sp = +(this.getAttribute('speed') || 28);
-      this.iv = setInterval(() => { i++; s.textContent = txt.slice(0, i); if (i >= txt.length) { clearInterval(this.iv); if (this.hasAttribute('hide-cursor')) setTimeout(() => cur.remove(), 1200); } }, sp);
+      const txt = this.getAttribute('text') || '', rt = SR(this);
+      if (!this.s) {   // built once — rebuilding the spans on every change is what restarted a streaming answer
+        this.s = document.createElement('span'); this.cur = document.createElement('span');
+        this.cur.style.cssText = 'display:inline-block;width:.55em;height:1em;margin-left:.08em;vertical-align:-.12em;background:var(--gold)';
+        rt.textContent = ''; rt.append(this.s, this.cur); blink(this.cur);
+      }
+      const stream = this.hasAttribute('stream') && this.getAttribute('stream') !== 'false';
+      clearTimeout(this.hc);   // a pending hide must not fire once the text grew again
+      if (stream || txt !== this.s.textContent) this.cur.style.display = '';
+      const p = typePlan(this.s.textContent, txt, { stream, reduced: RM() });
+      this.target = txt;
+      if (p.instant) { clearInterval(this.iv); this.iv = 0; this.s.textContent = txt; if (!stream) this.done(); return; }
+      if (p.keep < this.s.textContent.length) this.s.textContent = txt.slice(0, p.keep);
+      this.i = p.keep;
+      if (this.i >= txt.length) { clearInterval(this.iv); this.iv = 0; this.done(); return; }
+      if (this.iv) return;   // already typing: the tick picks up the new target
+      this.iv = setInterval(() => {
+        const t = this.target; this.i = typeStep(t, this.i); this.s.textContent = t.slice(0, this.i);
+        if (this.i >= t.length) { clearInterval(this.iv); this.iv = 0; this.done(); }
+      }, +(this.getAttribute('speed') || 28));
     }
-    disconnectedCallback() { clearInterval(this.iv); }
+    done() { clearTimeout(this.hc); if (this.hasAttribute('hide-cursor')) this.hc = setTimeout(() => { this.cur.style.display = 'none'; }, 1200); }
+    disconnectedCallback() { clearInterval(this.iv); this.iv = 0; clearTimeout(this.hc); }
   });
   if (!customElements.get('hq-scramble')) customElements.define('hq-scramble', class extends HTMLElement {
     static get observedAttributes() { return ['text']; }
@@ -169,21 +243,28 @@
     }
     disconnectedCallback() { clearInterval(this.iv); }
   });
+  // <hq-lines text>: one div per line, coloured by prefix. Remembers the text it rendered: a continuation appends
+  // (re-rendering a last line that grew), a scrolled rolling window drops lines off the top, anything else
+  // re-renders from scratch (see linesPlan). Only lines that are new on screen get the entrance animation; its
+  // stagger is capped so a long reset doesn't keep lines invisible for seconds (fill:backwards).
+  const lineIn = (d, j) => d.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: Math.min(j, 20) * 55, easing: 'ease-out', fill: 'backwards' });
+  const paintLine = (d, l) => { d.textContent = l; d.style.color = lineColor(l); };
   if (!customElements.get('hq-lines')) customElements.define('hq-lines', class extends HTMLElement {
     static get observedAttributes() { return ['text']; }
-    connectedCallback() { this.style.display = 'block'; this.shown = 0; this.run(); }
-    attributeChangedCallback() { if (this.isConnected) this.run(); }
+    connectedCallback() { this.style.display = 'block'; this.run(); }
+    attributeChangedCallback(n, o, v) { if (this.isConnected && o !== v) this.run(); }
     run() {
-      const lines = (this.getAttribute('text') || '').split('\n');
-      const rt = SR(this);
-      if (lines.length < this.shown || !rt.childNodes.length) { rt.innerHTML = ''; this.shown = 0; }
-      for (let i = this.shown; i < lines.length; i++) {
-        const d = document.createElement('div'); d.textContent = lines[i];
-        const l = lines[i]; if (l.startsWith('+')) d.style.color = 'var(--green)'; else if (l.startsWith('-')) d.style.color = 'var(--red)'; else if (l.startsWith('✗')) d.style.color = 'var(--red)'; else if (l.startsWith('@@')) d.style.color = 'var(--blue)';
-        rt.appendChild(d);
-        if (!RM()) d.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: (i - this.shown) * 55, easing: 'ease-out', fill: 'backwards' });
+      const text = this.getAttribute('text') || '', lines = text.split('\n'), rt = SR(this), moving = !RM();
+      // plan against what is really on screen: a reconnect keeps the shadow root (no-op); a mismatch starts over
+      const p = linesPlan(this.last != null && rt.childNodes.length === this.lastN ? this.last : null, text);
+      if (p.reset) rt.textContent = '';
+      for (let k = 0; k < p.drop; k++) rt.firstChild.remove();
+      if (p.replaceLast) { const d = rt.childNodes[p.startIndex - 1], was = d.textContent; paintLine(d, lines[p.startIndex - 1]); if (!was && moving) lineIn(d, 0); }
+      for (let i = p.startIndex; i < lines.length; i++) {
+        const d = document.createElement('div'); paintLine(d, lines[i]); rt.appendChild(d);
+        if (moving) lineIn(d, i - p.startIndex);
       }
-      this.shown = lines.length;
+      this.last = text; this.lastN = lines.length;
     }
   });
 
