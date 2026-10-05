@@ -38,7 +38,7 @@ export function shellVals(ctx) {
     history: 'trends, timeline and milestones · ' + H.N + ' snapshots',
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
     life: 'screen time, social and notes',
-    studio: H.CAPTURES.length + ' captures · Ctrl Alt S to snip, Ctrl Alt R to record',
+    studio: H.CAPTURES.length + ' captures · Ctrl Alt S to snip, Ctrl Alt R opens the recorder',
   }[S.tab] || '';
   // ----- toasts -----
   const toasts = S.toasts.map((t) => ({ text: t.text, color: TK[t.kind], ref: this.toastRef(t.id), hasUndo: !!t.undo && !!this._pending['done:' + t.undo], undo: () => this.undoTask(t.undo), hasCancel: !!t.runSpell, cancel: () => this.cancelRun(t.runSpell), close: () => this.dismissToast(t.id), isProgress: t.kind === 'progress' }));
@@ -61,8 +61,17 @@ export function shellVals(ctx) {
     sw('Bit the pet', 'A small companion that roams the bottom edge. Click or drag it.', S.petOn, () => this.setState({ petOn: !S.petOn })),
     sw('Status rail', 'Do now · running · machine · Claude · screen time, on the right.', S.ambientPref, () => this.setState({ ambientPref: !S.ambientPref })),
     sw('Reduce motion', 'Turns off bursts, coin flights, hops and transitions.', S.reduceMotion, () => this.setState({ reduceMotion: !S.reduceMotion })),
-    sw('Notifications', 'Only for measured, actionable, new events. Never reminders.', S.notifyMeasured, () => this.setState({ notifyMeasured: !S.notifyMeasured })),
+    // (the prototype's "Notifications" switch was cut: nothing reads it)
   ];
+  // ----- scan state (contract C-2, logic/runs.js scanStatus) -----
+  const sc = this.scanStatus();
+  const scanTitle = cantWrite ? writeReason
+    : sc.running ? sc.label + ' · it reloads the window when it finishes'
+    : sc.failed ? sc.label + (sc.error ? ' · ' + sc.error : '') + ' · Scan now to try again'
+    : 'Scan now · re-reads every project (uses Claude quota)';
+  // ----- streak: consecutive days the scanner ran, at the viewed snapshot -----
+  const streak = Math.max(0, Math.floor(+snap.account.streak || 0));
+  const streakTitle = streak ? streak + (streak === 1 ? ' day' : ' days') + ' in a row the scanner ran' : 'No scan streak right now';   // 0 = no run of consecutive scan days at this snapshot (a broken streak too)
   const themeOpts = [['dark', 'Dark'], ['light', 'Light'], ['os', 'Follow system']].map(([id, l]) => ({ label: l, go: () => this.setState({ themePref: id }), style: tabStyle(S.themePref === id) }));
   return {
     themeName: this.themeName(), L, v, cantWrite, writeReason, isPast: !live, noBridge: ps === 'nobridge' || !this.hq, viewedLabel,
@@ -70,11 +79,15 @@ export function shellVals(ctx) {
     dateChipStyle, dateChipLabel: live ? (L.wide ? 'Live · ' : '') + viewedLabel : (L.wide ? 'Viewing ' : '') + viewedLabel, dateDot: live ? 'var(--green)' : '#fff',
     toggleScrub: () => this.setState({ scrubOpen: !S.scrubOpen }), signals, sigCompact,
     showPrompt: ok && !onPage, promptHints: ['commit ' + ((rows[0] || {}).name || 'a project').toLowerCase(), 'run full scan', top ? 'focus ' + top.title.toLowerCase().split(' ').slice(0, 3).join(' ') : 'what changed this week?', 'which projects are stale?', 'theme light', 'open ' + ((rows[1] || rows[0] || {}).name || 'a project').toLowerCase()].join('|'),
-    isScanning: S.localRuns.some((r) => r.id === 'scan' && r.status === 'running'), notScanning: !S.localRuns.some((r) => r.id === 'scan' && r.status === 'running'),
+    isScanning: sc.running, notScanning: !sc.running, scanSpin: (sc.label || 'Scanning').replace(/…$/, ''),
+    streakDays: String(streak), streakTitle,
+    // three ways in: the bundle didn't read (boot's error text), no scan yet, or the ?state=error preview over good data
+    errorText: this.props.errorText || (H.hasData ? 'Preview of the error screen (?state=error) · the data bundle loaded fine' : 'No scan data yet — run a scan, then reload'),
+    errorLead: this.props.errorText ? 'The data bundle couldn’t be read. Your place is kept — nothing was lost.' : H.hasData ? 'Nothing failed: this is the error screen’s preview.' : 'There’s no scan in the data bundle yet.',
     hasScreenModel: ['projects', 'automations', 'history', 'system'].includes(S.tab) && !onPage && L.wide, screenModel: { projects: 'model:folder', automations: 'model:gear', history: 'model:trophy', system: 'model:computer' }[S.tab] || 'model:gear',
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // shell
-    scanLabel: 'Last scan ' + S.lastScan, scanTitle: cantWrite ? writeReason : 'Scan now · re-reads every project (uses Claude quota)', scanNow: () => this.scanNow(),
+    scanLabel: sc.label || 'Last scan ' + S.lastScan, scanTitle, scanNow: () => this.scanNow(),
     running, hasRunning: running > 0, toggleRuns: () => this.setState({ runsOpen: !S.runsOpen }), openRuns: () => this.setState({ runsOpen: true }),
     openPalette: () => { this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); FX().sfx('open'); },
     toggleFocus: () => this.toggleFocus(), toggleTheme: () => this.toggleTheme(), openSettings: () => this.setState({ settingsOpen: true }), openCheat: () => this.setState({ cheatOpen: true }),
@@ -86,7 +99,8 @@ export function shellVals(ctx) {
     screenTitle, screenSub, subTabs, hasSubTabs: subTabs.length > 0,
     // settings, keyboard sheet, refresh pill, toasts
     settingsOpen: S.settingsOpen, closeSettings: () => this.setState({ settingsOpen: false }), themeOpts, settings,
-    hotkeys: H.HOTKEYS.map((h) => ({ k: h[0], d: h[1], st: h[2] === 'ok' ? 'ok' : 'conflict', color: h[2] === 'ok' ? 'var(--green)' : 'var(--orange)' })), keys: H.KEYS.map((k) => ({ k: k[0], d: k[1] })),
+    // whether main managed to register each hotkey isn't reported to this window, so no ok / conflict status
+    hotkeys: H.HOTKEYS.map((h) => ({ k: h[0], d: h[1], st: '', color: 'var(--faint)' })), keys: H.KEYS.map((k) => ({ k: k[0], d: k[1] })),
     cheatOpen: S.cheatOpen, closeCheat: () => this.setState({ cheatOpen: false }),
     refreshing: S.refreshing, toasts,
   };

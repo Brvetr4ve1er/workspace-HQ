@@ -13,7 +13,7 @@
 // are Component.prototype mixins in src/logic/*.js, renderVals() is built in
 // src/vals/*.js and the markup is src/tpl/*.tpl.js (joined by app.tpl.js).
 import { DCLogic, createRef } from './dc/runtime.js';
-import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY } from './logic/shared.js';
+import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY, THEMES, readV3Prefs, mirrorV3Theme, setReduceFlag, planUiSeed, placeSnapId, restoreSnapOffset } from './logic/shared.js';
 import { tasksLogic } from './logic/tasks.js';
 import { claudeLogic } from './logic/claude.js';
 import { runsLogic } from './logic/runs.js';
@@ -42,10 +42,14 @@ export class Component extends DCLogic {
     try { saved = JSON.parse(sessionStorage.getItem('whq3-place') || '{}'); } catch (e) {}
     const P = loadPrefs(), M = this.props.store.model, a = M.at(0).account;
     const scanAt = M.at(0).at ? new Date(Date.parse(M.at(0).at)) : null;
+    // a past scan is remembered by id (gone → back to live); live stays live (logic/shared.js)
+    const snapOffset = restoreSnapOffset(saved, M);
+    // before the first render: the custom elements read data-hq-reduce when they connect
+    setReduceFlag(!!P.reduceMotion);
     return {
       tab: saved.tab || this.props.startTab || 'home',
       sub: Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'sessions', history: 'trends', system: 'machine', life: 'screen' }, saved.sub || {}),
-      route: saved.route || null, snapOffset: Math.min(M.maxOff, saved.snapOffset || 0),
+      route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, notifyMeasured: P.notifyMeasured !== false,
       vw: window.innerWidth, completed: [], recentDone: [], dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
@@ -63,6 +67,8 @@ export class Component extends DCLogic {
 
   componentDidMount() {
     this._prev = Object.assign({}, this.state, { sub: Object.assign({}, this.state.sub) }); this._prevProps = Object.assign({}, this.props);
+    // deep links (mini HUD, tray): subscribed first and synchronously, main may push right after load
+    if (this.hq && this.hq.onNavigate) { try { this._offNav = this.hq.onNavigate((r) => this.navigateTo(r)); } catch (e) { console.warn('[nav] subscribe failed', e); } }
     this._onKey = (e) => this.onKey(e);
     this._onResize = () => this.forceUpdate();
     window.addEventListener('keydown', this._onKey);
@@ -75,9 +81,10 @@ export class Component extends DCLogic {
     setTimeout(() => FX().say('Hi, I’m Bit.', 2200), 900);
     setTimeout(() => window.HQAlive && window.HQAlive.stagger(), 300);
     this._focusT = setInterval(() => { if (this.state.focus) this.setState({ now: Date.now() }); }, 1000);
-    // live data → re-render; finished runs → one toast each
-    this._offStore = this.store.on(() => { this.announceRuns(); this.forceUpdate(); });
+    // live data → re-render; finished runs → one toast each; main's shared UI prefs → state
+    this._offStore = this.store.on(() => { this.announceRuns(); this.followUiPrefs(); this.forceUpdate(); });
     this.store.start();
+    this.followUiPrefs();
     if (this.hq && this.hq.studio && this.hq.studio.onOpenRealm) this._offRealm = this.hq.studio.onOpenRealm(() => this.go('studio'));   // Ctrl+Alt+L
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
@@ -86,14 +93,17 @@ export class Component extends DCLogic {
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
     clearInterval(this._focusT); FX().destroy();
-    if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); this.store.stop();
+    if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); if (this._offNav) this._offNav(); this.store.stop();
     this.flushPending(); window.removeEventListener('pagehide', this._onHide);
   }
   componentDidUpdate() {
     const S = this.state;
     const ps = this._prev || S;
     this._prev = Object.assign({}, S, { sub: Object.assign({}, S.sub) }); this._prevProps = Object.assign({}, this.props);
-    try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, focus: S.focus, ask: S.askHistory.filter((h) => h.a && h.a.status !== 'thinking').slice(-12) })); } catch (e) {}
+    try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus, ask: S.askHistory.filter((h) => h.a && h.a.status !== 'thinking').slice(-12) })); } catch (e) {}
+    if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
+    if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
+    if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
     if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'notifyMeasured', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
       savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, notifyMeasured: S.notifyMeasured, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
@@ -186,7 +196,8 @@ export class Component extends DCLogic {
   }
   runningCount() {
     const L = this.LIVE;
-    return Object.values(L.casts).filter((c) => !c.done).length + L.sessions.filter((x) => x.status === 'running').length + Object.values(L.dev).filter(Boolean).length + this.state.localRuns.filter((r) => r.status === 'running').length;
+    // + the scan: its Activity row comes from LIVE.scan (scanStatus), not from localRuns
+    return Object.values(L.casts).filter((c) => !c.done).length + L.sessions.filter((x) => x.status === 'running').length + Object.values(L.dev).filter(Boolean).length + this.state.localRuns.filter((r) => r.status === 'running').length + (this.scanStatus().running ? 1 : 0);
   }
 
   // ---------- actions ----------
@@ -239,6 +250,64 @@ export class Component extends DCLogic {
   // actions: src/logic/*.js, mixed into Component.prototype below
   toggleTheme() { this.setState(() => ({ themePref: this.themeName() === 'light' ? 'dark' : 'light', paletteOpen: false })); }
   themeName() { const p = this.state.themePref; if (p === 'os') return window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; return p === 'light' ? 'light' : 'dark'; }
+
+  // ---------- shared UI prefs (theme, reduce motion) ----------
+  // Main is the source of truth so the satellites follow (hq.uiPrefs; the store
+  // keeps the latest in LIVE.uiPrefs). The first time main's prefs arrive, the
+  // one-time seed runs (planUiSeed in logic/shared.js); after that every push from
+  // main that differs updates the state, and every change made here is sent to
+  // main. _uiKnown is what main has or is about to have (last adopted or sent), so
+  // an echo of our own change is not sent back and two quick toggles both reach
+  // main. Without the bridge none of this runs and the prefs stay local.
+  followUiPrefs() {
+    const up = this.hq && this.hq.uiPrefs, p = this.LIVE.uiPrefs;
+    if (!up || !p || typeof p !== 'object' || p === this._uiSeen) return;
+    this._uiSeen = p;
+    const main = { theme: THEMES.includes(p.theme) ? p.theme : 'dark', reduceMotion: !!p.reduceMotion };
+    let patch = { themePref: main.theme, reduceMotion: main.reduceMotion };
+    const first = !this._uiReady;
+    this._uiReady = true; this._uiKnown = main;
+    if (first && !loadPrefs().uiPrefsSeeded) {
+      const plan = planUiSeed(loadPrefs(), main, readV3Prefs());
+      savePrefs(Object.assign(loadPrefs(), { uiPrefsSeeded: true }));
+      if (plan.push) this.sendUiPrefs(plan.push);
+      patch = plan.state;
+    }
+    const S = this.state, diff = {};
+    for (const k of Object.keys(patch)) if (patch[k] !== S[k]) diff[k] = patch[k];
+    if (Object.keys(diff).length) this.setState(diff);
+    if (first) mirrorV3Theme(this.state.themePref);   // a theme chosen before this build reaches v3's key too
+  }
+  pushUiPrefs() {
+    const up = this.hq && this.hq.uiPrefs, k = this._uiKnown;
+    if (!this._uiReady || !k || !up || !up.set) return;
+    const S = this.state, patch = {};
+    if (S.themePref !== k.theme && THEMES.includes(S.themePref)) patch.theme = S.themePref;
+    if (S.reduceMotion !== k.reduceMotion) patch.reduceMotion = !!S.reduceMotion;
+    if (Object.keys(patch).length) this.sendUiPrefs(patch);
+  }
+  sendUiPrefs(patch) {
+    const up = this.hq && this.hq.uiPrefs;
+    if (!up || !up.set) return;
+    this._uiKnown = Object.assign({}, this._uiKnown, patch);
+    Promise.resolve().then(() => up.set(patch)).catch((e) => console.warn('[ui-prefs] set failed', e));
+  }
+
+  // ---------- deep links (hq:navigate) ----------
+  // route = { tab, sub?, projectId?, sort? }, already format-checked by main
+  // (dashboard/nav-bridge.js); a tab or sub-tab this build doesn't have is ignored.
+  navigateTo(r) {
+    if (!r || typeof r !== 'object') return;
+    const M = this.M, tab = typeof r.tab === 'string' ? r.tab : '';
+    if (!M.NAV.some((n) => n.id === tab)) return;
+    const sub = (M.SUBS[tab] || []).some((s) => s[0] === r.sub) ? r.sub : undefined;
+    if (r.projectId) {
+      // the route's tab first, so the page's Back leads there, not to whatever tab was open
+      if (this.proj(r.projectId)) { this.go(tab, sub); this.openProject(r.projectId); }
+      else { this.go(tab, sub); this.toast('info', 'That project isn’t in the latest scan'); }
+    } else this.go(tab, sub);
+    if (['worst', 'dirty', 'recent', 'name'].includes(r.sort)) this.setState({ projSort: r.sort });
+  }
   closeTop() {
     const S = this.state;
     const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
@@ -260,7 +329,7 @@ export class Component extends DCLogic {
       } else if (e.key === 'Enter') { e.preventDefault(); this.submitAsk(S.paletteQuery); return; }
       return;
     }
-    if (S.confirm && e.key === 'Enter' && !typing) { e.preventDefault(); this.confirmRun(); return; }
+    if (S.confirm && e.key === 'Enter' && !typing && this.confirmKey(e)) return;
     if (typing) return;
     if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard) return;
     if (e.key === '/') { e.preventDefault(); this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); return; }

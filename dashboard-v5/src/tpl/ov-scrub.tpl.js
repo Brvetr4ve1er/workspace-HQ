@@ -4,7 +4,7 @@
 export default String.raw`  <sc-if value="{{ scrubOpen }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeScrub }}" style="position:fixed;inset:58px 0 0 0;z-index:880"></div>
     <div ref="{{ popIn }}" style="position:fixed;top:64px;left:12px;z-index:890;width:min(560px,calc(100vw - 24px));background:var(--card);border:1px solid var(--frame-hi);border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.4);padding:16px">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Snapshots</span><span style="font-size:12px;color:var(--faint)">90 days · bar = uncommitted files · ← → to scrub</span></div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Snapshots</span><!-- v5: the bars are the last scans (up to 90), not days --><span style="font-size:12px;color:var(--faint)">{{ scrubSpanLabel }} · bar = uncommitted files · ← → to scrub</span></div>
       <div style="display:flex;align-items:flex-end;gap:2px;height:50px;margin:14px 0 8px">
         <sc-for list="{{ scrubBars }}" as="b" hint-placeholder-count="90"><button onClick="{{ b.go }}" title="{{ b.title }}" aria-label="{{ b.title }}" style="flex:1 1 0;min-width:2px;height:{{ b.h }}px;background:{{ b.c }};border:0;padding:0;cursor:pointer" style-hover="background:var(--gold-2)"></button></sc-for>
       </div>

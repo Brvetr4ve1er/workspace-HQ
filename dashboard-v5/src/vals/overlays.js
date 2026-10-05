@@ -6,7 +6,7 @@ export function overlaysVals(ctx) {
   const { S, H, live, ps, snap, unc, TK } = ctx;
   // ----- level-up stat card (measured) -----
   const wk = this.span(7, 0), uncThen = this.series('unc', wk[0]);
-  const lvl = S.levelUp ? { l: S.levelUp.l, t: S.levelUp.t, stats: [['Tasks done (all time)', String(snap.doneTasks.length + S.completed.length)], ['Commits, last ' + wk.length + ' scans', String(this.sum(wk, (o) => this.series('commits', o)))], ['Scan streak', snap.account.streak + ' days'], ['Uncommitted, then → now', uncThen + ' → ' + unc]].map((s) => ({ k: s[0], v: s[1] })) } : {};
+  const lvl = S.levelUp ? { l: S.levelUp.l, t: S.levelUp.t, stats: [['Tasks done (all time)', String(snap.doneTasks.length + S.completed.length)], ['Commits, last ' + wk.length + ' scans', String(this.sum(wk, (o) => this.series('commits', o)))], ['Scan streak', snap.account.streak + (snap.account.streak === 1 ? ' day' : ' days')], ['Uncommitted, then → now', uncThen + ' → ' + unc]].map((s) => ({ k: s[0], v: s[1] })) } : {};
   // ----- since last scan / notifications -----
   const latest = H.at(0);
   const since = latest.changes.slice(0, 6).map((c) => ({ g: c.g, t: c.t, c: c.c, open: c.proj ? () => this.openProject(c.proj) : () => this.go('history', 'timeline') }));
