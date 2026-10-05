@@ -242,6 +242,13 @@ export function renderVals() {
     onboardOpen: !!S.onboard, ob: S.onboard ? Object.assign({}, S.onboard, { s1: S.onboard.step === 1, s2: S.onboard.step === 2, s3: S.onboard.step === 3, notS1: S.onboard.step > 1, notS3: S.onboard.step < 3, stepLabel: 'step ' + S.onboard.step + ' of 3', dots: [1, 2, 3].map((n) => ({ c: n <= S.onboard.step ? 'var(--gold)' : 'var(--frame)' })) }) : {},
     openOnboard: () => { if (!this.canWrite()) return this.denied(); this.setState({ onboard: { step: 1, path: '', dev: 'npm run dev', branch: 'main', name: '' } }); },
     closeOnboard: () => this.setState({ onboard: null }), obNext: () => this.setState((st) => ({ onboard: Object.assign({}, st.onboard, { step: Math.min(3, st.onboard.step + 1) }) })), obBack: () => this.setState((st) => ({ onboard: Object.assign({}, st.onboard, { step: Math.max(1, st.onboard.step - 1) }) })),
+    // ---- RECONSTRUCTED (not from the Design export) --------------------------------
+    // The Claude Design file was cut off at the 256 KiB API cap partway through the
+    // prototype's renderVals(), right after `openOnboard`. Every value from here to the
+    // end of `out` (onboarding steps, shell buttons, palette/ask/overlay values, the
+    // palette placeholder and ask examples) and the helpers obSet / finishOnboard in
+    // app.js were rebuilt from how the template uses them. If a full export arrives,
+    // diff this block against the original tail and prefer the original's copy.
     obPath: (e) => this.obSet('path', e), obName: (e) => this.obSet('name', e), obDev: (e) => this.obSet('dev', e), obBranch: (e) => this.obSet('branch', e), obFinish: () => this.finishOnboard(),
     // shell
     scanLabel: 'Last scan ' + S.lastScan, scanTitle: cantWrite ? writeReason : 'Scan now · re-reads every project (uses Claude quota)', scanNow: () => this.scanNow(),
