@@ -3,7 +3,9 @@
 export function askVals(ctx) {
   const { S, live } = ctx;
   // ----- ask (model text renders as plain text; never outside this panel) -----
-  const asks = S.askHistory.map((h) => ({ q: h.q, text: h.a.text || (h.a.status === 'thinking' ? '…' : ''), src: h.a.src || [], hasSrc: (h.a.src || []).length > 0, est: !!h.a.est, refusal: !!h.a.refusal }));
+  // `stream` while the answer is still arriving: <hq-type stream> shows streamed text at once
+  // instead of typing behind it; false once done, so the settled answer finishes normally
+  const asks = S.askHistory.map((h) => ({ q: h.q, text: h.a.text || (h.a.status === 'thinking' ? '…' : ''), stream: h.a.status === 'thinking', src: h.a.src || [], hasSrc: (h.a.src || []).length > 0, est: !!h.a.est, refusal: !!h.a.refusal }));
   return {
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // ask

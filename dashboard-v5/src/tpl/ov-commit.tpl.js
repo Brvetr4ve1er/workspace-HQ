@@ -5,7 +5,10 @@ export default String.raw`  <sc-if value="{{ hasCommit }}" hint-placeholder-val=
     <div onClick="{{ cancelCommit }}" style="position:fixed;inset:0;z-index:1100;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px">
       <div onClick="{{ stop }}" ref="{{ popIn }}" role="dialog" aria-label="Commit" style="width:min(640px,100%);max-height:92vh;overflow:auto;background:var(--card);border:1px solid var(--green);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px">
         <div style="font-size:21px">{{ commit.title }}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px">Only the ticked files are staged. .env files start unticked.</div>
+        <!-- v5: honest copy (do-commit runs git add -A; main refuses an .env change set) -->
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Commits every changed file (git add -A). Refused if a .env file is in the set.</div>
+        <!-- v5: why Commit is disabled (an .env file in the set, with its paths, or the change set couldn't be read) -->
+        <sc-if value="{{ commit.hasAlert }}" hint-placeholder-val="{{ false }}"><div role="alert" style="margin-top:10px;padding:8px 10px;font-size:12px;color:var(--red);border:1px solid color-mix(in oklab,var(--red) 45%,transparent);background:color-mix(in oklab,var(--red) 10%,transparent);border-radius:8px;word-break:break-word">{{ commit.alert }}</div></sc-if>
         <div style="margin-top:14px;max-height:220px;overflow:auto;background:var(--ink);padding:6px">
           <sc-for list="{{ commit.files }}" as="f" hint-placeholder-count="6">
             <button onClick="{{ f.toggle }}" style="width:100%;display:flex;gap:10px;align-items:center;padding:5px 8px;background:{{ f.rowBg }};border-radius:6px;border:0;color:var(--text);font-family:var(--term);font-size:13px;cursor:pointer;text-align:left" style-hover="background:var(--card)"><span style="color:var(--accent-text)">{{ f.on }}</span><span style="color:{{ f.stColor }};width:14px">{{ f.st }}</span><span style="flex:1">{{ f.name }}</span><sc-if value="{{ f.warn }}" hint-placeholder-val="{{ false }}"><span style="color:var(--red);font-size:12px">may hold secrets</span></sc-if></button>

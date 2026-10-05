@@ -3,7 +3,8 @@
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 export default String.raw`  <sc-if value="{{ hasConfirm }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ cancelConfirm }}" style="position:fixed;inset:0;z-index:1100;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px">
-      <div onClick="{{ stop }}" ref="{{ popIn }}" role="dialog" aria-label="Run confirm" style="width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--card);border:1px solid var(--gold);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px">
+      <!-- v5: focus moves into the dialog when it opens (Enter on a focused button only clicks that button, so the trigger must not keep focus); outline:none for that programmatic focus -->
+      <div onClick="{{ stop }}" ref="{{ confirmRef }}" tabindex="-1" role="dialog" aria-label="Run confirm" style="width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--card);border:1px solid var(--gold);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px;outline:none">
         <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Before this runs</div>
         <div style="display:flex;gap:12px;align-items:center;margin-top:10px"><span style="font-size:24px">{{ confirm.icon }}</span><div><div style="font-size:21px;line-height:1">{{ confirm.name }}</div><div style="font-size:13px;color:var(--muted)">{{ confirm.desc }}</div></div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px">

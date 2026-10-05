@@ -10,7 +10,7 @@ export default String.raw`  <sc-if value="{{ askOpen }}" hint-placeholder-val="{
           <div style="display:flex;flex-direction:column;gap:6px">
             <div style="align-self:flex-end;max-width:85%;background:var(--ink);border:1px solid var(--frame);border-radius:8px;padding:6px 10px;font-size:13px">{{ a.q }}</div>
             <div style="background:var(--card);border:1px solid var(--purple);border-radius:12px;padding:12px">
-              <div style="font-size:13px;text-wrap:pretty"><x-import component-from-global-scope="hq-type" text="{{ a.text }}" speed="12" hide-cursor="" hint-size="auto,1em"></x-import></div>
+              <div style="font-size:13px;text-wrap:pretty"><!-- v5: stream bound to the entry (true while the answer arrives) --><x-import component-from-global-scope="hq-type" text="{{ a.text }}" stream="{{ a.stream }}" speed="12" hide-cursor="" hint-size="auto,1em"></x-import></div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
                 <sc-for list="{{ a.src }}" as="s" hint-placeholder-count="1"><span style="font-size:12px;padding:1px 6px;border:1px solid var(--frame);color:var(--muted)">grounded in {{ s }}</span></sc-for>
                 <sc-if value="{{ a.est }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;padding:1px 6px;border:1px dotted var(--faint);color:var(--faint)">estimate</span></sc-if>
