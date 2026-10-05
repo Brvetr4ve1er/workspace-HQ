@@ -1,0 +1,54 @@
+// Claude screen (v.claude): sessions, canvas.
+// Cut verbatim from lines 562-611 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
+// the fragments in order; tpl.hash.test.mjs checks the joined string.
+export default String.raw`        <sc-if value="{{ v.claude }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <sc-if value="{{ isSessions }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:22px">
+                <section style="background:var(--card);border:1px solid var(--purple);border-radius:12px;padding:14px 16px">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">New session</span><span style="flex:1"></span><span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:11px;white-space:nowrap;color:var(--tone-gold);border:1px solid color-mix(in oklab,var(--tone-gold) 45%,transparent);background:color-mix(in oklab,var(--tone-gold) 10%,transparent)">Uses Claude quota</span></div>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:10px"><span style="font-size:12px;color:var(--faint);align-self:center;margin-right:4px">in</span><sc-for list="{{ composerProjs }}" as="p" hint-placeholder-count="8"><button onClick="{{ p.go }}" style="{{ p.style }}">{{ p.label }}</button></sc-for></div>
+                  <textarea value="{{ composer }}" onChange="{{ onComposer }}" rows="3" placeholder="What should Claude do? Be specific — it runs inside the project folder." style="width:100%;margin-top:10px;padding:10px 12px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--text);font-size:13px;resize:vertical;outline:none"></textarea>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center"><button type="button" onClick="{{ startSession }}" disabled="{{ cantWrite }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="filter:brightness(1.1);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)">▶ Run in app</button><span style="font-size:12px;color:var(--faint)">tracked here · or open in a terminal from the session</span></div>
+                </section>
+                <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+                  <div style="flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:10px">
+                    <sc-for list="{{ sessions }}" as="s" hint-placeholder-count="3">
+                      <button onClick="{{ s.go }}" style="{{ s.style }}"><span style="display:flex;gap:8px;align-items:center"><span style="width:7px;height:7px;background:{{ s.color }}"></span><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:{{ s.color }}">{{ s.status }}</span><span style="flex:1"></span><span style="font-size:12px;color:var(--faint)">{{ s.started }}</span></span><span style="font-size:14px">{{ s.title }}</span><span style="font-size:12px;color:var(--muted)">{{ s.proj }}</span></button>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{ hasDetail }}" hint-placeholder-val="{{ true }}">
+                    <div style="flex:2 1 380px;min-width:0;background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:18px;flex:1 1 200px">{{ sessionDetail.title }}</span><span style="font-size:12px;padding:2px 7px;border:1px solid var(--purple);color:var(--purple)">✦ AI output</span></div>
+                      <div style="font-size:12px;color:var(--muted)">{{ sessionDetail.proj }}</div>
+                      <div style="margin-top:12px;background:var(--ink);padding:12px;font-size:13px;white-space:pre-wrap;word-break:break-word;min-height:120px"><x-import component-from-global-scope="hq-lines" text="{{ sessionDetail.tail }}" hint-size="100%,1em"></x-import></div>
+                      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+                        <sc-if value="{{ sessionDetail.running }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ sessionDetail.stop }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:color-mix(in oklab,var(--red) 10%,transparent);color:var(--red);border:1px solid color-mix(in oklab,var(--red) 45%,transparent);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="background:color-mix(in oklab,var(--red) 20%,transparent)" style-active="transform:translateY(1px) scale(.98)">■ Stop</button></sc-if>
+                        <button type="button" onClick="{{ sessionDetail.term }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)">Open in terminal</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ isCanvas }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Live answers Claude pinned for you. Everything here is model output.</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:18px">
+                  <sc-for list="{{ canvas }}" as="w" hint-placeholder-count="4">
+                    <div style="grid-column:{{ w.span }};display:flex;flex-direction:column;gap:8px;padding:14px 16px;background:var(--card);border:1px solid var(--frame);border-radius:12px;box-shadow:inset 0 4px 0 {{ w.color }}">
+                      <div style="display:flex;gap:8px;align-items:center"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);flex:1">{{ w.title }}</span><span style="font-size:12px;padding:1px 6px;border:1px solid var(--purple);color:var(--purple)">✦ AI</span></div>
+                      <sc-if value="{{ w.isStat }}" hint-placeholder-val="{{ false }}"><div><div style="font-size:36px;line-height:1;color:{{ w.color }}">{{ w.value }}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">{{ w.note }}</div></div></sc-if>
+                      <sc-if value="{{ w.isList }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:4px"><sc-for list="{{ w.items }}" as="it" hint-placeholder-count="3"><div style="font-size:13px">▸ {{ it }}</div></sc-for></div></sc-if>
+                      <sc-if value="{{ w.isNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;text-wrap:pretty">{{ w.body }}</div></sc-if>
+                      <div style="display:flex;gap:6px;margin-top:auto"><button type="button" onClick="{{ w.pin }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)">Pin to Home</button><button type="button" onClick="{{ w.remove }}" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s" style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)">Remove</button></div>
+                    </div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ noCanvas }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:var(--muted)">Canvas is empty. Ask Claude to “add this to my canvas” during a session.</div></sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+`;

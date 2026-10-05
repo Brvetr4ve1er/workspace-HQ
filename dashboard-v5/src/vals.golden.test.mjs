@@ -1,4 +1,4 @@
-// Golden guard for Component.renderVals() (app.js + app-vals.js + app-more.js).
+// Golden guard for Component.renderVals() (app.js + src/vals/*.js + src/logic/*.js).
 // Recorded against the code as it stood before the planned split into smaller
 // files; the split must leave every scenario's render values byte-identical.
 //

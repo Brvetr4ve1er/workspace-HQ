@@ -1,6 +1,6 @@
 // Golden guard for the v5 template. app.tpl.js is the Claude Design template
-// kept verbatim; the planned split of app.tpl.js / app-vals.js / app-more.js /
-// app.js into smaller files must keep this string IDENTICAL. If this test
+// kept verbatim, now assembled from src/tpl/*.tpl.js fragments (split at a8e0bf1);
+// any refactor must keep this string IDENTICAL. If this test
 // fails, the refactor changed the markup: revert that, don't re-record.
 // (Re-record only for a deliberate template change, and say so in the commit.)
 // It checks the exported string, not the file: JS turns CRLF inside a template

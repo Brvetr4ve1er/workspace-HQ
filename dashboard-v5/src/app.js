@@ -8,16 +8,22 @@
 //  - writes that reload the window (quest done, learn, archive) are delayed a
 //    moment so their animation plays, and Undo really cancels the write.
 //  - things the app can't do yet say so instead of pretending (toast reason).
+//
+// Layout: this file keeps the state, lifecycle and core helpers. The actions
+// are Component.prototype mixins in src/logic/*.js, renderVals() is built in
+// src/vals/*.js and the markup is src/tpl/*.tpl.js (joined by app.tpl.js).
 import { DCLogic, createRef } from './dc/runtime.js';
-import { moreVals } from './app-more.js';
-import { renderVals } from './app-vals.js';
-
-const FX = () => window.HQFx || { sfx() {}, burst() {}, coinFly() { return Promise.resolve(); }, event() {}, say() {}, set() {}, init() {}, destroy() {}, floatText() {}, asciiBurst() {} };
-const PREFS = 'whq3-prefs';
-const loadPrefs = () => { try { return JSON.parse(localStorage.getItem(PREFS) || '{}') || {}; } catch { return {}; } };
-const savePrefs = (p) => { try { localStorage.setItem(PREFS, JSON.stringify(p)); } catch {} };
-const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-const WRITE_DELAY = 1600;   // ms before a reloading write fires (Undo window)
+import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY } from './logic/shared.js';
+import { tasksLogic } from './logic/tasks.js';
+import { claudeLogic } from './logic/claude.js';
+import { runsLogic } from './logic/runs.js';
+import { commitLogic } from './logic/commit.js';
+import { sheetLogic } from './logic/sheet.js';
+import { journalLogic } from './logic/journal.js';
+import { askLogic } from './logic/ask.js';
+import { paletteLogic } from './logic/palette.js';
+import { onboardLogic } from './logic/onboard.js';
+import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
   state = this.initState();
@@ -77,8 +83,6 @@ export class Component extends DCLogic {
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
     this.maybeLevelUp();
   }
-  // load the local model into VRAM before the first question (a cold load takes ~50s); main coalesces to once a minute
-  warmModel() { const l = this.LIVE.llm; if (this.hq && this.hq.llm && this.hq.llm.warm && (!l || (l.available && l.chatModel))) this.hq.llm.warm(); }
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
     clearInterval(this._focusT); FX().destroy();
@@ -231,243 +235,8 @@ export class Component extends DCLogic {
   }
   // never drop a confirmed write: if the window goes away inside the Undo window, send it now
   flushPending() { for (const [k, p] of Object.entries(this._pending)) { clearTimeout(p.timer); delete this._pending[k]; try { p.fn(); } catch (e) { console.error(e); } } }
-  completeTask(id, e) {
-    if (!this.canWrite()) return this.denied();
-    const t = this.M.T0.find((x) => x.id === id); if (!t || this.state.completed.includes(id)) return;
-    const p = this.pt(e);
-    this.setState((s) => ({ completed: s.completed.concat([id]), recentDone: s.recentDone.concat([id]), focus: s.focus && s.focus.taskId === id ? null : s.focus }));
-    setTimeout(() => this.setState((s) => ({ recentDone: s.recentDone.filter((x) => x !== id) })), 1500);
-    FX().sfx('done'); FX().floatText(p.x, p.y - 10, '+' + t.xp + ' xp'); FX().asciiBurst && FX().asciiBurst(p.x, p.y, '✓');
-    FX().event('cheer', 'Nice. +' + t.xp + ' xp');
-    this.toast('success', 'Done · ' + t.title, { undo: id });
-    FX().coinFly(p.x, p.y, this._xpEl).then(() => this.gainXp(t.xp));
-    this.defer('done:' + id, () => {
-      this.hq.actedOn && this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, resolved: true, marked_done: true, via: 'board' });
-      this.call(() => this.hq.markQuestDone(id), 'Couldn’t save');   // main re-assembles today and reloads
-    });
-  }
-  undoTask(id) {
-    const p = this._pending['done:' + id];
-    const t = this.M.T0.find((x) => x.id === id) || this.M.IDEAS.find((x) => x.id === id);
-    if (!p) { this.toast('info', 'Already saved · it can’t be undone from here'); return; }
-    clearTimeout(p.timer); delete this._pending['done:' + id];
-    const xp = (t && t.xp) || 0;
-    this.setState((s) => ({ completed: s.completed.filter((x) => x !== id), xp: s.xp - xp, displayXp: s.xp - xp, toasts: s.toasts.filter((k) => k.undo !== id) }));
-    this.toast('info', 'Restored · ' + (t ? t.title : 'task'));
-  }
-  gainXp(n) {
-    const from = this.state.xp, to = from + n, L0 = this.M.levelOf(from), L1 = this.M.levelOf(to);
-    this.setState({ xp: to });
-    const t0 = performance.now();
-    const step = (t) => { const k = Math.min(1, (t - t0) / 650); this.setState({ displayXp: Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))) }); if (k < 1) requestAnimationFrame(step); };
-    requestAnimationFrame(step);
-    if (this._xpEl && !this.state.reduceMotion) this._xpEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.14)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.22,1.6,.36,1)' });
-    if (L1.l > L0.l) setTimeout(() => this.showLevelUp(L1), 450);
-  }
-  showLevelUp(L) { this.setState({ levelUp: { l: L.l, t: L.t } }); FX().sfx('level'); FX().asciiBurst && FX().asciiBurst(innerWidth / 2, innerHeight * 0.35, 'level ' + L.l); FX().event('cheer', 'Level ' + L.l + '!', 2600); }
-  // the scan that just landed carries a level_up the user hasn't seen → celebrate once
-  maybeLevelUp() {
-    const s = this.M.at(0), ch = s.changes.find((c) => c.type === 'level_up');
-    if (!ch || this.ps() !== 'live') return;
-    const P = loadPrefs(); if (P.levelSeen === s.id) return;
-    savePrefs(Object.assign(P, { levelSeen: s.id }));
-    setTimeout(() => this.showLevelUp(this.M.levelOf(s.account.xp)), 1200);
-  }
-  startFocus(id) { this.setState({ focus: { taskId: id, start: Date.now() }, now: Date.now(), paletteOpen: false }); FX().sfx('open'); FX().event('look', 'Focus mode. Shh.'); }
-  endFocus(note) {
-    const f = this.state.focus; if (!f) return;
-    const secs = Math.round((Date.now() - f.start) / 1000), t = this.M.T0.find((x) => x.id === f.taskId);
-    if (t && this.hq && this.hq.actedOn && secs >= 5) this.hq.actedOn({ kind: 'quest', action_id: t.id, project_id: t.proj, seconds: secs, resolved: false, via: 'focus' });
-    this.setState({ focus: null });
-    if (note) this.toast('info', 'Focus stopped · ' + Math.max(1, Math.round(secs / 60)) + ' min');
-  }
-  toggleFocus() {
-    if (this.state.focus) return this.endFocus(false);
-    const t = this.openTasks(this.state.snapOffset)[0]; this.startFocus(t ? t.id : null);
-  }
-  sendClaude(title, proj) {
-    if (!this.canWrite()) return this.denied();
-    this.setState((s) => ({ tab: 'claude', route: null, sub: Object.assign({}, s.sub, { claude: 'sessions' }), composer: title, composerProj: proj || s.composerProj, focus: null }));
-    this.toast('info', 'Session drafted · review it, then Run (uses Claude quota)');
-  }
-  async startSession() {
-    if (!this.canWrite()) return this.denied();
-    const txt = (this.state.composer || '').trim(); if (!txt) return;
-    const p = this.proj(this.state.composerProj);
-    if (!p || !this.hq.sessionStart) return this.denied('Pick a project first');
-    const r = await this.call(() => this.hq.sessionStart({ cwd: p.path, task: txt, label: txt.slice(0, 60) }), 'Session didn’t start');
-    if (!r || !r.jobId) return;
-    this.setState({ sessionSel: r.jobId, composer: '' });
-    FX().sfx('run'); FX().event('look', 'Claude is on it.');
-    this.toast('info', 'Session started in ' + p.name + ' · output streams here');
-  }
-  // ---- automations (casting engine: confirm-first is enforced in main too) ----
-  auto(id) { return this.M.AUTOS.find((x) => x.id === id) || null; }
-  askRun(a) {
-    if (!a) return;
-    if (!this.canWrite()) return this.denied();
-    if (this.state.trusted.includes(a.id) && !a.destructive && this.M.confirmedHashes[a.id] === a.hash) return this.startRun(a);
-    this.setState({ confirm: a.id, confirmAsk: this.state.trusted.includes(a.id) ? 'never' : 'always', paletteOpen: false }); FX().sfx('open');
-  }
-  confirmRun() {
-    const a = this.auto(this.state.confirm); if (!a) return this.setState({ confirm: null });
-    this.setState((s) => ({ confirm: null, trusted: s.confirmAsk === 'never' ? (s.trusted.includes(a.id) ? s.trusted : s.trusted.concat([a.id])) : s.trusted.filter((x) => x !== a.id) }));
-    this.startRun(a, a.hash);
-  }
-  async startRun(a, hash) {
-    if (!this.hq || !this.hq.castSpell) return this.denied();
-    const r = await this.call(() => this.hq.castSpell(a.id, hash), 'Run failed');
-    if (!r) return;
-    if (r.confirm_required) { this.setState({ confirm: a.id, confirmAsk: 'always' }); this.toast('info', 'This command changed since you last ran it · check it, then run'); return; }
-    if (r.channeled) { this.setState((s) => ({ localRuns: [{ id: 't' + Date.now(), name: a.name, status: 'opened', meta: 'Terminal opened · ' + a.cmd, started: this.hhmm(), out: ['Opened in an external terminal; output stays there.'] }].concat(s.localRuns) })); this.toast('info', 'Terminal opened · ' + a.name); return; }
-    this.toast('progress', 'Running · ' + a.name, { runSpell: a.id });
-    FX().sfx('run'); FX().event('look', 'Watching ' + a.name.toLowerCase() + '…');
-  }
-  announceRuns() {
-    for (const c of Object.values(this.LIVE.casts)) {
-      if (!c.done || c.announced) continue;
-      c.announced = true;
-      this.setState((s) => ({ toasts: s.toasts.filter((t) => t.runSpell !== c.spellId) }));
-      if (c.status === 'ok') { this.toast('success', c.name + ' finished'); FX().sfx('done'); FX().event('cheer', 'Run finished.'); }
-      else { this.toast('error', c.name + ' failed · ' + (c.meta || '')); FX().sfx('error'); }
-    }
-  }
-  cancelRun(spellId) {
-    if (!spellId || !this.hq || !this.hq.cancelCast) return;
-    this.hq.cancelCast(spellId);
-    this.setState((s) => ({ toasts: s.toasts.filter((t) => t.runSpell !== spellId) }));
-    this.toast('info', 'Cancelling…');
-  }
-  stopDev(id) { if (this.hq && this.hq.devStop) { this.hq.devStop(id); this.toast('info', 'Dev server stopped · ' + this.pname(id)); } }
-  scanNow() {
-    if (!this.canWrite()) return this.denied();
-    this.setState((s) => ({ paletteOpen: false, localRuns: [{ id: 'scan', kind: 'scan', name: 'Full scan', status: 'running', meta: 'run-pipeline.ps1 · the window reloads when it finishes', started: this.hhmm(), out: [] }].concat(s.localRuns.filter((r) => r.id !== 'scan')) }));
-    this.hq.runScan();
-    this.toast('progress', 'Scanning every project · the window reloads when it’s done', { scan: true });
-    FX().sfx('run'); FX().event('look', 'Scanning…');
-  }
-  // ---- commit: real changed files + a local-model draft --------------------
-  async openCommit(pid) {
-    if (!this.canWrite()) return this.denied();
-    const p = this.projectsAt(0).find((x) => x.id === pid); if (!p || !p.dirty) return;
-    this.setState({ commit: { pid, files: [], stat: '', loading: true, msg: '', drafted: 'Drafting with the local model…' }, commitSel: 0, paletteOpen: false }); FX().sfx('open');
-    const diff = this.hq.sessionDiff ? await this.call(() => this.hq.sessionDiff({ cwd: p.path }), 'Couldn’t read changes') : null;
-    if (!this.state.commit || this.state.commit.pid !== pid) return;
-    const files = diff && Array.isArray(diff.files) ? diff.files.map((f) => ({ name: f.path, st: /\?|A/.test(f.status) ? 'new' : /D/.test(f.status) ? 'del' : 'mod', on: true })) : [];
-    this.setState((s) => ({ commit: Object.assign({}, s.commit, { files, stat: (diff && diff.stat) || '', loading: false }) }));
-    const d = await this.call(() => this.hq.draftCommit(p.path), 'No draft');
-    if (!this.state.commit || this.state.commit.pid !== pid) return;
-    this.setState((s) => ({ commit: Object.assign({}, s.commit, { msg: s.commit.msg || (d && d.message) || '', drafted: d && d.message ? (String(d.via || '').startsWith('local') ? 'Drafted by the local model · edit before committing' : 'Drafted by Claude (used quota) · edit before committing') : 'No draft · write the message yourself' }) }));
-  }
-  async doCommit() {
-    const c = this.state.commit; if (!c || c.loading) return;
-    const p = this.proj(c.pid), msg = (c.msg || '').trim();
-    if (!p || !msg) return this.denied('Write a commit message first');
-    if (c.files.some((f) => /(^|\/)\.env(\.|$)/.test(f.name))) return this.denied('A .env file would be committed · add it to .gitignore first');
-    const r = await this.call(() => this.hq.doCommit(p.path, msg), 'Commit failed');
-    if (!r) return;
-    this.setState((s) => ({ commit: null, committed: Object.assign({}, s.committed, { [c.pid]: true }) }));
-    this.toast('success', 'Committed ' + c.files.length + ' files to ' + p.branch + ' · ' + p.name + ' · re-scanning');
-    FX().sfx('done'); FX().event('cheer', 'Saved!'); FX().asciiBurst && FX().asciiBurst(innerWidth / 2, innerHeight / 2, p.name.toLowerCase() + ' · clean');
-  }
-  sheet(o) { this.setState({ sheet: o }); FX().sfx('open'); }
-  async sheetOk() {
-    const s = this.state.sheet; if (!s) return; this.setState({ sheet: null });
-    if (s.act === 'archive') { this.toast('success', 'Archiving ' + this.pname(s.id) + ' · restore it from Projects › Archived'); this.defer('archive:' + s.id, () => this.call(() => this.hq.archiveProject(s.id), 'Archive failed')); }
-    if (s.act === 'fix') {
-      const r = await this.call(() => this.hq.healthFix(s.cmd), 'Fix failed');
-      if (r) { this.toast(r.ok ? 'success' : 'error', (r.ok ? 'Ran · ' : 'Didn’t run · ') + (String(r.output || '').split('\n').filter(Boolean).slice(-1)[0] || s.fixTitle), { ms: 6000 }); if (r.ok) FX().event('cheer', 'Fixed!'); }
-    }
-    if (s.act === 'delete') { const r = await this.call(() => this.hq.studio.libraryDelete(s.path), 'Delete failed'); if (r !== null) { this.setState({ lightbox: null }); this.toast('success', 'Moved to the Recycle Bin · ' + s.name); this.store.refreshCaptures(); } }
-  }
-  async addJournal() {
-    if (!this.canWrite()) return this.denied();
-    const txt = this.state.journalDraft.trim(); const pid = this.state.route && this.state.route.id; if (!txt || !pid) return;
-    const kind = this.state.journalKind;
-    const fn = kind === 'learning' ? () => this.hq.learn(pid, txt) : kind === 'decision' ? () => this.hq.logDecision(pid, txt) : () => this.hq.saveNote(pid, txt);
-    const ok = await this.call(fn, 'Not saved');
-    if (!ok) return;
-    this.setState((s) => ({ journalAdds: Object.assign({}, s.journalAdds, { [pid]: [{ k: kind, t: txt, d: 'Today' }].concat(s.journalAdds[pid] || []) }), journalDraft: '' }));
-    this.toast('success', kind === 'decision' ? 'Decision logged in the project’s vault note' : kind === 'learning' ? 'Learning saved · +knowledge xp' : 'Note saved · mirrored to the vault');
-    FX().event('cheer', 'Noted.');
-  }
-  doIdea(i, e) {
-    if (!this.canWrite()) return this.denied();
-    if (i.purge) {
-      const p = this.proj(i.proj);
-      if (!p || !i.fatDirs.length) return this.denied('Nothing purgeable listed for this project');
-      return this.call(() => this.hq.reclaim(p.path, i.fatDirs), 'Purge failed');   // main asks to confirm, deletes, then re-scans
-    }
-    const pt = this.pt(e); FX().floatText(pt.x, pt.y - 10, 'done');
-    this.setState((s) => ({ completed: s.completed.concat([i.id]) })); this.toast('success', 'Marked done · ' + i.title, { ms: 3000, undo: i.id }); FX().sfx('done');
-    this.defer('done:' + i.id, () => this.call(() => this.hq.markQuestDone(i.id), 'Couldn’t save'));
-  }
-  // ---- Ask: the local model only; answers stay in this panel ----------------
-  submitAsk(q) {
-    q = (q || '').trim(); if (!q) return;
-    const S = this.state, live = this.LIVE.llm;
-    const entry = { q, id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), a: { text: '', src: [], est: false, status: 'thinking' } };
-    const refuse = (text) => { entry.a = { text, src: [], est: false, refusal: true, status: 'done' }; };
-    if (S.snapOffset > 0) refuse('Ask only reads today’s data. Go back to live to ask about it.');
-    else if (!this.hq || !this.hq.llm) refuse('Ask runs on the local model inside the app; this window has no app bridge.');
-    else if (live && (!live.available || !live.chatModel)) refuse(live.available ? 'No local chat model is installed. Pull one with Ollama, then retry.' : 'The local model runtime isn’t running. Start Ollama, then ask again.');
-    this.setState((s) => ({ askHistory: s.askHistory.concat([entry]).slice(-20), askOpen: true, paletteOpen: false, askDraft: '', paletteQuery: '', runsOpen: false }));
-    FX().sfx('open');
-    if (entry.a.status === 'thinking') this.runAsk(entry);
-  }
-  async runAsk(entry) {
-    const prior = this.state.askHistory.filter((h) => h.id !== entry.id && h.a && h.a.status === 'done' && !h.a.refusal).slice(-4);
-    const messages = prior.flatMap((h) => [{ role: 'user', content: h.q }, { role: 'assistant', content: h.a.text }]).concat([{ role: 'user', content: entry.q }]);
-    let r;
-    try { r = await this.hq.llm.chat({ jobId: entry.id, messages, include: { scan: true, tasks: true, projects: true } }); }
-    catch (e) { r = { status: 'error', reason: String(e && e.message || e) }; }
-    const src = (r && r.sections || []).filter((x) => x.chars > 0).map((x) => x.label + (x.clipped ? ' (clipped)' : ''));
-    this.patchAsk(entry.id, r && r.status === 'done'
-      ? { text: String(r.output || '').trim() || '(empty answer)', src: src.concat([(r.model || 'local model') + ' · ' + Math.round((r.ms || 0) / 100) / 10 + 's']), est: true, status: 'done' }
-      : { text: r && r.status === 'cancelled' ? 'Stopped.' : 'The local model didn’t answer · ' + ((r && (r.reason || r.output)) || 'unknown error'), src: [], refusal: true, status: 'done' });
-  }
-  onAskDelta(d) { if (d && d.jobId) this.patchAsk(d.jobId, { text: String(d.text || ''), status: 'thinking' }, true); }
-  patchAsk(id, a, partial) {
-    this.setState((s) => ({ askHistory: s.askHistory.map((h) => (h.id === id && (!partial || h.a.status === 'thinking') ? Object.assign({}, h, { a: Object.assign({}, h.a, a) }) : h)) }));
-  }
-  paletteItems() {
-    const S = this.state, q = S.paletteQuery.trim().toLowerCase(), M = this.M, NAV = M.NAV;
-    const g = [];
-    const vm = q.match(/^(commit|open|run|focus|theme|go)\s+(.+)$/), doItems = [];
-    if (vm) {
-      const verb = vm[1], arg = vm[2].trim();
-      if (verb === 'commit' || verb === 'open') this.projectsAt(0).filter((p) => p.name.toLowerCase().includes(arg) || p.id === arg).forEach((p) => doItems.push({ glyph: '›', label: (verb === 'commit' ? 'Commit ' : 'Open ') + p.name, hint: verb === 'commit' ? (p.dirty || 0) + ' files' : 'project page', run: () => (verb === 'commit' ? this.openCommit(p.id) : this.openProject(p.id)) }));
-      if (verb === 'run') M.AUTOS.filter((a) => a.name.toLowerCase().includes(arg)).forEach((a) => doItems.push({ glyph: '›', label: 'Run ' + a.name, hint: 'confirm first', run: () => this.askRun(a) }));
-      if (verb === 'focus') this.openTasks(0).filter((t) => t.title.toLowerCase().includes(arg)).forEach((t) => doItems.push({ glyph: '›', label: 'Focus · ' + t.title, hint: 'F', run: () => this.startFocus(t.id) }));
-      if (verb === 'theme') ['dark', 'light', 'os'].filter((x) => x.startsWith(arg)).forEach((x) => doItems.push({ glyph: '›', label: 'Theme · ' + x, hint: '', run: () => this.setState({ themePref: x }) }));
-      if (verb === 'go') NAV.filter((n) => n.label.toLowerCase().startsWith(arg)).forEach((n) => doItems.push({ glyph: '›', label: 'Go to ' + n.label, hint: '', run: () => this.go(n.id) }));
-    }
-    if (doItems.length) g.push(['Do', doItems]);
-    const go = NAV.map((n, i) => ({ glyph: n.glyph, label: n.label, hint: String(i + 1), run: () => this.go(n.id) }));
-    [['Map', 'projects', 'map'], ['Archived projects', 'projects', 'archived'], ['Ideas & risks', 'tasks', 'ideas'], ['Library', 'automations', 'library'], ['Canvas', 'claude', 'canvas'], ['Sessions', 'claude', 'sessions'], ['Timeline', 'history', 'timeline'], ['Milestones', 'history', 'milestones'], ['Workspace clutter', 'system', 'clutter'], ['Screen time', 'life', 'screen'], ['Social', 'life', 'social'], ['Notes', 'life', 'notes']].forEach((a) => go.push({ glyph: '↳', label: a[0], hint: NAV.find((n) => n.id === a[1]).label, run: () => this.go(a[1], a[2]) }));
-    g.push(['Go to', go]);
-    g.push(['Projects', this.projectsAt(0).map((p) => ({ glyph: '▦', label: p.name, hint: p.reason, run: () => this.openProject(p.id) }))]);
-    g.push(['Tasks', this.openTasks(0).map((t) => ({ glyph: '◎', label: t.title, hint: 'Focus', run: () => this.startFocus(t.id) }))]);
-    g.push(['Automations', M.AUTOS.map((a) => ({ glyph: a.icon, label: 'Run ' + a.name, hint: 'background', run: () => this.askRun(a) }))]);
-    const cmds = [
-      { glyph: '⟳', label: 'Scan now', hint: 'uses Claude quota', run: () => this.scanNow() },
-      { glyph: '◎', label: 'Start focus', hint: 'F', run: () => this.toggleFocus() },
-      { glyph: '◐', label: 'Toggle light / dark', hint: '', run: () => this.toggleTheme() },
-      { glyph: '♥', label: S.petOn ? 'Hide Bit' : 'Show Bit', hint: 'pet', run: () => this.setState({ petOn: !S.petOn, paletteOpen: false }) },
-      { glyph: '⚙', label: 'Settings', hint: '', run: () => this.setState({ settingsOpen: true, paletteOpen: false }) },
-      { glyph: '?', label: 'Keyboard shortcuts', hint: '?', run: () => this.setState({ cheatOpen: true, paletteOpen: false }) },
-      { glyph: '≡', label: 'Activity & runs', hint: '', run: () => this.setState({ runsOpen: true, paletteOpen: false }) },
-    ];
-    if (S.snapOffset) cmds.unshift({ glyph: '●', label: 'Back to live', hint: '', run: () => this.setState({ snapOffset: 0, paletteOpen: false }) });
-    g.push(['Commands', cmds]);
-    let idx = 0; const out = [];
-    g.forEach(([name, items]) => {
-      const f = name === 'Do' ? items.slice(0, 8) : items.filter((it) => !q || it.label.toLowerCase().includes(q) || (it.hint || '').toLowerCase().includes(q)).slice(0, q ? 8 : (name === 'Go to' ? 9 : 4));
-      if (!f.length) return;
-      out.push({ name, items: f.map((it) => { const my = idx++; return Object.assign({}, it, { active: my === S.paletteSel, idx: my }); }) });
-    });
-    return { groups: out, count: idx, flat: out.reduce((a, gr) => a.concat(gr.items), []) };
-  }
+  // task, claude, run, commit, sheet, journal, ask, palette and onboarding
+  // actions: src/logic/*.js, mixed into Component.prototype below
   toggleTheme() { this.setState(() => ({ themePref: this.themeName() === 'light' ? 'dark' : 'light', paletteOpen: false })); }
   themeName() { const p = this.state.themePref; if (p === 'os') return window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; return p === 'light' ? 'light' : 'dark'; }
   closeTop() {
@@ -505,17 +274,6 @@ export class Component extends DCLogic {
     const done = () => this.toast('success', msg || 'Copied');
     try { navigator.clipboard.writeText(String(text || '')).then(done, () => this.toast('error', 'Clipboard unavailable')); } catch { this.toast('error', 'Clipboard unavailable'); }
   }
-  obSet(k, e) { const val = e.target.value; this.setState((st) => ({ onboard: Object.assign({}, st.onboard, { [k]: val }) })); }
-  // Tracked projects live in collector/collector.config.json (structure lane);
-  // there is no app channel to add one yet, so the last step hands over a
-  // ready-to-paste entry instead of pretending it was added.
-  finishOnboard() {
-    const o = this.state.onboard; if (!o) return;
-    const name = (o.name || '').trim() || (o.path || '').split(/[\\/]/).filter(Boolean).pop() || 'new-project';
-    const entry = { id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''), name, path: o.path, dev_cmd: o.dev || null, canonical_branch: o.branch || 'main' };
-    this.copy(JSON.stringify(entry, null, 2), 'Copied the project entry · paste it into collector.config.json, then Scan now');
-    this.setState({ onboard: null });
-  }
 }
-Component.prototype.moreVals = moreVals;
+Object.assign(Component.prototype, tasksLogic, claudeLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic);
 Component.prototype.renderVals = renderVals;

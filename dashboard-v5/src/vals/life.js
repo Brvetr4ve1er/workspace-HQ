@@ -1,0 +1,17 @@
+// Life render values: screen time, social, notes / vaults.
+// Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
+
+export function lifeVals(ctx) {
+  const { H, LIVE, sub, tabStyle } = ctx;
+  // ---- life ----
+  const sites = H.SITES.slice(0, 12).map((s) => ({ name: s[0], mins: s[1], label: (s[1] >= 60 ? Math.floor(s[1] / 60) + 'h ' : '') + (s[1] % 60) + 'm', w: Math.round(s[1] / Math.max(1, H.SITES[0] ? H.SITES[0][1] : 1) * 100), cat: s[2], color: s[2] === 'Project' ? 'var(--green)' : 'var(--blue)' }));
+  const siteMins = this.sum(H.SITES, (s) => s[1]), otherMins = this.sum(H.SITES.filter((s) => s[2] !== 'Project'), (s) => s[1]);
+  const lifeRanges = [['window', 'Last 3 days']].map(([id, l]) => ({ label: l, go: () => this.setState({ lifeRange: id }), style: tabStyle(true) }));
+  const posts = H.POSTS.map((p) => ({ handle: p.handle, text: p.text, where: p.where, staged: p.staged, open: () => this.toast('info', 'Approve & send happens in the browser extension popup'), skip: () => this.notWired('Discarding a staged post from here') }));
+  const vaults = H.VAULTS.map((vv) => ({ name: vv.name, active: vv.active, stale: vv.stale, total: vv.total, aw: Math.round(vv.active / vv.total * 100), sw: Math.round(vv.stale / vv.total * 100), sync: vv.sync, open: () => this.notWired('Opening Obsidian from here'), search: () => this.notWired('Vault search from here') }));
+  return {
+    isScreen: sub === 'screen', isSocial: sub === 'social', isNotes: sub === 'notes', sites, hasSites: sites.length > 0, noSites: sites.length === 0, lifeRanges,
+    screenTotal: Math.floor(siteMins / 60) + 'h ' + (siteMins % 60) + 'm', screenShare: siteMins ? Math.round(otherMins / siteMins * 100) + '%' : '—', screenShareLabel: 'on sites not linked to a project',
+    posts, hasPosts: posts.length > 0, noPosts: posts.length === 0, mentions: H.MENTIONS, hasMentions: H.MENTIONS.length > 0, vaults, learnings: H.LEARN.map((l) => ({ t: l[0], p: l[1], d: l[2] })), socialEmpty: !LIVE.social.connected,
+  };
+}
