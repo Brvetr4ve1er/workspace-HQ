@@ -7,7 +7,9 @@ const clock = (t) => { const ms = typeof t === 'number' ? t : Date.parse(t); ret
 
 export const runsLogic = {
   // ---- automations (casting engine: confirm-first is enforced in main too) ----
-  auto(id) { return this.M.AUTOS.find((x) => x.id === id) || null; },
+  // background automations first, then the interactive ones (Claude skills/commands, npm dev…):
+  // both go through the same confirm-first castSpell; main opens a terminal for the latter
+  auto(id) { const M = this.M; return M.AUTOS.find((x) => x.id === id) || (M.INTERACTIVE || []).find((x) => x.id === id) || null; },
   askRun(a) {
     if (!a) return;
     if (!this.canWrite()) return this.denied();
@@ -51,7 +53,7 @@ export const runsLogic = {
       this.toast('info', 'This command changed since you last ran it · check it, then run');
       return;
     }
-    if (r.channeled) { this.setState((s) => ({ localRuns: [{ id: 't' + Date.now(), name: a.name, status: 'opened', meta: 'Terminal opened · ' + a.cmd, started: this.hhmm(), out: ['Opened in an external terminal; output stays there.'] }].concat(s.localRuns) })); this.toast('info', 'Terminal opened · ' + a.name); return; }
+    if (r.channeled) { this.setState((s) => ({ localRuns: [{ id: 't' + Date.now(), name: a.name, status: 'opened', meta: 'Terminal opened · ' + a.cmd, started: this.hhmm(), out: ['Opened in an external terminal; output stays there.'] }].concat(s.localRuns) })); this.toast('info', 'Opened in a terminal — output stays there'); return; }
     this.toast('progress', 'Running · ' + a.name, { runSpell: a.id });
     FX().sfx('run'); FX().event('look', 'Watching ' + a.name.toLowerCase() + '…');
   },

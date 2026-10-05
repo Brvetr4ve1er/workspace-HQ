@@ -1,11 +1,31 @@
 // Projects render values: grid (sorts, cards), the iso map, archived.
 import { FX } from '../logic/shared.js';
 
+// P7: the grid's search (name or stack, case-insensitive) and status chip. Session
+// state only (projSearch, projStatus; undefined = '' / 'all'). Pure, for the tests.
+export const PROJ_STATUSES = ['all', 'risk', 'care', 'idle', 'ok'];
+export function projMatches(p, q, st) {
+  if (st && st !== 'all' && p.st !== st) return false;
+  const needle = String(q || '').trim().toLowerCase();
+  if (!needle) return true;
+  const stack = Array.isArray(p.stack) ? p.stack.join(' ') : String(p.stack || '');
+  return (String(p.name || '') + ' ' + stack).toLowerCase().includes(needle);
+}
+
 export function projectsVals(ctx) {
   const { S, H, snap, projects, sub, tabStyle, rows, rowOf } = ctx;
   // ----- projects -----
   const sorters = { worst: (a, b) => H.ST[a.st].rank - H.ST[b.st].rank || b.pct - a.pct, recent: (a, b) => (a.lastDays == null ? 999 : a.lastDays) - (b.lastDays == null ? 999 : b.lastDays), dirty: (a, b) => (b.dirty || 0) - (a.dirty || 0), name: (a, b) => a.name.localeCompare(b.name) };
-  const projCards = projects.slice().sort(sorters[S.projSort] || sorters.worst).map(rowOf);
+  const pq = S.projSearch || '', pst = PROJ_STATUSES.includes(S.projStatus) ? S.projStatus : 'all';
+  const shownProjects = projects.filter((p) => projMatches(p, pq, pst));
+  const projCards = shownProjects.slice().sort(sorters[S.projSort] || sorters.worst).map(rowOf);
+  // each chip counts what it would show with the current search
+  const searched = projects.filter((p) => projMatches(p, pq, 'all'));
+  const projStatuses = PROJ_STATUSES.map((id) => {
+    const n = id === 'all' ? searched.length : searched.filter((p) => p.st === id).length;
+    return { label: (id === 'all' ? 'All' : H.ST[id].label) + ' · ' + n, on: pst === id, go: () => this.setState({ projStatus: pst === id ? 'all' : id }), style: tabStyle(pst === id) };
+  });
+  const projFiltered = !!pq.trim() || pst !== 'all';
   const projSorts = [['worst', 'Worst first'], ['dirty', 'Most uncommitted'], ['recent', 'Recent'], ['name', 'Name']].map(([id, l]) => ({ label: l, go: () => this.setState({ projSort: id }), style: tabStyle(S.projSort === id) }));
   const archived = snap.archived.map((p) => ({ name: p.name, stack: p.stack.join(' · '), since: p.archivedOn ? 'Archived ' + H.fmtD(new Date(p.archivedOn + 'T12:00')) : 'Archived', restore: () => { if (!this.canWrite()) return this.denied(); this.toast('success', 'Restoring ' + p.name); FX().event('cheer', 'Welcome back, ' + p.name + '.'); this.defer('revive:' + p.id, () => this.call(() => this.hq.reviveProject(p.id), 'Restore failed')); } }));
   // iso map
@@ -27,6 +47,11 @@ export function projectsVals(ctx) {
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // projects
     isGrid: sub === 'grid', isMap: sub === 'map', isArchived: sub === 'archived', projSorts, projCards, archived, noArchived: archived.length === 0,
+    // P7 search + status chips: "shown / total", an empty state that says why
+    projSearch: pq, onProjSearch: (e) => this.setState({ projSearch: e.target.value }), projStatuses,
+    projCount: shownProjects.length + ' / ' + projects.length + ' project' + (projects.length === 1 ? '' : 's'),
+    noProjMatch: projFiltered && shownProjects.length === 0 && projects.length > 0, projFiltered,
+    clearProjFilters: () => this.setState({ projSearch: '', projStatus: 'all' }),
     tiles, towers, mapCard, mapOpen: () => hp && this.openProject(hp.id),
   };
 }

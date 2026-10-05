@@ -1,14 +1,23 @@
 // Activity panel (runs tab) and run-confirm render values.
 import { hhmm } from '../logic/shared.js';
+import { usesQuota } from '../logic/library.js';
 
 // "HH:MM" from an ISO string or ms epoch; '' when it doesn't parse
 const clock = (t) => { const ms = typeof t === 'number' ? t : Date.parse(t); return Number.isFinite(ms) ? hhmm(new Date(ms)) : ''; };
+// A run's meta line as people read it. The telemetry history (adapter RUNS) builds
+// "<duration> · exit <code>" and a cast without a duration or an exit code came out
+// as " · exit ?" (the store's live casts can say "exit undefined"): an unknown code
+// reads "exit code unknown", and a line never starts with a dangling " · ".
+export function runMeta(m) {
+  const s = String(m == null ? '' : m).replace(/\bexit (?:\?|undefined|null)$/, 'exit code unknown');
+  return s.replace(/^\s*·\s*/, '');
+}
 
 export function runsVals(ctx) {
   const { S, H, LIVE, tabStyle } = ctx;
   // ----- runs: the scan, live casts, dev servers, opened terminals, then history -----
   const RS = { running: ['Running', 'var(--gold)'], ok: ['Finished', 'var(--green)'], failed: ['Failed', 'var(--red)'], cancelled: ['Cancelled', 'var(--faint)'], opened: ['Terminal', 'var(--blue)'], stopped: ['Stopped', 'var(--faint)'] };
-  const runRow = (r) => { const rs = RS[r.status] || [String(r.status || 'Unknown'), 'var(--muted)']; return { name: r.name, meta: r.meta || '', started: r.started || '', status: rs[0], color: rs[1], isRunning: r.status === 'running', canCancel: r.status === 'running' && r.kind === 'auto', isDev: r.status === 'running' && r.kind === 'dev', cancel: () => this.cancelRun(r.spellId), stop: () => this.stopDev(r.devId), expanded: S.expandedRun === r.id, toggle: () => this.setState({ expandedRun: S.expandedRun === r.id ? null : r.id }), out: (r.out || []).join('\n') || (r.status === 'running' ? 'Waiting for output…' : 'No output kept for this run.'), progress: r.status === 'running' ? 50 : 100 }; };
+  const runRow = (r) => { const rs = RS[r.status] || [String(r.status || 'Unknown'), 'var(--muted)']; return { name: r.name, meta: runMeta(r.meta), started: r.started || '', status: rs[0], color: rs[1], isRunning: r.status === 'running', canCancel: r.status === 'running' && r.kind === 'auto', isDev: r.status === 'running' && r.kind === 'dev', cancel: () => this.cancelRun(r.spellId), stop: () => this.stopDev(r.devId), expanded: S.expandedRun === r.id, toggle: () => this.setState({ expandedRun: S.expandedRun === r.id ? null : r.id }), out: (r.out || []).join('\n') || (r.status === 'running' ? 'Waiting for output…' : 'No output kept for this run.'), progress: r.status === 'running' ? 50 : 100 }; };
   // the full scan, from main's scan state (hydrated on load, then pushed): survives the reload, shows a failure
   const sc = this.scanStatus();
   const scanRuns = sc.running || sc.failed || sc.done ? [{
@@ -50,7 +59,11 @@ export function runsVals(ctx) {
   if (ca) {
     // main's "confirm first" answer carries the command as it is now; show that, not data.js's copy
     const pv = S.confirmPreview && S.confirmPreview.id === ca.id ? S.confirmPreview : null;
-    confirm = { icon: ca.icon, name: ca.name, desc: ca.desc || 'No description', kind: 'Runs in the background · tracked in Activity', kindTone: 'green', cmd: (pv && pv.cmd) || ca.cmd, dir: (pv && pv.dir) || ca.dir, quota: false, steps: (ca.steps || []).map((s, i) => ({ n: i + 1, s })), hasSteps: !!ca.steps, destructive: !!ca.destructive, last: ca.last ? (ca.last.ok ? 'Last run ' + ca.last.ago + ' · finished' : 'Last run ' + ca.last.ago + ' · failed (' + ca.last.err + ')') : 'Never run from here', lastColor: ca.last ? (ca.last.ok ? 'var(--green)' : 'var(--red)') : 'var(--faint)',
+    // an interactive (channeled) item opens a terminal: its output never comes back here
+    const term = ca.kind === 'interactive' || ca.mode === 'terminal';
+    // quota: the command starts the Claude CLI (every Claude skill / command / agent does)
+    const cmdNow = (pv && pv.cmd) || ca.cmd;
+    confirm = { icon: ca.icon, name: ca.name, desc: ca.desc || 'No description', kind: term ? 'Opens a terminal · output stays there' : 'Runs in the background · tracked in Activity', kindTone: term ? 'blue' : 'green', cmd: cmdNow, dir: (pv && pv.dir) || ca.dir, quota: usesQuota({ cmd: cmdNow }), steps: (ca.steps || []).map((s, i) => ({ n: i + 1, s })), hasSteps: !!ca.steps, destructive: !!ca.destructive, last: ca.last ? (ca.last.ok ? 'Last run ' + ca.last.ago + ' · finished' : 'Last run ' + ca.last.ago + ' · failed (' + runMeta(ca.last.err) + ')') : 'Never run from here', lastColor: ca.last ? (ca.last.ok ? 'var(--green)' : 'var(--red)') : 'var(--faint)',
       askOpts: [['always', 'Ask every time'], ['never', 'Don’t ask again for this exact command']].map(([id, l]) => ({ label: l, on: S.confirmAsk === id ? '●' : '○', go: () => this.setState({ confirmAsk: id }), disabled: id === 'never' && !!ca.destructive })) };
   }
   // the confirm dialog takes focus when it opens (one stable callback, so it runs once per open, not per render)
