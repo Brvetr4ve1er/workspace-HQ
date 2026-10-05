@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, machine, clutter, sites, canvasWidgets, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -285,4 +285,80 @@ test('fileUrl: drive kept, segments encoded, UNC and POSIX handled, relative ref
   assert.equal(fileUrl('C:relative.png'), '');
   assert.equal(fileUrl(''), '');
   assert.equal(fileUrl(null), '');
+});
+
+// ---- clean pass Phase 3 (P3-SYSPROJ): signals, gaps, clutter rows, canvas boards, recovered ----
+
+test('toProject keeps the scan signals (primitives only) and the closed side-quest titles', () => {
+  const p = toProject(proj('a', {
+    signals: { has_tests: false, has_ci: true, has_readme: false, test_files: 0, build_script: null, nested: { x: 1 } },
+    side: [{ id: 'sq1', title: 'Open one' }, { id: 'sq2', title: 'Done one', done: true }, { id: 'sq3', title: 'Gone one', dismissed: true }, { id: 'sq4', done: true }],
+  }));
+  assert.deepEqual(p.signals, { has_tests: false, has_ci: true, has_readme: false, test_files: 0, build_script: null });
+  assert.deepEqual(p.closedSideQuests, ['Done one', 'Gone one']);
+  assert.deepEqual(toProject(proj('b')).signals, {});
+  assert.deepEqual(toProject(proj('b')).closedSideQuests, []);
+  assert.deepEqual(toProject({ signals: 'junk' }).signals, {});
+});
+
+test('gapsOf: one row per explicitly-false signal, v3 capture text, the collector’s quest id', () => {
+  const p = toProject(proj('a', { signals: { has_tests: false, has_ci: false, has_readme: false, has_license: false } }));
+  assert.deepEqual(gapsOf(p).map((g) => [g.label, g.text, g.quest]), [
+    ['No tests', 'Project A: add a test suite', 'sq-a-tests'],
+    ['No CI', 'Project A: set up CI', 'sq-a-ci'],
+    ['No README', 'Project A: write a README', 'sq-a-readme'],
+    ['No license', 'Project A: add a LICENSE', 'sq-a-license'],
+  ]);
+  // a missing or non-false signal is not a gap
+  assert.deepEqual(gapsOf(toProject(proj('b', { signals: { has_tests: true, has_ci: null, has_readme: 0 } }))), []);
+  assert.deepEqual(gapsOf(toProject(proj('c'))), []);
+  assert.deepEqual(gapsOf(null), []);
+  assert.deepEqual(GAPS.map((g) => g.flag), ['has_tests', 'has_ci', 'has_readme', 'has_license']);
+});
+
+test('clutter rows: one labelled row per item, named the way v3 named them', () => {
+  const c = clutter({
+    duplicates: [{ type: 'twin', detail: 'Folder "x-copy" mirrors "x"', severity: 'warning' }, { type: 'twin' }],
+    empty: ['old-folder', { name: 'named-empty' }, '  '],
+    clones: [{ name: 'some-lib', origin: 'example.org/some-lib', diverged: true }, { origin: 'example.org/other' }],
+    trivial: [{ name: 'scratch', note: '2 files' }],
+  });
+  const rows = Object.fromEntries(c.map((g) => [g.id, g.rows.map((r) => [r.label, r.note])]));
+  assert.deepEqual(rows.dup, [['Folder "x-copy" mirrors "x"', '']]);
+  assert.deepEqual(rows.empty, [['old-folder', ''], ['named-empty', '']]);
+  assert.deepEqual(rows.clones, [['some-lib', 'diverged from upstream'], ['example.org/other', '']]);
+  assert.deepEqual(rows.trivial, [['scratch', '2 files']]);
+  // row ids are unique and stable per position; the group summary is unchanged
+  assert.deepEqual(c.find((g) => g.id === 'empty').rows.map((r) => r.id), ['empty:0', 'empty:1']);
+  assert.equal(c.find((g) => g.id === 'empty').detail, '3 empty folders · old-folder, named-empty, ?');
+});
+
+test('canvasBoards: array or { boards }, raw nodes normalised, nameless boards and junk dropped', () => {
+  const boards = [
+    { name: 'plan', nodes: [{ id: 'n1', type: 'text', text: 'Hello', x: 10, y: -20, width: 280, color: '2' }, { id: 7, type: 'file', file: 'a.md' }, null, 'x'], edges: [{ id: 'e1' }] },
+    { nodes: [{ id: 'n2', text: 'orphan' }] },
+    null,
+  ];
+  const b = canvasBoards(boards);
+  assert.equal(b.length, 1);
+  assert.equal(b[0].name, 'plan');
+  assert.deepEqual(b[0].nodes[0], { id: 'n1', type: 'text', text: 'Hello', x: 10, y: -20, width: 280, color: '2' });
+  assert.deepEqual(b[0].nodes[1], { id: '7', type: 'file', file: 'a.md', text: '', x: 0, y: 0 });
+  assert.deepEqual(b[0].edges, [{ id: 'e1' }]);
+  assert.deepEqual(canvasBoards({ boards }), b);
+  for (const junk of [null, undefined, 'x', 3, {}, { boards: 'x' }]) assert.deepEqual(canvasBoards(junk), []);
+  assert.equal(boardList(null), null);
+  assert.deepEqual(boardList([]), []);
+  // the widgets read a { boards } payload too (it used to empty them)
+  assert.deepEqual(canvasWidgets({ boards: [{ name: 'b', nodes: [{ id: 'n', text: 'Note\nbody' }] }] }).map((w) => [w.board, w.title]), [['b', 'Note']]);
+});
+
+test('captures keep recovered (boolean) and the snip/rec kind', () => {
+  const now = new Date(2026, 9, 3, 15);
+  const c = captures([
+    { kind: 'rec', recovered: true, path: 'r1', name: 'a.recovered.webm', mtimeMs: new Date(2026, 9, 3, 9).getTime() },
+    { kind: 'rec', path: 'r2', name: 'b.webm', mtimeMs: new Date(2026, 9, 3, 8).getTime() },
+    { kind: 'shot', recovered: 'yes', path: 's1', name: 'c.png', mtimeMs: new Date(2026, 9, 3, 7).getTime() },
+  ], now);
+  assert.deepEqual(c.map((x) => [x.id, x.kind, x.recovered]), [['r1', 'rec', true], ['r2', 'rec', false], ['s1', 'snip', false]]);
 });

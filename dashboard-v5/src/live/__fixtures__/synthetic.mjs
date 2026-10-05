@@ -20,6 +20,7 @@ export const proj = (id, o = {}) => ({
   disk: { reclaimable_bytes: o.reclaim ?? 0 },
   ...(o.suggestions ? { suggestions: o.suggestions } : {}),
   ...(o.side ? { side_quests: o.side } : {}),
+  ...(o.signals ? { signals: o.signals } : {}),
 });
 
 export const scan = (id, projects, o = {}) => ({

@@ -41,6 +41,7 @@ export function createStore(DATA, hq) {
     sessions: [], sessionOut: {}, captures: [], capturesLoaded: false,
     social: { POSTS: [], MENTIONS: [], connected: false, loaded: false },
     canvas: A.canvasWidgets(DATA.canvas), dev: {}, machine: null, browserNow: null,
+    canvasBoards: A.canvasBoards(DATA.canvas),   // raw boards [{name, nodes, edges}] (Canvas "＋ Note" board picker)
     llm: null, casts: {}, recording: null,
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
@@ -104,6 +105,15 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
     return pull(() => hq.probeLlm({ force: !!force }), (r) => { live.llm = r || null; });
   }
+  // hq:canvas-read / the hq:canvas push: an array of boards (or { boards }). Both
+  // the widgets and the raw boards follow it; a payload that isn't a board list
+  // (a failed read) changes nothing. Answers whether it applied.
+  function setBoards(payload) {
+    if (!A.boardList(payload)) return false;
+    live.canvas = A.canvasWidgets(payload);
+    live.canvasBoards = A.canvasBoards(payload);
+    return true;
+  }
   // a fresh pc-health sidecar (e.g. after a machine fix); null falls back to the baked one
   function refreshMachine(pcHealth) {
     live.pcHealth = isObj(pcHealth) ? pcHealth : null;
@@ -134,8 +144,8 @@ export function createStore(DATA, hq) {
       emit();
     }));
     if (hq.onDevStatus) sub(() => hq.onDevStatus((d) => { if (d && d.id) { live.dev = { ...live.dev, [d.id]: d.running ? { since: msOf(d.since) || Date.now() } : null }; emit(); } }));
-    if (hq.getCanvas) reads.push(pull(() => hq.getCanvas(), (b) => { live.canvas = A.canvasWidgets(b); }));
-    if (hq.onCanvas) sub(() => hq.onCanvas((b) => { live.canvas = A.canvasWidgets(b); emit(); }));
+    if (hq.getCanvas) reads.push(pull(() => hq.getCanvas(), setBoards));
+    if (hq.onCanvas) sub(() => hq.onCanvas((b) => { if (setBoards(b)) emit(); }));
     if (hq.onMachine) sub(() => hq.onMachine((m) => { live.machine = m || null; emit(); }));
     if (hq.getBrowserLive) reads.push(pull(() => hq.getBrowserLive(), (b) => { live.browserNow = b || null; }));
     if (hq.onBrowserTab) sub(() => hq.onBrowserTab((b) => { live.browserNow = b || null; emit(); }));

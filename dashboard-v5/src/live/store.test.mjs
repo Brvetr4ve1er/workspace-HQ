@@ -278,3 +278,59 @@ test('empty DATA still builds a model with the new names', () => {
   assert.deepEqual([st.model.INTERACTIVE, st.model.ISSUES, st.model.VITALS, st.model.pcScannedAt], [[], [], [], null]);
   assert.deepEqual(st.model.autoCounts, { runnable: 0, interactive: 0, bySource: {} });
 });
+
+// ---- clean pass Phase 3 (K-2): raw canvas boards next to the widgets ------------------------
+
+test('canvasBoards: seeded from DATA.canvas, replaced by getCanvas() and by every hq:canvas push', async () => {
+  const board = (name, ...texts) => ({ name, nodes: texts.map((t, i) => ({ id: name + i, type: 'text', text: t, x: i * 10, y: 0 })), edges: [] });
+  const data = { ...DATA(), canvas: [board('baked', 'Baked note')] };
+  assert.deepEqual(createStore(data, null).live.canvasBoards.map((b) => b.name), ['baked']);
+  assert.deepEqual(createStore(DATA(), null).live.canvasBoards, [], 'no canvas in DATA → no boards');
+
+  const { hq, push } = fakeHq({ getCanvas: [board('plan', 'One', 'Two'), board('ideas')] });
+  const st = createStore(data, hq);
+  let emits = 0; st.on(() => emits++);
+  await st.start();
+  assert.deepEqual(st.live.canvasBoards.map((b) => [b.name, b.nodes.map((n) => n.text)]), [['plan', ['One', 'Two']], ['ideas', []]]);
+  assert.deepEqual(st.live.canvasBoards[0].nodes[1], { id: 'plan1', type: 'text', text: 'Two', x: 10, y: 0 });
+  assert.deepEqual(st.live.canvas.map((w) => w.title), ['One', 'Two'], 'the widgets follow the same read');
+
+  // a push replaces both — as an array or as { boards }
+  const before = emits;
+  push.canvas([board('plan', 'One', 'Two', 'Three')]);
+  assert.deepEqual(st.live.canvasBoards[0].nodes.map((n) => n.text), ['One', 'Two', 'Three']);
+  assert.equal(st.live.canvas.length, 3);
+  push.canvas({ boards: [board('other', 'Solo')] });
+  assert.deepEqual(st.live.canvasBoards.map((b) => b.name), ['other']);
+  assert.deepEqual(st.live.canvas.map((w) => w.title), ['Solo']);
+  assert.equal(emits, before + 2);
+
+  // a payload that isn't a board list changes nothing and doesn't re-render
+  for (const junk of [null, undefined, 'x', { nope: 1 }]) push.canvas(junk);
+  assert.deepEqual(st.live.canvasBoards.map((b) => b.name), ['other']);
+  assert.equal(st.live.canvas.length, 1);
+  assert.equal(emits, before + 2);
+  // an empty list is a real answer: no boards left
+  push.canvas([]);
+  assert.deepEqual([st.live.canvasBoards, st.live.canvas], [[], []]);
+  st.stop();
+});
+
+test('a failed getCanvas read keeps the baked boards', async () => {
+  const data = { ...DATA(), canvas: [{ name: 'baked', nodes: [{ id: 'n', type: 'text', text: 'Kept' }] }] };
+  const { hq } = fakeHq({ getCanvas: null });
+  const st = createStore(data, hq);
+  await st.start();
+  assert.deepEqual(st.live.canvasBoards.map((b) => b.name), ['baked']);
+  assert.deepEqual(st.live.canvas.map((w) => w.title), ['Kept']);
+  st.stop();
+});
+
+test('the model keeps fileUrl; captures from libraryList carry recovered', async () => {
+  const { hq } = fakeHq({ libraryList: [{ kind: 'rec', recovered: true, path: 'C:\\caps\\a.recovered.webm', name: 'a.recovered.webm', mtimeMs: 1 }] });
+  const st = createStore(DATA(), hq);
+  await st.start();
+  assert.deepEqual(st.live.captures.map((c) => [c.kind, c.recovered]), [['rec', true]]);
+  assert.equal(st.model.fileUrl(st.live.captures[0].path), 'file:///C:/caps/a.recovered.webm');
+  st.stop();
+});

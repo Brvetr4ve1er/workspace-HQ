@@ -43,7 +43,8 @@ export function devPort(cmd) {
   return m ? +m[1] : null;
 }
 // git_safety.flags are bare slugs; say them in words, unknown slugs fall back to the slug itself
-const GIT_FLAG = { 'no-commits': 'No commits yet', 'no-remote': 'No remote, so nothing is backed up', 'many-dirty': 'Many uncommitted files', 'detached-head': 'Detached HEAD (not on a branch)' };
+// (collector/lib/git-risk.mjs + 'non-canonical-branch' from projects.mjs)
+const GIT_FLAG = { 'no-git': 'Not under git', 'no-commits': 'No commits yet', 'no-remote': 'No remote, so nothing is backed up', 'many-dirty': 'Many uncommitted files', unpushed: 'Commits not pushed yet', 'non-canonical-branch': 'Not on the canonical branch', 'detached-head': 'Detached HEAD (not on a branch)' };
 export function riskFlags(m) {
   m = obj(m);
   const sec = arr(obj(m.risk_security).flags).map(obj).filter((f) => f.type || f.detail).map((f) => ({ type: String(f.type || 'risk'), severity: String(f.severity || 'info'), detail: String(f.detail || ''), location: String(f.location || '') }));
@@ -82,8 +83,34 @@ export function toProject(p) {
     // this project's own side quests; done/dismissed drop out exactly like the global
     // IDEAS feed (toIdea carries no done flag, so a finished one would read as open)
     sideQuests: arr(p.side_quests).filter((s) => !obj(s).done && !obj(s).dismissed).map((s) => toIdea({ ...obj(s), project_id: obj(s).project_id || id, project_name: obj(s).project_name || name })),
+    // titles of the side quests already done or dismissed: the project page uses them
+    // so a scan suggestion the collector copied into one doesn't come back as new
+    closedSideQuests: arr(p.side_quests).filter((s) => obj(s).done || obj(s).dismissed).map((s) => String(obj(s).title || '')).filter(Boolean),
     gitRisk: ['low', 'medium', 'high'].includes(g.risk) ? g.risk : null,
+    // the scan's file checks (has_tests, has_ci, has_readme, has_license…); only an
+    // explicit false is a gap — a missing key means the scanner didn't determine it
+    signals: signalsOf(p.signals),
   };
+}
+function signalsOf(s) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj(s))) if (v === null || ['boolean', 'number', 'string'].includes(typeof v)) out[k] = v;
+  return out;
+}
+// The "missing basics" the project page offers to add to the Ideas feed (v3's
+// agencyProposals): one row per signal that is explicitly false, in this order.
+// `quest` is the id suffix of the collector's own side quest for the same gap
+// (projects.mjs: sq-<project>-readme…), `text` is v3's capture text.
+export const GAPS = [
+  { flag: 'has_tests', label: 'No tests', capture: 'add a test suite', quest: 'tests' },
+  { flag: 'has_ci', label: 'No CI', capture: 'set up CI', quest: 'ci' },
+  { flag: 'has_readme', label: 'No README', capture: 'write a README', quest: 'readme' },
+  { flag: 'has_license', label: 'No license', capture: 'add a LICENSE', quest: 'license' },
+];
+export function gapsOf(p) {
+  p = obj(p);
+  const sig = obj(p.signals), name = String(p.name || p.id || '');
+  return GAPS.filter((g) => sig[g.flag] === false).map((g) => ({ flag: g.flag, label: g.label, text: name + ': ' + g.capture, quest: 'sq-' + String(p.id || '') + '-' + g.quest }));
 }
 
 // ---- tasks & ideas -------------------------------------------------------------
@@ -268,13 +295,20 @@ export function machine(pcHealth) {
   });
   return { VITALS, ISSUES, scannedAt: ph.scanned_at || null, host: obj(ph.host) };
 }
+// One row per clutter item, labelled the way v3 named them (derive.mjs anomalies):
+// a clone by its name, a duplicate by its detail, an empty folder by itself, a
+// trivial folder by its name (+ the scanner's note). Unlabelled entries drop.
+const itemLabel = (x, ...keys) => (typeof x === 'string' ? x : String(keys.map((k) => obj(x)[k]).find((v) => typeof v === 'string' && v.trim()) || '')).trim();
+function clutterRows(group, items, keys, noteOf) {
+  return items.map((x, i) => ({ id: group + ':' + i, label: itemLabel(x, ...keys), note: noteOf ? noteOf(obj(x)) : '' })).filter((r) => r.label);
+}
 export function clutter(inventory) {
   const inv = obj(inventory), out = [];
   const dup = arr(inv.duplicates), empty = arr(inv.empty), clones = arr(inv.clones), triv = arr(inv.trivial);
-  if (dup.length) out.push({ id: 'dup', title: 'Duplicate folders', detail: dup.slice(0, 3).map((d) => String(obj(d).detail || d)).join(' · ') + (dup.length > 3 ? ' · +' + (dup.length - 3) + ' more' : ''), verb: 'Review', danger: false, items: dup });
-  if (empty.length) out.push({ id: 'empty', title: 'Empty folders', detail: empty.length + ' empty folder' + (empty.length === 1 ? '' : 's') + ' · ' + empty.slice(0, 3).map(String).join(', '), verb: 'Review', danger: false, items: empty });
-  if (clones.length) out.push({ id: 'clones', title: 'Reference clones', detail: clones.length + ' third-party repos · ' + clones.filter((c) => obj(c).diverged).length + ' diverged', verb: 'Review', danger: false, items: clones });
-  if (triv.length) out.push({ id: 'trivial', title: 'Trivial folders', detail: triv.length + ' folder' + (triv.length === 1 ? '' : 's') + ' with almost nothing in them', verb: 'Review', danger: false, items: triv });
+  if (dup.length) out.push({ id: 'dup', title: 'Duplicate folders', detail: dup.slice(0, 3).map((d) => String(obj(d).detail || d)).join(' · ') + (dup.length > 3 ? ' · +' + (dup.length - 3) + ' more' : ''), verb: 'Review', danger: false, items: dup, rows: clutterRows('dup', dup, ['detail', 'name']) });
+  if (empty.length) out.push({ id: 'empty', title: 'Empty folders', detail: empty.length + ' empty folder' + (empty.length === 1 ? '' : 's') + ' · ' + empty.slice(0, 3).map((e) => itemLabel(e, 'name') || '?').join(', '), verb: 'Review', danger: false, items: empty, rows: clutterRows('empty', empty, ['name']) });
+  if (clones.length) out.push({ id: 'clones', title: 'Reference clones', detail: clones.length + ' third-party repos · ' + clones.filter((c) => obj(c).diverged).length + ' diverged', verb: 'Review', danger: false, items: clones, rows: clutterRows('clones', clones, ['name', 'origin'], (c) => (c.diverged ? 'diverged from upstream' : '')) });
+  if (triv.length) out.push({ id: 'trivial', title: 'Trivial folders', detail: triv.length + ' folder' + (triv.length === 1 ? '' : 's') + ' with almost nothing in them', verb: 'Review', danger: false, items: triv, rows: clutterRows('trivial', triv, ['name'], (t) => (typeof t.note === 'string' ? t.note : '')) });
   return out;
 }
 export function vaults(inventory) {
@@ -289,9 +323,26 @@ export function sites(browser) {
 }
 
 // ---- Claude › Canvas: JSON Canvas boards → note/list widgets ------------------------------
+// main sends the boards as an array (hq:canvas-read, the hq:canvas push); a
+// { boards } wrapper is accepted too. Anything else is not a board list → null.
+export function boardList(payload) {
+  const list = Array.isArray(payload) ? payload : payload && typeof payload === 'object' && Array.isArray(payload.boards) ? payload.boards : null;
+  return list ? list.filter((b) => b && typeof b === 'object' && !Array.isArray(b)) : null;
+}
+// The raw boards for the Canvas "＋ Note" board picker: name + nodes as the file
+// holds them (id/type/text/x/y normalised, the rest — width, height, file, url,
+// color — kept). A board without a name can't be written to (hq.canvasAdd takes
+// the name), so it drops.
+export function canvasBoards(payload) {
+  return arr(boardList(payload)).map((b) => ({
+    name: typeof b.name === 'string' ? b.name : '',
+    nodes: arr(b.nodes).filter((n) => n && typeof n === 'object' && !Array.isArray(n)).map((n) => ({ ...n, id: String(n.id ?? ''), type: String(n.type || ''), text: typeof n.text === 'string' ? n.text : '', x: num(n.x), y: num(n.y) })),
+    edges: arr(b.edges),
+  })).filter((b) => b.name);
+}
 export function canvasWidgets(boards) {
   const out = [];
-  for (const b of arr(boards)) for (const n of arr(obj(b).nodes)) {
+  for (const b of arr(boardList(boards))) for (const n of arr(obj(b).nodes)) {
     const text = String(obj(n).text || obj(n).file || obj(n).url || '').trim();
     if (!text) continue;
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -311,7 +362,8 @@ export function captures(rows, now = new Date()) {
   return arr(rows).map((r) => {
     const d = new Date(num(r.mtimeMs));
     const day = d.toDateString() === today ? 'Today' : d.toDateString() === y.toDateString() ? 'Yesterday' : fmtD(d);
-    return { id: String(r.path), path: String(r.path), kind: r.kind === 'rec' ? 'rec' : 'snip', name: String(r.name || ''), day, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), size: fmtBytes(r.size), thumb: typeof r.thumbDataUrl === 'string' && r.thumbDataUrl.startsWith('data:image/') ? r.thumbDataUrl : null, mtime: num(r.mtimeMs) };
+    // recovered: a recording rebuilt from chunks after a crash (studio library-list)
+    return { id: String(r.path), path: String(r.path), kind: r.kind === 'rec' ? 'rec' : 'snip', recovered: r.recovered === true, name: String(r.name || ''), day, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), size: fmtBytes(r.size), thumb: typeof r.thumbDataUrl === 'string' && r.thumbDataUrl.startsWith('data:image/') ? r.thumbDataUrl : null, mtime: num(r.mtimeMs) };
   }).sort((a, b) => b.mtime - a.mtime);
 }
 // Windows paths compare case-insensitively with either slash; trailing slash dropped
