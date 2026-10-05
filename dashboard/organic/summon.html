@@ -2,36 +2,47 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- v5: v5's CSP. The palette loads only its own files (tokens.css + fonts,
+     satellite-theme.js, summon.js); its script moved out to summon.js. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' file: blob:; font-src 'self'; connect-src 'self'" />
 <title>Summon</title>
+<!-- v5: theme first: data-hq-theme / data-hq-reduce on <html> from hq.uiPrefs (get + push) -->
+<script src="../satellite-theme.js"></script>
+<!-- v5: shared palette + IBM Plex Mono (tokens only, no html/body rules) -->
+<link rel="stylesheet" href="../../dashboard-v5/styles/tokens.css" />
 <style>
-  :root { --bg0:#0c0a1e; --bg1:#171233; --line:#322a5e; --cyan:#00f0ff; --magenta:#ff2bd6; --txt:#e8e6ff; --faint:#5e588a;
-          --mono: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  /* v5: restyled per the Satellites design (quick-run palette: card-hi, gold
+     frame, ink input with a gold › prompt). No local palette: every colour is a
+     token, so the theme follows hq.uiPrefs live. */
   * { margin:0; padding:0; box-sizing:border-box; }
-  html, body { background:transparent; overflow:hidden; }
-  #cap { height:100vh; padding:12px 14px; border:1px solid var(--line); border-radius:12px;
-         background: radial-gradient(120% 140% at 100% 0%, rgba(255,43,214,.13), transparent 60%), linear-gradient(160deg, var(--bg1), var(--bg0));
-         box-shadow: 0 10px 30px rgba(0,0,0,.6); -webkit-app-region:drag; }
-  .lbl { font-family:var(--mono); font-size:9px; letter-spacing:.6px; color:var(--magenta); text-transform:uppercase; margin-bottom:7px; }
-  .lbl b { color:var(--faint); font-weight:400; }
-  input { -webkit-app-region:no-drag; width:100%; background:#0a081c; border:1px solid var(--line); border-radius:7px;
-          color:var(--txt); font-family:var(--mono); font-size:15px; padding:10px 12px; outline:none; }
-  input:focus { border-color:var(--magenta); box-shadow:0 0 0 2px rgba(255,43,214,.16); }
+  html, body { background:transparent; overflow:hidden; height:100%; }
+  #cap { height:100vh; display:flex; flex-direction:column; overflow:hidden;
+         background:var(--card-hi); border:1px solid var(--gold); border-radius:14px;
+         font-family:var(--term); color:var(--text); -webkit-app-region:drag; }
+  .row { padding:12px 12px 10px; }
+  .field { height:42px; display:flex; align-items:center; gap:8px; padding:0 12px;
+           border-radius:8px; background:var(--ink); border:1px solid var(--frame); }
+  .field:focus-within { border-color:var(--frame-hi); }
+  .p { color:var(--gold); font-size:15px; }
+  input { -webkit-app-region:no-drag; flex:1; min-width:0; background:transparent; border:0; outline:none;
+          color:var(--text); font-family:var(--term); font-size:15px; caret-color:var(--gold); }
   input::placeholder { color:var(--faint); }
+  .ft { margin-top:auto; padding:8px 14px; border-top:1px solid var(--frame); font-size:11px; color:var(--faint);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ft .ai { color:var(--purple); }
+  [data-hq-reduce] * { animation:none !important; transition:none !important; }
 </style>
 </head>
 <body>
+  <!-- v5: restyled palette; the grammar moved from the 9px label into the placeholder -->
   <div id="cap">
-    <div class="lbl">✨ summon UI here · <b>note … / timer 25 / quest / hp — or describe ANY widget and Claude conjures it</b></div>
-    <input id="in" autofocus placeholder="e.g.  water tracker with a +1 glass button" />
+    <div class="row">
+      <label class="field"><span class="p" aria-hidden="true">›</span><input id="in" autofocus spellcheck="false" autocomplete="off" aria-label="Summon a widget" placeholder="note … · timer 25 · quest · hp · lib" /></label>
+    </div>
+    <!-- v5: free text spends Claude quota; say so before Enter (design: purple = ai only) -->
+    <div class="ft">anything new → <span class="ai">✦ claude writes it</span> · uses quota · esc close</div>
   </div>
-  <script>
-    const inp = document.getElementById('in');
-    inp.focus();
-    inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && inp.value.trim()) { window.hq.shardSummon(inp.value); }
-      else if (e.key === 'Escape') { window.hq.shardSummonCancel(); }
-    });
-    window.addEventListener('DOMContentLoaded', () => inp.focus());
-  </script>
+  <!-- v5: the inline script moved here (script-src 'self') -->
+  <script src="./summon.js"></script>
 </body>
 </html>
