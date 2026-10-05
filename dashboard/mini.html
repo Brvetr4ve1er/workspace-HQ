@@ -2,201 +2,115 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- v5 clean pass S0/S4: v5's CSP. The page script lives in mini.js now (no inline
+     script); style-src keeps 'unsafe-inline' for this <style> block. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' file: blob:; font-src 'self'; connect-src 'self'">
 <title>WorkspaceHQ HUD</title>
+<!-- first: puts data-hq-theme / data-hq-reduce on <html> from main's ui-prefs before paint -->
+<script src="./satellite-theme.js"></script>
+<link rel="stylesheet" href="../dashboard-v5/styles/tokens.css" />
 <style>
-  :root {
-    --bg0: #0c0a1e; --bg1: #14102e; --line: #2a2350;
-    --cyan: #00f0ff; --pink: #ff2bd6; --gold: #ffd23f; --purple: #b14aff;
-    --green: #3aff6e; --orange: #ffa502; --red: #ff4757; --yellow: #ffe14d;
-    --txt: #e7e3ff; --muted: #9690c4; --faint: #5e588a;
-    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
-  }
+  /* Satellites design · "mini hud · always on top". The window is 286×196,
+     transparent and frameless (main.js createMiniWindow); the card fills it. */
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; }
-  body { font-family: var(--mono); color: var(--txt); }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  body { font-family: var(--term); color: var(--text); font-size: 12px; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; -webkit-app-region: no-drag; }
+  button:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
 
   #hud {
     -webkit-app-region: drag;            /* grab anywhere empty to move */
-    position: relative;
-    height: 100vh;
-    padding: 9px 11px 10px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background:
-      radial-gradient(120% 140% at 0% 0%, rgba(177,74,255,.16), transparent 60%),
-      radial-gradient(120% 140% at 100% 100%, rgba(0,240,255,.12), transparent 55%),
-      linear-gradient(160deg, var(--bg1), var(--bg0));
-    box-shadow: 0 8px 26px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.02);
+    position: relative; height: 100vh;
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 11px 13px;
+    background: var(--card); border: 1px solid var(--frame); border-radius: 12px;
     overflow: hidden;
   }
-  /* faint scanline texture to match the main console */
-  #hud::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 12px;
-    background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
-    mix-blend-mode: overlay; opacity: .5;
+  .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .flex { flex: 1; }
+
+  .head { font-size: 11px; color: var(--faint); }
+  .dot { width: 7px; height: 7px; border-radius: 2px; flex: none; background: var(--faint); }
+  .dot.red { background: var(--red); } .dot.orange { background: var(--orange); }
+  .dot.yellow { background: var(--yellow); } .dot.green { background: var(--green); }
+  .head .lbl { flex: 1; }
+  #qxp { color: var(--accent-text); }
+  #qxp:empty { display: none; }
+  .x { color: var(--faint); font-size: 15px; line-height: 1; padding: 0 3px; border-radius: 5px; }
+  .x:hover { color: var(--red); background: color-mix(in oklab, var(--red) 14%, transparent); }
+
+  .next { display: block; width: calc(100% + 4px); text-align: left; font-size: 14px; line-height: 1.3; color: var(--text); padding: 1px 2px; margin: -1px -2px; border-radius: 6px; }
+  #qtitle { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .next:hover { color: var(--accent-text); }
+
+  .counts { gap: 10px; font-size: 12px; color: var(--muted); }
+  .cnt { padding: 1px 4px; margin: 0 -4px; border-radius: 5px; white-space: nowrap; }
+  .cnt b { font-weight: 400; }
+  .cnt.red { color: var(--red); } .cnt.orange { color: var(--orange); } .cnt.quiet { color: var(--faint); }
+  .cnt:hover { background: color-mix(in oklab, var(--gold) 12%, transparent); }
+  #lv { color: var(--accent-text); white-space: nowrap; }
+
+  .spells { gap: 5px; }
+  .spell {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px;
+    height: 24px; padding: 0 7px; border-radius: 7px;
+    border: 1px solid var(--frame); background: var(--ink); font-size: 11px;
   }
-
-  .row { display: flex; align-items: center; gap: 8px; }
-  .top { margin-bottom: 7px; }
-
-  .lv { font-weight: 800; font-size: 11px; letter-spacing: .5px; color: var(--gold);
-        text-shadow: 0 0 8px rgba(255,210,63,.5); white-space: nowrap; }
-  .lv b { font-size: 16px; margin-left: 3px; }
-
-  .xpwrap { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .xpbar { height: 7px; border-radius: 5px; background: #1a1540; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
-  .xpbar i { display: block; height: 100%; width: 0;
-             background: linear-gradient(90deg, var(--purple), var(--pink), var(--cyan));
-             box-shadow: 0 0 8px rgba(255,43,214,.6); transition: width .5s ease-out; }
-  .xptxt { font-size: 8.5px; color: var(--faint); letter-spacing: .3px; }
-
-  .btn { -webkit-app-region: no-drag; cursor: pointer; border: 0; background: transparent;
-         color: var(--faint); font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 5px; }
-  .btn:hover { color: var(--red); background: rgba(255,71,87,.12); }
-
-  .mid { margin-bottom: 7px; }
-  .hp { flex: 1; display: flex; align-items: center; gap: 6px; }
-  .hp .lbl { font-size: 9px; color: var(--muted); letter-spacing: .5px; }
-  .hpbar { flex: 1; height: 7px; border-radius: 5px; background: #1a1540; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
-  .hpbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #1f9e4b, var(--green));
-             box-shadow: 0 0 8px rgba(58,255,110,.45); transition: width .5s ease-out; }
-  .hpbar i.warn { background: linear-gradient(90deg, #b06a00, var(--orange)); box-shadow: 0 0 8px rgba(255,165,2,.5); }
-  .hpbar i.crit { background: linear-gradient(90deg, #a01f2b, var(--red)); box-shadow: 0 0 9px rgba(255,71,87,.6); }
-  .hp b { font-size: 12px; font-weight: 800; min-width: 22px; text-align: right; }
-  .streak { display: flex; align-items: center; gap: 3px; font-size: 12px; }
-  .streak b { font-weight: 800; color: var(--orange); }
-
-  .quest { -webkit-app-region: no-drag; cursor: pointer; gap: 6px;
-           padding: 6px 7px; border-radius: 8px; background: rgba(255,255,255,.03);
-           box-shadow: inset 0 0 0 1px var(--line); transition: background .15s, box-shadow .15s; }
-  .quest:hover { background: rgba(0,240,255,.07); box-shadow: inset 0 0 0 1px rgba(0,240,255,.35); }
-  .tier { font-size: 8px; font-weight: 800; letter-spacing: .5px; padding: 2px 4px; border-radius: 4px;
-          color: #0c0a1e; white-space: nowrap; }
-  .tier.red { background: var(--red); } .tier.orange { background: var(--orange); } .tier.yellow { background: var(--yellow); }
-  .tier:empty { display: none; }
-  .qtitle { flex: 1; font-size: 10.5px; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .qxp { font-size: 9.5px; font-weight: 800; color: var(--gold); white-space: nowrap; }
-  .qxp:empty { display: none; }
-
-  .mac { margin-top: 7px; gap: 5px; }
-  .mack { font-size: 8px; color: var(--faint); letter-spacing: .5px; }
-  .macbar { flex: 1; height: 6px; border-radius: 4px; background: #1a1540; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); min-width: 22px; }
-  .macbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--purple)); transition: width .4s; }
-  .macbar i.hot { background: linear-gradient(90deg, var(--orange), var(--red)); }
-  .mac b { font-size: 9px; min-width: 20px; color: var(--muted); }
-  .srv { -webkit-app-region: no-drag; cursor: pointer; color: var(--red); font-size: 11px; display: flex; align-items: center; gap: 2px; }
-  .srv:hover { background: rgba(255,71,87,.14); }
-  .srv b { color: var(--red); font-size: 9px; }
-
-  .spells { margin-top: 6px; gap: 4px; }
-  .spell { -webkit-app-region: no-drag; cursor: pointer; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px;
-           padding: 4px 6px; border-radius: 6px; background: rgba(255,255,255,.03);
-           box-shadow: inset 0 0 0 1px var(--line); font-size: 9px; }
-  .spell:hover { background: rgba(255,210,63,.10); box-shadow: inset 0 0 0 1px rgba(255,210,63,.4); }
-  .spell .si { font-size: 11px; }
-  .spell .sn { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .spell:hover { border-color: var(--gold); }
+  .spell .si { font-size: 12px; flex: none; }
+  .spell .sn { flex: 1; min-width: 0; text-align: left; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spell.busy { border-color: var(--gold); }
   .spell.busy .si { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  .vitals { gap: 5px; font-size: 10px; color: var(--faint); margin-top: auto; }
+  .vitals b { font-weight: 400; color: var(--muted); min-width: 26px; }
+  .vitals b.red { color: var(--red); } .vitals b.orange { color: var(--orange); } .vitals b.green { color: var(--green); }
+  .bar { flex: 1; min-width: 20px; height: 4px; border-radius: 2px; background: var(--ink); box-shadow: inset 0 0 0 1px var(--frame); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--muted); transition: width .4s; }
+  .bar i.hot { background: var(--red); }
+  .srv { color: var(--red); font-size: 10px; padding: 0 4px; border-radius: 5px; white-space: nowrap; }
+  .srv b { color: var(--red); min-width: 0; }
+  .srv:hover { background: color-mix(in oklab, var(--red) 14%, transparent); }
+
+  .note {
+    position: absolute; left: 10px; right: 10px; bottom: 8px;
+    padding: 4px 8px; border-radius: 7px; font-size: 10.5px; line-height: 1.3;
+    background: var(--card-hi); border: 1px solid var(--frame); color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .note.red { color: var(--red); border-color: color-mix(in oklab, var(--red) 50%, transparent); }
+
+  [data-hq-reduce] *, [data-hq-reduce] *::before, [data-hq-reduce] *::after { animation: none !important; transition: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
   <div id="hud">
-    <div class="row top">
-      <div class="lv">LV<b id="lv">–</b></div>
-      <div class="xpwrap">
-        <div class="xpbar"><i id="xpfill"></i></div>
-        <span class="xptxt" id="xptxt">—</span>
-      </div>
-      <button class="btn" id="close" title="Hide HUD (re-show from tray)">×</button>
+    <div class="row head">
+      <span class="dot quiet" id="qdot"></span>
+      <span class="lbl">next action</span>
+      <span id="qxp"></span>
+      <button class="x" id="close" type="button" title="Hide HUD (re-show from tray)" aria-label="Hide HUD">×</button>
     </div>
-    <div class="row mid">
-      <div class="hp"><span class="lbl">HP</span><div class="hpbar"><i id="hpfill"></i></div><b id="hp">0</b></div>
-      <div class="streak">🔥<b id="streak">0</b></div>
-    </div>
-    <div class="row quest" id="quest" title="Open WorkspaceHQ">
-      <span class="tier" id="qtier"></span>
-      <span class="qtitle" id="qtitle">Loading…</span>
-      <span class="qxp" id="qxp"></span>
+    <button class="next" id="quest" type="button" title="Open WorkspaceHQ"><span id="qtitle">Loading…</span></button>
+    <div class="row counts">
+      <button class="cnt quiet" id="c-secrets" type="button">⚿ <b>—</b></button>
+      <button class="cnt quiet" id="c-uncommitted" type="button">● <b>—</b></button>
+      <button class="cnt quiet" id="c-unpushed" type="button">↑ <b>—</b></button>
+      <span class="flex"></span>
+      <span id="lv">lv – · – xp</span>
     </div>
     <div class="row spells" id="spells" hidden></div>
-    <div class="row mac">
-      <span class="mack">CPU</span><div class="macbar"><i id="cpufill"></i></div><b id="cpu">–</b>
-      <span class="mack">RAM</span><div class="macbar"><i id="ramfill"></i></div><b id="ram">–</b>
-      <button class="srv btn" id="killsrv" title="Kill running dev servers" hidden>■<b id="srvn">0</b></button>
+    <div class="row vitals">
+      <span>hp</span><b id="hp">–</b>
+      <span>cpu</span><span class="bar"><i id="cpufill"></i></span><b id="cpu">–</b>
+      <span>ram</span><span class="bar"><i id="ramfill"></i></span><b id="ram">–</b>
+      <button class="srv" id="killsrv" type="button" title="Stop running dev servers" hidden>■ <b id="srvn">0</b></button>
     </div>
+    <div class="note" id="note" role="status" hidden></div>
   </div>
-
-  <script>
-    const $ = (id) => document.getElementById(id);
-    function paint(d) {
-      if (!d) { $('qtitle').textContent = 'No scan data — run a scan'; return; }
-      $('lv').textContent = d.level;
-      $('xpfill').style.width = Math.max(0, Math.min(100, d.xpPct)) + '%';
-      $('xptxt').textContent = d.xpToNext ? (d.xpToNext + ' XP to L' + (d.level + 1)) : 'MAX LEVEL';
-      const hpf = $('hpfill');
-      hpf.style.width = Math.max(0, Math.min(100, d.hp)) + '%';
-      hpf.className = d.hp < 40 ? 'crit' : d.hp < 70 ? 'warn' : '';
-      $('hp').textContent = d.hp;
-      $('streak').textContent = d.streak;
-      const q = d.topQuest;
-      if (q) {
-        $('qtier').textContent = q.tier.toUpperCase();
-        $('qtier').className = 'tier ' + q.tier;
-        $('qtitle').textContent = q.title;
-        $('qxp').textContent = '+' + q.xp;
-      } else {
-        $('qtier').textContent = '';
-        $('qtitle').textContent = 'All quests clear ✓';
-        $('qxp').textContent = '';
-      }
-      paintSpells(d.spells);
-    }
-    const open = () => window.hq && window.hq.showMain && window.hq.showMain();
-    $('quest').onclick = open;
-
-    // top-3 spell shortcuts: one click casts; confirm-needed spells open the main UI
-    function paintSpells(list) {
-      const box = $('spells');
-      box.innerHTML = '';
-      if (!list || !list.length) { box.hidden = true; return; }
-      box.hidden = false;
-      for (const sp of list) {
-        const b = document.createElement('div');
-        b.className = 'spell'; b.dataset.id = sp.id; b.title = 'Cast ' + sp.name;
-        const si = document.createElement('span'); si.className = 'si'; si.textContent = sp.icon || '✴️';
-        const sn = document.createElement('span'); sn.className = 'sn'; sn.textContent = sp.name;
-        b.append(si, sn);
-        b.onclick = async (e) => {
-          e.stopPropagation();
-          b.classList.add('busy');
-          const res = await window.hq.castSpell(sp.id, undefined, { notify: true });
-          if (res && res.confirm_required) { b.classList.remove('busy'); open(); }
-          if (res && (res.channeled || res.error)) b.classList.remove('busy');
-        };
-        box.appendChild(b);
-      }
-    }
-    if (window.hq && window.hq.onCastDone) window.hq.onCastDone((d) => {
-      document.querySelectorAll('.spell').forEach((b) => {
-        if (b.dataset.id === d.spellId) {
-          b.classList.remove('busy');
-          const si = b.querySelector('.si'); const old = si.textContent;
-          si.textContent = d.outcome === 'resolved' ? '✨' : '💥';
-          setTimeout(() => { si.textContent = old; }, 4000);
-        }
-      });
-    });
-    $('close').onclick = (e) => { e.stopPropagation(); window.hq && window.hq.miniHide && window.hq.miniHide(); };
-    if (window.hq && window.hq.onMiniUpdate) window.hq.onMiniUpdate(paint);
-    function paintMac(m) {
-      if (!m) return;
-      $('cpu').textContent = m.cpu; $('cpufill').style.width = m.cpu + '%'; $('cpufill').className = m.cpu > 85 ? 'hot' : '';
-      $('ram').textContent = m.ram; $('ramfill').style.width = m.ram + '%'; $('ramfill').className = m.ram > 85 ? 'hot' : '';
-      const k = $('killsrv'); if (m.servers > 0) { k.hidden = false; $('srvn').textContent = m.servers; } else k.hidden = true;
-    }
-    if (window.hq && window.hq.onMachine) window.hq.onMachine(paintMac);
-    $('killsrv').onclick = (e) => { e.stopPropagation(); window.hq && window.hq.killServers && window.hq.killServers(); };
-    (async () => { if (window.hq && window.hq.getMiniData) paint(await window.hq.getMiniData()); })();
-  </script>
+  <script src="./mini.js"></script>
 </body>
 </html>
