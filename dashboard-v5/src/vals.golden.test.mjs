@@ -86,8 +86,11 @@ function projectsAt(k) {
   const list = [
     // secrets + suggestions + own side quests + risk flags + insights/roadmap + a dev port
     P('a', { pct: 40 + 5 * k, dev: 'npm run dev -- --port 5173', commits: 10 + 3 * k, dirty: [6, 4, 5, 3][k], ahead: 1, secrets: 2, gitRisk: 'high', gitFlags: ['many-dirty', 'odd_flag'], days: 1,
-      suggestions: [{ kind: 'polish', text: 'Add a usage section to the README', effort: 'S', impact: 'M' }, { text: 'An uncategorised suggestion' }],
-      side: [{ id: 'sq-a-own', kind: 'idea', title: 'Own side quest', effort: 'S', impact: 'L' }, { id: 'sq-a-done', kind: 'idea', title: 'Finished side quest', done: true }] },
+      // (Phase 3: the last two suggestions repeat an open and a finished side quest — Next shows neither)
+      suggestions: [{ kind: 'polish', text: 'Add a usage section to the README', effort: 'S', impact: 'M' }, { text: 'An uncategorised suggestion' }, { text: 'own  side quest.' }, { text: 'Finished side quest' }],
+      // (Phase 3: sq-a-ci is the collector's own "no CI" quest, so the CI gap row is not offered again)
+      side: [{ id: 'sq-a-own', kind: 'idea', title: 'Own side quest', effort: 'S', impact: 'L' }, { id: 'sq-a-done', kind: 'idea', title: 'Finished side quest', done: true }, { id: 'sq-a-ci', kind: 'idea', title: 'Add CI', effort: 'M', impact: 'M' }],
+      signals: { has_tests: false, has_ci: false, has_readme: true, test_files: 0 } },
     { insights: INSIGHTS, roadmap: ROADMAP }),
     P('b', { git: false, pct: 20, days: 3 }),                                                                   // no git
     P('c', { pct: 70, dirty: [18, 22, 24, 25][k], ahead: 2, branch: 'feature-x', state: 'stale', days: 40 + k, commits: 30, dev: 'python -m http.server 5500' }),   // dirty, off-branch
@@ -204,7 +207,7 @@ function DATA() {
 // everything window.hq would have pushed after boot (sessions, casts, dev servers, vitals, social, captures)
 const CAPTURE_ROWS = [
   { path: 'C:/captures/snip-1.png', kind: 'snip', name: 'snip-1.png', mtimeMs: Date.parse('2026-10-05T09:15:00Z'), size: 245000 },
-  { path: 'C:/captures/rec-1.mp4', kind: 'rec', name: 'rec-1.mp4', mtimeMs: Date.parse('2026-10-04T18:00:00Z'), size: 12500000 },
+  { path: 'C:/captures/rec-1.mp4', kind: 'rec', recovered: true, name: 'rec-1.mp4', mtimeMs: Date.parse('2026-10-04T18:00:00Z'), size: 12500000 },
   { path: 'C:/captures/snip-0.png', kind: 'snip', name: 'snip-0.png', mtimeMs: Date.parse('2026-09-28T08:00:00Z'), size: 800, thumbDataUrl: 'data:image/png;base64,AAAA' },
 ];
 function richLive(L, store) {
@@ -277,11 +280,23 @@ add('overlay.palette-go-query-scan', { state: palette('scan', { paletteSel: 1 })
 add('overlay.palette-go-past', { state: palette('', { snapOffset: 1, paletteSel: 3 }) });
 add('overlay.palette-ask', { state: { paletteOpen: true, paletteMode: 'ask', paletteQuery: 'what changed?', paletteSel: 0 } });
 // overlays: ask, runs, scrub, settings, cheat sheet
-add('overlay.ask', { state: { askOpen: true, askDraft: 'a draft question', askHistory: [
-  { q: 'What is uncommitted?', id: 'a1', a: { text: 'Project C has 25 uncommitted files.', src: ['scan', 'projects', 'local model · 1.2s'], est: true, status: 'done' } },
-  { q: 'Any exposed secrets?', id: 'a2', a: { text: '', src: [], est: false, status: 'thinking' } },
-  { q: 'Old question', id: 'a3', a: { text: 'The local model runtime isn’t running.', src: [], est: false, refusal: true, status: 'done' } },
-] } });
+// Phase 3 P1: entries as logic/ask.js keeps them — { id, q, a: { text, status, meta (v3's, as stored), est } }
+const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 1200, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 4000, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
+const ASK_DONE = [
+  { q: 'What is uncommitted?', id: 'a1', a: { text: 'Project C has 25 uncommitted files.', status: 'done', meta: { status: 'done', sections: ASK_SEC, ms: 1200, model: 'placeholder-model' }, est: true } },
+  { q: 'Which project is quiet?', id: 'a2', a: { text: 'Project E has had no', status: 'cancelled', meta: { status: 'cancelled', sections: ASK_SEC, ms: 800, model: 'placeholder-model' }, est: true } },
+  { q: 'Asked before a reload', id: 'a3', a: { text: '', status: 'error', meta: { status: 'error', reason: 'interrupted — the window reloaded' }, est: false } },
+  { q: 'Asked while offline', id: 'a4', a: { text: 'The model is offline.', status: 'unavailable', meta: { status: 'unavailable', reason: 'no runtime' }, est: true } },
+  { q: 'Old question', id: 'a5', local: true, a: { text: 'The local model runtime isn’t running.', status: 'unavailable', meta: null, est: false, refusal: true } },
+];
+add('overlay.ask', { state: { askOpen: true, askDraft: 'a draft question', askHistory: ASK_DONE } });
+// a bridge with llm.chat/cancel: Retry offered, and the button is Stop while an answer streams
+const LLM_HQ = { llm: { chat() {}, cancel() {}, warm() {} } };
+add('overlay.ask-bridge', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: 'placeholder-model' }; }, state: { askOpen: true, askHistory: ASK_DONE, askInclude: { scan: false, tasks: true, projects: true, health: true, browser: false, vault: false } } });
+add('overlay.ask-streaming', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: 'placeholder-model' }; }, state: { askOpen: true, askHistory: ASK_DONE.slice(0, 1).concat([{ q: 'Any exposed secrets?', id: 'a6', a: { text: 'Project A has', status: 'thinking', meta: null, est: false } }]) } });
+add('overlay.ask-empty', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: 'placeholder-model' }; }, state: { askOpen: true, askHistory: [] } });
+add('overlay.ask-offline', { hq: LLM_HQ, live: (L) => { L.llm = { available: false, reason: 'not running' }; }, state: { askOpen: true, askHistory: [] } });
+add('overlay.ask-no-chat-model', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: null }; }, state: { askOpen: true, askHistory: [], askChecking: true } });
 // Phase 2 C2: the scan row comes from main's live scan state (hq:live-state / hq:scan-status), not a localRuns entry
 add('overlay.runs', { live: (L) => { L.scan = { state: 'running', startedAt: Date.parse('2026-10-05T10:00:00Z'), endedAt: null, code: null }; }, state: { runsOpen: true, expandedRun: 'c2', localRuns: [
   { id: 't1', name: 'Review', status: 'opened', meta: 'Terminal opened · claude /review', started: '09:50', out: ['Opened in an external terminal; output stays there.'] },
@@ -327,6 +342,47 @@ add('live.runs', { live: richLive, state: { runsOpen: true, expandedRun: 'k1' } 
 // an (inert) bridge object: the writable branches (nothing on it is called while rendering)
 add('bridge.home', { hq: {}, state: { tab: 'home' } });
 add('bridge.project-a', { hq: {}, state: page('a', 'git') });
+
+// ---- Phase 3 (v3 parity) states -------------------------------------------------------------
+// an inert bridge with the Phase 3 methods, so their buttons render enabled
+const P3_HQ = { captureSave() {}, healthScan() {}, healthFix() {}, claudeQuest() {}, canvasAdd() {}, rescanSpellbook() {}, castSpell() {}, studio: { libraryReveal() {} } };
+const FRESH_PC = { scanned_at: '2026-10-05T09:58:00Z', host: { name: 'test-pc' }, organs: [organ('cpu', { value: 9, status: 'grace' }), organ('gpu', { label: 'Graphics', value: 96, status: 'ember', diagnosis: 'GPU running hot', fixes: [] })] };
+// P8 palette: the capture verb, and the new Commands rows found by searching
+add('overlay.palette-go-capture', { state: palette('capture Some Idea For Later') });
+add('overlay.palette-go-trailers', { state: palette('trailers') });
+add('overlay.palette-go-ask-panel', { state: palette('ask panel') });
+// P8 What's new (bundled flags as this build has them), its fallback, over Settings
+add('overlay.whats-new', { state: { whatsNewOpen: true } });
+add('overlay.whats-new-fallback', { state: { whatsNewOpen: true, whatsNewMissing: { 'hq-trailer-1': true, 'hq-trailer-2': true } } });
+add('overlay.whats-new-over-settings', { state: { settingsOpen: true, whatsNewOpen: true } });
+// P2 System: Re-examine running, a fresh report (no reload: store.refreshMachine), every issue fixed, clutter saves
+add('system.examining', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), sysExamining: true }) });
+add('system.reexamined', { hq: P3_HQ, live: (L, store) => { store.refreshMachine(FRESH_PC); }, state: tabSub('system', 'machine') });
+add('system.all-fixed', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), fixed: ['organ-disk', 'organ-ram'] }) });
+add('system.clutter-saves', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), sysSaves: { 'Clean up: Project A copy ↔ Project A': 'saving', 'Clean up: notes ↔ notes-old': 'noted', 'Clean up: x ↔ y': 'failed' } }) });
+add('system.clutter-past', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), snapOffset: 1 }) });
+// P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
+add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });
+add('project.c.git-risk', { state: page('c', 'git') });
+// P4 Studio: a snip in the lightbox (the recording one is overlay.lightbox), the recordings filter with a bridge
+add('overlay.lightbox-snip', { hq: P3_HQ, live: (L) => { L.captures = A.captures(CAPTURE_ROWS); }, state: (c, M) => ({ tab: 'studio', lightbox: M.CAPTURES[0].id }) });
+add('overlay.lightbox-thumb-only', { live: (L) => { L.captures = A.captures(CAPTURE_ROWS); }, state: (c, M) => ({ tab: 'studio', lightbox: M.CAPTURES[2].id }) });
+// P5 Canvas ＋ Note: form open on the second board, saving, no bridge (disabled with the reason)
+add('claude.canvas-note', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasBoard: 'Board One' }) });
+add('claude.canvas-note-saving', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasSaving: true }) });
+add('claude.canvas-note-nobridge', { state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
+add('claude.canvas-pushed-boards', { hq: P3_HQ, live: (L) => { L.canvasBoards = A.canvasBoards({ boards: [{ name: 'Board Two', nodes: [] }, { name: 'bad/name', nodes: [] }] }); }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
+// P6 Automations: kind / source / category chips, nothing matching, Show more, Rescan running, an interactive confirm
+add('auto.interactive', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libKind: 'interactive' }) });
+add('auto.source-skill', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libSource: 'skill' }) });
+add('auto.school', { state: (c, M) => ({ ...tabSub('automations', 'runnable')(c), libSchool: M.AUTOS[0].cat }) });
+add('auto.none', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), autoQuery: 'zzz-none' }) });
+add('auto.rescanning', { hq: P3_HQ, state: (c) => ({ ...tabSub('automations', 'runnable')(c), libRescanning: true, libShow: 160 }) });
+add('overlay.confirm-interactive', { hq: P3_HQ, state: (c, M) => ({ tab: 'automations', confirm: M.INTERACTIVE[0].id, confirmAsk: 'always' }) });
+// P7 Projects: status chip, a search on the name, a search matching nothing
+add('projects.status-risk', { state: (c) => ({ ...tabSub('projects', 'grid')(c), projStatus: 'risk' }) });
+add('projects.search-name', { state: (c) => ({ ...tabSub('projects', 'grid')(c), projSearch: 'PROJECT c' }) });
+add('projects.search-none', { state: (c) => ({ ...tabSub('projects', 'grid')(c), projSearch: 'zzz-none', projStatus: 'care' }) });
 
 // ---- render + canonical hash -----------------------------------------------------------------
 function render(sc) {

@@ -63,9 +63,10 @@ function createFake(opts) {
   // ---- the stateful canned answers ----
   const chat = (req) => new Promise((resolve) => {
     const jobId = req && req.jobId, parts = ['Fake', 'Fake answer', 'Fake answer from the fake model.'];
-    const job = { resolve, timers: [] };
+    const job = { resolve, timers: [], sent: '', t0: Date.now() };
     if (jobId) chats.set(jobId, job);
     parts.forEach((text, i) => job.timers.push(setTimeout(() => {
+      job.sent = text;
       push('hq:llm:delta', { jobId, text });   // main sends the accumulated text, not the increment
       if (i === parts.length - 1) {
         chats.delete(jobId);
@@ -73,9 +74,14 @@ function createFake(opts) {
       }
     }, 100 * (i + 1))));
   });
+  // like main (hq:llm:cancel): true when that job was running, false otherwise; the
+  // stopped chat answers {status:'cancelled', output:<what had streamed>} — main's
+  // stream keeps the partial text (it is '' only when the stop beat the context build)
   const cancelChat = (jobId) => {
     const j = chats.get(jobId);
-    if (j) { j.timers.forEach(clearTimeout); chats.delete(jobId); j.resolve({ status: 'cancelled', output: '' }); }
+    if (!j) return false;
+    j.timers.forEach(clearTimeout); chats.delete(jobId);
+    j.resolve({ status: 'cancelled', output: j.sent, sections: [{ label: 'Scan', chars: 10 }], model: 'fake-model', ms: Date.now() - j.t0 });
     return true;
   };
   const cast = () => (casts++ === 0 ? { confirm_required: true, preview: { content_hash: 'fake-hash-2' } } : { castId: 'c-fake' });
@@ -98,7 +104,7 @@ function createFake(opts) {
     ['captureSave', WRITE], ['claudeQuest', WRITE],
     ['draftCommit', () => ({ message: 'chore: fake draft', via: 'local:fake' })], ['doCommit', WRITE],
     ['probeLlm', () => ({ available: true, runtime: 'fake', chatModel: 'fake-model' })],
-    ['llm.warm', WRITE], ['llm.chat', chat], ['llm.cancel', cancelChat], ['llm.onDelta', 'on:hq:llm:delta'],
+    ['llm.warm', () => ({ status: 'warm', model: 'fake-model' })], ['llm.chat', chat], ['llm.cancel', cancelChat], ['llm.onDelta', 'on:hq:llm:delta'],
     ['uiPrefs.get', () => prefs], ['uiPrefs.set', setPrefs], ['uiPrefs.on', 'on:hq:ui-prefs'],
     ['liveState', () => ({ dev: [], casts: [], scan: { state: 'idle' } })], ['onScanStatus', 'on:hq:scan-status'],
     ['openAt', WRITE], ['onNavigate', 'on:hq:navigate'],

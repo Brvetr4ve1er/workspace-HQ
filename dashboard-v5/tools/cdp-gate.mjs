@@ -9,6 +9,7 @@
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
 // t.waitFor(expr, ms) polls until truthy · t.reload() reloads and waits for
 // load · t.press('Enter'|'Escape', {repeat}) a real key event through CDP Input ·
+// t.type(text) text into the focused element (Input.insertText) ·
 // t.send(method, params) raw CDP · t.sleep(ms) · t.errors() console errors, uncaught
 // exceptions and error-level log entries (CSP, network) since the last reload or
 // t.clearErrors(). Scenarios run in order on the same page.
@@ -16,6 +17,9 @@
 // Phase 2 safety scenarios (need --preload=fake; each starts from hqFake.reset(true)):
 //   confirm-enter-on-cancel · confirm-hash · commit-env · ask-stream · scan-failed · live-hydrate
 // scan-failed and live-hydrate reload with hqFake.set(…, {persist:true}), then reload clean.
+// Phase 3 parity scenarios (same rules; localStorage keys they touch are put back):
+//   ask-stop-retry · ask-history-v3-compat · system-reexamine · canvas-add ·
+//   automations-filters · projects-filter · whats-new-first-launch · capture-toast-first
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -83,6 +87,8 @@ function driver(cdp) {
       await cdp.send('Input.dispatchKeyEvent', Object.assign({ type: text ? 'keyDown' : 'rawKeyDown', autoRepeat: !!o.repeat }, base, text ? { text, unmodifiedText: text } : null));
       if (!o.repeat) await cdp.send('Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, base));
     },
+    // text into the focused element as if typed (one input event, like an IME commit)
+    async type(text) { await cdp.send('Input.insertText', { text: String(text) }); },
     send: (method, params) => cdp.send(method, params),
     sleep, errors: () => errs.slice(), clearErrors: () => { errs = []; },
   };
@@ -100,8 +106,12 @@ const ACTIVITY = `document.querySelector('aside[aria-label="Activity"]')`;
 async function fresh(t) {
   if (!await t.waitFor(READY, 15000)) return ['the app never mounted'];
   if (!await t.evaluate('!!window.hqFake')) return ['window.hqFake missing · start the harness with --preload=fake'];
-  await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null,
-    askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [] }); return true; })()`);
+  await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L._libRescan = false; L._canvasBusy = false;
+    L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null,
+    askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
+    // Phase 3 surface state back to app.js's defaults (contract K-4)
+    whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
+    projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null }); return true; })()`);
   await t.sleep(80);
   t.clearErrors();
   return null;
@@ -121,6 +131,10 @@ const activityCard = (name) => `(() => { const a = ${ACTIVITY}; if (!a) return n
 // one automation that opens the run confirm (data.js's first; not trusted, so askRun always asks)
 const OPEN_CONFIRM = `(() => { const L = WHQ.app.logic, a = L.M.AUTOS.find((x) => !x.destructive) || L.M.AUTOS[0];
   if (!a) return null; L.setState({ trusted: [] }); L.askRun(a); return { id: a.id, hash: a.hash == null ? null : a.hash }; })()`;
+// localStorage keys a scenario changes: read them first (null = absent), put them back after
+const ASK_KEYS = ['hq-oracle-chat', 'hq-oracle-include'];
+const SNAP_KEYS = (keys) => `(() => { const o = {}; for (const k of ${JSON.stringify(keys)}) o[k] = localStorage.getItem(k); return o; })()`;
+const RESTORE_KEYS = (saved) => `for (const [k, v] of Object.entries(${JSON.stringify(saved || {})})) { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }`;
 const focusIn = (dialog, pick) => `(() => { const d = ${dialog}; if (!d) return 'no dialog';
   const b = [...d.querySelectorAll('button')].find((x) => ${pick}); if (!b) return 'no such button';
   b.focus(); return document.activeElement === b ? '' : 'focus did not move to the button'; })()`;
@@ -441,6 +455,509 @@ const SCENARIOS = {
     } finally {
       await t.evaluate(`hqFake.reset(true)`).catch(() => {});
       await reloadReady(t).catch(() => {});
+    }
+    return out;
+  },
+  // ---- Phase 3 (v3 parity) ----------------------------------------------------------
+  // P1: Stop keeps the partial answer main sends back (the fake now answers a cancel like
+  // main: {status:'cancelled', output:<what streamed>}); a stopped pair is never sent back
+  // to the model (v3's rule); Retry replaces the stopped pair and asks again; the chat in
+  // localStorage stays in v3's format throughout. Ask's keys are put back afterwards.
+  async 'ask-stop-retry'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const ASIDE = `document.querySelector('aside[aria-label="Ask"]')`;
+    const btn = (label) => `[...(${ASIDE} || document.createElement('i')).querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})`;
+    const hist = `WHQ.app.logic.state.askHistory`;
+    const saved = await t.evaluate(SNAP_KEYS(ASK_KEYS));
+    try {
+      await t.evaluate(`(() => { localStorage.removeItem('hq-oracle-chat'); localStorage.removeItem('hq-oracle-include'); const L = WHQ.app.logic; L._askDay = null; L._askStop = null;
+        L.setState({ askHistory: [], askInclude: undefined, askDraft: '', askOpen: true }); return true; })()`);
+      if (!await t.waitFor('!!' + ASIDE, 3000)) return ['the Ask panel did not open'];
+      if (!await t.evaluate(`!!(WHQ.app.logic.LIVE.llm && WHQ.app.logic.LIVE.llm.chatModel)`)) return ['the fake model probe did not land (LIVE.llm has no chat model)'];
+      // 1. a finished pair
+      await t.evaluate(`WHQ.app.logic.submitAsk('Placeholder question one')`);
+      if (!await t.waitFor(`${hist}.length === 1 && ${hist}[0].a.status === 'done'`, 5000)) return ['the first question never finished'];
+      // 2. stop the second one after the first delta
+      await t.evaluate(`(() => { WHQ.app.logic.submitAsk('Placeholder question two'); return true; })()`);
+      if (!await t.waitFor(`${hist}.length === 2 && ${hist}[1].a.text === 'Fake'`, 3000)) return out.concat(['the second answer never streamed its first part']);
+      if (!await t.evaluate(`!!${btn('Stop')}`)) out.push('the Ask button does not read Stop while an answer streams');
+      // one answer at a time: a third question now is refused, not sent
+      await t.evaluate(`WHQ.app.logic.submitAsk('Placeholder question while busy')`);
+      if (await t.evaluate(`hqFake.calls('llm.chat').length`) !== 2) out.push('a question asked while one streams was sent anyway');
+      await t.evaluate(`${btn('Stop')}.click()`);
+      if (!await t.waitFor(`${hist}[1].a.status === 'cancelled'`, 3000)) return out.concat(['Stop did not settle the answer as cancelled']);
+      await t.sleep(150);
+      const s = await t.evaluate(`(() => { const h = ${hist}[1], job = h.id, c = hqFake.calls('llm.cancel');
+        const chat = JSON.parse(localStorage.getItem('hq-oracle-chat') || 'null');
+        const spans = [...${ASIDE}.querySelectorAll('span')].map((x) => x.textContent.trim());
+        return { text: h.a.text, cancels: c.map((x) => x.args[0]), job, chat, meta: spans.find((x) => x.startsWith('stopped')) || '', retry: !!${btn('Retry')}, ask: !!${btn('Ask')} }; })()`);
+      if (s.text !== 'Fake') out.push('the partial answer was not kept (got ' + JSON.stringify(s.text) + ', want main’s "Fake")');
+      if (s.cancels.length !== 1 || s.cancels[0] !== s.job) out.push('hq.llm.cancel was called ' + s.cancels.length + ' time(s), want once with the job id');
+      if (!/^stopped · grounded in Scan/.test(s.meta)) out.push('the meta line does not say "stopped · grounded in …": ' + JSON.stringify(s.meta));
+      if (!s.retry) out.push('no Retry on the stopped answer');
+      if (!s.ask) out.push('the button did not go back to Ask');
+      const m = s.chat && s.chat.messages;
+      if (!s.chat || !/^\d{4}-\d{2}-\d{2}$/.test(s.chat.day) || !Array.isArray(m) || m.length !== 4) out.push('hq-oracle-chat is not one v3 day with 4 messages: ' + JSON.stringify(s.chat && { day: s.chat.day, n: m && m.length }));
+      else {
+        if (JSON.stringify(Object.keys(s.chat)) !== '["day","messages"]') out.push('hq-oracle-chat has keys other than day / messages');
+        if (m[0].role !== 'user' || 'meta' in m[0]) out.push('a stored question carries a meta (v3 writes none)');
+        if (m[3].content !== 'Fake' || !m[3].meta || m[3].meta.status !== 'cancelled') out.push('the stored stopped answer is not {content:"Fake", meta.status:"cancelled"}');
+      }
+      // 3. a new question: the stopped pair stays out of what the model sees
+      await t.evaluate(`WHQ.app.logic.submitAsk('Placeholder question three')`);
+      if (!await t.waitFor(`${hist}.length === 3 && ${hist}[2].a.status === 'done'`, 5000)) return out.concat(['the third question never finished']);
+      const sent3 = await t.evaluate(`hqFake.calls('llm.chat').at(-1).args[0].messages.map((x) => x.role + ':' + x.content)`);
+      const want3 = ['user:Placeholder question one', 'assistant:Fake answer from the fake model.', 'user:Placeholder question three'];
+      if (JSON.stringify(sent3) !== JSON.stringify(want3)) out.push('the model got ' + JSON.stringify(sent3) + ', want only the finished pair + the new question');
+      const inc = await t.evaluate(`hqFake.calls('llm.chat').at(-1).args[0].include`);
+      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
+      // 4. Retry on the stopped answer: that pair goes, the question is asked again at the end
+      await t.evaluate(`${btn('Retry')}.click()`);
+      if (!await t.waitFor(`${hist}.length === 3 && ${hist}[2].q === 'Placeholder question two' && ${hist}[2].a.status === 'done'`, 5000)) out.push('Retry did not re-ask the stopped question: ' + JSON.stringify(await t.evaluate(`${hist}.map((h) => h.q + '=' + h.a.status)`)));
+      const sentR = await t.evaluate(`hqFake.calls('llm.chat').at(-1).args[0].messages.map((x) => x.role)`);
+      if (sentR.join(',') !== 'user,assistant,user,assistant,user') out.push('the retried question was sent with ' + JSON.stringify(sentR));
+      const stored = await t.evaluate(`JSON.parse(localStorage.getItem('hq-oracle-chat')).messages.map((x) => x.role + (x.meta ? ':' + (x.meta.status || (x.meta.pending ? 'pending' : '?')) : ''))`);
+      if (stored.join(',') !== 'user,assistant:done,user,assistant:done,user,assistant:done') out.push('stored chat after Retry: ' + JSON.stringify(stored));
+      // 5. New chat: empties today's chat (stored too) and puts the caret in the box
+      await t.evaluate(`${btn('New chat')}.click()`);
+      await t.sleep(100);
+      const n = await t.evaluate(`({ h: ${hist}.length, chat: JSON.parse(localStorage.getItem('hq-oracle-chat')).messages.length, focus: document.activeElement === ${ASIDE}.querySelector('input'), off: ${btn('New chat')}.disabled })`);
+      if (n.h || n.chat) out.push('New chat left ' + n.h + ' entries / ' + n.chat + ' stored messages');
+      if (!n.focus) out.push('New chat did not focus the input');
+      if (!n.off) out.push('New chat is not disabled on an empty chat');
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`(() => { ${RESTORE_KEYS(saved)} const L = WHQ.app.logic; L._askDay = null; L.setState(Object.assign({ askOpen: false }, L.askInitState())); return true; })()`).catch(() => {});
+    }
+    return out;
+  },
+
+  // P1: a chat v3 wrote loads as it is and is written back byte for byte (pending →
+  // "interrupted", malformed messages dropped, exactly like v3's loadChat); the sources
+  // in hq-oracle-include follow v3's rule (a non-boolean falls back to its default); a
+  // chat from another day starts empty. Ask's keys are put back afterwards.
+  async 'ask-history-v3-compat'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const saved = await t.evaluate(SNAP_KEYS(ASK_KEYS));
+    try {
+      const fixture = await t.evaluate(`(() => {
+        const day = new Date().toLocaleDateString('en-CA');
+        const sec = [{ id: 'scan', label: 'Scan', chars: 1200, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 4000, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
+        const messages = [
+          { role: 'user', content: 'Placeholder v3 question one' },
+          { role: 'assistant', content: 'Placeholder v3 answer one.', meta: { status: 'done', sections: sec, ms: 1400, model: 'placeholder-model' } },
+          { role: 'system', content: 'dropped: not a user or assistant message' },
+          { role: 'user', content: 5 },
+          { role: 'user', content: 'Placeholder v3 question two' },
+          { role: 'assistant', content: '', meta: { pending: true } },
+          { role: 'user', content: 'Placeholder v3 question three' },
+          { role: 'assistant', content: 'A partial v3 answer', meta: { status: 'cancelled', sections: sec, ms: 800, model: 'placeholder-model' } },
+        ];
+        // what v3 itself writes back after loading this (view.js loadChat + saveChat)
+        const v3 = { day, messages: messages.filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+          .map((m) => (m.meta && m.meta.pending ? { ...m, meta: { status: 'error', reason: 'interrupted — the window reloaded' } } : m))
+          .map(({ role, content, meta }) => ({ role, content, meta })) };
+        localStorage.setItem('hq-oracle-chat', JSON.stringify({ day, messages }));
+        localStorage.setItem('hq-oracle-include', JSON.stringify({ scan: false, tasks: true, projects: true, health: true, browser: 'yes', vault: false }));
+        return { want: JSON.stringify(v3) };
+      })()`);
+      if (!await reloadReady(t)) return ['the page did not come back after the reload'];
+      const s = await t.evaluate(`(() => { const L = WHQ.app.logic, h = L.state.askHistory;
+        return { h: h.map((x) => ({ q: x.q, status: x.a.status, text: x.a.text, reason: x.a.meta && x.a.meta.reason })), inc: L.state.askInclude }; })()`);
+      const st = s.h.map((x) => x.status).join(',');
+      if (st !== 'done,error,cancelled') out.push('loaded statuses ' + JSON.stringify(st) + ', want done,error,cancelled');
+      if (s.h[1] && s.h[1].reason !== 'interrupted — the window reloaded') out.push('a pending answer did not load as "interrupted — the window reloaded"');
+      if (s.h[2] && s.h[2].text !== 'A partial v3 answer') out.push('the stopped v3 answer lost its partial text');
+      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
+      // the panel shows them the way v3 does
+      await t.evaluate(`WHQ.app.logic.setState({ askOpen: true })`);
+      await t.sleep(150);
+      const ui = await t.evaluate(`(() => { const a = document.querySelector('aside[aria-label="Ask"]'); if (!a) return null;
+        return { chips: [...a.querySelectorAll('[aria-label="Context sources"] button')].map((b) => b.getAttribute('aria-pressed')).join(','),
+          spans: [...a.querySelectorAll('span')].map((x) => x.textContent.trim()) }; })()`);
+      if (!ui) out.push('the Ask panel did not open');
+      else {
+        if (ui.chips !== 'false,true,true,true,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false');
+        if (!ui.spans.includes('grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s')) out.push('no v3 meta line "grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s"');
+        if (!ui.spans.includes('error — interrupted — the window reloaded')) out.push('no "error — interrupted — the window reloaded" meta line');
+        if (!ui.spans.some((x) => x.startsWith('stopped · grounded in'))) out.push('no "stopped · …" meta line');
+      }
+      // a save with nothing changed writes back exactly what v3 would
+      const got = await t.evaluate(`(() => { WHQ.app.logic.saveAsk(); return localStorage.getItem('hq-oracle-chat'); })()`);
+      if (got !== fixture.want) out.push('round trip is not byte-identical to v3’s own write:\n    got  ' + got.slice(0, 300) + '\n    want ' + fixture.want.slice(0, 300));
+      // toggling a chip writes v3's include format (all six booleans, v3's key order)
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.toggleAskSource('vault'); L.toggleAskSource('vault'); return true; })()`);
+      const inc = await t.evaluate(`localStorage.getItem('hq-oracle-include')`);
+      if (inc !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false}') out.push('hq-oracle-include written as ' + inc);
+      // a chat from another day starts empty
+      await t.evaluate(`(() => { localStorage.setItem('hq-oracle-chat', JSON.stringify({ day: '2001-01-01', messages: [{ role: 'user', content: 'old' }, { role: 'assistant', content: 'old', meta: { status: 'done' } }] })); return true; })()`);
+      if (!await reloadReady(t)) return out.concat(['the page did not come back after the second reload']);
+      if (await t.evaluate(`WHQ.app.logic.state.askHistory.length`) !== 0) out.push('a chat stored for another day was loaded');
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`(() => { ${RESTORE_KEYS(saved)} return true; })()`).catch(() => {});
+      await reloadReady(t).catch(() => {});
+    }
+    return out;
+  },
+
+  // P2: Re-examine runs hq.healthScan() (no reload), shows "Scanning…" while it runs,
+  // refreshes the verdict from the fresh report, clears the fixed set; {error}, null and a
+  // throw each say why and leave the report alone. The baked report is put back.
+  async 'system-reexamine'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const BTN = `[...document.querySelectorAll('button')].find((b) => /^(Re-examine|Scanning…)$/.test(b.textContent.trim()))`;
+    const hasText = (s) => `document.querySelector('#app').textContent.includes(${JSON.stringify(s)})`;
+    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.go('system', 'machine'); L.setState({ fixed: ['organ-gate-fixed'] }); return true; })()`);
+      if (!await t.waitFor('!!' + BTN, 3000)) return ['no Re-examine button on System › Machine'];
+      if (!await t.evaluate(`!!(WHQ.app.logic.LIVE.llm && WHQ.app.logic.LIVE.llm.chatModel)`)) return ['the fake model probe did not land (the verdict would count the model too)'];
+      // a slow scan answering one ember organ
+      await t.evaluate(`hqFake.set('healthScan', () => new Promise((res) => setTimeout(() => res({ scanned_at: new Date().toISOString(), host: { cpu: 'placeholder cpu' },
+        organs: [{ id: 'gate', label: 'Gate organ', value: 97, unit: '%', status: 'ember', spark: [], diagnosis: 'Placeholder diagnosis', teaching: '', fixes: [] }] }), 400)))`);
+      await t.evaluate(`${BTN}.click()`);
+      await t.sleep(120);
+      const mid = await t.evaluate(`(() => { const b = ${BTN}; return { label: b.textContent.trim(), off: b.disabled }; })()`);
+      if (mid.label !== 'Scanning…' || !mid.off) out.push('while the scan runs the button reads ' + JSON.stringify(mid.label) + (mid.off ? '' : ' and is enabled'));
+      if (!await t.waitFor(toast('Re-examined · 1 issue to look at'), 4000)) out.push('no "Re-examined · 1 issue to look at" toast');
+      const s = await t.evaluate(`({ verdict: ${hasText('1 issue to look at')}, sub: ${hasText('Re-examined ')}, organ: ${hasText('Placeholder diagnosis')}, fixed: WHQ.app.logic.state.fixed, label: ${BTN}.textContent.trim(), calls: hqFake.calls('healthScan').length })`);
+      if (!s.verdict) out.push('the verdict does not say "1 issue to look at"');
+      if (!s.sub) out.push('the subtitle does not say "Re-examined …"');
+      if (!s.organ) out.push('the fresh report’s issue is not listed');
+      if (s.fixed.length) out.push('Re-examine did not clear the fixed set: ' + JSON.stringify(s.fixed));
+      if (s.label !== 'Re-examine') out.push('the button did not come back');
+      if (s.calls !== 1) out.push('healthScan called ' + s.calls + ' times');
+      // failures: the reason, and the fresh report stays
+      for (const [val, want] of [[`{ error: 'placeholder failure' }`, 'Re-examine failed · placeholder failure'], ['null', 'Re-examine failed · the scan returned no report'], [`{ __reject: 'placeholder throw' }`, 'Re-examine failed · placeholder throw']]) {
+        await t.evaluate(`(() => { WHQ.app.logic.setState({ toasts: [] }); hqFake.set('healthScan', ${val}); return true; })()`);
+        await t.evaluate(`${BTN}.click()`);
+        if (!await t.waitFor(toast(want), 3000)) out.push('no "' + want + '" toast');
+        if (!await t.evaluate(hasText('1 issue to look at'))) out.push('a failed Re-examine (' + want + ') dropped the last report');
+      }
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`(() => { WHQ.store.refreshMachine(null); hqFake.reset(true); WHQ.app.logic.setState({ fixed: [], toasts: [] }); return true; })()`).catch(() => {});
+    }
+    return out;
+  },
+
+  // P5: ＋ Note on a placeholder board (persisted getCanvas, so no real board name is used):
+  // pick a board, type, Enter → hq.canvasAdd(board, {type:'text', text, x:40, y:40}); the
+  // draft clears and the form stays; the hq:canvas push shows the card; false keeps the
+  // draft; the time machine disables it; Escape folds the form.
+  async 'canvas-add'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const NOTE = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '＋ Note')`;
+    const INPUT = `document.querySelector('input[aria-label="New canvas note"]')`;
+    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
+    const BOARDS = [{ name: 'Gate Board', nodes: [] }, { name: 'Gate Two', nodes: [] }];
+    try {
+      await t.evaluate(`hqFake.set('getCanvas', ${JSON.stringify(BOARDS)}, { persist: true })`);
+      if (!await reloadReady(t)) return ['the page did not come back after the reload'];
+      if (!await t.waitFor(`JSON.stringify(WHQ.app.logic.LIVE.canvasBoards.map((b) => b.name)) === '["Gate Board","Gate Two"]'`, 3000)) return ['store.live.canvasBoards did not follow hq.getCanvas (contract K-2)'];
+      await t.evaluate(`(() => { WHQ.app.logic.go('claude', 'canvas'); return true; })()`);
+      if (!await t.waitFor('!!' + NOTE, 3000)) return ['no ＋ Note button on Claude › Canvas'];
+      await t.sleep(300);   // the tab animates in
+      await t.evaluate(`${NOTE}.click()`);
+      if (!await t.waitFor(`!!${INPUT} && document.activeElement === ${INPUT}`, 3000)) out.push('the note input did not open focused');
+      const chips = await t.evaluate(`[...document.querySelectorAll('button[aria-pressed]')].filter((b) => /^Gate /.test(b.textContent.trim())).map((b) => b.textContent.trim() + '=' + b.getAttribute('aria-pressed'))`);
+      if (chips.join(',') !== 'Gate Board=true,Gate Two=false') out.push('board chips ' + JSON.stringify(chips) + ', want the first picked');
+      await t.evaluate(`[...document.querySelectorAll('button[aria-pressed]')].find((b) => b.textContent.trim() === 'Gate Two').click()`);
+      await t.evaluate(`${INPUT}.focus()`);
+      await t.type('Placeholder gate note');
+      await t.press('Enter');
+      if (!await t.waitFor(`hqFake.calls('canvasAdd').length === 1`, 3000)) return out.concat(['Enter in the note input did not call hq.canvasAdd']);
+      const call = await t.evaluate(`hqFake.calls('canvasAdd')[0].args`);
+      if (JSON.stringify(call) !== JSON.stringify(['Gate Two', { type: 'text', text: 'Placeholder gate note', x: 40, y: 40 }])) out.push('canvasAdd got ' + JSON.stringify(call));
+      if (!await t.waitFor(toast('Added to Gate Two · it appears in a moment'), 2000)) out.push('no "Added to Gate Two" toast');
+      const after = await t.evaluate(`({ draft: WHQ.app.logic.state.canvasDraft, open: !!${INPUT}, value: ${INPUT} ? ${INPUT}.value : null })`);
+      if (after.draft !== '' || after.value !== '') out.push('the draft was not cleared after a save');
+      if (!after.open) out.push('the form closed after a save (v3 keeps it open)');
+      // main's board watcher pushes the boards (array and { boards } forms)
+      await t.evaluate(`hqFake.emit('hq:canvas', { boards: [{ name: 'Gate Board', nodes: [] }, { name: 'Gate Two', nodes: [{ id: 'g1', type: 'text', text: 'Placeholder gate note', x: 40, y: 40, width: 280, height: 120 }] }] })`);
+      if (!await t.waitFor(`[...document.querySelectorAll('#app span')].some((s) => s.textContent.trim() === 'Gate Two') && document.querySelector('#app').textContent.includes('Placeholder gate note')`, 3000)) out.push('the pushed board did not show the new card with its board name');
+      // main says no: the draft stays
+      await t.evaluate(`hqFake.set('canvasAdd', false)`);
+      await t.evaluate(`${INPUT}.focus()`);
+      await t.type('Placeholder refused note');
+      await t.evaluate(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add').click()`);
+      if (!await t.waitFor(toast('Not added'), 3000)) out.push('no "Not added" toast when main answers false');
+      if (await t.evaluate(`WHQ.app.logic.state.canvasDraft`) !== 'Placeholder refused note') out.push('a refused note lost its draft');
+      // the time machine: disabled, with the reason
+      if (await t.evaluate(`WHQ.app.logic.M.maxOff > 0`)) {
+        await t.evaluate(`WHQ.app.logic.setState({ snapOffset: 1 })`);
+        await t.sleep(100);
+        const tm = await t.evaluate(`({ off: ${NOTE}.disabled, title: ${NOTE}.title, form: !!${INPUT} })`);
+        if (!tm.off || !/^Read-only · viewing /.test(tm.title)) out.push('＋ Note in the time machine: disabled=' + tm.off + ' title=' + JSON.stringify(tm.title));
+        if (tm.form) out.push('the note form shows in the time machine');
+        await t.evaluate(`WHQ.app.logic.setState({ snapOffset: 0 })`);
+      }
+      await t.sleep(100);
+      await t.evaluate(`document.activeElement && document.activeElement.blur && document.activeElement.blur()`);
+      await t.press('Escape');
+      await t.sleep(100);
+      if (await t.evaluate(`WHQ.app.logic.state.canvasNoteOpen`)) out.push('Escape did not fold the note form');
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`hqFake.reset(true)`).catch(() => {});
+      await reloadReady(t).catch(() => {});
+    }
+    return out;
+  },
+
+  // P6: kind / source / category chips with honest counts, Clear filters, Show more; an
+  // interactive item goes through the same confirm ("Opens a terminal", quota when it
+  // starts claude) and a {channeled} answer says so; Rescan toasts BEFORE the call (main
+  // reloads on success) and an {error} brings the button back. Names never printed.
+  async 'automations-filters'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const chip = (re) => `[...document.querySelectorAll('button[aria-pressed]')].find((b) => ${re}.test(b.textContent.trim()))`;
+    const count = `(() => { const s = [...document.querySelectorAll('#app span')].map((x) => x.textContent.trim()).find((x) => /^\\d+ of \\d+/.test(x)); return s || ''; })()`;
+    const RESCAN = `[...document.querySelectorAll('button')].find((b) => /^(↻ Rescan|Rescanning…)$/.test(b.textContent.trim()))`;
+    try {
+      const M = await t.evaluate(`(() => { const M = WHQ.app.logic.M; return { autos: M.AUTOS.length, inter: (M.INTERACTIVE || []).length }; })()`);
+      if (!M.inter) return ['no interactive (channeled) item in data.js to filter for'];
+      await t.evaluate(`(() => { WHQ.app.logic.go('automations', 'runnable'); return true; })()`);
+      await t.sleep(300);
+      const total = M.autos + M.inter;
+      const c0 = await t.evaluate(count);
+      if (!c0.startsWith(total + ' of ' + total)) out.push('unfiltered count ' + JSON.stringify(c0) + ', want "' + total + ' of ' + total + '…"');
+      if (total > 40 && !c0.endsWith('· showing 40')) out.push('the capped list does not say "· showing 40"');
+      await t.evaluate(`${chip('/^Interactive · /')}.click()`);
+      await t.sleep(150);
+      const c1 = await t.evaluate(`({ count: ${count}, on: ${chip('/^Interactive · /')}.getAttribute('aria-pressed'), clear: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Clear filters'),
+        rows: WHQ.app.logic.renderVals().autos.map((a) => a.mode) })`);
+      if (!c1.count.startsWith(M.inter + ' of ' + total)) out.push('Interactive count ' + JSON.stringify(c1.count) + ', want "' + M.inter + ' of ' + total + '"');
+      if (c1.on !== 'true') out.push('the Interactive chip is not aria-pressed');
+      if (!c1.clear) out.push('no Clear filters with a filter on');
+      if (c1.rows.some((m) => m !== 'Terminal')) out.push('a non-terminal row passed the Interactive filter');
+      // a source chip narrows further and its count is what it shows
+      const src = await t.evaluate(`(() => { const vals = WHQ.app.logic.renderVals(); const c = vals.libSources.find((x) => !/^All · /.test(x.label)); if (!c) return null; c.go(); return c.label; })()`);
+      await t.sleep(150);
+      if (src) {
+        const n = Number(src.split(' · ').pop());
+        const c2 = await t.evaluate(count);
+        if (!c2.startsWith(n + ' of ' + total)) out.push('a source chip promised ' + n + ' rows but the count says ' + JSON.stringify(c2));
+      }
+      await t.evaluate(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Clear filters').click()`);
+      await t.sleep(150);
+      const c3 = await t.evaluate(`({ count: ${count}, state: (({ libKind, libSource, libSchool, autoQuery }) => ({ libKind, libSource, libSchool, autoQuery }))(WHQ.app.logic.state) })`);
+      if (!c3.count.startsWith(total + ' of ' + total)) out.push('Clear filters did not bring every row back: ' + JSON.stringify(c3.count));
+      if (JSON.stringify(c3.state) !== '{"libKind":"all","libSource":"all","libSchool":"all","autoQuery":""}') out.push('Clear filters left ' + JSON.stringify(c3.state));
+      if (total > 40) {
+        await t.evaluate(`[...document.querySelectorAll('button')].find((b) => /^Show \\d+ more$/.test(b.textContent.trim())).click()`);
+        await t.sleep(150);
+        const rows = await t.evaluate(`WHQ.app.logic.renderVals().autos.length`);
+        if (rows !== Math.min(total, 160)) out.push('Show more shows ' + rows + ' rows, want ' + Math.min(total, 160));
+      }
+      // the confirm for an interactive item
+      const ia = await t.evaluate(`(() => { const L = WHQ.app.logic, a = L.M.INTERACTIVE[0]; L.setState({ trusted: [] }); L.askRun(a); return { id: a.id, claude: /^claude(\\s|$)/i.test(a.cmd) }; })()`);
+      if (!await t.waitFor('!!' + CONFIRM, 3000)) return out.concat(['the run confirm did not open for an interactive item']);
+      const d = await t.evaluate(`${CONFIRM}.textContent`);
+      if (!d.includes('Opens a terminal · output stays there')) out.push('the confirm does not say "Opens a terminal · output stays there"');
+      if (ia.claude !== d.includes('Uses Claude quota')) out.push(ia.claude ? 'a Claude skill/command confirm does not say "Uses Claude quota"' : 'a non-Claude item claims Claude quota');
+      await t.evaluate(`hqFake.set('castSpell', { channeled: true })`);
+      await t.evaluate(`[...${CONFIRM}.querySelectorAll('button')].find((b) => b.textContent.trim() === '▶ Run · Enter').click()`);
+      if (!await t.waitFor(`WHQ.app.logic.state.toasts.some((x) => x.text === 'Opened in a terminal — output stays there')`, 3000)) out.push('no "Opened in a terminal — output stays there" toast');
+      const cast = await t.evaluate(`hqFake.calls('castSpell').map((c) => c.args[0])`);
+      if (cast.length !== 1 || cast[0] !== ia.id) out.push('castSpell was called ' + cast.length + ' time(s) / for another item');
+      // Rescan: the toast is up before main is called; an error brings the button back
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ toasts: [] }); hqFake.set('rescanSpellbook', () => { window.__rescanToasts = WHQ.app.logic.state.toasts.map((x) => x.text); return { error: 'placeholder rescan failure' }; }); return true; })()`);
+      await t.evaluate(`${RESCAN}.click()`);
+      if (!await t.waitFor(`WHQ.app.logic.state.toasts.some((x) => x.text === 'Rescan failed · placeholder rescan failure')`, 3000)) out.push('no "Rescan failed · …" toast');
+      const r = await t.evaluate(`({ before: window.__rescanToasts || null, now: WHQ.app.logic.state.toasts.map((x) => x.text), label: ${RESCAN}.textContent.trim(), off: ${RESCAN}.disabled })`);
+      if (!r.before || !r.before.includes('Rescanning skills, scripts and tasks — the window reloads')) out.push('the Rescan toast was not up when main was called (it reloads the window): ' + JSON.stringify(r.before));
+      if (r.now.includes('Rescanning skills, scripts and tasks — the window reloads')) out.push('the progress toast stayed after the error');
+      if (r.label !== '↻ Rescan' || r.off) out.push('the Rescan button did not come back after the error');
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`(() => { delete window.__rescanToasts; hqFake.reset(true); const L = WHQ.app.logic; L._libRescan = false; L.setState({ confirm: null, toasts: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '' }); return true; })()`).catch(() => {});
+    }
+    return out;
+  },
+
+  // P7: status chips (counts follow the search), typed search on name or stack, the
+  // "N / M projects" count, the empty state and Clear filters. Names never printed.
+  async 'projects-filter'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const SEARCH = `document.querySelector('input[aria-label="Search projects"]')`;
+    const count = `(() => { const s = [...document.querySelectorAll('#app span')].map((x) => x.textContent.trim()).find((x) => /^\\d+ \\/ \\d+ projects?$/.test(x)); return s || ''; })()`;
+    const cards = `WHQ.app.logic.renderVals().projCards.length`;
+    try {
+      await t.evaluate(`(() => { WHQ.app.logic.go('projects', 'grid'); return true; })()`);
+      if (!await t.waitFor('!!' + SEARCH, 3000)) return ['no project search box on Projects › Grid'];
+      await t.sleep(300);
+      const n = await t.evaluate(`WHQ.app.logic.projectsAt(0).length`);
+      if (!n) return ['no project in data.js'];
+      if (await t.evaluate(count) !== n + ' / ' + n + ' project' + (n === 1 ? '' : 's')) out.push('unfiltered count ' + JSON.stringify(await t.evaluate(count)));
+      for (const [id, label] of [['risk', 'At risk'], ['care', 'Needs care'], ['idle', 'Idle'], ['ok', 'Healthy']]) {
+        const want = await t.evaluate(`WHQ.app.logic.projectsAt(0).filter((p) => p.st === ${JSON.stringify(id)}).length`);
+        const b = `[...document.querySelectorAll('button[aria-pressed]')].find((x) => x.textContent.trim().startsWith(${JSON.stringify(label + ' · ')}))`;
+        if (!await t.evaluate('!!' + b)) { out.push('no "' + label + '" chip'); continue; }
+        if (await t.evaluate(`${b}.textContent.trim()`) !== label + ' · ' + want) out.push('the "' + label + '" chip does not count ' + want);
+        await t.evaluate(`${b}.click()`);
+        await t.sleep(80);
+        const s = await t.evaluate(`({ on: ${b}.getAttribute('aria-pressed'), cards: ${cards}, count: ${count} })`);
+        if (s.on !== 'true') out.push('the "' + label + '" chip is not aria-pressed when on');
+        if (s.cards !== want) out.push('"' + label + '" shows ' + s.cards + ' cards, want ' + want);
+        if (!s.count.startsWith(want + ' / ' + n)) out.push('"' + label + '" count says ' + JSON.stringify(s.count));
+        await t.evaluate(`${b}.click()`);   // the selected chip again → All
+        await t.sleep(60);
+        if (await t.evaluate(`WHQ.app.logic.state.projStatus`) !== 'all') out.push('clicking the selected "' + label + '" chip did not go back to All');
+      }
+      // typed search on a stack word of the first project (never printed)
+      const word = await t.evaluate(`(() => { const p = WHQ.app.logic.projectsAt(0).find((x) => x.stack && x.stack.length); return p ? p.stack[0] : null; })()`);
+      if (word) {
+        await t.evaluate(`${SEARCH}.focus()`);
+        await t.type(word.toUpperCase());
+        await t.sleep(120);
+        const s = await t.evaluate(`(() => { const L = WHQ.app.logic, q = ${JSON.stringify(word.toLowerCase())};
+          const want = L.projectsAt(0).filter((p) => (p.name + ' ' + p.stack.join(' ')).toLowerCase().includes(q)).length;
+          return { want, cards: ${cards}, state: L.state.projSearch }; })()`);
+        if (s.state !== word.toUpperCase()) out.push('typing did not reach projSearch');
+        if (!s.want || s.cards !== s.want) out.push('a case-insensitive stack search shows ' + s.cards + ' cards, want ' + s.want);
+        await t.evaluate(`WHQ.app.logic.setState({ projSearch: '' })`);
+      }
+      await t.evaluate(`${SEARCH}.focus()`);
+      await t.type('zzz-gate-no-such-project');
+      await t.sleep(120);
+      const e = await t.evaluate(`({ text: document.querySelector('#app').textContent.includes('No project matches.'), cards: ${cards}, count: ${count} })`);
+      if (!e.text) out.push('no "No project matches." empty state');
+      if (e.cards !== 0 || !e.count.startsWith('0 / ' + n)) out.push('a search matching nothing shows ' + e.cards + ' cards / ' + JSON.stringify(e.count));
+      await t.evaluate(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Clear filters').click()`);
+      await t.sleep(120);
+      const c = await t.evaluate(`({ q: WHQ.app.logic.state.projSearch, st: WHQ.app.logic.state.projStatus, box: ${SEARCH}.value, cards: ${cards} })`);
+      if (c.q !== '' || c.st !== 'all' || c.box !== '' || c.cards !== n) out.push('Clear filters left ' + JSON.stringify({ q: !!c.q, st: c.st, box: !!c.box, cards: c.cards }));
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`WHQ.app.logic.setState({ projSearch: '', projStatus: 'all' })`).catch(() => {});
+    }
+    return out;
+  },
+
+  // P8: What's new opens once per version, and only once the window has focus (the app
+  // starts hidden to the tray: a hidden window never has focus, so a boot that opened it
+  // there would burn it unseen). It never autoplays; missing trailers say so; Escape
+  // closes it; Settings opens it again on top. whq3-prefs is put back afterwards.
+  async 'whats-new-first-launch'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const DLG = `document.querySelector('[role="dialog"][aria-label="What\\'s new"]')`;
+    const saved = await t.evaluate(SNAP_KEYS(['whq3-prefs']));
+    // The tray boot: the window has never had focus until its first 'focus' event. CDP
+    // input (earlier scenarios' key presses) gives this hidden harness focus for good, so
+    // every load during this scenario starts unfocused, as the owner's --hidden boot does.
+    const { identifier } = await t.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { let got = false; addEventListener('focus', () => { got = true; }, true);
+      Document.prototype.hasFocus = function () { return got; }; })();` });
+    try {
+      await t.evaluate(`(() => { let p = {}; try { p = JSON.parse(localStorage.getItem('whq3-prefs') || '{}') || {}; } catch {} delete p.whatsNewSeen; localStorage.setItem('whq3-prefs', JSON.stringify(p)); return true; })()`);
+      if (!await reloadReady(t)) return ['the page did not come back after the reload'];
+      await t.sleep(500);
+      const boot = await t.evaluate(`({ focus: document.hasFocus(), open: WHQ.app.logic.state.whatsNewOpen, dlg: !!${DLG}, seen: JSON.parse(localStorage.getItem('whq3-prefs') || '{}').whatsNewSeen || null })`);
+      if (boot.focus) return ['the boot reports focus before any focus event, so this proves nothing'];
+      if (boot.open || boot.dlg) out.push('What’s new opened in a window that never had focus');
+      if (boot.seen) out.push('a hidden boot marked What’s new seen (' + boot.seen + ')');
+      await t.evaluate(`window.dispatchEvent(new Event('focus'))`);
+      if (!await t.waitFor('!!' + DLG, 3000)) return out.concat(['the first focus did not open What’s new']);
+      const s = await t.evaluate(`(async () => { const d = ${DLG}, wn = await import(new URL('./src/logic/whats-new.js', location.href).href);
+        return { seen: JSON.parse(localStorage.getItem('whq3-prefs') || '{}').whatsNewSeen, version: wn.WHATS_NEW_VERSION, bundled: wn.TRAILERS.map((x) => x.bundled),
+          videos: [...d.querySelectorAll('video')].map((v) => ({ auto: v.autoplay || v.hasAttribute('autoplay'), preload: v.getAttribute('preload'), paused: v.paused, controls: v.controls })),
+          fallback: (d.textContent.match(/Trailer not bundled in this build/g) || []).length }; })()`);
+      if (s.seen !== s.version) out.push('opening it did not mark ' + s.version + ' seen (whatsNewSeen=' + JSON.stringify(s.seen) + ')');
+      const bundledN = s.bundled.filter(Boolean).length;
+      if (s.videos.length !== bundledN) out.push(s.videos.length + ' <video> element(s) for ' + bundledN + ' bundled trailer(s)');
+      if (s.fallback !== s.bundled.length - bundledN) out.push(s.fallback + ' "Trailer not bundled" card(s) for ' + (s.bundled.length - bundledN) + ' missing trailer(s)');
+      for (const v of s.videos) if (v.auto || v.preload !== 'none' || !v.paused || !v.controls) out.push('a trailer video is not preload=none + controls + paused: ' + JSON.stringify(v));
+      await t.press('Escape');
+      await t.sleep(150);
+      if (await t.evaluate('!!' + DLG)) out.push('Escape did not close What’s new');
+      // once per version: the next focused load keeps it closed
+      if (!await reloadReady(t)) return out.concat(['the page did not come back after the second reload']);
+      await t.evaluate(`window.dispatchEvent(new Event('focus'))`);
+      await t.sleep(400);
+      if (await t.evaluate('!!' + DLG)) out.push('What’s new opened again for a version already seen');
+      // Settings › What's new · trailers opens it on top; Escape closes it first, then Settings
+      await t.evaluate(`WHQ.app.logic.setState({ settingsOpen: true })`);
+      await t.sleep(150);
+      const opened = await t.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Open' && x.parentElement.textContent.includes("What's new · trailers")); if (!b) return false; b.click(); return true; })()`);
+      if (!opened) out.push('no "What’s new · trailers" Open button in Settings');
+      else {
+        if (!await t.waitFor('!!' + DLG, 2000)) out.push('the Settings row did not open What’s new');
+        await t.press('Escape');
+        await t.sleep(150);
+        const st = await t.evaluate(`({ wn: !!${DLG}, settings: WHQ.app.logic.state.settingsOpen })`);
+        if (st.wn || !st.settings) out.push('Escape over Settings: What’s new open=' + st.wn + ', Settings open=' + st.settings + ' (want false / true)');
+      }
+      out.push(...t.errors());
+    } finally {
+      await t.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }).catch(() => {});
+      await t.evaluate(`(() => { ${RESTORE_KEYS(saved)} WHQ.app.logic.setState({ whatsNewOpen: false, settingsOpen: false }); return true; })()`).catch(() => {});
+      await reloadReady(t).catch(() => {});
+    }
+    return out;
+  },
+
+  // Reload safety for hq.captureSave (main re-assembles and RELOADS the window before it
+  // answers): the palette's capture verb, System › Clutter's "Note for cleanup" and a
+  // project's "Add to ideas" each have their toast up when main is called, and a false
+  // answer says "Not saved". The fake answers false and records the toasts at call time.
+  async 'capture-toast-first'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const arm = `(() => { window.__capToasts = null; WHQ.app.logic.setState({ toasts: [], sysSaves: {} }); hqFake.set('captureSave', (text) => { window.__capToasts = WHQ.app.logic.state.toasts.map((x) => x.text); return false; }); return true; })()`;
+    try {
+      // palette: "capture <text>" keeps the text's case
+      await t.evaluate(arm);
+      await t.evaluate(`WHQ.app.logic.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: 'capture Placeholder Gate Idea', paletteSel: 0 })`);
+      await t.sleep(100);
+      await t.press('Enter');
+      if (!await t.waitFor(`hqFake.calls('captureSave').length === 1`, 3000)) out.push('Enter on "capture …" did not call hq.captureSave');
+      else {
+        const s = await t.evaluate(`({ args: hqFake.calls('captureSave')[0].args, before: window.__capToasts, now: WHQ.app.logic.state.toasts.map((x) => x.text) })`);
+        if (s.args[0] !== 'Placeholder Gate Idea') out.push('the capture text lost its case: ' + JSON.stringify(s.args[0]));
+        if (!(s.before || []).includes('Saving to Ideas — the window reloads to show it')) out.push('palette capture: the toast was not up when main was called');
+        if (!s.now.includes('Not saved')) out.push('palette capture: no "Not saved" after a false answer');
+      }
+      // System › Workspace clutter
+      await t.evaluate(arm);
+      await t.evaluate(`(() => { WHQ.app.logic.go('system', 'clutter'); return true; })()`);
+      await t.sleep(300);
+      const note = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Note for cleanup' && !b.disabled)`;
+      if (await t.evaluate('!!' + note)) {
+        const n0 = await t.evaluate(`hqFake.calls('captureSave').length`);
+        await t.evaluate(`${note}.click()`);
+        if (!await t.waitFor(`hqFake.calls('captureSave').length === ${n0 + 1}`, 3000)) out.push('Note for cleanup did not call hq.captureSave');
+        else {
+          const s = await t.evaluate(`({ text: hqFake.calls('captureSave').at(-1).args[0], before: window.__capToasts || [] })`);
+          if (!s.text.startsWith('Clean up: ')) out.push('Note for cleanup did not send "Clean up: <item>"');
+          if (!s.before.some((x) => x.startsWith('Noting for cleanup · “Clean up: '))) out.push('Note for cleanup: the toast was not up when main was called');
+          if (!await t.waitFor(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '✗ Not saved — retry')`, 2000)) out.push('Note for cleanup: the button does not say "✗ Not saved — retry" after a false answer');
+        }
+      }   // else: this data.js has no clutter item to note
+      // a project's "Add to ideas" (missing basics)
+      await t.evaluate(arm);
+      const pid = await t.evaluate(`(async () => { const A = await import(new URL('./src/live/adapter.mjs', location.href).href); const p = WHQ.app.logic.M.P0.find((x) => A.gapsOf(x).length); return p ? p.id : null; })()`);
+      if (pid) {
+        await t.evaluate(`(() => { WHQ.app.logic.go('projects', 'grid'); WHQ.app.logic.openProject(${JSON.stringify(pid)}); return true; })()`);
+        await t.sleep(300);
+        const add = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add to ideas' && !b.disabled)`;
+        if (await t.evaluate('!!' + add)) {
+          const n0 = await t.evaluate(`hqFake.calls('captureSave').length`);
+          await t.evaluate(`${add}.click()`);
+          if (!await t.waitFor(`hqFake.calls('captureSave').length === ${n0 + 1}`, 3000)) out.push('Add to ideas did not call hq.captureSave');
+          else if (!(await t.evaluate(`window.__capToasts || []`)).some((x) => x.startsWith('Adding to your ideas · “'))) out.push('Add to ideas: the toast was not up when main was called');
+        }
+      }
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`(() => { delete window.__capToasts; hqFake.reset(true); WHQ.app.logic.setState({ toasts: [], sysSaves: {}, paletteOpen: false, route: null }); return true; })()`).catch(() => {});
     }
     return out;
   },

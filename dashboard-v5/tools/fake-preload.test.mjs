@@ -84,6 +84,16 @@ test('llm.chat streams accumulated deltas to llm.onDelta, then resolves; cancel 
   const p = hq.llm.chat({ jobId: 'j2' });
   await hq.llm.cancel('j2');
   assert.equal((await p).status, 'cancelled');
+  // like main: a stop after some text streamed answers with that partial text, and
+  // cancel says whether the job was running
+  const q = hq.llm.chat({ jobId: 'j3' });
+  await new Promise((r) => setTimeout(r, 150));   // the first delta ('Fake') went out at 100 ms
+  assert.equal(await hq.llm.cancel('j3'), true);
+  const rq = await q;
+  assert.equal(rq.status, 'cancelled');
+  assert.equal(rq.output, 'Fake', 'the partial answer comes back, as main sends it');
+  assert.equal(await hq.llm.cancel('j3'), false, 'no such job any more');
+  assert.deepEqual(await hq.llm.warm(), { status: 'warm', model: 'fake-model' }, 'warm answers main’s shape');
   off();
   control.reset(true);
 });
