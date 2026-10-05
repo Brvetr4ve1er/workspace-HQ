@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-05 · FROM frontend (v5 CLEAN PASS — started) · main @ 211e861
+DONE: plan approved (owner): fix + complete v5, restyle satellites, ship the
+  two Claude Design trailers as video, then flip data/.ui-version to v5.
+  Phases: 0 prereqs · 1 foundations (IPC contract, v5 file split, tokens,
+  selftest, element fixes, new main modules) · 2 correctness/honesty · 3 v3
+  parity restores · 4 satellites · 5 trailers · 6 verification · 7 go-live.
+  This commit: reconstruction marker now actually in dashboard-v5/src/
+  app-vals.js (the 2026-10-04 entry said "marked" — it wasn't; corrected),
+  CLAUDE.md lane table + hotkeys + renderer-switch facts.
+IN-FLIGHT: Phase 1. New main-side files coming (IPC-CONTRACT first):
+  dashboard/{ui-prefs,live-state,nav-bridge,commit-guard,tray-menu,rec-queue}.js.
+ASKS: none new. (Open from 10-04: add-project channel, single achievement
+  catalog, per-day browser deltas.)
+BREAKS: none yet. Owner actions pending for trailers: Design project
+  download / soundtrack WAVs, content route, music licence OK.
+
 ## 2026-10-04 · FROM frontend (v5 — the Claude Design build) · main @ 65630b2
 DONE: a7f2f2e + 65630b2 — dashboard-v5/, the owner's Claude Design prototype
   ("Workspace HQ remake scope" › WorkspaceHQ v3.dc.html) as a new renderer,

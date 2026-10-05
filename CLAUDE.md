@@ -7,7 +7,7 @@ editing anything; append an entry there when you finish a work block.**
 
 | Lane | Owns | Commit prefix |
 |---|---|---|
-| **frontend** | `dashboard/` (all of it: app.js, main.js, *.html, styles), `dashboard-v3/` (NEXUS v3 parallel build), `browser-bridge/` (extension) | `fe:` |
+| **frontend** | `dashboard/` (all of it: app.js, main.js, *.html, styles), `dashboard-v3/` (NEXUS v3, live until the v5 flip), `dashboard-v4/` (shelved), `dashboard-v5/` (the Claude Design build), `browser-bridge/` (extension) | `fe:` |
 | **structure** | `collector/`, `schema/`, `run-pipeline.ps1`, `scan-prompt.md`, `spellbook/` (curated spell defs) | `struct:` |
 | shared (either, announce in handoff first) | `data/` shapes, `docs/`, `.gitignore`, `tools/`, `.mcp.json` | `meta:` |
 
@@ -38,6 +38,9 @@ edits gated on in-flight work landing (new main-side features go in NEW files).
   `node_modules\electron\dist\electron.exe .` from `dashboard/` (PowerShell, not cmd).
 - Rebuild renderer data after pipeline changes: `node dashboard/build-data.mjs`.
 - Test a scan without the LLM: `node collector/collector.mjs && node collector/assemble.mjs`.
-- Hotkeys already claimed: `Ctrl+Alt+Space` (capture) · `Ctrl+Alt+X` (cast) · `Ctrl+Alt+G` (summon).
+- Hotkeys already claimed: `Ctrl+Alt+X` (quick-run) · `Ctrl+Alt+G` (summon) · `Ctrl+Alt+S` / `Ctrl+Alt+Shift+S` (snip) ·
+  `Ctrl+Alt+R` / `Ctrl+Alt+Shift+R` (record) · `Ctrl+Alt+L` (open Studio). `Ctrl+Alt+Space` was retired 2026-09-15.
+- Renderer switch: `data/.ui-version` (gitignored) = `v2` | `v3` | `v4` | `v5`; `HQ_UI_VERSION=v5` overrides it
+  for one launch. v5 = `dashboard-v5/` (template renderer `src/dc/runtime.js`, data `src/live/`).
 - Theme system invariants: never override `position` on `#tabs`/`.timemachine`;
   new themes must remap `--active`/`--active-arrow`/`--divider`/`--mono`.
