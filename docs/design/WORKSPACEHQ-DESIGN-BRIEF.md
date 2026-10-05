@@ -2411,6 +2411,26 @@ Whichever you pick: red badges only for "needs you" (TASKS open count, SYSTEM cr
 - [ ] **Cuts to confirm:** boot splash, status bar, RENAME (until an IPC exists), body-map metaphor, joke lines, Account XP chart, Peak XP record, NotebookLM leftovers, rarity, the 5 hidden themes.
 - [ ] **Confirm the suspected bugs before designing around them:** recordings saved empty (§5.9), `window.prompt` flows dead (§3.10), past-mode reopen after scans (§3.1). (pc-health scheduling is settled: it runs in every scan, §5.13.)
 
+### 11.1 Deliberate cuts (v5 clean pass, 2026-10-05)
+
+The owner kept the daily-use controls and cut the rest on purpose. Each cut below is something the Claude Design build (or this brief) shows that v5 does not do, with the reason. v3 stays on disk as the rollback (`data/.ui-version` = `v3`).
+
+- **Canvas pin / remove:** boards are append-only. Main has only `hq.canvasAdd` (v5's ＋ Note), and pin / remove / clear / create-board need new IPC plus an MCP mirror (§4.13, §12.6).
+- **Vault open / search:** the renderer can't open `obsidian://` links; that needs a scheme-restricted `openExternal` IPC (§12.6). v3's copy-a-search-link workaround wasn't carried over. Vault content still reaches Ask as an opt-in source.
+- **Stat-card export:** v3's PNG came from `fx.js`'s takeover canvas, and porting it needs a renderer-side image builder plus a save path. It isn't daily use, so Settings and the level-up card say "not wired in this version yet".
+- **Per-file staging:** `do-commit` stages everything (`git add -A`) after main's `.env` guard has checked the whole change set (`hq.commitPreview`). Ticking files would need a staging IPC and a second guard path, so the commit sheet lists every file it will commit.
+- **Add-project channel:** tracking a project means writing `collector/collector.config.json` (struct lane), and no channel does that. Onboarding prepares and copies the config entry for you to paste.
+- **Local idea dismiss:** side quests have no `dismissed` write path (§6.6, struct lane). v5's Hide is per-PC only (`whq3-prefs`) and says so ("the scan still tracks it"); v3, the mini HUD and the tray still show the idea.
+- **Notifications toggle:** nothing reads it. OS notifications are main's (§5.12), and the in-app router has no caller (§7b), so the switch was removed in Phase 2.
+- **Region recording:** the recorder captures a whole display or window. Cropping to a region needs a crop step in `dashboard/screen-capture.js` (owner decision: deferred).
+- **Shard grid-snap / hide over full-screen apps:** both need main-side window management for every shard window (owner decision: deferred). Shards still float on top as before (§5.5).
+- **Settings › Shards:** there's no shard manager IPC (list, hide or close all), so Settings has no Shards section (owner decision: deferred).
+- **Extension "today" summary / edit:** a summary needs a new bridge HTTP route. Editing a staged post in the popup would change what was reviewed (CONTRACT.md write gate: approve or skip only). The popup keeps the connection state and the one-at-a-time approval card (owner decision: deferred).
+- **30-minute recording continuation:** main stops a recording at the 30-minute limit and keeps the file. Continuing in a new file needs a chained recorder, so the panel says it stops, not "auto-split" (§5.9).
+- **Hotkey registration status:** main only logs a failed `globalShortcut` registration to its console (§5.11). Settings › Global hotkeys lists the keys with no ok / conflict mark until a status channel exists.
+
+**Contract note (Phase 2 C-1, narrowed in review):** Enter in the run confirm never confirms on a focused button or on a key auto-repeat. On a focused button, Enter does that button's own action, so Enter on Cancel cancels. A held-down Enter can't run an automation. Enter while typing in a field doesn't confirm either.
+
 ---
 
 ## 12. How the prototype will be wired back

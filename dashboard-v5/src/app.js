@@ -56,10 +56,11 @@ export class Component extends DCLogic {
       sub: Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'sessions', history: 'trends', system: 'machine', life: 'screen' }, saved.sub || {}),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
-      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, notifyMeasured: P.notifyMeasured !== false,
+      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
       vw: window.innerWidth, completed: [], recentDone: [], dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
-      scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: saved.ask || [], askDraft: '',
+      // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
+      scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: [], askDraft: '',
       runsOpen: false, localRuns: [], expandedRun: null, settingsOpen: false, cheatOpen: false, ambientOverlay: false, moreOpen: false,
       focus: saved.focus || null, now: Date.now(), confirm: null, confirmAsk: 'always', commit: null, sheet: null, levelUp: null, toasts: [], refreshing: false,
       lastScan: scanAt && !isNaN(scanAt) ? (scanAt.toDateString() === new Date().toDateString() ? '' : M.fmtD(scanAt) + ' ') + hhmm(scanAt) : (M.at(0).id || '—'),
@@ -67,6 +68,21 @@ export class Component extends DCLogic {
       journalAdds: {}, journalDraft: '', journalKind: 'note', autoQuery: '', trendRange: 30, lifeRange: 'window', lightbox: null, studioFilter: 'all',
       recapOpen: false, recapDismissed: P.recapSeen === (M.weeklyRecap && M.weeklyRecap.week_end), sessionSel: null, composer: '', composerProj: (M.P0[0] || {}).id || null,
       momentum: 'unc', fixed: [], sinceDismissed: P.sinceSeen === M.at(0).id, actTab: 'runs', compareOff: null, commitSel: 0, onboard: null, notifLog: [],
+      // What's new · trailers (logic/whats-new.js): open, and trailers whose video failed to play (id → true)
+      whatsNewOpen: false, whatsNewMissing: {},
+      // Phase 3 surface state (contract K-4; each reader also treats undefined as these defaults):
+      // System (logic/system.js): Re-examine running · per-capture-text save state ('saving'|'noted'|'failed')
+      sysExamining: false, sysSaves: {},
+      // Automations (logic/library.js): kind / source / category chips · rows shown · Rescan running
+      libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false,
+      // Projects grid (vals/projects.js): search + status chip, this session only
+      projSearch: '', projStatus: 'all',
+      // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
+      canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
+      // Ask's offline box: Retry is probing (logic/ask.js)
+      askChecking: false,
+      // Ask (logic/ask.js, contract K-1): { askHistory, askInclude } from v3's localStorage keys; Ask saves them itself
+      ...(this.askInitState ? this.askInitState() : {}),
     };
   }
 
@@ -94,10 +110,11 @@ export class Component extends DCLogic {
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
     this.maybeLevelUp();
+    this.maybeShowWhatsNew();   // once per version, when the window has focus (logic/whats-new.js)
   }
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
-    clearInterval(this._focusT); FX().destroy();
+    clearInterval(this._focusT); FX().destroy(); this.stopWhatsNewWait();
     if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); if (this._offNav) this._offNav(); this.store.stop();
     this.flushPending(); window.removeEventListener('pagehide', this._onHide);
   }
@@ -105,13 +122,15 @@ export class Component extends DCLogic {
     const S = this.state;
     const ps = this._prev || S;
     this._prev = Object.assign({}, S, { sub: Object.assign({}, S.sub) }); this._prevProps = Object.assign({}, this.props);
-    try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus, ask: S.askHistory.filter((h) => h.a && h.a.status !== 'thinking').slice(-12) })); } catch (e) {}
+    // the Ask chat isn't kept here any more: Ask saves it in v3's hq-oracle-chat (contract K-1)
+    try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus })); } catch (e) {}
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
-    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'notifyMeasured', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
+    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
-      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, notifyMeasured: S.notifyMeasured, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
+      delete P.notifyMeasured;   // the Notifications switch was cut (Phase 2); drop what older builds saved
+      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
         recapSeen: S.recapDismissed && this.M.weeklyRecap ? this.M.weeklyRecap.week_end : P.recapSeen, sinceSeen: S.sinceDismissed ? this.M.at(0).id : P.sinceSeen }));
     }
     { const pr = this.projectsAt(0), sec = this.sum(pr, (p) => p.secrets), run = this.runningCount() > 0; FX().set({ level: this.M.levelOf(S.xp).l, mood: run ? 'busy' : sec > 0 ? 'nervous' : this.openTasks(0).length === 0 ? 'sleepy' : 'ok' }); }
@@ -315,8 +334,12 @@ export class Component extends DCLogic {
   }
   closeTop() {
     const S = this.state;
-    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
-    for (const k of order) if (S[k]) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard'].includes(k) ? null : false }); return; }
+    // What's new sits over Settings (it opens from there), so it closes first
+    // canvasNoteOpen: Escape folds the Canvas ＋ Note form, an in-page form, so after the
+    // overlays and only while it is on screen (the flag outlives a tab switch)
+    const noteShown = S.canvasNoteOpen && !S.route && S.tab === 'claude' && S.sub && S.sub.claude === 'canvas';
+    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
+    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard'].includes(k) ? null : false }); return; }
     if (S.route) this.setState({ route: null });
   }
   onKey(e) {
@@ -336,7 +359,7 @@ export class Component extends DCLogic {
     }
     if (S.confirm && e.key === 'Enter' && !typing && this.confirmKey(e)) return;
     if (typing) return;
-    if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard) return;
+    if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard || S.whatsNewOpen) return;
     if (e.key === '/') { e.preventDefault(); this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); return; }
     if (e.key === '?') { this.setState({ cheatOpen: true }); return; }
     if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) { this.go(this.M.NAV[+e.key - 1].id); return; }
