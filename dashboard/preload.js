@@ -26,6 +26,30 @@ contextBridge.exposeInMainWorld('hq', {
       return () => ipcRenderer.removeListener('hq:llm:delta', handler);
     },
   },
+  // v5 clean pass (IPC-CONTRACT "Pending — v5 clean pass"): shared UI prefs,
+  // what's running now, deep links into the main window, the commit guard.
+  uiPrefs: {
+    get: () => ipcRenderer.invoke('hq:ui-prefs-get'),
+    set: (patch) => ipcRenderer.invoke('hq:ui-prefs-set', patch),
+    on: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:ui-prefs', handler);
+      return () => ipcRenderer.removeListener('hq:ui-prefs', handler);
+    },
+  },
+  liveState: () => ipcRenderer.invoke('hq:live-state'),
+  onScanStatus: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:scan-status', handler);
+    return () => ipcRenderer.removeListener('hq:scan-status', handler);
+  },
+  openAt: (route) => ipcRenderer.invoke('hq:open-at', route),
+  onNavigate: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hq:navigate', handler);
+    return () => ipcRenderer.removeListener('hq:navigate', handler);
+  },
+  commitPreview: (projPath) => ipcRenderer.invoke('hq:commit-preview', projPath),
   logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
@@ -140,6 +164,14 @@ contextBridge.exposeInMainWorld('hq', {
     recStop: (recId) => ipcRenderer.invoke('hq:studio:rec-stop', { recId }),
     recAbort: (recId) => ipcRenderer.send('hq:studio:rec-abort', { recId }),
     recToggle: (opts) => ipcRenderer.invoke('hq:studio:rec-toggle', opts),
+    // v5 clean pass: user pause, setup/live-pill window size, main-initiated stop
+    recPause: (recId, paused) => ipcRenderer.send('hq:studio:rec-pause', { recId, paused: !!paused }),
+    panelMode: (mode) => ipcRenderer.invoke('hq:studio:panel-mode', { mode }),
+    onRecCommand: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:studio:rec-command', handler);
+      return () => ipcRenderer.removeListener('hq:studio:rec-command', handler);
+    },
     libraryList: (query) => ipcRenderer.invoke('hq:studio:library-list', query),
     libraryReveal: (p) => ipcRenderer.invoke('hq:studio:library-reveal', p),
     libraryDelete: (p) => ipcRenderer.invoke('hq:studio:library-delete', p),

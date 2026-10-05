@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('hq', {
   shardLibDelete: (key) => ipcRenderer.invoke('hq:shard-lib-delete', key),
   markQuestDone: (id) => ipcRenderer.invoke('hq:quest-done', id),
   showMain: () => ipcRenderer.invoke('hq:show-main'),
+  // read-only theme sync (v5 clean pass) — no setter: conjured HTML can't change prefs
+  uiPrefs: {
+    get: () => ipcRenderer.invoke('hq:ui-prefs-get'),
+    on: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:ui-prefs', handler);
+      return () => ipcRenderer.removeListener('hq:ui-prefs', handler);
+    },
+  },
   onShardInit: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('shard:init', handler);

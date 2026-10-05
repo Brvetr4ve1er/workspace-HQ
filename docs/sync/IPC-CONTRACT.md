@@ -208,6 +208,43 @@ own buffer, so the parser never sees it) is carried across. `tail` stays a
 string and stays untrusted; a main process older than this row returns the raw
 tail as before.
 
+## Pending — v5 clean pass (announced 2026-10-05, rows move into the tables above at go-live)
+
+New main-side logic lives in NEW files with a one-line init hook in `main.js`
+(rule 2). Every row is additive; no existing channel changes meaning.
+
+| `window.hq` method | Channel | Args | Returns | Owner file · surface |
+|---|---|---|---|---|
+| `uiPrefs.get()` | `hq:ui-prefs-get` | — | `{theme:'dark'\|'light'\|'os', resolved:'dark'\|'light', reduceMotion:bool}` | `dashboard/ui-prefs.js` · every window |
+| `uiPrefs.set(patch)` | `hq:ui-prefs-set` | `{theme?, reduceMotion?}` (keys whitelisted, enums checked) | the full prefs object; then pushes `hq:ui-prefs` | `ui-prefs.js` · v5 Settings |
+| `uiPrefs.on(cb)` | push `hq:ui-prefs` | full prefs → **every** window (`BrowserWindow.getAllWindows()`); re-sent when the OS theme changes | disposer | `ui-prefs.js` · v5 + satellites (shards/summon get `get`/`on` only, no `set`) |
+| `liveState()` | `hq:live-state` | — | `{dev:[{id, since\|null}], casts:[{castId, spellId, name, icon, startedAt, chain}], scan:{state:'idle'\|'running'\|'done'\|'failed', startedAt, endedAt, code}}` — what is running *now*, so a reloaded window can rebuild its Activity rows | `dashboard/live-state.js` · v5 |
+| `onScanStatus(cb)` | push `hq:scan-status` | `{state:'running'\|'done'\|'failed', startedAt, endedAt?, code?, error?}` | disposer | `live-state.js` · v5 |
+| `openAt(route)` | `hq:open-at` | `{tab, sub?, projectId?, sort?}` (tab/sub `/^[a-z]{2,16}$/`, id `/^[\w.-]{1,80}$/`, sort enum) | `true`/`false`; shows + focuses the main window, then pushes `hq:navigate` | `dashboard/nav-bridge.js` · mini HUD, tray |
+| `onNavigate(cb)` | push `hq:navigate` | the validated route (sent after `did-finish-load` if the window is loading) | disposer | `nav-bridge.js` · v5 (v3 ignores it) |
+| `commitPreview(projPath)` | `hq:commit-preview` | abs project path (containment-checked like `resolveProjectPath`) | `{files:[{path, status, env}], stat, envHits:[path], branch}` \| `{error}` — union of `git status --porcelain -z -uall --no-renames` and `git diff --cached --name-only -z`, so files inside untracked folders are listed individually | `dashboard/commit-guard.js` · v5 commit sheet |
+| `studio.recPause(recId, paused)` | send `hq:studio:rec-pause` | `{recId, paused:bool}` | — (status pushes carry `paused`; `elapsedMs` excludes paused time) | `screen-capture.js` · record panel |
+| `studio.panelMode(mode)` | `hq:studio:panel-mode` | `{mode:'setup'\|'live'}` | `true` (main sets the panel bounds: setup ≈340×180, live pill ≈230×44) | `screen-capture.js` · record panel |
+| `studio.onRecCommand(cb)` | push `hq:studio:rec-command` | `{cmd:'stop', reason:'hotkey'\|'lowdisk'\|'limit'}` → record panel only; main hard-stops if the panel hasn't finished in 3 s | disposer | `screen-capture.js` · record panel |
+
+**Additive fields on existing channels**
+
+| Channel | Addition |
+|---|---|
+| `hq:do-commit` | may return `{error:'refused: .env in change set', envHits:[path]}` and stage nothing (`.env.example`/`.sample`/`.template` are allowed) |
+| `hq:sessions-list`, `hq:claude-sessions` | entries started via `hq:session-start` gain `cwd` (side table in `session-tails.js`; `claude-sessions.js` untouched) |
+| `hq:spell-telemetry` | each rollup entry gains `last_outcome` (`resolved`\|`fizzled`\|`channeled`) and `last_exit`, taken from the newest entry in `casts[]` |
+| `hq:mini-data`, `hq:mini-update` | gain `secrets`, `uncommitted`, `unpushed` (counts) and `topQuest.projectId`, `topQuest.project` |
+| `hq:studio:rec-status` | gains `paused` |
+| `hq:studio:snip-frozen` | gains `projects:[{id, name}]` (for the send-to-Claude picker) |
+| `hq:studio:snip-commit` | gains `action:'save'\|'copy'\|'claude'` and `projectId`; absent `action` = today's save+copy |
+| `hq:log-decision` | also appends `{id, date, text, completed:false, kind:'decision'}` to `data/project-notes.json` (frontend-owned store) so the journal can show decisions |
+
+**HTTP (browser extension, `dashboard/social-bridge.js`)**: `POST /social/outbox/cancel`
+`{id}` → `{ok, id, status:'canceled'}`; only `staged` entries change, an unknown id
+is 404, a missing/invalid token 403. Cancelling never publishes (CONTRACT.md
+write-gate amendment lands with it).
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

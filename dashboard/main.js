@@ -7,7 +7,7 @@
 // Tauri alternative: dashboard/ is the distDir; a src-tauri wrapper would call the
 // same run-pipeline.ps1 and the same data/quest-overrides.json from a Rust command.
 
-const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer, nativeTheme } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -1068,6 +1068,8 @@ const sessionTails = require('./session-tails');
 claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessionTails.withTails(sessions)));
 ipcMain.handle('hq:sessions-list', () => sessionTails.withTails(claudeSessions.list()));
 require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
+const liveState = require('./live-state').init({ ipcMain, send: castSend, devServers: activeDevServers, casts: castRegistry, readSpellbook });   // v5 clean pass: hq:live-state
+require('./commit-guard').init({ ipcMain, resolveProjectPath });   // v5 clean pass: hq:commit-preview
 
 // ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
 // fs-watched so both the Warden and the Familiar (via the MCP server writing
@@ -1471,6 +1473,8 @@ if (!app.requestSingleInstanceLock()) {
       app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
     }
     rebuildData();
+    require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
+    require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at
     createWindow(!START_HIDDEN);
     createTray();
     if (hudPrefVisible()) createMiniWindow();   // ambient HUD floats even when started to tray
