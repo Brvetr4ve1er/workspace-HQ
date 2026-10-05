@@ -3,9 +3,12 @@
 
 export const paletteLogic = {
   paletteItems() {
-    const S = this.state, q = S.paletteQuery.trim().toLowerCase(), M = this.M, NAV = M.NAV;
+    const S = this.state, raw = S.paletteQuery.trim(), q = raw.toLowerCase(), M = this.M, NAV = M.NAV;
     const g = [];
     const vm = q.match(/^(commit|open|run|focus|theme|go)\s+(.+)$/), doItems = [];
+    // capture <text>: the text keeps its case (the other verbs match lowercased)
+    const cap = raw.match(/^capture\s+(.+)$/i);
+    if (cap) { const text = cap[1].trim(); doItems.push({ glyph: '✎', label: 'Capture to Ideas · ' + text, hint: 'reloads the window', run: () => this.paletteCapture(text) }); }
     if (vm) {
       const verb = vm[1], arg = vm[2].trim();
       if (verb === 'commit' || verb === 'open') this.projectsAt(0).filter((p) => p.name.toLowerCase().includes(arg) || p.id === arg).forEach((p) => doItems.push({ glyph: '›', label: (verb === 'commit' ? 'Commit ' : 'Open ') + p.name, hint: verb === 'commit' ? (p.dirty || 0) + ' files' : 'project page', run: () => (verb === 'commit' ? this.openCommit(p.id) : this.openProject(p.id)) }));
@@ -29,7 +32,13 @@ export const paletteLogic = {
       { glyph: '⚙', label: 'Settings', hint: '', run: () => this.setState({ settingsOpen: true, paletteOpen: false }) },
       { glyph: '?', label: 'Keyboard shortcuts', hint: '?', run: () => this.setState({ cheatOpen: true, paletteOpen: false }) },
       { glyph: '≡', label: 'Activity & runs', hint: '', run: () => this.setState({ runsOpen: true, paletteOpen: false }) },
+      // the Ask panel without a new question: today's chat (kept in v3's hq-oracle-chat) or the starter prompts
+      { glyph: '✦', label: 'Ask panel', hint: (S.askHistory || []).length ? 'today’s chat' : 'local model', run: () => this.openAskPanel() },
+      // the capture verb, found by searching; it fills the box and waits for the text
+      { glyph: '✎', label: 'Capture an idea…', hint: 'capture <text>', run: () => this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: 'capture ', paletteSel: 0 }) },
     ];
+    // K-3: What's new (logic/whats-new.js, P3-SHELL); listed only once that build has it
+    if (typeof this.openWhatsNew === 'function') cmds.push({ glyph: '★', label: 'What’s new · trailers', hint: '', run: () => this.openWhatsNew() });
     if (S.snapOffset) cmds.unshift({ glyph: '●', label: 'Back to live', hint: '', run: () => this.setState({ snapOffset: 0, paletteOpen: false }) });
     g.push(['Commands', cmds]);
     let idx = 0; const out = [];
@@ -39,5 +48,19 @@ export const paletteLogic = {
       out.push({ name, items: f.map((it) => { const my = idx++; return Object.assign({}, it, { active: my === S.paletteSel, idx: my }); }) });
     });
     return { groups: out, count: idx, flat: out.reduce((a, gr) => a.concat(gr.items), []) };
+  },
+  // capture <text> → data/brain-dump.json; main re-assembles and RELOADS the window
+  // before answering, so the toast goes first and nothing relies on state after the call
+  async paletteCapture(text) {
+    text = String(text || '').trim();
+    if (!text) return;
+    if (!this.canWrite()) return this.denied();
+    const hq = this.hq;
+    if (!hq || typeof hq.captureSave !== 'function') return this.notWired('Capture');
+    this.toast('info', 'Saving to Ideas — the window reloads to show it');
+    let ok;
+    try { ok = await hq.captureSave(text); }
+    catch (e) { this.toast('error', 'Not saved · ' + (e && e.message || e)); return; }
+    if (!ok) this.toast('error', 'Not saved');
   },
 };
