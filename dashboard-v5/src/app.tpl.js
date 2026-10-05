@@ -33,10 +33,11 @@ import ovSheet from './tpl/ov-sheet.tpl.js';
 import ovSettings from './tpl/ov-settings.tpl.js';
 import ovMisc from './tpl/ov-misc.tpl.js';
 import ovOnboard from './tpl/ov-onboard.tpl.js';
+import extras from './tpl/extras.tpl.js';   // v5 additions (no design slice); empty until Phase 3 P8
 import toasts from './tpl/toasts.tpl.js';
 
 export default [
   shell, home, projects, projectPage, tasks, automations, claude, history, system, life,
   studio, prompt, lightbox, ambient, navBottom, ovScrub, ovRuns, ovAsk, ovPalette, ovFocus,
-  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, toasts,
+  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, extras, toasts,
 ].join('');

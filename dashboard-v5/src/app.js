@@ -23,6 +23,11 @@ import { journalLogic } from './logic/journal.js';
 import { askLogic } from './logic/ask.js';
 import { paletteLogic } from './logic/palette.js';
 import { onboardLogic } from './logic/onboard.js';
+import { whatsNewLogic } from './logic/whats-new.js';
+import { systemLogic } from './logic/system.js';
+import { libraryLogic } from './logic/library.js';
+import { studioLogic } from './logic/studio.js';
+import { projectLogic } from './logic/project.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -344,5 +349,6 @@ export class Component extends DCLogic {
     try { navigator.clipboard.writeText(String(text || '')).then(done, () => this.toast('error', 'Clipboard unavailable')); } catch { this.toast('error', 'Clipboard unavailable'); }
   }
 }
-Object.assign(Component.prototype, tasksLogic, claudeLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic);
+Object.assign(Component.prototype, tasksLogic, claudeLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic);
 Component.prototype.renderVals = renderVals;

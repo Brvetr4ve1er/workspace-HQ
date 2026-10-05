@@ -24,10 +24,11 @@ import { historyVals } from './history.js';
 import { systemVals } from './system.js';
 import { lifeVals } from './life.js';
 import { studioVals } from './studio.js';
+import { extrasVals } from './extras.js';
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, historyVals, systemVals, lifeVals, studioVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, historyVals, systemVals, lifeVals, studioVals, extrasVals,
 ];
 
 export function renderVals() {
