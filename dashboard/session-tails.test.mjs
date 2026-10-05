@@ -118,3 +118,82 @@ test("a jobId named like an Object prototype key is not treated as present", () 
   assert.equal(out[0].tail, RAW_JSON_TAIL, 'Map lookup, not property lookup');
   assert.equal(out[1].tail, RAW_JSON_TAIL);
 });
+
+// ---------------------------------------------------------------- cwd (v5 clean pass)
+// hq:session-start records the contained cwd so the renderer can map a session
+// to its project; withTails adds it as `cwd` on the way out.
+const CWD_A = 'C:\Users\someone\Documents\project-a';
+const CWD_B = 'C:\Users\someone\Documents\project-b';
+
+test('a job with a recorded cwd gains a cwd field next to its parsed tail', () => {
+  tails.record('cs-1', 'parsed\n');
+  tails.setCwd('cs-1', CWD_A);
+  const out = tails.withTails([sess('cs-1')]);
+  assert.equal(out[0].cwd, CWD_A);
+  assert.equal(out[0].tail, 'parsed\n', 'tail substitution unchanged');
+});
+
+test('cwd alone (no tail recorded) still decorates — the empty-tails short-circuit does not hide it', () => {
+  tails.setCwd('cs-1', CWD_A);
+  const input = [sess('cs-1')];
+  const out = tails.withTails(input);
+  assert.equal(out[0].cwd, CWD_A);
+  assert.equal(out[0].tail, RAW_JSON_TAIL, 'no parsed tail recorded: the raw tail is not touched');
+  assert.notEqual(out[0], input[0], 'fresh object');
+  assert.equal(input[0].cwd, undefined, 'registry entry not mutated');
+});
+
+test('jobs without a recorded cwd get no cwd key and keep their object reference', () => {
+  tails.record('cs-1', 'ours\n');
+  tails.setCwd('cs-1', CWD_A);
+  const quest = sess('cs-quest');
+  const out = tails.withTails([quest, sess('cs-1')]);
+  assert.equal(out[0], quest, 'foreign job untouched');
+  assert.equal('cwd' in out[0], false);
+  assert.equal(out[1].cwd, CWD_A);
+});
+
+test('a parsed-tail job without a recorded cwd has no cwd key (absent, not null)', () => {
+  tails.record('cs-1', 'parsed\n');
+  const out = tails.withTails([sess('cs-1')]);
+  assert.equal('cwd' in out[0], false);
+});
+
+test('setCwd ignores junk instead of poisoning the table', () => {
+  assert.doesNotThrow(() => tails.setCwd(null, CWD_A));
+  assert.doesNotThrow(() => tails.setCwd('', CWD_A));
+  assert.doesNotThrow(() => tails.setCwd('cs-1', null));
+  assert.doesNotThrow(() => tails.setCwd('cs-1', ''));
+  assert.doesNotThrow(() => tails.setCwd('cs-1', 42));
+  const input = [sess('cs-1')];
+  assert.equal(tails.withTails(input), input, 'nothing was recorded');
+});
+
+test('the latest setCwd for a job wins', () => {
+  tails.setCwd('cs-1', CWD_A);
+  tails.setCwd('cs-1', CWD_B);
+  assert.equal(tails.withTails([sess('cs-1')])[0].cwd, CWD_B);
+});
+
+test('the cwd table is FIFO-capped like the tails and evicts the OLDEST job', () => {
+  for (let i = 0; i < tails.MAX_JOBS + 5; i++) tails.setCwd('cs-' + i, CWD_A);
+  const out = tails.withTails([sess('cs-0'), sess('cs-4'), sess('cs-5'), sess('cs-' + (tails.MAX_JOBS + 4))]);
+  assert.equal('cwd' in out[0], false, 'oldest evicted');
+  assert.equal('cwd' in out[1], false);
+  assert.equal(out[2].cwd, CWD_A, 'newest kept');
+  assert.equal(out[3].cwd, CWD_A);
+});
+
+test('_reset clears the cwd table too', () => {
+  tails.setCwd('cs-1', CWD_A);
+  tails._reset();
+  const input = [sess('cs-1')];
+  assert.equal(tails.withTails(input), input);
+});
+
+test('a cwd keyed by an Object prototype name is a Map entry, not a property hit', () => {
+  tails.setCwd('cs-1', CWD_A);
+  const out = tails.withTails([sess('constructor'), sess('__proto__')]);
+  assert.equal('cwd' in out[0], false);
+  assert.equal('cwd' in out[1], false);
+});

@@ -168,6 +168,7 @@ function init({ ipcMain, claudeSessions, send }) {
         });
         if (r.error) return { error: r.error };   // nothing spawned -> the snapshot is dropped
         jobId = r.jobId;
+        sessionTails.setCwd(jobId, dir);
         // CLAIM the jobId even before a line completes: this session's raw
         // registry tail is stream-json, so an empty parsed tail (which renders
         // the panes' honest "nothing reached this window" state) is the right

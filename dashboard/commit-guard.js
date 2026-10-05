@@ -10,13 +10,130 @@
 // session-attribution baseline relies on.
 //
 // init({ ipcMain, resolveProjectPath }) ; exports envHits(cwd) for hq:do-commit.
-// SKELETON (F1): preview refuses, envHits finds nothing; F6 implements both
-// (commit-guard.test.mjs incl. a temp-repo integration test).
-function isEnvPath() { return false; }
-function envHits() { return []; }
+//
+// Paths are repo-root-relative with forward slashes, exactly as git prints them
+// (porcelain ignores status.relativePaths; diff is root-relative by default) —
+// which is also the scope `git add -A` stages, even when cwd is a subfolder.
+// Ignored files never appear: `add -A` skips them too, so a .gitignore'd .env is
+// not in the change set and is (correctly) not refused.
+//
+// FAIL CLOSED. envHits(cwd) returns ['<git error>'] when git cannot list the
+// change set (not a repo, git missing, output over maxBuffer, …). An empty array
+// there would read as "no .env found" and let do-commit's `add -A` run blind —
+// the exact bypass this module exists to close. do-commit refuses on any hit.
+// Pure Node (child_process only), no Electron requires — commit-guard.test.mjs.
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
 
-function init({ ipcMain }) {
-  ipcMain.handle('hq:commit-preview', () => ({ error: 'commit preview not available yet' }));
+const GIT_MAX_BUFFER = 10 * 1024 * 1024;   // same cap as session-api.js; a monorepo's -uall list can be large
+const GIT_ERROR_HIT = '<git error>';
+
+// Two steps: ENV_RE says "env-shaped", ENV_TEMPLATE_RE takes the templates back out.
+//   true : .env, .env.local, sub/.env.production, prod.env, .ENV, .env.example.local
+//          (a suffix AFTER an allowed one is a real env file again), and the copies
+//          people actually make of a .env — `.env - Copy` (Explorer), `.env copy`,
+//          `.env (1)` (downloads), `.env~` (editors), `.env-local`, `.env_prod`,
+//          `prod.env~`: after `.env`, ANY non-alphanumeric char counts, not only '.'.
+//   false: .env.example/.sample/.template/.dist/.defaults (also `-`/`_` separated:
+//          .env-example, .env_sample), .envrc, .environment, envoy.yaml, docs/env.md,
+//          src/environment.ts, config.env.js (the `*.env` form never takes a '.'
+//          suffix, so source files named x.env.ts don't block commits).
+// Basename only: files inside a folder named `.env/` (a Python venv) are not hits.
+const ENV_RE = /(^|\/)(\.env([^a-z0-9/][^/]*)?|[^/]+\.env([^a-z0-9./][^/]*)?)$/i;
+const ENV_TEMPLATE_RE = /(^|\/)\.env[._-](example|sample|template|dist|defaults)$/i;
+
+function isEnvPath(p) {
+  if (typeof p !== 'string' || !p) return false;
+  const s = p.replace(/\\/g, '/');
+  return ENV_RE.test(s) && !ENV_TEMPLATE_RE.test(s);
 }
 
-module.exports = { init, isEnvPath, envHits };
+// `git status --porcelain -z` output → [{path, status}]. Records are
+// NUL-terminated 'XY path' with no quoting (-z). status = XY trimmed, matching
+// session-api.js parsePorcelain ('??', 'M', 'A', 'MM', …). We pass --no-renames,
+// so there are no two-field rename records; if one shows up anyway (R/C in XY)
+// the following record is its ORIGINAL path and is consumed, not listed.
+function parsePorcelainZ(out) {
+  const recs = String(out || '').split('\0');
+  const files = [];
+  for (let i = 0; i < recs.length; i++) {
+    const r = recs[i];
+    if (r.length < 4 || r[2] !== ' ') continue;   // trailing '' after the last NUL, or junk
+    const xy = r.slice(0, 2);
+    files.push({ path: r.slice(3), status: xy.trim() });
+    if (/[RC]/.test(xy)) i++;                      // skip the rename/copy source path
+  }
+  return files;
+}
+
+function git(args, cwd) {
+  return spawnSync('git', args, { cwd, shell: false, windowsHide: true, encoding: 'utf8', maxBuffer: GIT_MAX_BUFFER });
+}
+function gitFailed(r) { return !!r.error || r.status !== 0; }
+function gitErr(r, what) {
+  if (r.error) return what + ': ' + String(r.error.message || r.error);
+  return String(r.stderr || '').trim().split(/\r?\n/).filter((l) => /^(fatal|error):/i.test(l))[0] || (what + ' failed');
+}
+
+// The whole change set `git add -A` would stage, file by file. Only `.error` or
+// a non-zero exit counts as failure — git writes warnings (CRLF etc.) to stderr
+// on success. Returns { error } instead of throwing.
+function changeSet(cwd) {
+  try {
+    // A missing path OR a file: spawnSync's ENOENT would otherwise read as "git missing".
+    let isDir = false;
+    try { isDir = !!cwd && fs.statSync(cwd).isDirectory(); } catch { /* missing */ }
+    if (!isDir) return { error: 'project folder not found' };
+    const st = git(['status', '--porcelain', '-z', '-uall', '--no-renames'], cwd);
+    if (gitFailed(st)) return { error: gitErr(st, 'git status') };
+    // diff.relative=true in a repo's config would make diff print cwd-relative paths
+    // (and only the cwd's subtree) — the union below needs root-relative ones.
+    const cached = git(['-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z'], cwd);   // works on an unborn HEAD too
+    if (gitFailed(cached)) return { error: gitErr(cached, 'git diff --cached') };
+
+    // Union by path. status already shows staged entries (X column); the cached
+    // list is belt-and-braces, so a cached-only name is labelled plainly.
+    const byPath = new Map();
+    for (const f of parsePorcelainZ(st.stdout)) if (!byPath.has(f.path)) byPath.set(f.path, f.status);
+    for (const p of String(cached.stdout || '').split('\0')) if (p && !byPath.has(p)) byPath.set(p, 'staged');
+    const files = [...byPath].map(([path, status]) => ({ path, status, env: isEnvPath(path) }));
+
+    // Branch: rev-parse fails (exit 128) on an unborn HEAD; symbolic-ref still
+    // names the branch there. Detached HEAD → 'HEAD'. Unknown → ''.
+    let branch = '';
+    const rp = git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
+    if (!gitFailed(rp)) branch = String(rp.stdout || '').trim();
+    else {
+      const sr = git(['symbolic-ref', '--short', '-q', 'HEAD'], cwd);
+      if (!gitFailed(sr)) branch = String(sr.stdout || '').trim();
+    }
+
+    // Tracked changes vs HEAD; fails on a repo with no commits yet → ''.
+    const df = git(['-c', 'diff.relative=false', 'diff', 'HEAD', '--stat'], cwd);
+    const stat = gitFailed(df) ? '' : String(df.stdout || '').trimEnd();
+
+    return { files, stat, envHits: files.filter((f) => f.env).map((f) => f.path), branch };
+  } catch (e) { return { error: String(e?.message || e) }; }
+}
+
+// For hq:do-commit, BEFORE `add -A`: any non-empty result means refuse.
+// Fails closed — see the header.
+function envHits(cwd) {
+  try {
+    const cs = changeSet(cwd);
+    if (!cs || cs.error || !Array.isArray(cs.envHits)) return [GIT_ERROR_HIT];
+    return cs.envHits;
+  } catch { return [GIT_ERROR_HIT]; }
+}
+
+function init({ ipcMain, resolveProjectPath }) {
+  ipcMain.handle('hq:commit-preview', (_e, projPath) => {
+    try {
+      const cwd = resolveProjectPath(projPath);
+      if (!cwd) return { error: 'path outside the workspace' };
+      return changeSet(cwd);
+    } catch (e) { return { error: String(e?.message || e) }; }   // never throws across IPC
+  });
+}
+
+module.exports = { init, isEnvPath, envHits, changeSet, parsePorcelainZ, ENV_RE, ENV_TEMPLATE_RE, GIT_ERROR_HIT };

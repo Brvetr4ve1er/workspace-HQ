@@ -27,11 +27,19 @@
 // elsewhere (`hq:claude-quest`, `draft-commit`) never get stream-json args, so
 // their raw tail is already plain readable text — touching it would be a
 // regression, not a fix.
+//
+// v5 clean pass: a second side table, jobId -> the contained cwd that
+// hq:session-start launched in (setCwd, one line in session-api.js). withTails
+// adds it as `cwd` so the renderer can map a session to its project
+// (IPC-CONTRACT "Pending — v5 clean pass", additive field). Same scope, same
+// FIFO cap and eviction rule as the tails; jobs without a recorded cwd get no
+// `cwd` key at all (not null — absent means "not ours").
 const TAIL = 800;          // mirrors claude-sessions.js TAIL, so the panes' "last ~800 chars" copy stays true
 const MAX_JOBS = 100;      // FIFO cap; presence-sized (the registry drops a job ~60s after it ends), never persisted
 const TIMEOUT_MARK = '[timeout]';
 
 const tails = new Map();   // jobId -> parsed text, rolling last TAIL chars
+const cwds = new Map();    // jobId -> absolute cwd the session was started in
 
 // Append parsed text for a job. Called with '' at dispatch to CLAIM the jobId:
 // a session-api job's raw tail is never useful, so an empty parsed tail (which
@@ -51,16 +59,30 @@ function record(jobId, text) {
 
 function has(jobId) { return typeof jobId === 'string' && tails.has(jobId); }
 
+// Record the directory a session-api job runs in. Called once, at dispatch,
+// with the containment-checked dir; junk in is ignored, never stored.
+function setCwd(jobId, dir) {
+  const id = typeof jobId === 'string' ? jobId : '';
+  if (!id || typeof dir !== 'string' || !dir) return;
+  cwds.set(id, dir);
+  while (cwds.size > MAX_JOBS) cwds.delete(cwds.keys().next().value);   // FIFO by first insertion, like record()
+}
+
 // Decorate a claude-sessions list: substitute `tail` for the jobs we parsed,
-// leave every other entry untouched (same object reference). Never throws and
-// never drops entries — a failure here would blank a presence list that has
-// nothing to do with parsing, so any oddity returns the input unchanged.
+// add `cwd` for the jobs we know the directory of, leave every other entry
+// untouched (same object reference). Never throws and never drops entries — a
+// failure here would blank a presence list that has nothing to do with
+// parsing, so any oddity returns the input unchanged.
 function withTails(list) {
   try {
-    if (!Array.isArray(list) || tails.size === 0) return list;
+    if (!Array.isArray(list) || (tails.size === 0 && cwds.size === 0)) return list;
     return list.map((s) => {
       if (!s || typeof s !== 'object' || typeof s.jobId !== 'string') return s;
-      if (!tails.has(s.jobId)) return s;              // not ours: raw tail, unchanged
+      const hasTail = tails.has(s.jobId), hasCwd = cwds.has(s.jobId);
+      if (!hasTail && !hasCwd) return s;              // not ours: raw tail, unchanged
+      const out = { ...s };
+      if (hasCwd) out.cwd = cwds.get(s.jobId);
+      if (!hasTail) return out;
       let tail = tails.get(s.jobId) || '';
       // The registry appends '\n[timeout]' straight into its own buffer when
       // the main-side timeout fires — it bypasses onOutput, so the parser never
@@ -70,12 +92,13 @@ function withTails(list) {
       if (raw.trimEnd().endsWith(TIMEOUT_MARK) && !tail.trimEnd().endsWith(TIMEOUT_MARK)) {
         tail = (tail + '\n' + TIMEOUT_MARK).slice(-TAIL);
       }
-      return { ...s, tail };
+      out.tail = tail;
+      return out;
     });
   } catch { return list; }
 }
 
 // test hook (house style — live.js / actions.mjs export _reset the same way)
-function _reset() { tails.clear(); }
+function _reset() { tails.clear(); cwds.clear(); }
 
-module.exports = { record, has, withTails, _reset, TAIL, MAX_JOBS };
+module.exports = { record, has, setCwd, withTails, _reset, TAIL, MAX_JOBS };
