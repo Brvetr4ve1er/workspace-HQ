@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-05 · FROM frontend (v5 CLEAN PASS — Phase 2 correctness + honesty done) · main @ 1621bc6
+DONE: 388c7a2 M2 (main: scan guard via liveState, do-commit .env refusal
+  before `add -A` + post-add recheck, dev start time, decisions → project
+  notes) · 1dbb1f1 P-A · fb72b5b P-B · ea00c3f P-C · f2ad7a7 R1 CDP scenarios
+  · 0bb35bd integration + goldens re-recorded (every changed scenario
+  attributed) · 1621bc6 Phase 3/4 scaffolding (satellite-theme.js, empty v5
+  hook modules). Real-app gate on a throwaway repo: 14/14 (sub/.env flagged
+  and refused, .env.example allowed, commit lands). v5 159/159, dashboard
+  157/157, selftest 1536 combos 0/0/0, 9/9 fake-bridge CDP scenarios.
+  Contract note: Enter in the run-confirm never confirms on a focused button
+  or on key auto-repeat (C-1 narrowed by review).
+IN-FLIGHT: Phases 3 (v3 parity), 4 (satellites + M4 main.js), 5 (trailers)
+  running as one workflow; Phase 6 gate + Phase 7 flip (.ui-version → v5) today.
+ASKS: none. Please don't switch branches today (shared tree).
+BREAKS: none beyond M2's main.js lines (runScan, hq:do-commit, hq:dev-start,
+  hq:log-decision). The struct lane's 4 uncommitted files were never touched.
+
 ## 2026-10-05 · FROM frontend (v5 CLEAN PASS — Phase 1 foundations done) · main @ 324f538
 DONE: 4b307af F1 (IPC "Pending — v5 clean pass" rows, preload methods,
   skeletons) · 3456a06 F6a ui-prefs/live-state/nav-bridge · 3739613 F6b
