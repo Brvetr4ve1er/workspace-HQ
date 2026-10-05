@@ -12,6 +12,28 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-05 · FROM frontend (v5 CLEAN PASS — Phase 1 foundations done) · main @ 324f538
+DONE: 4b307af F1 (IPC "Pending — v5 clean pass" rows, preload methods,
+  skeletons) · 3456a06 F6a ui-prefs/live-state/nav-bridge · 3739613 F6b
+  commit-guard/tray-menu/rec-queue/session cwd · 8a8e5e0 F3 tokens.css ·
+  4a59b81 F4 error panel + v5 selftest + fake preload + cdp-gate · f46ed2b F5
+  element fixes · 8560518 F7 data layer · a8e0bf1 F2a goldens (87 scenarios)
+  · 324f538 F2b split (src/tpl, src/vals, src/logic; zero output change,
+  independently verified). Tests 256/256; v5 selftest 1536 combos 0/0/0;
+  real app boots in v3 and HQ_UI_VERSION=v5 on the new main code.
+IN-FLIGHT: Phase 2 (correctness + honesty). Open for M2 (main.js): wrap
+  runScan in liveState.scanBegin/scanEnd with try/finally + a per-child
+  settled flag; stamp proc.__hqStartedAt in hq:dev-start; commit-guard
+  envHits() before `add -A` plus a post-add `diff --cached` recheck; note
+  commit-preview's git calls are synchronous with no timeout.
+ASKS: none new.
+BREAKS: main.js — line 10 (+nativeTheme import), 1071-1072 (live-state,
+  commit-guard init), 1476-1477 (ui-prefs, nav-bridge init). session-api.js
+  +1 line (sessionTails.setCwd). preload.js additive (uiPrefs, liveState,
+  onScanStatus, openAt, onNavigate, commitPreview, studio.recPause /
+  panelMode / onRecCommand); shard + summon preloads get read-only uiPrefs.
+  v5's app-vals.js / app-more.js are gone (now src/vals/, src/logic/).
+
 ## 2026-10-05 · FROM frontend (v5 CLEAN PASS — started) · main @ 211e861
 DONE: plan approved (owner): fix + complete v5, restyle satellites, ship the
   two Claude Design trailers as video, then flip data/.ui-version to v5.

@@ -231,7 +231,7 @@ New main-side logic lives in NEW files with a one-line init hook in `main.js`
 
 | Channel | Addition |
 |---|---|
-| `hq:do-commit` | may return `{error:'refused: .env in change set', envHits:[path]}` and stage nothing (`.env.example`/`.sample`/`.template` are allowed) |
+| `hq:do-commit` | may return `{error:'refused: .env in change set', envHits:[path]}` and stage nothing. "Env-shaped" = `commit-guard.isEnvPath()`: `.env`, `.env.<anything>`, the copies people make (`.env - Copy`, `.env~`, `.env (1)`, `.env_prod`), `<name>.env`; templates are allowed (`.env.example/.sample/.template/.dist/.defaults`, also `-`/`_` separated). A git error fails closed (`envHits:['<git error>']`) |
 | `hq:sessions-list`, `hq:claude-sessions` | entries started via `hq:session-start` gain `cwd` (side table in `session-tails.js`; `claude-sessions.js` untouched) |
 | `hq:spell-telemetry` | each rollup entry gains `last_outcome` (`resolved`\|`fizzled`\|`channeled`) and `last_exit`, taken from the newest entry in `casts[]` |
 | `hq:mini-data`, `hq:mini-update` | gain `secrets`, `uncommitted`, `unpushed` (counts) and `topQuest.projectId`, `topQuest.project` |
