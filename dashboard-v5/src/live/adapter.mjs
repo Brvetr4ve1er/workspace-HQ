@@ -42,13 +42,22 @@ export function devPort(cmd) {
   const m = String(cmd || '').match(/(?:^|[^\d])(\d{4,5})(?!.*\d{4,5})/);
   return m ? +m[1] : null;
 }
+// git_safety.flags are bare slugs; say them in words, unknown slugs fall back to the slug itself
+const GIT_FLAG = { 'no-commits': 'No commits yet', 'no-remote': 'No remote, so nothing is backed up', 'many-dirty': 'Many uncommitted files', 'detached-head': 'Detached HEAD (not on a branch)' };
+export function riskFlags(m) {
+  m = obj(m);
+  const sec = arr(obj(m.risk_security).flags).map(obj).filter((f) => f.type || f.detail).map((f) => ({ type: String(f.type || 'risk'), severity: String(f.severity || 'info'), detail: String(f.detail || ''), location: String(f.location || '') }));
+  const git = arr(obj(m.git_safety).flags).filter((f) => typeof f === 'string' && f).map((f) => ({ type: f, severity: 'info', detail: GIT_FLAG[f] || f.replace(/[-_]/g, ' '), location: '' }));
+  return sec.concat(git);
+}
 export function toProject(p) {
   p = obj(p);
   const m = obj(p.metrics), g = obj(m.git_safety), ch = obj(m.code_health), rs = obj(m.risk_security), t = obj(ch.tests), act = obj(p.activity);
   const hasGit = !!g.has_git;
   const secretFlag = arr(rs.flags).find((f) => /secret/i.test(String(f && f.type)));
+  const id = String(p.id || ''), name = String(p.name || p.id || '');
   return {
-    id: String(p.id || ''), name: String(p.name || p.id || ''), path: String(p.path || ''),
+    id, name, path: String(p.path || ''),
     stack: arr(p.stack).map(String),
     dirty: hasGit ? num(g.dirty) : null, ahead: num(g.ahead), behind: num(g.behind),
     secrets: num(rs.secrets_found), secretWhere: secretFlag ? String(secretFlag.location || secretFlag.detail || '') : '',
@@ -66,6 +75,14 @@ export function toProject(p) {
     reclaim: num(obj(p.disk).reclaimable_bytes), fatDirs: arr(obj(p.disk).fat_dirs).map((d) => String(obj(d).name || d)),
     insights: arr(p.insights).map((i) => ({ text: String(obj(i).text || ''), severity: String(obj(i).severity || 'info') })).filter((i) => i.text),
     roadmap: arr(p.roadmap).map((r) => ({ milestone: String(obj(r).milestone || ''), status: String(obj(r).status || ''), pct: num(obj(r).progress_pct, null), items: arr(obj(r).items).map(String) })).filter((r) => r.milestone),
+    // scan suggestions (kind is optional in the schema: '' = uncategorised)
+    suggestions: arr(p.suggestions).map(obj).filter((s) => s.text).map((s) => ({ kind: String(s.kind || ''), text: String(s.text), effort: String(s.effort || '?'), impact: String(s.impact || '?') })),
+    // every security flag (not just the first secret) + git hygiene flags as 'info'
+    riskFlags: riskFlags(m),
+    // this project's own side quests; done/dismissed drop out exactly like the global
+    // IDEAS feed (toIdea carries no done flag, so a finished one would read as open)
+    sideQuests: arr(p.side_quests).filter((s) => !obj(s).done && !obj(s).dismissed).map((s) => toIdea({ ...obj(s), project_id: obj(s).project_id || id, project_name: obj(s).project_name || name })),
+    gitRisk: ['low', 'medium', 'high'].includes(g.risk) ? g.risk : null,
   };
 }
 
@@ -77,8 +94,11 @@ export function toTask(q) {
     id, tier: ['red', 'orange', 'yellow'].includes(q.tier) ? q.tier : 'yellow', title: String(q.title || id),
     why: String(q.insight || ''), proj: q.project_id ? String(q.project_id) : null,
     age: num(q.age_days), xp: num(q.xp), commitTask: /-(commit|commit-dirty|dirty)$/.test(id),
+    inProgress: q.status === 'in_progress',
   };
 }
+// a quest is still on the board while open or in progress (schema status enum)
+const OPEN = new Set(['open', 'in_progress']);
 export function toIdea(s, projects) {
   s = obj(s);
   const proj = s.project_id ? String(s.project_id) : null;
@@ -125,7 +145,7 @@ export function snapshot(scan) {
   return {
     id: String(obj(scan.scan).id || ''), day: dayOf(obj(scan.scan).id), at: obj(scan.scan).date || null,
     P0, archived,
-    T0: arr(scan.quests).filter((q) => obj(q).status === 'open').map(toTask),
+    T0: arr(scan.quests).filter((q) => OPEN.has(obj(q).status)).map(toTask),
     doneTasks: arr(scan.quests).filter((q) => obj(q).status === 'done').map((q) => ({ ...toTask(q), completed: obj(q).completed || null })),
     IDEAS: arr(scan.side_quests).filter((s) => !obj(s).done && !obj(s).dismissed).map((s) => toIdea(s, all)),
     ACH: toMilestones(scan.achievements),
@@ -181,6 +201,7 @@ export function weeks(snaps, limit = 8) {
 // ---- Automations (spellbook + telemetry) ----------------------------------------------
 const RUNNABLE = new Set(['castable', 'chain']);
 const SOURCE_ORDER = ['grimoire', 'script', 'npm', 'task'];
+const bySourceThenName = (a, b) => (SOURCE_ORDER.indexOf(a.source) + 9) % 9 - (SOURCE_ORDER.indexOf(b.source) + 9) % 9 || a.name.localeCompare(b.name);
 export function automations(spellbook, telemetry, now = Date.now()) {
   const sb = obj(spellbook), tel = obj(telemetry), spells = arr(sb.spells);
   const lastCast = new Map();
@@ -197,7 +218,25 @@ export function automations(spellbook, telemetry, now = Date.now()) {
       steps: chain.length ? chain.map((x) => String(obj(x).name || obj(x).id || x)) : undefined,
       destructive: !!s.confirm, hash: String(s.content_hash || ''), favorite: favs.has(s.id),
     };
-  }).sort((a, b) => (SOURCE_ORDER.indexOf(a.source) + 9) % 9 - (SOURCE_ORDER.indexOf(b.source) + 9) % 9 || a.name.localeCompare(b.name));
+  }).sort(bySourceThenName);
+  // channeled spells (Claude skills/commands/agents, npm dev/start/serve) open an
+  // interactive terminal instead of running in the background — a separate list
+  // so AUTOS (and every screen built on it) stays exactly as it was. A channeled
+  // cast is logged with outcome 'channeled': the terminal opened, that is success.
+  const INTERACTIVE = spells.filter((s) => obj(s).kind === 'channeled' && !obj(s).invalid).map((s) => {
+    const c = lastCast.get(s.id), failed = c && c.outcome === 'fizzled';
+    return {
+      id: String(s.id), icon: String(s.icon || '›_'), name: String(s.name || s.id), source: String(s.source || ''),
+      kind: 'interactive', mode: 'terminal',
+      cmd: [s.command].concat(arr(s.args)).filter(Boolean).join(' '), dir: String(s.cwd || ''),
+      last: c ? { ok: !failed, ago: ago(Date.parse(c.started_at), now), err: failed ? 'exit ' + (c.exit_code ?? '?') : '' } : null,
+      desc: String(s.description || ''), cat: SCHOOL[s.school] || 'Other', hash: String(s.content_hash || ''),
+    };
+  }).sort(bySourceThenName);
+  const bySource = {};
+  for (const r of AUTOS) (bySource[r.source] = bySource[r.source] || { runnable: 0, interactive: 0 }).runnable++;
+  for (const r of INTERACTIVE) (bySource[r.source] = bySource[r.source] || { runnable: 0, interactive: 0 }).interactive++;
+  const autoCounts = { runnable: AUTOS.length, interactive: INTERACTIVE.length, bySource };
   const counts = obj(obj(sb.counts).by_source);
   const runnableBy = {}; for (const s of spells) if (RUNNABLE.has(obj(s).kind) && !obj(s).invalid) runnableBy[s.source] = (runnableBy[s.source] || 0) + 1;
   const LIB = [['Claude skills', 'skill'], ['Claude commands', 'command'], ['Plugins', 'plugin'], ['Scheduled tasks', 'task'], ['npm scripts', 'npm'], ['Scripts', 'script'], ['WorkspaceHQ', 'grimoire']];
@@ -213,13 +252,15 @@ export function automations(spellbook, telemetry, now = Date.now()) {
     const s = spells.find((x) => x.id === c.spell_id);
     return { id: String(c.cast_id), name: s ? String(s.name) : String(c.spell_id), kind: 'auto', status: c.outcome === 'resolved' ? 'ok' : c.outcome === 'channeled' ? 'opened' : 'failed', meta: (c.outcome === 'channeled' ? 'Opened in a terminal' : (c.duration_ms != null ? Math.round(c.duration_ms / 1000) + 's' : '')) + (c.outcome === 'fizzled' ? ' · exit ' + (c.exit_code ?? '?') : ''), started: fmtD(new Date(Date.parse(c.started_at))), out: [] };
   });
-  return { AUTOS, LIBRARY, SCHEDULED, RUNS, total };
+  return { AUTOS, INTERACTIVE, counts: autoCounts, LIBRARY, SCHEDULED, RUNS, total };
 }
 
 // ---- System (pc-health sidecar + inventory) -------------------------------------------------
 const ORGAN = { grace: 'ok', ember: 'warn', blood: 'bad' };
 export function machine(pcHealth) {
-  const ph = obj(pcHealth), organs = arr(ph.organs);
+  // junk entries are skipped, not fatal: ISSUES/VITALS are store getters read on every render, and a
+  // refreshMachine() payload with a null organ must not fail every render after it
+  const ph = obj(pcHealth), organs = arr(ph.organs).filter((o) => o && typeof o === 'object');
   const VITALS = organs.map((o) => [String(o.label || o.id), o.value == null ? '—' : String(o.value) + (o.unit ? ' ' + o.unit : ''), ORGAN[o.status] || 'off']);
   const ISSUES = organs.filter((o) => o.status === 'ember' || o.status === 'blood').map((o) => {
     const f = obj(arr(o.fixes)[0]);
@@ -273,12 +314,62 @@ export function captures(rows, now = new Date()) {
     return { id: String(r.path), path: String(r.path), kind: r.kind === 'rec' ? 'rec' : 'snip', name: String(r.name || ''), day, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), size: fmtBytes(r.size), thumb: typeof r.thumbDataUrl === 'string' && r.thumbDataUrl.startsWith('data:image/') ? r.thumbDataUrl : null, mtime: num(r.mtimeMs) };
   }).sort((a, b) => b.mtime - a.mtime);
 }
-export function sessions(list) {
+// Windows paths compare case-insensitively with either slash; trailing slash dropped
+export const normPath = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+const isAbsPath = (n) => /^[a-z]:(\/|$)/.test(n) || n.startsWith('/');
+// where a relative root sits in cwd as whole segments ('…/root' or '…/root/…'), else -1
+function segmentAt(c, root) {
+  for (let i = c.indexOf(root); i >= 0; i = c.indexOf(root, i + 1)) {
+    const end = i + root.length;
+    if ((i === 0 || c[i - 1] === '/') && (end === c.length || c[end] === '/')) return i;
+  }
+  return -1;
+}
+// The project whose folder is cwd or contains it. Session cwds are absolute, but
+// newer scans store project paths relative to the scan root ("project-a"), and
+// the renderer doesn't know that root: a relative path matches where its whole
+// segments appear in cwd ('…/project-a' or '…/project-a/…'), so a same-named
+// folder outside the scan root would match too. Absolute matches beat relative
+// ones; among relative matches the one closest to the drive wins
+// (…/project-b/vendor/project-a is project-b); then the deepest root wins (nested projects).
+export function projectForCwd(cwd, projects) {
+  const c = normPath(cwd);
+  if (!c) return null;
+  let best = null, rank = null;
+  for (const p of arr(projects)) {
+    const root = normPath(obj(p).path).replace(/^(\.\/)+/, '');
+    if (!root || root === '.' || root === '..' || root.startsWith('../')) continue;
+    let at;
+    if (isAbsPath(root)) at = c === root || c.startsWith(root + '/') ? 0 : -1;
+    else at = segmentAt(c, root);
+    if (at < 0) continue;
+    const r = [isAbsPath(root) ? 0 : 1, at, -root.length];   // lower is better, compared in order
+    if (!rank || (r[0] - rank[0] || r[1] - rank[1] || r[2] - rank[2]) < 0) { best = String(p.id); rank = r; }
+  }
+  return best;
+}
+// `projects` (the snapshot's P0 + archived) maps an entry's cwd to a project
+// id; an explicit projectId still wins, and without projects nothing is mapped
+export function sessions(list, projects) {
   return arr(list).map((s) => {
     const st = s.status === 'running' ? 'running' : (s.exitCode === 0 || s.status === 'done') ? 'done' : 'failed';
     const t = new Date(num(s.startedAt) || Date.parse(s.startedAt) || 0);
-    return { id: String(s.jobId), title: String(s.label || 'Claude session'), proj: s.projectId ? String(s.projectId) : null, status: st, started: String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'), tail: String(s.tail || '').split('\n').filter(Boolean).slice(-40) };
+    const proj = s.projectId ? String(s.projectId) : projectForCwd(s.cwd, projects);
+    return { id: String(s.jobId), title: String(s.label || 'Claude session'), proj, cwd: s.cwd ? String(s.cwd) : null, status: st, started: String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'), tail: String(s.tail || '').split('\n').filter(Boolean).slice(-40) };
   });
+}
+
+// absolute path → file:// URL for <img>/<video> src: each segment
+// percent-encoded (spaces, #, ?, %), drive letter kept raw ("C:" not "C%3A"),
+// UNC \\host\share → file://host/share. A relative path has no file URL → ''.
+export function fileUrl(absPath) {
+  const p = String(absPath || '').replace(/\\/g, '/');
+  const enc = (segs) => segs.filter(Boolean).map(encodeURIComponent).join('/');
+  if (/^\/\/[^/]/.test(p)) { const [host, ...rest] = p.slice(2).split('/'); return 'file://' + encodeURIComponent(host) + '/' + enc(rest); }
+  const drive = /^([A-Za-z]:)(\/|$)/.exec(p);
+  if (drive) return 'file:///' + drive[1] + '/' + enc(p.slice(2).split('/'));
+  if (p.startsWith('/')) return 'file:///' + enc(p.split('/'));
+  return '';
 }
 export function social(payload) {
   const p = obj(payload), accounts = arr(obj(p.accounts).accounts);
