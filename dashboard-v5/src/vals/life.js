@@ -8,7 +8,7 @@ export function lifeVals(ctx) {
   const siteMins = this.sum(H.SITES, (s) => s[1]), otherMins = this.sum(H.SITES.filter((s) => s[2] !== 'Project'), (s) => s[1]);
   const lifeRanges = [['window', 'Last 3 days']].map(([id, l]) => ({ label: l, go: () => this.setState({ lifeRange: id }), style: tabStyle(true) }));
   const posts = H.POSTS.map((p) => ({ handle: p.handle, text: p.text, where: p.where, staged: p.staged, open: () => this.toast('info', 'Approve & send happens in the browser extension popup'), skip: () => this.notWired('Discarding a staged post from here') }));
-  const vaults = H.VAULTS.map((vv) => ({ name: vv.name, active: vv.active, stale: vv.stale, total: vv.total, aw: Math.round(vv.active / vv.total * 100), sw: Math.round(vv.stale / vv.total * 100), sync: vv.sync, open: () => this.notWired('Opening Obsidian from here'), search: () => this.notWired('Vault search from here') }));
+  const vaults = H.VAULTS.map((vv) => ({ name: vv.name, active: vv.active, stale: vv.stale, total: vv.total, aw: vv.total ? Math.round(vv.active / vv.total * 100) : 0, sw: vv.total ? Math.round(vv.stale / vv.total * 100) : 0, sync: vv.sync, open: () => this.notWired('Opening Obsidian from here'), search: () => this.notWired('Vault search from here') }));
   return {
     isScreen: sub === 'screen', isSocial: sub === 'social', isNotes: sub === 'notes', sites, hasSites: sites.length > 0, noSites: sites.length === 0, lifeRanges,
     screenTotal: Math.floor(siteMins / 60) + 'h ' + (siteMins % 60) + 'm', screenShare: siteMins ? Math.round(otherMins / siteMins * 100) + '%' : '—', screenShareLabel: 'on sites not linked to a project',

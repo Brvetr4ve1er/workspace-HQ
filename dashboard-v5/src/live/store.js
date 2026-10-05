@@ -89,7 +89,7 @@ export function createStore(DATA, hq) {
   // one cast row; name/icon from the event, else the catalog, else the spell id
   function castRow(d, t0) {
     const s = spellRow.get(d.spellId) || {};
-    return { castId: d.castId, spellId: d.spellId, name: d.name || s.name || d.spellId, icon: d.icon || s.icon || '▶', out: [], status: 'running', t0: t0 || Date.now() };
+    return { castId: d.castId, spellId: d.spellId, name: d.name || s.name || d.spellId, icon: d.icon || s.icon || '▶', chainId: d.chainId || null, chain: !!d.chain, out: [], status: 'running', t0: t0 || Date.now() };
   }
 
   function refreshCaptures() {
@@ -115,7 +115,7 @@ export function createStore(DATA, hq) {
   function hydrate(s) {
     if (!isObj(s)) return;
     const dev = {};
-    for (const d of arr(s.dev)) if (d && d.id) dev[d.id] = { since: msOf(d.since) || Date.now() };   // unknown start → "running since this load"
+    for (const d of arr(s.dev)) if (d && d.id) dev[d.id] = { since: msOf(d.since) || null };   // unknown start (pre-M2 main) stays unknown — the row says 'running', not a made-up time
     live.dev = { ...dev, ...live.dev };                                                          // a dev-status push already received is newer
     for (const c of arr(s.casts)) if (c && c.castId && !live.casts[c.castId]) live.casts[c.castId] = castRow(c, msOf(c.startedAt));   // output already streaming in wins
     if (!scanPushed && isObj(s.scan)) live.scan = s.scan;

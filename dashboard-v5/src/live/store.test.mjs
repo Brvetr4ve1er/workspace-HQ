@@ -102,8 +102,8 @@ test('start() hydrates dev servers, casts and scan from liveState()', async () =
   assert.deepEqual(Object.keys(L.dev).sort(), ['a', 'b', 'c']);
   assert.equal(L.dev.a.since, 1_700_000_000_000);
   assert.equal(L.dev.c.since, Date.parse('2026-10-03T08:00:00Z'));
-  assert.ok(L.dev.b.since >= t, 'an unknown start time never renders as 1970');
-  assert.deepEqual(L.casts.k1, { castId: 'k1', spellId: 'grimoire:scan', name: 'Deep scan (main)', icon: '◉', out: [], status: 'running', t0: Date.parse('2026-10-03T09:00:00Z') });
+  assert.equal(L.dev.b.since, null, 'an unknown start time stays unknown (never 1970, never the load time)');
+  assert.deepEqual(L.casts.k1, { castId: 'k1', spellId: 'grimoire:scan', name: 'Deep scan (main)', icon: '◉', chainId: null, chain: false, out: [], status: 'running', t0: Date.parse('2026-10-03T09:00:00Z') });
   assert.equal(L.casts.k2.name, 'Review', 'name from the INTERACTIVE catalog');
   assert.equal(L.casts.k2.icon, '›_');
   assert.ok(L.casts.k2.t0 >= t, 'unparseable startedAt → now');

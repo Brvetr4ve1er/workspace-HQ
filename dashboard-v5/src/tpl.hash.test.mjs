@@ -10,10 +10,12 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import tpl from './app.tpl.js';
 
-// recorded 2026-10-05 from the default export of src/app.tpl.js @ 8560518
-const SHA256 = '8cab167c79b208f0dd911fb052aa7c1a1df36ee1700b84fac5e879b7805d984f';
-const LENGTH = 173225;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 173526;    // Buffer.byteLength(tpl, 'utf8')
+// recorded 2026-10-05 from the default export of src/app.tpl.js @ 8560518;
+// re-recorded 2026-10-05 for the Phase 2 clean-pass template changes (14 fragments,
+// each marked with <!-- v5: reason -->; see the Phase 2 commits)
+const SHA256 = '5239ad0929bb4e07da4ec8a4e6e28b64936c3f97ad933496c15c0ba22cb9717a';
+const LENGTH = 176610;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 176902;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

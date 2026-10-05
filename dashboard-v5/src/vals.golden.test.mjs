@@ -282,10 +282,11 @@ add('overlay.ask', { state: { askOpen: true, askDraft: 'a draft question', askHi
   { q: 'Any exposed secrets?', id: 'a2', a: { text: '', src: [], est: false, status: 'thinking' } },
   { q: 'Old question', id: 'a3', a: { text: 'The local model runtime isn’t running.', src: [], est: false, refusal: true, status: 'done' } },
 ] } });
-add('overlay.runs', { state: { runsOpen: true, expandedRun: 'c2', localRuns: [
-  { id: 'scan', kind: 'scan', name: 'Full scan', status: 'running', meta: 'run-pipeline.ps1', started: '10:00', out: [] },
+// Phase 2 C2: the scan row comes from main's live scan state (hq:live-state / hq:scan-status), not a localRuns entry
+add('overlay.runs', { live: (L) => { L.scan = { state: 'running', startedAt: Date.parse('2026-10-05T10:00:00Z'), endedAt: null, code: null }; }, state: { runsOpen: true, expandedRun: 'c2', localRuns: [
   { id: 't1', name: 'Review', status: 'opened', meta: 'Terminal opened · claude /review', started: '09:50', out: ['Opened in an external terminal; output stays there.'] },
 ] } });
+add('overlay.runs-scan-failed', { live: (L) => { L.scan = { state: 'failed', startedAt: Date.parse('2026-10-05T10:00:00Z'), endedAt: Date.parse('2026-10-05T10:04:00Z'), code: 1 }; }, state: { runsOpen: true } });
 add('overlay.runs-notes', { state: { runsOpen: true, actTab: 'notes', notifLog: [{ text: 'Committed 3 files', kind: 'success', at: '09:59' }, { text: 'Run failed', kind: 'error', at: '09:40' }] } });
 add('overlay.scrub-compare', { state: { scrubOpen: true, compareOff: 2 } });
 add('overlay.settings', { state: { settingsOpen: true } });
@@ -298,7 +299,7 @@ add('overlay.confirm-chain', { state: { tab: 'automations', confirm: 'grimoire:m
 add('overlay.commit', { state: { commitSel: 1, commit: { pid: 'a', loading: false, msg: 'feat: placeholder change', drafted: 'Drafted by the local model · edit before committing',
   files: [{ name: 'src/app.js', st: 'mod', on: true }, { name: 'notes/new-file.md', st: 'new', on: true }, { name: 'old/removed.txt', st: 'del', on: true }],
   stat: ' src/app.js | 4 ++--\n notes/new-file.md | 10 ++++++++++\n old/removed.txt | 3 ---\n 3 files changed, 12 insertions(+), 5 deletions(-)' } } });
-add('overlay.commit-env', { state: { commitSel: 5, commit: { pid: 'c', loading: false, msg: '', drafted: 'No draft · write the message yourself', stat: '', files: [{ name: '.env', st: 'new', on: true }, { name: 'config/.env.local', st: 'mod', on: true }] } } });
+add('overlay.commit-env', { state: { commitSel: 5, commit: { pid: 'c', loading: false, msg: '', drafted: 'No draft · write the message yourself', stat: '', files: [{ name: '.env', status: '??', st: 'new', env: true, on: true }, { name: 'config/.env.local', status: 'M', st: 'mod', env: true, on: true }, { name: 'src/app.js', status: 'M', st: 'mod', env: false, on: true }], envHits: ['.env', 'config/.env.local'], branch: 'main', error: '', busy: false } } });
 add('overlay.commit-loading', { state: { commitSel: 0, commit: { pid: 'c', files: [], stat: '', loading: true, msg: '', drafted: 'Drafting with the local model…' } } });
 add('overlay.sheet-danger', { state: { sheet: { act: 'archive', id: 'a', title: 'Archive Project A?', body: 'It leaves counts, tasks and the map.', ok: 'Archive', danger: true } } });
 add('overlay.sheet-safe', { state: { sheet: { act: 'fix', cmd: 'cleanmgr', fixTitle: 'Clean temp files', title: 'Clean temp files?', body: 'Runs this PowerShell command now:\n\ncleanmgr', ok: 'Run fix', danger: false } } });

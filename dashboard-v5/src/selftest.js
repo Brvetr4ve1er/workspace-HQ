@@ -11,7 +11,7 @@
 // those storage keys are snapshotted first and put back at the end.
 import { NAV, SUBS } from './live/catalog.mjs';
 
-const LOCAL_KEYS = ['whq3-prefs', 'hq-theme'], SESSION_KEYS = ['whq3-place'];
+const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, lightbox: null, pageMore: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);

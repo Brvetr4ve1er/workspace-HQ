@@ -278,7 +278,7 @@ export function clutter(inventory) {
   return out;
 }
 export function vaults(inventory) {
-  return arr(obj(inventory).vaults).map((v) => ({ name: String(v.name), active: num(v.recent7), stale: num(v.stale90), total: Math.max(1, num(v.notes)), sync: String(v.role || '') }));
+  return arr(obj(inventory).vaults).map((v) => ({ name: String(v.name), active: num(v.recent7), stale: num(v.stale90), total: num(v.notes), sync: String(v.role || '') }));
 }
 
 // ---- Life › Screen time (browser block; absent on older scans) ---------------------------------
