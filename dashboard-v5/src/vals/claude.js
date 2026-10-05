@@ -15,10 +15,21 @@ export function claudeVals(ctx) {
     term: () => this.sessionTerminal(selS.id) } : null;
   const composerProjs = projects.map((p) => ({ label: p.name, go: () => this.setState({ composerProj: p.id }), style: Object.assign(tabStyle(S.composerProj === p.id), { height: 28, padding: '0 8px', fontSize: 12 }) }));
   const TONE = { orange: 'var(--orange)', gold: 'var(--gold)', blue: 'var(--blue)', green: 'var(--green)' };
-  const canvas = H.CANVAS.map((w) => ({ title: w.title, isStat: w.type === 'stat', isList: w.type === 'list', isNote: w.type === 'note', value: w.value, note: w.note || 'board · ' + w.board, items: w.items || [], body: w.body, color: TONE[w.tone], span: w.wide ? 'span 2' : 'span 1', pin: () => this.notWired('Pinning canvas cards to Home'), remove: () => this.notWired('Removing canvas cards (boards are append-only for now)') }));
+  // board: which board the card is on (a note added with ＋ Note and one Claude pinned look the same on disk)
+  const canvas = H.CANVAS.map((w) => ({ title: w.title, board: w.board, isStat: w.type === 'stat', isList: w.type === 'list', isNote: w.type === 'note', value: w.value, note: w.note || 'board · ' + w.board, items: w.items || [], body: w.body, color: TONE[w.tone], span: w.wide ? 'span 2' : 'span 1', pin: () => this.notWired('Pinning canvas cards to Home'), remove: () => this.notWired('Removing canvas cards (boards are append-only for now)') }));
+  // ＋ Note (Phase 3 P5): board picker + text → hq.canvasAdd (logic/claude.js)
+  const boardNames = this.canvasBoardNames(), board = this.canvasBoardPick(), noteWhy = this.canvasNoteReason();
+  const draft = typeof S.canvasDraft === 'string' ? S.canvasDraft : '';
+  const canvasBoardChips = boardNames.map((name) => ({ label: name, pressed: name === board ? 'true' : 'false', go: () => this.setState({ canvasBoard: name }), style: Object.assign(tabStyle(name === board), { height: 28, padding: '0 8px', fontSize: 12 }) }));
+  const noteOpen = !!S.canvasNoteOpen && !noteWhy;
   return {
     isSessions: sub === 'sessions', isCanvas: sub === 'canvas', sessions, hasSessions: sessions.length > 0, sessionDetail: sessionDetail || {}, hasDetail: !!sessionDetail, composer: S.composer, onComposer: (e) => this.setState({ composer: e.target.value }), startSession: () => this.startSession(), composerProjs, canvas, hasCanvas: canvas.length > 0, noCanvas: canvas.length === 0,
     // Run needs a project picked (sendClaude clears it for a task without one)
     cantStartSession: cantWrite || !this.proj(S.composerProj),
+    toggleCanvasNote: () => this.toggleCanvasNote(), cantCanvasNote: !!noteWhy, canvasNoteTip: noteWhy || 'Add a text note to one of your canvas boards',
+    canvasNoteOpen: noteOpen, canvasNoteExpanded: noteOpen ? 'true' : 'false', canvasBoardChips,
+    canvasDraft: draft, onCanvasDraft: (e) => this.setState({ canvasDraft: e.target.value }), canvasDraftKey: (e) => this.canvasDraftKey(e), addCanvasNote: () => this.addCanvasNote(),
+    cantAddNote: !!noteWhy || !!S.canvasSaving || !draft.trim(), canvasAddLabel: S.canvasSaving ? 'Adding…' : 'Add',
+    canvasEmptyText: boardNames.length ? 'Canvas is empty. Add a note with ＋ Note, or ask Claude to “add this to my canvas” during a session.' : 'Canvas is empty. Ask Claude to “add this to my canvas” during a session; ＋ Note works once a board exists.',
   };
 }
