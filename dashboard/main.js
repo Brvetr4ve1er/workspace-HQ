@@ -414,14 +414,24 @@ function watchQuestBoard() {
 }
 
 function runScan() {
+  // v5 clean pass: one pipeline at a time, and the scan state (hq:live-state /
+  // hq:scan-status) is settled exactly once per child, BEFORE the reload, so a
+  // reloaded window sees 'done'/'failed' instead of a scan that never ends.
+  if (!liveState.scanBegin()) return false;
+  let settled = false;
+  const end = (code, err) => { if (settled) return; settled = true; try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
   if (win) win.setTitle('WorkspaceHQ — scanning…');
-  const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PIPELINE], { windowsHide: true });
-  ps.on('error', (err) => { if (win && !win.isDestroyed()) win.setTitle('WorkspaceHQ'); try { dialog.showErrorBox('Scan failed to start', String(err.message || err)); } catch {} });
+  let ps;
+  try { ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PIPELINE], { windowsHide: true }); }
+  catch (err) { end(-1, err); if (win && !win.isDestroyed()) win.setTitle('WorkspaceHQ'); return false; }
+  ps.on('error', (err) => { end(-1, err); if (win && !win.isDestroyed()) win.setTitle('WorkspaceHQ'); try { dialog.showErrorBox('Scan failed to start', String(err.message || err)); } catch {} });
   ps.on('close', (code) => {
+    end(code);
     if (win) win.setTitle('WorkspaceHQ');
     if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); pushMini(); }
     else if (win) dialog.showErrorBox('Scan failed', `Pipeline exited ${code}. See workspace hq/logs.`);
   });
+  return true;
 }
 
 // IPC
@@ -864,8 +874,20 @@ function runNodeAsync(script, args = []) {
 ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return false;
+  // v5 clean pass: `add -A` stages everything, so refuse a change set holding an
+  // .env-style file (listed file by file, fails closed — commit-guard.js) …
+  const before = commitGuard.envHits(cwd);
+  if (before.length) return { error: 'refused: .env in change set', envHits: before };
   const a = spawnSync('git', ['-C', cwd, 'add', '-A'], { encoding: 'utf8' });
   if (a.status !== 0) return { error: 'add failed' };
+  // … and re-check what actually got staged (a file can appear between the check
+  // and the add); unstage any hit and refuse rather than commit it.
+  const staged = spawnSync('git', ['-C', cwd, '-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z'], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+  const after = staged.status === 0 ? String(staged.stdout || '').split('\0').filter((p) => p && commitGuard.isEnvPath(p)) : ['<git error>'];
+  if (after.length) {
+    if (staged.status === 0) spawnSync('git', ['-C', cwd, 'reset', '-q', '--', ...after], { encoding: 'utf8' });
+    return { error: 'refused: .env in change set', envHits: after };
+  }
   const c = spawnSync('git', ['-C', cwd, 'commit', '-m', String(message || 'wip')], { encoding: 'utf8' });
   if (c.status !== 0) return { error: (c.stderr || c.stdout || '').slice(0, 300) };
   // MA: the post-commit rescan runs async — the commit returns immediately
@@ -899,6 +921,16 @@ ipcMain.handle('hq:log-decision', (_e, projId, text) => {
   const stamp = new Date().toISOString().slice(0, 10);
   const block = `\n> [!decision] ${stamp}\n> ${String(text).replace(/\n/g, '\n> ')}\n`;
   fs.appendFileSync(file, block);
+  // v5 clean pass: also keep it in project-notes.json (kind:'decision') so the
+  // project journal can show it — the vault note alone is invisible to the app.
+  // Not mirrored again: the vault already has the [!decision] block above.
+  try {
+    const notesFile = path.join(DATA, 'project-notes.json');
+    const notes = readJsonStore(notesFile, () => ({}), isPlainObj);
+    if (!Array.isArray(notes[projId])) notes[projId] = [];
+    notes[projId].push({ id: Date.now().toString(), date: new Date().toISOString(), text: String(text), completed: false, kind: 'decision' });
+    fs.writeFileSync(notesFile, JSON.stringify(notes, null, 2));
+  } catch (e) { console.error('decision → project-notes failed:', e); }
   return true;
 });
 
@@ -1069,7 +1101,7 @@ claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessionT
 ipcMain.handle('hq:sessions-list', () => sessionTails.withTails(claudeSessions.list()));
 require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
 const liveState = require('./live-state').init({ ipcMain, send: castSend, devServers: activeDevServers, casts: castRegistry, readSpellbook });   // v5 clean pass: hq:live-state
-require('./commit-guard').init({ ipcMain, resolveProjectPath });   // v5 clean pass: hq:commit-preview
+const commitGuard = require('./commit-guard'); commitGuard.init({ ipcMain, resolveProjectPath });   // v5 clean pass: hq:commit-preview + the do-commit .env guard
 
 // ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
 // fs-watched so both the Warden and the Familiar (via the MCP server writing
@@ -1387,6 +1419,7 @@ ipcMain.handle('hq:dev-start', (_e, id) => {
 
     // dev_cmd may contain quoted paths / spaces; spawn with shell:true and pass it whole.
     const proc = spawn(prod.dev_cmd, { cwd, shell: true });
+    proc.__hqStartedAt = Date.now();   // hq:live-state reports it, so a reloaded window knows how long it has run
     activeDevServers.set(id, proc);
 
     proc.on('close', (code) => {
