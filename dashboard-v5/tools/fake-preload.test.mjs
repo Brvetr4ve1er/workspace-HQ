@@ -87,3 +87,26 @@ test('llm.chat streams accumulated deltas to llm.onDelta, then resolves; cancel 
   off();
   control.reset(true);
 });
+
+test('set(…, {persist:true}) answers on the next load of the tab; reset(true) forgets it', async () => {
+  const m = new Map();
+  const storage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } };
+  const first = createFake({ storage });
+  const boot = { dev: [{ id: 'proj-a', since: '2026-10-05T09:30:00.000Z' }], casts: [], scan: { state: 'failed', code: 1 } };
+  first.control.set('liveState', boot, { persist: true });
+  assert.deepEqual(await first.hq.liveState(), boot);
+  assert.throws(() => first.control.set('liveState', () => boot, { persist: true }), /JSON/);
+  assert.throws(() => createFake().control.set('liveState', boot, { persist: true }), /storage/);
+
+  const reloaded = createFake({ storage });   // the preload runs again on reload
+  assert.deepEqual(await reloaded.hq.liveState(), boot);
+  assert.deepEqual(await reloaded.hq.uiPrefs.get(), { theme: 'dark', resolved: 'dark', reduceMotion: false }, 'only the persisted method changed');
+
+  reloaded.control.reset(true);
+  assert.equal(m.size, 0, 'reset(true) clears the persisted values');
+  assert.deepEqual(await createFake({ storage }).hq.liveState(), { dev: [], casts: [], scan: { state: 'idle' } });
+  // a plain set() never outlives the page
+  const plain = createFake({ storage });
+  plain.control.set('liveState', boot);
+  assert.deepEqual(await createFake({ storage }).hq.liveState(), { dev: [], casts: [], scan: { state: 'idle' } });
+});

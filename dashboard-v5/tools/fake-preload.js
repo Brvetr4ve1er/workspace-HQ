@@ -15,6 +15,9 @@
 //   emit(channel, data)   push to that channel's subscribers; returns how many were called
 //   set(method, value)    from now on that method returns `value` (copied); a function is called with the args;
 //                         {__reject:'msg'} rejects; undefined restores the default
+//   set(method, value, {persist:true})   also keeps a JSON value for the NEXT page loads of this tab
+//                         (sessionStorage 'hqFake:persist'): the preload re-runs on every reload, so this is
+//                         how a scenario makes e.g. liveState answer something at boot. reset(true) clears it.
 // }
 // Canned specials: castSpell asks for confirmation on its first call
 // ({confirm_required, preview:{content_hash:'fake-hash-2'}}) and then returns {castId:'c-fake'};
@@ -23,11 +26,16 @@
 
 const WRITE = 'write', SEND = 'send';
 
-function createFake() {
+// storage (optional): a Web Storage for set(…, {persist:true}); the Electron branch passes sessionStorage
+function createFake(opts) {
+  const storage = opts && opts.storage ? opts.storage : null;
+  const PERSIST_KEY = 'hqFake:persist';
   const log = [];
   const subs = new Map();        // channel → Set(callback)
   const alias = new Map();       // method path → channel
   const overrides = new Map();   // method path → value
+  const readPersisted = () => { try { const o = JSON.parse((storage && storage.getItem(PERSIST_KEY)) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } };
+  const writePersisted = (o) => { try { if (Object.keys(o).length) storage.setItem(PERSIST_KEY, JSON.stringify(o)); else storage.removeItem(PERSIST_KEY); } catch {} };
   const chats = new Map();       // jobId → {timers, resolve}
   const DEFAULT_PREFS = { theme: 'dark', resolved: 'dark', reduceMotion: false };
   let prefs = { ...DEFAULT_PREFS }, casts = 0;
@@ -163,16 +171,22 @@ function createFake() {
     reset: (all) => {
       log.length = 0; casts = 0;
       for (const id of [...chats.keys()]) cancelChat(id);
-      if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; }
+      if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }
       return true;
     },
     emit: (channel, payload) => push(alias.get(channel) || channel, payload),
-    set: (method, value) => {
+    set: (method, value, o) => {
       if (!SPEC.some(([m]) => m === method)) throw new Error('hqFake.set: no such method ' + method);
+      const persist = !!(o && o.persist);
+      if (persist && !storage) throw new Error('hqFake.set: nowhere to persist (no storage)');
+      if (persist && typeof value === 'function') throw new Error('hqFake.set: only JSON values persist across reloads');
       if (value === undefined) overrides.delete(method); else overrides.set(method, value);
+      if (persist) { const p = readPersisted(); if (value === undefined) delete p[method]; else p[method] = JSON.parse(JSON.stringify(value)); writePersisted(p); }
       return true;
     },
   };
+  // a value persisted by an earlier load of this tab answers from the start (before boot.js reads it)
+  for (const [m, v] of Object.entries(readPersisted())) if (SPEC.some(([k]) => k === m)) overrides.set(m, v);
   return { hq, control, methods: SPEC.map(([m]) => m) };
 }
 
@@ -181,7 +195,9 @@ function createFake() {
 let electron = null;
 try { electron = require('electron'); } catch {}
 if (electron && typeof electron === 'object' && electron.contextBridge) {
-  const fake = createFake();
+  let storage = null;
+  try { storage = window.sessionStorage; } catch {}   // per tab, survives Page.reload (set(…, {persist:true}))
+  const fake = createFake({ storage });
   electron.contextBridge.exposeInMainWorld('hq', fake.hq);
   electron.contextBridge.exposeInMainWorld('hqFake', fake.control);
 }
