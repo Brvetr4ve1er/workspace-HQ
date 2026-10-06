@@ -101,8 +101,17 @@ See `honesty-patch.mjs` for the full, commented list. It writes `out/honesty-man
 - The line-by-line diff becomes **changed files + `--stat`**, which is what the commit sheet shows.
   It keeps the same 9 rows, so the beats don't move. Its note says "no .env file in the change set":
   the commit guard refuses `.env` files, it doesn't scan contents for keys.
-- The Since-scan rows drop what a scan doesn't know: CI builds, test runs and git tags
-  ("tagged v1.0.0" becomes **gained a remote**, a change the scan does report).
+- The Since-scan rows become changes the scan really reports (`changes_since_prev` in
+  `collector/assemble.mjs`): **pushed (was 3 ahead)**, **build recovered**, **gained a remote**,
+  **added** and a completed quest's title. Out go CI builds, test runs, git tags and per-project health
+  (only the account has a health score), and the rows lose their "5h ago" times, since a change has
+  no time of its own. Every row is a good-news row, because the scan only reports good or neutral
+  changes. There are still 5 rows, so the beats don't move.
+- "welcome back · you were gone 14h 22m" becomes **since the last scan · Oct 5, 08:40**, the label
+  the app uses, because nothing tracks time away. The caption "everything that moved while you were
+  away" becomes "what changed since the last scan".
+- The Next card's "health 86 → 91" after the commit is dropped. It now shows the line count and the
+  file count.
 - `hq …` CLI commands (there is no `hq` CLI) become UI destinations and keys: **Ctrl+Alt+G**,
   **⟳ Scan now**, Next action, Map, …
 - The outro label is set by `--outro`.
@@ -123,8 +132,11 @@ See `honesty-patch.mjs` for the full, commented list. It writes `out/honesty-man
 ## Tests
 
 `node --test tools/trailer/*.test.mjs` covers the exact-once patching, the outro default, the
-denylist rules, the static server's path containment and the encode budget/duration math. No
-Electron, ffmpeg or design export needed.
+denylist rules, the wording a patched trailer must never contain, the Since-scan rows against the
+scan's change types, the static server's path containment and the encode budget/duration math. No
+Electron, ffmpeg or design export needed. With `HQ_TRAILER_SRC` set, one more test applies the whole
+patch list to the design export in memory, so a patch that no longer matches fails there and not
+halfway into a render.
 
 ## How frames stay deterministic
 

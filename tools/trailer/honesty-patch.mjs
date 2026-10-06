@@ -47,6 +47,12 @@ const EDITMODE_FROM = '/*EDITMODE-BEGIN*/{"motionEditor":true,"scanlines":true,"
 // (the soundtrack is muxed afterwards from the WAV Design exports).
 const EDITMODE_TO = '/*EDITMODE-BEGIN*/{"motionEditor":false,"scanlines":true,"sound":false}/*EDITMODE-END*/';
 
+// Trailer 2's Since-scan rows: [status, project, change, ago]. See t2.since-rows.
+export const SINCE_ROWS = "const SINCE = [['ok', 'atlas-api', 'pushed (was 3 ahead)', ''], ['ok', 'ledger', 'build recovered', ''], ['ok', 'notes-cli', 'gained a remote', ''], ['ok', 'sketchbook', 'added', ''], ['ok', 'dotfiles', 'Commit dotfiles working tree (4 files)', '']];";
+
+// Wording a patched trailer must never contain: things WorkspaceHQ cannot show.
+export const FORBIDDEN = /sk_live_|vault:\/\/|history scrubbed|rotated → vault|you were gone|while you were away|health \d+ → \d+|health dropped|back to clean|tests back to green|build failed on main|tagged v\d/;
+
 /** The patch list. find: exact string or a RegExp with ONE capture group (the part to replace). */
 export function patchList({ outro = DEFAULT_OUTRO } = {}) {
   const P = [];
@@ -75,9 +81,21 @@ export function patchList({ outro = DEFAULT_OUTRO } = {}) {
   add('t2.repo7-name', 'hq-trailer2.jsx', /const REPOS = \[(?:\['[^']*', '[^']*', '[^']*'\], ){7}\['([^']+)'/, 'project-b', 'real project name → placeholder');
   add('t2.city0-name', 'hq-trailer2.jsx', /const CITY = \[\['([^']+)'/, 'project-a', 'real project name → placeholder');
   add('t2.city6-name', 'hq-trailer2.jsx', /const CITY = \[(?:\[[^\]]*\], ){6}\['([^']+)'/, 'project-b', 'real project name → placeholder');
-  add('t2.since-build', 'hq-trailer2.jsx', "'build failed on main'", "'health dropped 91 → 78'", 'the scan does not read CI builds');
-  add('t2.since-tests', 'hq-trailer2.jsx', "'tests back to green'", "'back to clean'", 'the scan does not run tests');
-  add('t2.since-tag', 'hq-trailer2.jsx', "'tagged v1.0.0'", "'gained a remote'", 'the scan does not read git tags; "gained a remote" is a real since-scan change (first_remote)');
+  // Since scan: every row is a change the scan really emits (collector/assemble.mjs
+  // changes_since_prev: git_pushed, build_flip, first_remote, new_project, quest_completed),
+  // worded like its `detail`. All of them are positive or neutral, so every row is 'ok'.
+  // Changes carry no time of their own, so the per-row "ago" column stays empty. Same 5
+  // rows as the design, so the pop cues (one per row) still line up.
+  add('t2.since-rows', 'hq-trailer2.jsx', /(const SINCE = \[.*\];)/, SINCE_ROWS,
+    'CI builds, test runs, git tags, per-project health and per-row times are not things a scan reports → real change types');
+  add('t2.since-head', 'hq-trailer2.jsx',
+    'welcome back · <span style={{ color: C.text }}>you were gone 14h 22m</span>',
+    'since the last scan · <span style={{ color: C.text }}>Oct 5, 08:40</span>',
+    'nothing tracks time away; the app labels the digest "since the last scan · <date>"');
+  add('t2.since-desc', 'hq-trailer2.jsx', "d: 'A digest of everything that moved while you were away.'", "d: 'A digest of what changed since the last scan.'",
+    'the digest is scan-to-scan, not since your last visit');
+  add('t2.next-done', 'hq-trailer2.jsx', "'+214 −38 · health 86 → 91'", "'+214 −38 · 3 files'",
+    'projects have no health score of their own (health is account-wide)');
   add('t2.secret-line', 'hq-trailer2.jsx',
     "fixed ? 'STRIPE_KEY=vault://stripe/live' : 'STRIPE_KEY=sk_live_51Hx••••••••••••••••'",
     "fixed ? 'PAYMENT_KEY=•••••••••••••••• # flagged' : 'PAYMENT_KEY=live-key-in-plain-text'",
@@ -168,6 +186,27 @@ export function denylistHits(text, names) {
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
+/**
+ * Patch the work-copy texts in place ({ 'hq-trailer2.jsx': '…', … }) and check the result:
+ * no local project name, no wording WorkspaceHQ cannot back. Throws on any failure.
+ * Pure (no file I/O), so the tests can run it against a design export in memory.
+ */
+export function patchAll(text, { outro = DEFAULT_OUTRO, names = [] } = {}) {
+  const before = new Set(CONTENT_FILES.flatMap((f) => denylistHits(text[f], names)));
+  const applied = [];
+  for (const p of patchList({ outro })) {
+    text[p.file] = applyPatch(text[p.file], p);
+    applied.push({ id: p.id, file: p.file, matches: 1, why: p.why });
+  }
+  const after = CONTENT_FILES.flatMap((f) => denylistHits(text[f], names).map((h) => f + ': ' + h));
+  if (after.length) throw new Error('honesty-patch: content still matches local project names → ' + after.join('; ') + ' — add a positional patch for it');
+  for (const f of ['hq-trailer.jsx', 'hq-trailer2.jsx']) {
+    const m = FORBIDDEN.exec(text[f]);
+    if (m) throw new Error('honesty-patch: wording WorkspaceHQ cannot back survived in ' + f + ': "' + m[0] + '"');
+  }
+  return { before, applied };
+}
+
 /** Copy + patch + check. Returns the manifest (also written to out/honesty-manifest.json). */
 export function run({ src, outro = DEFAULT_OUTRO, site = WORK_SITE, outDir = OUT_DIR, repo = REPO, log = console.log } = {}) {
   if (!src) throw new Error('honesty-patch: --src <design export dir> is required');
@@ -183,19 +222,7 @@ export function run({ src, outro = DEFAULT_OUTRO, site = WORK_SITE, outDir = OUT
     text[to] = buf.toString('utf8');
   }
   const names = loadDenylist(repo);
-  const before = new Set(CONTENT_FILES.flatMap((f) => denylistHits(text[f], names)));
-
-  const patches = patchList({ outro });
-  const applied = [];
-  for (const p of patches) {
-    text[p.file] = applyPatch(text[p.file], p);
-    applied.push({ id: p.id, file: p.file, matches: 1, why: p.why });
-  }
-  const after = CONTENT_FILES.flatMap((f) => denylistHits(text[f], names).map((h) => f + ': ' + h));
-  if (after.length) throw new Error('honesty-patch: content still matches local project names → ' + after.join('; ') + ' — add a positional patch for it');
-  for (const f of ['hq-trailer.jsx', 'hq-trailer2.jsx']) {
-    if (/sk_live_|vault:\/\/|history scrubbed|rotated → vault/.test(text[f])) throw new Error('honesty-patch: secret/vault wording survived in ' + f);
-  }
+  const { before, applied } = patchAll(text, { outro, names });
 
   // fresh work copy (only ever our own .work/site folder)
   if (path.basename(site) !== 'site' || !site.includes(path.join('trailer', '.work'))) throw new Error('honesty-patch: refusing to clear unexpected dir ' + site);

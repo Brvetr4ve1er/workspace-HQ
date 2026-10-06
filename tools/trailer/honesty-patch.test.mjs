@@ -1,9 +1,13 @@
 // node --test tools/trailer/honesty-patch.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyPatch, checkOutro, denylistHits, patchList, DEFAULT_OUTRO, FILES, CONTENT_FILES } from './honesty-patch.mjs';
+import { applyPatch, checkOutro, denylistHits, loadDenylist, patchAll, patchList, DEFAULT_OUTRO, FILES, CONTENT_FILES, FORBIDDEN, SINCE_ROWS } from './honesty-patch.mjs';
 import { resolveInside } from './serve.mjs';
+import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 test('a string patch applies only when it matches exactly once', () => {
   const p = { id: 'x', file: 'f', find: 'hq scan', replace: 'Scan now' };
@@ -51,16 +55,72 @@ test('the patch list covers every honesty rule from the plan', () => {
   const list = patchList();
   const finds = list.map((p) => String(p.find)).join('\n');
   const repl = list.map((p) => p.replace).join('\n');
-  for (const s of ['sk_live_', 'vault://', 'history scrubbed', 'rotated → vault', 'Claude answers from your actual repos', 'const DIFF', "'hq scan'", "'hq ask'", "'tagged v1.0.0'"]) {
+  for (const s of ['sk_live_', 'vault://', 'history scrubbed', 'rotated → vault', 'Claude answers from your actual repos', 'const DIFF', "'hq scan'", "'hq ask'",
+    'const SINCE', 'you were gone 14h 22m', 'while you were away', 'health 86 → 91']) {
     assert.ok(finds.includes(s), 'no patch for ' + s);
   }
   assert.ok(repl.includes('flagged · you rotate it'));
   assert.ok(repl.includes('A local model answers from your scan data.'));
   assert.ok(repl.includes('3 files changed'));
-  assert.ok(!/sk_live_|vault:\/\/|history scrubbed/.test(repl), 'a replacement reintroduces secret/vault wording');
+  assert.ok(repl.includes('since the last scan'));
+  assert.ok(!FORBIDDEN.test(repl), 'a replacement reintroduces wording WorkspaceHQ cannot back: ' + (FORBIDDEN.exec(repl) || [])[0]);
   // the commit guard refuses .env paths; it does not scan file contents for keys
   assert.ok(!/no keys/.test(repl), 'a replacement claims the commit sheet checks for keys');
-  assert.ok(!/tagged v\d/.test(repl), 'a replacement claims the scan reads git tags');
+  // nothing tracks time away, and projects have no health score of their own
+  assert.ok(!/welcome back|you were gone|while you were away|last visit/.test(repl), 'a replacement claims HQ tracks time away');
+  assert.ok(!/health/.test(repl), 'a replacement shows a per-project health score');
+});
+
+test('FORBIDDEN catches every claim the design made that HQ cannot back', () => {
+  for (const s of ["STRIPE_KEY=sk_live_51Hx", 'vault://stripe/live', '✓ moved to vault · history scrubbed', "t = 'rotated → vault';",
+    'you were gone 14h 22m', 'moved while you were away', "'health dropped 91 → 78'", '+214 −38 · health 86 → 91', "'back to clean'",
+    "'tests back to green'", "'build failed on main'", "'tagged v1.0.0'"]) {
+    assert.ok(FORBIDDEN.test(s), 'FORBIDDEN misses ' + s);
+  }
+  // the scan-level health readout in the Scan scene is real (account-wide health_index)
+  assert.ok(!FORBIDDEN.test('health <span>{health}</span>'));
+});
+
+// Parse the SINCE replacement: "const SINCE = [['ok', 'x', 'y', ''], …];" → rows.
+const sinceRows = () => JSON.parse(SINCE_ROWS.replace(/^const SINCE = /, '').replace(/;$/, '').replace(/'/g, '"'));
+
+test('Since-scan rows are changes the scan really emits, with the design row count', () => {
+  const rows = sinceRows();
+  assert.equal(rows.length, 5, 'one pop cue per row: the row count must stay 5');
+  assert.equal(new Set(rows.map((r) => r[1])).size, rows.length, 'project names are React keys: they must be unique');
+  // collector/assemble.mjs changes_since_prev details (minus the leading project name):
+  // git_pushed "pushed (was N ahead).", build_flip "build recovered.", first_remote "gained a remote.",
+  // new_project "added.", quest_completed = the quest title (collector quest templates).
+  const REAL = [/^pushed \(was \d+ ahead\)$/, /^build recovered$/, /^gained a remote$/, /^added$/,
+    /^Commit \S+ working tree \(\d+ files\)$/, /^Push \S+ \(\d+ ahead\)$/, /^Add a remote \+ push \S+$/, /^Fix \S+ build$/];
+  for (const [s, name, change, ago] of rows) {
+    assert.equal(s, 'ok', name + ': every since-scan change is positive or neutral');
+    assert.ok(REAL.some((re) => re.test(change)), name + ': "' + change + '" is not a change type the scan emits');
+    assert.equal(ago, '', name + ': changes carry no time of their own');
+  }
+});
+
+test('the change types the Since rows use still exist in the scan', () => {
+  const assemble = fs.readFileSync(path.join(HERE, '..', '..', 'collector', 'assemble.mjs'), 'utf8');
+  for (const [type, detail] of [['git_pushed', 'pushed (was ${cg.ahead} ahead).'], ['build_flip', 'build recovered.'], ['first_remote', 'gained a remote.'], ['new_project', 'added.'], ['quest_completed', 'detail: q.title']]) {
+    assert.ok(assemble.includes(`type: '${type}'`), 'assemble.mjs no longer emits ' + type);
+    assert.ok(assemble.includes(detail), 'assemble.mjs changed the ' + type + ' wording; re-check t2.since-rows');
+  }
+});
+
+// Needs the Claude Design export (HQ_TRAILER_SRC); skipped without it. Applies the whole
+// patch list in memory (no .work/site write) so a patch that no longer matches exactly once,
+// or a forbidden claim that survives, fails here instead of aborting a render.
+const SRC = process.env.HQ_TRAILER_SRC;
+test('the patch list applies exactly once to the design export and leaves nothing forbidden', { skip: !SRC || !fs.existsSync(SRC) ? 'set HQ_TRAILER_SRC to the design export' : false }, () => {
+  const text = {};
+  for (const [from, to] of Object.entries(FILES)) text[to] = fs.readFileSync(path.join(SRC, from), 'utf8');
+  const { applied } = patchAll(text, { names: loadDenylist() });
+  assert.equal(applied.length, patchList().length);
+  const t2 = text['hq-trailer2.jsx'];
+  assert.ok(t2.includes(SINCE_ROWS));
+  assert.ok(t2.includes('since the last scan · '));
+  assert.equal((t2.match(/SINCE\.forEach\(/g) || []).length, 1, 'the per-row pop cue is still driven by SINCE');
 });
 
 test('denylist: whole-token names hit without echoing them; quoted abbreviations hit by design token', () => {
