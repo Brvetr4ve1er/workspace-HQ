@@ -48,10 +48,10 @@ export function studioVals(ctx) {
     days, hasCaps: caps.length > 0, noCaps: caps.length === 0, hasLatest: !!latest, openLatest: () => latest && this.setState({ lightbox: latest.id }), studioFilters,
     latest: latest ? Object.assign(media(latest, true), { name: latest.name, day: latest.day, time: latest.time, size: latest.size }) : {},
     snip: () => { if (!studio) return this.denied(); studio.snipArm('region'); },
-    // opens the record panel (recording starts there), it doesn't start recording. Main's
-    // panel-toggle HIDES a visible panel, so while a recording runs (LIVE.recording, from the
-    // rec-status pushes) the live pill is on screen and this must not touch it: hiding it left
-    // a recording with no visible stop control. (Main-side show-only path: a main-lane ask.)
+    // opens the record panel (recording starts there), it doesn't start recording. While a
+    // recording runs (LIVE.recording, from the rec-status pushes) the live pill is on screen and
+    // this must not touch it. Main also guards it now: panel-toggle only shows the panel during
+    // a recording (screen-capture.js showPanel); the renderer check stays as a second layer.
     record: () => {
       if (!studio) return this.denied();
       if (this.LIVE && this.LIVE.recording) { this.toast('info', 'Recording now · the recorder is the pill on screen — stop it there, or with Ctrl+Alt+R'); return; }

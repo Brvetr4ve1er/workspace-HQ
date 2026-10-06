@@ -1990,7 +1990,7 @@ One row per control, per place it lives. A control that appears in more than one
 | SOCIAL | Feed / Mentions / Outbox tabs | local module state | Switches the list; Outbox label shows staged count |
 | SOCIAL | Platform filter chip | local | Filters Feed/Mentions; click again = All |
 | STUDIO | SNIP | `hq.studio.snipArm('region')` → `hq:studio:snip-arm` | Opens snip overlays on every display |
-| STUDIO | RECORD | `hq.studio.panelToggle()` → `hq:studio:panel-toggle` | Shows/hides the record panel. **Does not record** (tooltip wrongly says Ctrl+Alt+R records) |
+| STUDIO | RECORD | `hq.studio.panelToggle()` → `hq:studio:panel-toggle` | Shows/hides the record panel (show-only while a recording runs, since 2026-10-06). **Does not record**; v5 labels it "Open recorder" |
 | STUDIO | REFRESH | `hq.studio.libraryList({kind:'all', limit:500})` → `hq:studio:library-list` | Re-lists the capture folder (base64 thumbnails in payload); full redraw |
 | STUDIO | Tile click | local `openPreview(item)` | Preview modal (image or `<video controls>`) |
 | STUDIO | REVEAL (tile) | `hq.studio.libraryReveal(path)` → `hq:studio:library-reveal` | Explorer with the file selected; main refuses paths outside the library root |

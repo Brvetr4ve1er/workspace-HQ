@@ -208,8 +208,9 @@ test('Open stays honestly not wired; Escape and the backdrop still close the lig
   assert.match(lightboxTpl, /<div onClick="\{\{ stop \}\}"/);
 });
 
-// runtime-3 (renderer half): main's panel-toggle hides a visible panel, so "● Open recorder"
-// clicked during a recording used to hide the live pill and leave no visible stop control
+// runtime-3 (renderer half): panel-toggle used to hide a visible panel, so "● Open recorder"
+// clicked during a recording hid the live pill and left no visible stop control (main now
+// shows-only during a recording too; this pins the renderer layer)
 test('● Open recorder during a recording leaves the live pill alone and says where it is', (t) => {
   timers(t);
   const hq = fakeHq();

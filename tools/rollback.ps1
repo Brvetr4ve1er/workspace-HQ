@@ -17,6 +17,10 @@
 
   -DryRun (alias -WhatIf) prints the plan and changes nothing.
 
+  The stop is a hard stop (close-to-tray means the window never quits on its own):
+  settings and Ask history typed in the last few seconds may not have reached disk
+  yet (Chromium writes localStorage every ~5 s). Wait a moment after a change.
+
   Every decision (the version check, which processes are the app) is made by
   tools\rollback-core.mjs and unit-tested in tools\rollback-core.test.mjs; this
   script only gathers the process list and carries out the plan. It creates no

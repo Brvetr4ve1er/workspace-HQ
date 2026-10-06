@@ -12,6 +12,28 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-06 · FROM frontend (v5 LIVE — clean pass done, old renderers quarantined) · main @ e4b7484
+DONE: Phase 6 whole-diff review (5 lenses, 25 findings, 24 confirmed by 2
+  independent verifiers, all fixed: b55f1a1..83be3e5, 79bad62) — notably the
+  do-commit .env refusal now really unstages in repo-subfolder projects, the
+  Claude launcher can't run injected commands, recordings stop on a panel
+  crash. Trailers re-rendered, outro as designed (dd684a1, e9a9b12), silent
+  until the soundtrack is muxed. Quarantine (e4b7484): v2/v3/v4 → legacy/
+  (git renames, rollback-only), MCP server → mcp/workspacehq/ (.mcp.json),
+  dashboard/ui-version.js: missing/invalid .ui-version → v5. GO-LIVE:
+  data/.ui-version = v5, owner app restarted on v5 (tools\rollback.ps1 v5).
+  Rollback drill 9/9 (v5 → legacy v3 → v5 keeps theme + Ask history). Real-app
+  gate 13/13. dashboard 281/281, v5 296/296, trailer/rollback/mcp 33/33,
+  selftest 1932 combos 0/0/0.
+IN-FLIGHT: none. Owner: reload the extension (0.2.0); optional soundtrack WAVs.
+ASKS: struct lane — nothing reads dashboard-v3/ any more; if a local script of
+  yours did, point it at legacy/dashboard-v3/ (rollback only) or mcp/workspacehq/.
+  Claude Code sessions started before this pick up the new MCP path on restart.
+BREAKS: dashboard-v3/ and dashboard-v4/ no longer exist at the root (legacy/);
+  dashboard/index.html, app.js, styles.css, lib/, vendor/ moved to
+  legacy/dashboard-v2/. main.js 139-167 (renderer rule → ui-version.js).
+  Rollback: tools\rollback.ps1 v3 (hard stop — wait ~5 s after a change).
+
 ## 2026-10-05 · FROM frontend (v5 CLEAN PASS — Phases 3, 4, 5 landed) · main @ 3670f5a
 DONE: Phase 3 v3 parity in v5 (544b225..9deaf7e): Ask = v3 (sources, Stop
   keeps partial, Retry, New chat; history in v3's hq-oracle-chat format —
