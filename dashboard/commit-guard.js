@@ -9,7 +9,8 @@
 // Do NOT change session-api.js captureBaseline: its plain --porcelain is what the
 // session-attribution baseline relies on.
 //
-// init({ ipcMain, resolveProjectPath }) ; exports envHits(cwd, opts?) for hq:do-commit.
+// init({ ipcMain, resolveProjectPath }) ; exports envHits(cwd, opts?) and
+// unstageAll(cwd, opts?) for hq:do-commit (before / after its `git add -A`).
 //
 // Paths are repo-root-relative with forward slashes, exactly as git prints them
 // (porcelain ignores status.relativePaths; diff is root-relative by default) —
@@ -140,6 +141,40 @@ function envHits(cwd, opts) {
   } catch { return [GIT_ERROR_HIT]; }
 }
 
+// For hq:do-commit, AFTER `add -A`, when the re-check refuses (an .env got staged in
+// the window between envHits() and the add, or git couldn't list the index): put the
+// index back to HEAD so the refusal really "stages nothing" (IPC-CONTRACT).
+// A FULL `git reset -q`, not `reset -- <hits>`: the hits are repo-root-relative but a
+// reset pathspec is cwd-relative, so from a subfolder project (`apps/web` → `apps/web/.env`)
+// the partial reset matched nothing, exited 0 and left the secret staged. The full
+// reset also drops any partial staging the user made before clicking Commit — `add -A`
+// had already folded it into "everything", so nothing recoverable is lost. Mixed reset:
+// the working tree (the .env file itself included) is untouched. Works on an unborn HEAD
+// (the index is emptied).
+// Then it re-lists the index and reports what is still staged:
+//   { ok: true,  remaining: [] }                  index matches HEAD
+//   { ok: false, remaining: [paths], error? }     reset failed, or something is still staged
+// remaining = ['<git error>'] when the re-list itself failed. A fresh GIT_TIMEOUT_MS
+// budget (opts.timeoutMs overrides): this is the safety action, it must not inherit
+// a budget the checks before it spent.
+function unstageAll(cwd, opts) {
+  try {
+    const budget = opts && Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : GIT_TIMEOUT_MS;
+    const deadline = Date.now() + budget;
+    const run = (args) => { const left = deadline - Date.now(); return left > 0 ? git(args, cwd, left) : timedOut(); };
+    let isDir = false;
+    try { isDir = !!cwd && fs.statSync(cwd).isDirectory(); } catch { /* missing */ }
+    if (!isDir) return { ok: false, remaining: [GIT_ERROR_HIT], error: 'project folder not found' };
+    const rs = run(['reset', '-q']);
+    const ls = run(['-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z']);
+    const remaining = gitFailed(ls) ? [GIT_ERROR_HIT] : String(ls.stdout || '').split('\0').filter(Boolean);
+    const out = { ok: !gitFailed(rs) && remaining.length === 0, remaining };
+    if (gitFailed(rs)) out.error = gitErr(rs, 'git reset');
+    else if (gitFailed(ls)) out.error = gitErr(ls, 'git diff --cached');
+    return out;
+  } catch (e) { return { ok: false, remaining: [GIT_ERROR_HIT], error: String(e?.message || e) }; }
+}
+
 function init({ ipcMain, resolveProjectPath }) {
   ipcMain.handle('hq:commit-preview', (_e, projPath) => {
     try {
@@ -150,4 +185,4 @@ function init({ ipcMain, resolveProjectPath }) {
   });
 }
 
-module.exports = { init, isEnvPath, envHits, changeSet, parsePorcelainZ, ENV_RE, ENV_TEMPLATE_RE, GIT_ERROR_HIT, GIT_TIMEOUT_MS };
+module.exports = { init, isEnvPath, envHits, changeSet, unstageAll, parsePorcelainZ, ENV_RE, ENV_TEMPLATE_RE, GIT_ERROR_HIT, GIT_TIMEOUT_MS };

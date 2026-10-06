@@ -120,3 +120,36 @@ test('set(…, {persist:true}) answers on the next load of the tab; reset(true) 
   plain.control.set('liveState', boot);
   assert.deepEqual(await createFake({ storage }).hq.liveState(), { dev: [], casts: [], scan: { state: 'idle' } });
 });
+
+// Review regression: healthFix was a plain WRITE (resolves true), but main's hq:health-fix
+// answers {ok, output} and logic/sheet.js reads r.ok / r.output — so the fake harness
+// always toasted "Didn’t run" and never hid the fixed issue. Writes whose result a v5
+// caller reads now answer main's real success shape.
+test('result-reading writes answer main’s real success shape (healthFix, doCommit, rescanSpellbook)', async () => {
+  const { hq } = createFake();
+  assert.deepEqual(await hq.healthFix('Clear-Temp'), { ok: true, output: 'fake fix ran' }, 'main: { ok: status === 0, output }');
+  assert.deepEqual(await hq.doCommit('/placeholder/project-a', 'msg'), { ok: true }, 'main: { ok: true } after the commit');
+  assert.deepEqual(await hq.rescanSpellbook(), { ok: true }, 'main: { ok: true } after the rebuild');
+});
+
+test('the real sheetOk, driven by the fake healthFix, takes the success path (review regression)', async () => {
+  if (!('window' in globalThis)) globalThis.window = {};   // FX() falls back to no-ops without window.HQFx
+  const { sheetLogic } = await import('../src/logic/sheet.js');
+  const { hq } = createFake();
+  const toasts = [], fixed = [];
+  const self = {
+    hq, state: { sheet: { act: 'fix', cmd: 'Clear-Temp', fixTitle: 'Clear temp files', issueId: 'issue-1' } },
+    setState(p) { Object.assign(this.state, typeof p === 'function' ? p(this.state) : p); },
+    // app.js Component#call: an {error} answer or a throw → toast + null, else the answer
+    async call(fn, fail) {
+      try { const r = await fn(); if (r && r.error) { this.toast('error', fail + ' · ' + r.error); return null; } return r; }
+      catch (e) { this.toast('error', fail + ' · ' + ((e && e.message) || e)); return null; }
+    },
+    toast(kind, text) { toasts.push([kind, text]); },
+    markFixed(id) { fixed.push(id); },
+  };
+  await sheetLogic.sheetOk.call(self);
+  assert.deepEqual(toasts, [['success', 'Ran · fake fix ran']]);
+  assert.deepEqual(fixed, ['issue-1'], 'an ok:true fix hides its System issue');
+  assert.equal(self.state.sheet, null);
+});

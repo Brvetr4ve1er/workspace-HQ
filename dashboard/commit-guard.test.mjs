@@ -249,6 +249,63 @@ test('a nonsense timeout option falls back to the default budget', () => {
   }
 });
 
+// ---------------------------------------------------------------- unstageAll (do-commit's post-add refusal)
+// The defect: do-commit's refusal ran `git -C <cwd> reset -q -- <hits>` with root-relative
+// hits. From a subfolder project the pathspec resolved to <cwd>/<root-relative path>,
+// matched nothing, exited 0 — and the .env stayed staged behind a "refused" answer.
+const cachedNames = (cwd) => git(cwd, '-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z').split('\0').filter(Boolean).sort();
+
+test('unstageAll from a SUBFOLDER project unstages the .env and everything else (review regression)', () => {
+  const dir = mkTmp('hq-commit-guard-unstage-sub-');
+  initRepo(dir);
+  const web = path.join(dir, 'apps', 'web');
+  fs.mkdirSync(web, { recursive: true });
+  fs.writeFileSync(path.join(web, 'index.js'), '1\n');
+  git(dir, 'add', '-A');
+  git(dir, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'init');   // throwaway fixture repo
+
+  fs.writeFileSync(path.join(web, 'index.js'), '2\n');
+  fs.writeFileSync(path.join(web, 'b.txt'), 'b\n');
+  fs.writeFileSync(path.join(web, '.env.local'), 'PLACEHOLDER=1\n');   // the file that raced in before add -A
+  git(web, 'add', '-A');                                                 // what do-commit runs, from the project folder
+  assert.deepEqual(cachedNames(web), ['apps/web/.env.local', 'apps/web/b.txt', 'apps/web/index.js']);
+
+  // the old partial reset (git exits 0 here): the .env is STILL staged — this is the bug
+  spawnSync('git', ['reset', '-q', '--', 'apps/web/.env.local'], { cwd: web, encoding: 'utf8', windowsHide: true });
+  assert.ok(cachedNames(web).includes('apps/web/.env.local'), 'root-relative pathspec from a subfolder matches nothing');
+
+  assert.deepEqual(guard.unstageAll(web), { ok: true, remaining: [] });
+  assert.deepEqual(cachedNames(dir), [], 'nothing staged: the refusal really "stages nothing"');
+  assert.equal(fs.readFileSync(path.join(web, '.env.local'), 'utf8'), 'PLACEHOLDER=1\n', 'mixed reset: the working-tree file is untouched');
+  assert.equal(fs.readFileSync(path.join(web, 'index.js'), 'utf8'), '2\n', 'and so are the other edits');
+  assert.deepEqual(guard.envHits(web), ['apps/web/.env.local'], 'the change set is back to what the pre-check refuses');
+});
+
+test('unstageAll on an unborn HEAD empties the index', () => {
+  const dir = mkTmp('hq-commit-guard-unstage-unborn-');
+  initRepo(dir);
+  fs.writeFileSync(path.join(dir, '.env'), 'PLACEHOLDER=1\n');
+  fs.writeFileSync(path.join(dir, 'app.js'), '1\n');
+  git(dir, 'add', '-A');
+  assert.deepEqual(cachedNames(dir), ['.env', 'app.js']);
+  assert.deepEqual(guard.unstageAll(dir), { ok: true, remaining: [] });
+  assert.deepEqual(cachedNames(dir), []);
+  assert.ok(fs.existsSync(path.join(dir, '.env')), 'the file itself stays on disk');
+});
+
+test('unstageAll FAILS LOUD: a missing folder or a non-repo is ok:false, never a silent ok', (t) => {
+  const missing = path.join(os.tmpdir(), 'hq-commit-guard-unstage-missing-' + process.pid);
+  assert.deepEqual(guard.unstageAll(missing), { ok: false, remaining: [guard.GIT_ERROR_HIT], error: 'project folder not found' });
+  assert.equal(guard.unstageAll('').ok, false);
+  const notRepo = mkTmp('hq-commit-guard-unstage-norepo-');
+  const probe = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: notRepo, encoding: 'utf8', windowsHide: true });
+  if (probe.status === 0) { t.skip('os.tmpdir() is inside a git work tree on this machine'); return; }
+  const r = guard.unstageAll(notRepo);
+  assert.equal(r.ok, false);
+  assert.ok(r.error, 'says why');
+  assert.deepEqual(r.remaining, [guard.GIT_ERROR_HIT]);
+});
+
 // ---------------------------------------------------------------- IPC handler
 function fakeIpc() {
   const handlers = {};

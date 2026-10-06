@@ -2,7 +2,9 @@
 // It exposes every method dashboard/preload.js exposes, with the same nesting,
 // so the renderer runs its real code paths with nothing behind them:
 //  - every call is recorded as {method, args, at} (functions → '[function]')
-//  - writes resolve true and do nothing; reads resolve canned shapes that
+//  - writes resolve true and do nothing — except where a v5 caller reads fields of
+//    the answer: those resolve main's real success shape (doCommit / rescanSpellbook
+//    {ok:true}, healthFix {ok, output}); reads resolve canned shapes that
 //    live/adapter.mjs accepts (mostly empty)
 //  - push channels keep their callbacks HERE, in the preload world, and fire
 //    them on window.hqFake.emit(channel, payload); the channel is the IPC name
@@ -102,7 +104,7 @@ function createFake(opts) {
   const SPEC = [
     ['runScan', WRITE], ['openRepo', WRITE], ['openFile', WRITE], ['reclaim', WRITE], ['snapshot', WRITE],
     ['captureSave', WRITE], ['claudeQuest', WRITE],
-    ['draftCommit', () => ({ message: 'chore: fake draft', via: 'local:fake' })], ['doCommit', WRITE],
+    ['draftCommit', () => ({ message: 'chore: fake draft', via: 'local:fake' })], ['doCommit', () => ({ ok: true })],
     ['probeLlm', () => ({ available: true, runtime: 'fake', chatModel: 'fake-model' })],
     ['llm.warm', () => ({ status: 'warm', model: 'fake-model' })], ['llm.chat', chat], ['llm.cancel', cancelChat], ['llm.onDelta', 'on:hq:llm:delta'],
     ['uiPrefs.get', () => prefs], ['uiPrefs.set', setPrefs], ['uiPrefs.on', 'on:hq:ui-prefs'],
@@ -113,13 +115,13 @@ function createFake(opts) {
       stat: ' src/a.js | 2 +-', envHits: ['sub/.env'], branch: 'main',
     })],
     ['logDecision', WRITE], ['learn', WRITE], ['archiveProject', WRITE], ['reviveProject', WRITE], ['markQuestDone', WRITE], ['actedOn', WRITE],
-    ['healthScan', () => ({ organs: [] })], ['healthFix', WRITE],
+    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })],
     ['getSocial', () => ({ accounts: { accounts: [] }, outbox: { actions: [] }, inbox: { events: [] } })],
     ['getCanvas', () => []], ['canvasAdd', WRITE], ['onCanvas', 'on:hq:canvas'],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],
     ['sessionDiff', () => ({ files: [], stat: '' })], ['onSessionOutput', 'on:hq:session-output'], ['onClaudeSessions', 'on:hq:claude-sessions'],
     ['devStart', WRITE], ['devStop', WRITE], ['saveNote', WRITE], ['onDevStatus', 'on:hq:dev-status'],
-    ['castSpell', cast], ['cancelCast', WRITE], ['getSpellbook', () => ({ spells: [] })], ['favoriteSpell', WRITE], ['rescanSpellbook', WRITE],
+    ['castSpell', cast], ['cancelCast', WRITE], ['getSpellbook', () => ({ spells: [] })], ['favoriteSpell', WRITE], ['rescanSpellbook', () => ({ ok: true })],
     ['getSpellTelemetry', () => ({ casts: [], favorites: [], confirmed_hashes: {} })], ['hideCastPalette', WRITE],
     ['onCastOutput', 'on:hq:cast-output'], ['onCastDone', 'on:hq:cast-done'],
     ['shardSummon', WRITE], ['shardSummonCancel', WRITE], ['shardClose', WRITE], ['shardSave', WRITE],

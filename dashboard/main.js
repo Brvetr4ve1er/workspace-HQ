@@ -886,7 +886,7 @@ ipcMain.handle('hq:draft-commit', async (_e, projPath) => {
 function runNodeAsync(script, args = []) {
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, [script, ...args], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true });
-    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(path.basename(script) + ' exit ' + code))));
+    p.on('close', (code) => (code === 0 ? resolve() : reject(Object.assign(new Error(path.basename(script) + ' exit ' + code), { exitCode: code }))));
     p.on('error', reject);
   });
 }
@@ -900,24 +900,34 @@ ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   const a = spawnSync('git', ['-C', cwd, 'add', '-A'], { encoding: 'utf8' });
   if (a.status !== 0) return { error: 'add failed' };
   // … and re-check what actually got staged (a file can appear between the check
-  // and the add); unstage any hit and refuse rather than commit it.
+  // and the add). On a hit — or when git can't list the index — put the whole
+  // index back to HEAD and refuse: the refusal "stages nothing" (IPC-CONTRACT).
+  // Not `reset -- <hits>`: those paths are root-relative, a reset pathspec is
+  // cwd-relative, so a subfolder project kept its .env staged (commit-guard.js unstageAll).
   const staged = spawnSync('git', ['-C', cwd, '-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z'], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
-  const after = staged.status === 0 ? String(staged.stdout || '').split('\0').filter((p) => p && commitGuard.isEnvPath(p)) : ['<git error>'];
+  const after = staged.status === 0 ? String(staged.stdout || '').split('\0').filter((p) => p && commitGuard.isEnvPath(p)) : [commitGuard.GIT_ERROR_HIT];
   if (after.length) {
-    if (staged.status === 0) spawnSync('git', ['-C', cwd, 'reset', '-q', '--', ...after], { encoding: 'utf8' });
-    return { error: 'refused: .env in change set', envHits: after };
+    const u = commitGuard.unstageAll(cwd);
+    if (!u.ok) console.error('[do-commit] unstage after refusal failed:', u.error || u.remaining.join(', '));
+    return { error: 'refused: .env in change set' + (u.ok ? '' : ' — couldn’t unstage it, run git reset in the project'), envHits: after };
   }
   const c = spawnSync('git', ['-C', cwd, 'commit', '-m', String(message || 'wip')], { encoding: 'utf8' });
   if (c.status !== 0) return { error: (c.stderr || c.stdout || '').slice(0, 300) };
   // MA: the post-commit rescan runs async — the commit returns immediately
   // instead of freezing main for a full collector pass; the window reloads
   // by itself once fresh data is bundled.
+  // v5 clean pass: it is a scan like runScan's (same collector + assemble), so it
+  // holds the one-scan-at-a-time guard — Scan now refuses during it and
+  // hq:live-state / hq:scan-status show it — and settles BEFORE the reload.
+  // scanBegin() false = a scan is already running; it picks the commit up.
   const s = latest();
-  if (s) {
+  if (s && liveState.scanBegin()) {
+    let settled = false;
+    const end = (code, err) => { if (settled) return; settled = true; try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
     runNodeAsync(path.join(COLLECTOR, 'collector.mjs'))
       .then(() => runNodeAsync(path.join(COLLECTOR, 'assemble.mjs'), ['--date', s.scan.id]))
-      .then(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); })
-      .catch((err) => console.error('[do-commit] rescan failed:', err.message));
+      .then(() => { end(0); rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); })
+      .catch((err) => { end(Number.isInteger(err && err.exitCode) ? err.exitCode : -1, err); console.error('[do-commit] rescan failed:', err && err.message); });
   }
   return { ok: true };
 });
