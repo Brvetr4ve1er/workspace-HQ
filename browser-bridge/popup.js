@@ -7,10 +7,20 @@
 // flips a staged post to 'canceled' and never publishes. While either is in
 // flight the card is locked and the poll never swaps or re-enables it, so a
 // second click can't send twice or act on a different post.
+//
+// The poll never swaps the card on its own either. When the post on screen
+// leaves the staged list or changes from outside the popup (MCP hq_social_cancel,
+// another browser profile's extension, an edit in the app), the card hides and
+// stays locked behind "handled elsewhere · show next" until the human clicks.
+// socialSend can't catch that case: the post that would take its place is staged
+// and unchanged. And whenever a post lands on the card without the human paging
+// to it (popup opened, after their own send/skip, after "show next"), approve and
+// skip stay disabled for ARM_MS so a click already on its way can't hit it.
 
 const DEFAULTS = { endpoint: 'http://127.0.0.1:47821', paused: false, token: '' };
 const POLL_MS = 2500;
 const FETCH_TIMEOUT_MS = 2500;
+const ARM_MS = 1000;
 const $ = (id) => document.getElementById(id);
 
 const ui = {
@@ -22,6 +32,11 @@ const ui = {
   curIdx: 0,
   shown: null,        // the post actually rendered in the card — what the buttons act on
   renderedSig: '',
+  seen: null,         // { id, sig } of the post the human last had on screen; kept through
+                      // outbox read errors, cleared by their own send/skip and "show next"
+  held: '',           // '' | 'gone' | 'changed' — the seen post was handled elsewhere
+  arming: false,      // approve/skip disabled: a post just landed on the card
+  armTimer: 0,
   cfg: { ...DEFAULTS },
   busy: null,         // { id, kind: 'send' | 'skip' } — card locked while set
   flash: null,        // { text, tone, until }
@@ -163,7 +178,16 @@ function lockCard(locked) {
   for (const id of ['approve', 'skip', 'prev', 'next']) $(id).disabled = locked;
 }
 
-function renderApproval() {
+// A post just landed on the card that the human didn't page to: keep approve
+// and skip off for ARM_MS, then render again to enable them.
+function arm() {
+  clearTimeout(ui.armTimer);
+  ui.arming = true;
+  ui.armTimer = setTimeout(() => { ui.arming = false; renderApproval(); }, ARM_MS);
+}
+
+// chosen: the human paged to this post with ‹ › (no arming delay).
+function renderApproval(chosen = false) {
   const cfg = ui.cfg;
   $('appr').hidden = ui.conn !== 'on';
   renderFlash();
@@ -184,26 +208,58 @@ function renderApproval() {
     $('appr-empty').textContent = empty;
     $('appr-empty').hidden = false;
     $('card').hidden = true;
+    $('held').hidden = true;
     $('prev').hidden = $('next').hidden = true;
-    ui.curId = null; ui.renderedSig = ''; ui.shown = null;
+    ui.renderedSig = ''; ui.shown = null; ui.held = '';
+    // Only a real empty outbox forgets the post on screen. A failed or refused
+    // read keeps it, so a swap is still caught once the outbox reads again.
+    if (ob && ob.actions) {
+      if (ui.seen) flash('the post you were viewing was handled elsewhere', '', 8000);
+      ui.seen = null; ui.curId = null;
+    }
     return;
   }
 
-  // Keep the same post on screen while it is still staged; otherwise show the
-  // one that moved into its position (the next one after a send / skip).
+  // Keep the same post on screen while it is still staged. Otherwise the
+  // candidate is the one that moved into its position.
   let idx = actions.findIndex((a) => a.id === ui.curId);
   if (idx === -1) idx = Math.min(ui.curIdx, actions.length - 1);
   const a = actions[idx];
-  ui.curIdx = idx; ui.curId = a.id;
+  const sig = sigOf(a);
 
+  // The post the human was looking at left the staged list, or changed, and
+  // they didn't do it from here. Don't put the candidate in its place: hide the
+  // card, lock it, and wait for an explicit "show next".
+  const seen = ui.seen;
+  ui.held = !seen || (seen.id === a.id && seen.sig === sig) ? '' : (seen.id === a.id ? 'changed' : 'gone');
+  if (ui.held) {
+    $('appr-k').textContent = `awaiting approval · ${plural(actions.length, 'post', 'posts')} staged`;
+    $('appr-empty').hidden = true;
+    $('card').hidden = true;
+    $('prev').hidden = $('next').hidden = true;
+    lockCard(true);
+    $('held-msg').textContent = ui.held === 'changed'
+      ? 'the post you were viewing was changed'
+      : 'the post you were viewing was handled elsewhere';
+    $('held-show').textContent = ui.held === 'changed' ? 'show the new version' : 'show next';
+    $('held').hidden = false;
+    ui.shown = null; ui.renderedSig = '';
+    return;
+  }
+
+  ui.curIdx = idx; ui.curId = a.id;
   $('appr-k').textContent = `awaiting approval · ${idx + 1} of ${actions.length}`;
   $('appr-empty').hidden = true;
+  $('held').hidden = true;
   $('card').hidden = false;
   const many = actions.length > 1;
   $('prev').hidden = $('next').hidden = !many;
-  const sig = sigOf(a);
-  if (sig !== ui.renderedSig) { fillCard(a); ui.renderedSig = sig; }
-  lockCard(false);
+  if (sig !== ui.renderedSig) {
+    fillCard(a); ui.renderedSig = sig;
+    if (!chosen) arm();
+  }
+  ui.seen = { id: a.id, sig };
+  $('approve').disabled = $('skip').disabled = ui.arming;
   $('prev').disabled = idx === 0;
   $('next').disabled = idx === actions.length - 1;
 }
@@ -227,18 +283,24 @@ async function refresh() {
   } finally { ui.refreshing = false; }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // After a send/skip: give the app a beat to write, then unlock and re-read.
+// A poll that read the outbox before the send/skip landed is let finish while
+// the card is still locked, so it can't put that stale list on screen.
 async function settle() {
-  await new Promise((r) => setTimeout(r, 700));
+  await sleep(700);
+  while (ui.refreshing) await sleep(50);
   ui.busy = null;
   ui.renderedSig = '';
+  ui.seen = null;   // the human acted on this post: the next one may take its place
   await refresh();
 }
 
 // ---- approval actions ------------------------------------------------------
 $('approve').addEventListener('click', async () => {
   const a = shownAction();
-  if (!a || ui.busy) return;
+  if (!a || ui.busy || ui.arming || ui.held) return;
   ui.busy = { id: a.id, kind: 'send' };
   lockCard(true);
   flash('sending…', '', 60_000);
@@ -252,7 +314,7 @@ $('approve').addEventListener('click', async () => {
 
 $('skip').addEventListener('click', async () => {
   const a = shownAction();
-  if (!a || ui.busy) return;
+  if (!a || ui.busy || ui.arming || ui.held) return;
   ui.busy = { id: a.id, kind: 'skip' };
   lockCard(true);
   flash('skipping…', '', 60_000);
@@ -271,16 +333,25 @@ $('skip').addEventListener('click', async () => {
 });
 
 function step(delta) {
-  if (ui.busy) return;
+  if (ui.busy || ui.held) return;
   const actions = stagedList();
   const i = actions.findIndex((a) => a.id === ui.curId);
   const j = Math.max(0, Math.min(actions.length - 1, (i === -1 ? 0 : i) + delta));
   if (!actions[j]) return;
   ui.curId = actions[j].id; ui.curIdx = j;
-  renderApproval();   // synchronous: the card shows the new post before any further click
+  ui.seen = { id: actions[j].id, sig: sigOf(actions[j]) };   // the human picked this one
+  renderApproval(true);   // synchronous: the card shows the new post before any further click
 }
 $('prev').addEventListener('click', () => step(-1));
 $('next').addEventListener('click', () => step(1));
+
+// The post on screen was handled elsewhere: only this click puts the next one
+// (or the new version) on the card, and then approve/skip arm after ARM_MS.
+$('held-show').addEventListener('click', () => {
+  if (ui.busy || !ui.held) return;
+  ui.seen = null; ui.held = ''; ui.renderedSig = '';
+  renderApproval();
+});
 
 $('social-sync').addEventListener('click', async () => {
   const b = $('social-sync'); b.disabled = true; b.textContent = '…';

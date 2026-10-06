@@ -40,6 +40,8 @@
       <button id="social-sync" class="mini" title="Read your logged-in social tabs into the app now (read-only)">sync</button>
     </div>
     <div id="appr-empty" class="m empty">nothing staged</div>
+    <!-- the post on screen was canceled/sent/changed outside the popup: nothing else is shown until this click -->
+    <div id="held" class="m empty" role="status" hidden><span id="held-msg">the post you were viewing was handled elsewhere</span> · <button id="held-show" class="mini">show next</button></div>
     <div id="card" hidden>
       <div id="c-who" class="who"></div>
       <div id="c-reply" class="c-field" hidden></div>
