@@ -1,5 +1,5 @@
-// logic/ask-store.mjs: Ask history + sources in dashboard-v3's ORACLE localStorage format.
-// The v3 shapes below are what dashboard-v3/src/realms/oracle/view.js writes (saveChat /
+// logic/ask-store.mjs: Ask history + sources in v3's ORACLE localStorage format.
+// The v3 shapes below are what legacy/dashboard-v3/src/realms/oracle/view.js writes (saveChat /
 // lsSet(LS_INCLUDE)); a load → save round trip must give v3 back the same JSON.
 //
 //   node --test dashboard-v5/src/logic/ask-store.test.mjs

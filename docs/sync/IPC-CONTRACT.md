@@ -11,13 +11,17 @@ grep the channel name).
 
 ## The v3 swap story (why this doc exists)
 
-- **Pre-swap (M0):** `dashboard-v3/dev-main.js` registers **no** IPC handlers.
+- **Pre-swap (M0):** `legacy/dashboard-v3/dev-main.js` registers **no** IPC handlers.
   Ported realms must feature-detect (`window.hq?.markQuestDone`) and no-op
   gracefully — this is what makes renderer-only screenshot parity possible.
-- **At swap:** the real `main.js` loads `dashboard-v3/index.html` with the
+- **At swap:** the real `main.js` loads `legacy/dashboard-v3/index.html` with the
   **existing** `dashboard/preload.js`. Every channel below is already
   registered — the swap itself requires zero IPC changes.
-- `dashboard-v3/preload.js` exists only for the dev harness (`hqv3.dev = true`).
+- `legacy/dashboard-v3/preload.js` exists only for the dev harness (`hqv3.dev = true`).
+- **Since 2026-10-06:** v5 (`dashboard-v5/`) is the default renderer. v2–v4 are
+  quarantined in `legacy/dashboard-v2|v3|v4/` and load only as a rollback
+  (`data/.ui-version` = `v2`|`v3`|`v4`, written by `tools\rollback.ps1 v3`). Every
+  renderer still runs on `dashboard/preload.js`, so a rollback needs no IPC change.
 
 ## Invoke channels (renderer → main, `ipcRenderer.invoke`)
 
@@ -106,12 +110,12 @@ this row omits `baseline` entirely; treat a missing field as `{state:'none'}`.
 | `llm.chat(req)` | `hq:llm:chat` | `{jobId:/^[a-z0-9-]{4,40}$/i, messages:[{role:'user'\|'assistant', content}] (≤20, ≤4000 chars each, last must be user), include:{scan,tasks,projects,health,browser,vault: boolean}}` | `{status:'done'\|'cancelled'\|'error'\|'unavailable', output, reason?, runtime?, model?, sections:[{id,label,chars,clipped,note?}], contextChars, ms}` — main builds the grounding CONTEXT itself; the renderer never sends one. Model output is shown ONLY in the ORACLE realm (ambient-companion honesty boundary) | ORACLE realm |
 | `llm.cancel(jobId)` | `hq:llm:cancel` | job id | `true` if a running job was aborted, else `false` | ORACLE realm |
 | **v3 STUDIO — screen capture (owns `dashboard/screen-capture.js`)** | | | | |
-| `studio.panelToggle()` | `hq:studio:panel-toggle` | — | `true` (shows/hides the FloatingPanel; creates it on first call) | tray / hotkey / STUDIO realm |
+| `studio.panelToggle()` | `hq:studio:panel-toggle` | — | `true` (shows/hides the FloatingPanel; creates it on first call). While a recording runs it is show-only (show + focus, never hides): the panel is then the live pill, the recording's visible stop control (2026-10-06) | tray / hotkey / STUDIO realm |
 | `studio.snipArm(kind)` | `hq:studio:snip-arm` | `{kind:'region'\|'full'\|'window'}` (default `'region'`) | `true` — main freezes every display via `desktopCapturer.getSources` at each display's native pixel size, spawns one transparent overlay BrowserWindow per Display, and pushes the freeze on `hq:studio:snip-frozen` | panel / Ctrl+Alt+S / STUDIO realm |
 | `studio.recSources()` | `hq:studio:rec-sources` | — | `[{sourceId, displayId, label, primary, kind:'screen'\|'window', thumbnail (dataURL), width, height}]` — joined `getSources({types:['screen','window']})` × `screen.getAllDisplays()` on `display_id` | FloatingPanel |
 | `studio.recStart(opts)` | `hq:studio:rec-start` | `{sourceId, mic, sysAudio, fps, sourceLabel?}` | `{recId, tmpPath}` \| `{error}` — opens `<slug>.webm.part` write stream and starts the 30-min auto-split + disk-space watchdog | FloatingPanel |
-| `studio.recStop(recId)` | `hq:studio:rec-stop` | `{recId}` | final path \| `null` — flushes, `fsyncSync`, `renameSync` `.part`→`.webm`, then emits `studio:capture-added` | FloatingPanel |
-| `studio.recToggle(opts?)` | `hq:studio:rec-toggle` | `{sourceId?, mic?, sysAudio?, fps?, sourceLabel?}` (opts optional) | `{toggled:'stopped', recId}` \| `{toggled:'panel-opened'}` \| `{recId, tmpPath}` — hotkey path; stops the first live recorder or starts one with saved defaults, opens the panel if no source is configured | Ctrl+Alt+R / panel |
+| `studio.recStop(recId)` | `hq:studio:rec-stop` | `{recId}` | `{path, bytes, durationMs, gaps, reason}` \| `{path:null, error, partPath, bytes, durationMs, gaps, reason}` (failed save) \| `null` — flushes, `fsyncSync`, renames `.part`→`.webm`, then emits `studio:capture-added`. On a failed rename it keeps the bytes in `partPath` (recovered as `.recovered.webm` at the next launch), emits no `capture-added`, and `error` says why. See the v5 rows below | FloatingPanel / record panel |
+| `studio.recToggle(opts?)` | `hq:studio:rec-toggle` | `{sourceId?, mic?, sysAudio?, fps?, sourceLabel?}` (opts optional) | `{toggled:'stopped', recId}` \| `{toggled:'panel-opened'}` \| `{recId, tmpPath}` — hotkey path; stops the first live recorder or starts one with saved defaults, opens the panel if no source is configured (show-only since 2026-10-06: a second press keeps the setup card up instead of hiding it) | Ctrl+Alt+R / panel |
 | `studio.libraryList(query)` | `hq:studio:library-list` | `{kind:'shot'\|'rec'\|'all'\|'recovered', limit}` | `[{kind, recovered, path, name, size, mtimeMs, thumbDataUrl}]` sorted newest-first | STUDIO realm |
 | `studio.libraryReveal(path)` | `hq:studio:library-reveal` | absolute path | `true`/`false` — refuses anything outside the resolved library root before it reaches `shell.showItemInFolder` | STUDIO realm |
 | `studio.libraryDelete(path)` | `hq:studio:library-delete` | absolute path | `true`/`false` — same containment check; `shell.trashItem` + best-effort thumb sidecar | STUDIO realm |
@@ -182,8 +186,8 @@ pushing. So `chunk` carries assistant text plus one-line bracketed tool notices
 **Registry `tail` for `sessionStart` sessions (2026-08-19, additive — shape
 unchanged).** Supersedes the earlier note that called a stream-json `tail`
 "cosmetic": it is not, because two renderer surfaces DISPLAY `tail` verbatim
-(`dashboard-v4/src/surfaces/work/agent-pane.js`,
-`dashboard-v4/src/surfaces/automate/sessions.js`, plus v3's summoning realm),
+(`legacy/dashboard-v4/src/surfaces/work/agent-pane.js`,
+`legacy/dashboard-v4/src/surfaces/automate/sessions.js`, plus v3's summoning realm),
 and `hq:capture-save`/`hq:scan` reload the window — which wipes the renderer's
 live output buffer while the session still lingers ~60 s in the registry. The
 next look at that session therefore falls back to `tail`, and a raw one would
@@ -208,7 +212,7 @@ own buffer, so the parser never sees it) is carried across. `tail` stays a
 string and stays untrusted; a main process older than this row returns the raw
 tail as before.
 
-## Pending — v5 clean pass (announced 2026-10-05, rows move into the tables above at go-live)
+## v5 clean pass — live as of 2026-10-06 (announced 2026-10-05)
 
 New main-side logic lives in NEW files with a one-line init hook in `main.js`
 (rule 2). Every row is additive; no existing channel changes meaning.
@@ -231,14 +235,14 @@ New main-side logic lives in NEW files with a one-line init hook in `main.js`
 
 | Channel | Addition |
 |---|---|
-| `hq:do-commit` | may return `{error:'refused: .env in change set', envHits:[path]}` and stage nothing. "Env-shaped" = `commit-guard.isEnvPath()`: `.env`, `.env.<anything>`, the copies people make (`.env - Copy`, `.env~`, `.env (1)`, `.env_prod`), `<name>.env`; templates are allowed (`.env.example/.sample/.template/.dist/.defaults`, also `-`/`_` separated). A git error fails closed (`envHits:['<git error>']`) |
+| `hq:do-commit` | may return `{error:'refused: .env in change set', envHits:[path]}` and stage nothing. "Env-shaped" = `commit-guard.isEnvPath()`: `.env`, `.env.<anything>`, the copies people make (`.env - Copy`, `.env~`, `.env (1)`, `.env_prod`), `<name>.env`; templates are allowed (`.env.example/.sample/.template/.dist/.defaults`, also `-`/`_` separated). A git error fails closed (`envHits:['<git error>']`). When an env file only shows up AFTER `add -A` (the post-add recheck), main resets the whole index to HEAD before refusing. If that reset fails, the error is `'refused: .env in change set — couldn’t unstage it, run git reset in the project'` (U+2019 apostrophe, exactly as `main.js` sends it), `envHits` unchanged, and the files may still be staged. Match on the `refused: .env in change set` prefix |
 | `hq:sessions-list`, `hq:claude-sessions` | entries started via `hq:session-start` gain `cwd` (side table in `session-tails.js`; `claude-sessions.js` untouched) |
 | `hq:spell-telemetry` | (K-6) each rollup entry gains `last_outcome` (`'ok'`\|`'failed'`\|`'channeled'`\|`null`), `last_exit` (number\|`null`) and `last_outcome_at` (ISO `started_at` of that cast\|`null`), read from the newest entry in `casts[]` (casts are pushed when they END; `resolved`→`ok`, `fizzled`→`failed` incl. timeouts, `channeled`→`channeled`). Nothing new is persisted. A spell whose casts all failed (the rollup only counts successes) gets a view-only entry `{last_cast:null, lifetime_casts:0, distinct_days:0, …}`; `last_cast` stays the SUCCESS watermark, so "failed 2d ago" reads `last_outcome_at`. Absent fields = older main |
 | `hq:mini-data`, `hq:mini-update` | (K-6) gain `uncommitted` (uncommitted FILES summed over projects, `git_safety.dirty`), `secrets` (`risk_security.secrets_found` summed), `unpushed` (number of PROJECTS with unpushed commits) — the same `tray-menu.js` `scanCounts()` numbers as the tray status line — and `topQuest.projectId` (string\|`null`), `topQuest.project` (project name\|`null`). Consumers tolerate absence (older main) |
 | `hq:scan` | returns `runScan()`'s boolean instead of a constant `true`: `false` = no scan started (one is already running — `hq:live-state` `scan.state === 'running'` — or the pipeline could not be spawned). v3/v4 ignore the value; v5 toasts "A scan is already running" |
 | `hq:claude-quest` | returns `true` (terminal opened) \| `false` (path refused, folder missing, spawn failed). The launch is `dashboard/claude-launch.js` `launchClaudeTerminal(cwd, prompt)`: prompt flattened to one line, capped at 500 chars, `"` → `'`. Neither the folder nor the prompt is ever put on a cmd command line (R-P4 fix — the pre-v5 `cd /d "<cwd>" && claude "<prompt>"` argument never reached claude, and its prompt sat outside cmd's quotes, so `&`/`\|` in a quest title ran as commands): a fixed `cmd /d /v:off /c start "" cmd /d /v:off /k "<dashboard>\claude-launch.cmd"` is spawned with the project as its working directory and the prompt in env `HQ_LAUNCH_PROMPT`; the static helper runs `claude "%HQ_LAUNCH_PROMPT%"` with delayed expansion off. **Env `HQ_DRY_LAUNCH=1`** (read per call, exact value `1`): logs `[dry-launch] <cwd> :: <prompt>` to main's stdout, opens nothing, returns `true` — for gates and tests |
 | `hq:studio:rec-status` | gains `paused` |
-| `hq:studio:rec-stop` | the result is an object, not a bare path (it already was before v5 — the row above is stale): `{path, bytes, durationMs, gaps, reason}` \| `null`; v5 adds `gaps` (chunk gaps logged by `rec-queue.js` while draining, `null` if unknown) and `reason` (`'hotkey'`\|`'lowdisk'`\|`'limit'` for a main-initiated stop, else `null`) |
+| `hq:studio:rec-stop` | the result is an object, not a bare path (it already was before v5): `{path, bytes, durationMs, gaps, reason}` \| `null`; v5 adds `gaps` (chunk gaps logged by `rec-queue.js` while draining, `null` if unknown) and `reason` (`'hotkey'`\|`'lowdisk'`\|`'limit'` for a main-initiated stop, else `null`). **Failed save** (the `.part`→`.webm` rename failed after retries): `{path:null, error, partPath, bytes, durationMs, gaps, reason}`. `error` is `'rename failed: <code> — kept as <file>.part, recovered at next launch'` and `partPath` is the absolute `.part` path. No `studio:capture-added` is emitted, and the closing `hq:studio:rec-status` push carries `state:'stopped'`, `lastPath:null` and the same `error`. A `recStop` that arrives after the recording finished returns the remembered result (success or failure), not `null`. Check `path`: a falsy `path` with `error` means "not saved" |
 | `hq:studio:snip-frozen` | gains `projects:[{id, name}]` (for the send-to-Claude picker); `[]` unless main wired BOTH K-5 functions — the overlay disables send-to-Claude (and says why) on an empty list |
 | `hq:studio:snip-commit` | gains `action:'save'\|'copy'\|'claude'` and `projectId`; absent `action` = today's save+copy. `copy` writes no file; `claude` saves, then resolves `projectId` main-side (paths never come from IPC) and launches with `Look at this screenshot: <abs path> — ` |
 | `hq:studio:rec-command` payload | carries `recId` (see the row above) |

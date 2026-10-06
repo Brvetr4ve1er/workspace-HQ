@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorkspaceHQ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Anton&family=Bebas+Neue&family=Cinzel:wght@400;600;700&family=Ephesis&family=IM+Fell+English&family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="vendor/aos.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('hq-theme') || 'arcade'); } catch (e) {}</script>
+</head>
+<body>
+  <!-- CRT atmosphere: scanlines + vignette + faint phosphor flicker (pure CSS, pointer-events none) -->
+  <div id="crt" aria-hidden="true"></div>
+
+  <!-- boot splash: shows once per session, dismissed by click/key or auto after the power-on animation -->
+  <div id="boot" aria-hidden="true">
+    <div class="boot-inner">
+      <div class="boot-logo">WORKSPACE<span>HQ</span></div>
+      <div class="boot-sub">PERSONAL OPS CONSOLE — v2</div>
+      <div class="boot-start">PRESS START</div>
+    </div>
+  </div>
+
+  <header id="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- pixel monitor glyph -->
+        <svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="1" y="2" width="14" height="10" fill="#1b1640"/><rect x="2" y="3" width="12" height="8" fill="#0c0a1e"/><rect x="3" y="4" width="6" height="2" fill="#00f0ff"/><rect x="3" y="7" width="9" height="1" fill="#ff2bd6"/><rect x="3" y="9" width="4" height="1" fill="#ffd23f"/><rect x="6" y="12" width="4" height="1" fill="#1b1640"/><rect x="4" y="13" width="8" height="1" fill="#1b1640"/></svg>
+      </div>
+      <div>
+        <div class="title">WORKSPACE<span class="hq">HQ</span></div>
+        <div class="subtitle" id="scan-date">—</div>
+      </div>
+    </div>
+
+    <div class="player">
+      <div class="level-chip"><small>LV</small><b id="level">–</b><small id="title-rank">—</small></div>
+      <div class="xp">
+        <div class="xp-row"><b id="xp-label">0 XP</b><span class="muted" id="xp-next">—</span></div>
+        <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
+      </div>
+      <div class="stat hp">
+        <label><span id="hp-word">HP</span> <b id="health" class="hpnum">0</b></label>
+        <div class="hp-bar" id="hp-bar"><div class="hp-fill" id="hp-fill"></div></div>
+      </div>
+      <div class="stat">
+        <div class="flame" id="flame">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" class="px-flame"><rect x="7" y="1" width="2" height="2" fill="#ffa502"/><rect x="6" y="3" width="4" height="2" fill="#ffa502"/><rect x="5" y="5" width="6" height="3" fill="#ff6348"/><rect x="4" y="8" width="8" height="4" fill="#ff4757"/><rect x="6" y="9" width="4" height="4" fill="#ffd23f"/><rect x="5" y="12" width="6" height="2" fill="#ff6348"/></svg>
+          <b id="streak">0</b>
+        </div>
+        <label id="streak-word">STREAK</label>
+      </div>
+      <!-- One SYS menu instead of three sibling utility buttons: status stays glanceable,
+           config lives one click away (accent-budget + declutter rule). -->
+      <div class="theme-wrap">
+        <button id="theme-btn" class="sfx theme-btn" title="Themes · card export · sound">◈ SYS</button>
+        <div id="theme-menu" class="theme-menu" role="menu">
+          <div class="th-group">THEME</div>
+          <button data-theme="arcade" class="theme-opt"><span class="th-name">ARCADE</span><span class="th-hint">CRT · pixel · phosphor</span></button>
+          <button data-theme="okami" class="theme-opt"><span class="th-name">OKAMI</span><span class="th-hint">streetwear · void purple</span></button>
+          <button data-theme="numidea" class="theme-opt"><span class="th-name">NUMIDEA</span><span class="th-hint">editorial · mesh · glitch</span></button>
+          <button data-theme="ops" class="theme-opt"><span class="th-name">OPS DESK</span><span class="th-hint">cream · utility · quiet</span></button>
+          <button data-theme="nightfall" class="theme-opt"><span class="th-name">NIGHTFALL</span><span class="th-hint">yharnam gothic · lands between</span></button>
+          <div class="th-group">TOOLS</div>
+          <button id="share-card" class="theme-opt"><span class="th-name">◈ EXPORT CARD</span><span class="th-hint">shareable stat PNG</span></button>
+          <button id="sfx-toggle" class="theme-opt"><span class="th-name">♪ OFF</span><span class="th-hint">chiptune sound effects</span></button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== STAGE SELECT: one-line scrubber by default; the dot rail is a power
+       feature that unfolds on demand (and auto-unfolds when viewing the past). ====== -->
+  <div class="timemachine collapsed" id="timemachine">
+    <div class="tm-head">
+      <button class="lbl" id="tm-toggle" title="Expand the snapshot rail">▸ STAGE SELECT</button>
+      <button class="tm-nav sm" id="tm-prev" title="Older (←)">◀</button>
+      <span class="date" id="tm-date">—</span>
+      <button class="tm-nav sm" id="tm-next" title="Newer (→)">▶</button>
+      <span class="live" id="tm-badge">live</span>
+      <button class="tm-live" id="tm-live" title="Jump back to the latest scan">⏎ BACK TO LIVE</button>
+      <span class="spacer"></span>
+      <span class="delta" id="tm-delta"></span>
+    </div>
+    <div class="tm-track">
+      <div class="tm-rail"><svg id="tm-spark"></svg><div class="tm-dots" id="tm-dots"></div></div>
+    </div>
+  </div>
+
+  <!-- 5 tabs, one verb each: act (BASE) · clear (QUESTS) · cast (SPELLBOOK) ·
+       review (STATS incl. trophies) · roam (MAP incl. warehouse). FOCUS = One-Thing mode. -->
+  <nav id="tabs">
+    <button data-tab="overview" class="active">BASE</button>
+    <button data-tab="quests">QUESTS <span class="badge" id="quest-count"></span></button>
+    <button data-tab="spellbook">SPELLBOOK <span class="badge" id="spell-count"></span></button>
+    <button data-tab="trends">STATS <span class="badge" id="ach-count"></span></button>
+    <button data-tab="basemap">MAP</button>
+    <button class="tab-focus" id="tab-focus" title="One-Thing focus mode (F)">◎ FOCUS</button>
+  </nav>
+
+  <main>
+    <section id="overview" class="tab active"></section>
+    <section id="quests" class="tab"></section>
+    <section id="spellbook" class="tab"></section>
+    <section id="trends" class="tab"></section>
+    <section id="basemap" class="tab"></section>
+  </main>
+
+  <!-- celebration takeover: scrim + confetti canvas + center card, shown on level-up /
+       quest-complete / new-achievement (driven by changes_since_prev) -->
+  <div id="takeover" aria-hidden="true">
+    <canvas id="confetti"></canvas>
+    <div class="to-card" id="to-card"></div>
+  </div>
+
+  <!-- One-Thing Mode: collapse to a single quest + timer, dim everything else -->
+  <div id="onething" aria-hidden="true">
+    <div class="ot-card">
+      <div class="ot-eyebrow">ONE THING · everything else can wait</div>
+      <div class="ot-quest" id="ot-quest">—</div>
+      <div class="ot-proj" id="ot-proj"></div>
+      <div class="ot-timer" id="ot-timer">00:00</div>
+      <button class="ot-exit" id="ot-exit">✓ DONE — exit focus</button>
+      <div class="ot-hint">press <b>F</b> to toggle · Esc to leave</div>
+    </div>
+  </div>
+
+  <div id="scrim"></div>
+  <aside id="drawer"></aside>
+
+  <!-- dry-run confirm modal: shows the exact incantation before a first/changed cast -->
+  <div id="castconfirm" aria-hidden="true"></div>
+  <!-- casting log: slide-up console streaming live spell output -->
+  <div id="castlog" class="hidden" aria-live="polite"></div>
+
+  <!-- offscreen canvas the stat-card exporter draws into -->
+  <canvas id="cardcanvas" width="1000" height="560" style="display:none"></canvas>
+
+  <footer id="statusbar">
+    <span class="coin-blink">● INSERT COIN</span>
+    <span id="status">loading…</span>
+  </footer>
+
+  <script src="../../dashboard/data.js"></script>
+  <script src="vendor/aos.js"></script>
+  <script src="lib/one-thing.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -51,7 +51,8 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 New producer/consumer pair, parallel to the browser tendril: the **WorkspaceHQ
 Bridge** extension scrapes your logged-in social sessions and the app relay
 (`dashboard/social-bridge.js`, a new tendril) writes sidecars under `data/social/`;
-the MCP server (`dashboard-v3/mcp/server.mjs`) reads them via `hq_social_*` tools.
+the MCP server (`mcp/workspacehq/server.mjs`; it lived in `dashboard-v3/mcp/` until
+2026-10-06) reads them via `hq_social_*` tools.
 **Not consumed by `build-data.mjs`/the renderer** — no `latest.json` field, no
 golden fixture. All `data/social/*` is **gitignored** (personal content + session).
 
@@ -91,8 +92,9 @@ an atomic claim step exists, `/social/outbox/result` no longer drops that outcom
 reports `ok:true` for an action that is already `canceled`, the relay keeps
 `status:'canceled'` (the action is still terminal, never re-listed, never `sent`) and records
 `sent_at`, `result{url,uri}` and `sent_after_cancel:true`, answering
-`200 {ok, id, status:'canceled', sent_after_cancel:true}`. `hq_social_outbox` already returns
-`sent_at`/`result`, so Claude sees the post is live and where. Only the first such report is
+`200 {ok, id, status:'canceled', sent_after_cancel:true}`. `hq_social_outbox` returns
+`sent_at`/`result` and, since 2026-10-06, `canceled_at` (or `null`) and `sent_after_cancel`
+(boolean, `false` unless recorded) on every action, so Claude sees the post is live and where. Only the first such report is
 recorded (a repeat is `ignored`); an `ok:false` report for a canceled action, and any report
 for `sent`/`failed`, stays `ignored` and writes nothing. Additive: no status value changes,
 the write-gate invariant is untouched (only a human-approved send produces a result).

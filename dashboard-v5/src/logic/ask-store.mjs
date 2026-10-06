@@ -1,7 +1,7 @@
-// Ask history + sources, stored in dashboard-v3's ORACLE format.
+// Ask history + sources, stored in v3's ORACLE format (legacy/dashboard-v3).
 //
 // v3 and v5 run in the same window on the same file:// origin, so they share
-// localStorage: v3's keys are adopted as they are (dashboard-v3/src/realms/oracle/view.js:18-56)
+// localStorage: v3's keys are adopted as they are (legacy/dashboard-v3/src/realms/oracle/view.js:18-56)
 // and a flip between renderers keeps today's chat and the ticked sources.
 //
 //   hq-oracle-include  {"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}

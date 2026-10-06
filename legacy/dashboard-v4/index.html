@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- no eval, no remote origins; unsafe-inline styles allowed because views
+       set style attributes (same trade v3/index.html + shard.html make) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>WorkspaceHQ — v4</title>
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/base.css" />
+  <link rel="stylesheet" href="./styles/shell.css" />
+  <!-- Phase C: the shared component language, then the WORK workbench layout.
+       Order matters — work.css composes the components, never redefines them. -->
+  <link rel="stylesheet" href="./styles/components.css" />
+  <link rel="stylesheet" href="./styles/work.css" />
+  <link rel="stylesheet" href="./styles/home.css" />
+  <!-- v4.3 TASKS board. AFTER work.css on purpose: it reuses that sheet's
+       .drawer* classes for the project drawer and scopes one override of the
+       scrim under .tasks-host, which needs to win on source order. -->
+  <link rel="stylesheet" href="./styles/tasks.css" />
+  <!-- v4.1 surfaces. work.css stays FIRST of the surface sheets: the PROJECTS
+       drawer composes its .drawer*/.truth-kv/.meter classes rather than
+       redefining them (S1's "promote into components.css" ask is declined —
+       work.css is loaded document-wide, so the classes already resolve and a
+       move would be churn with no behaviour change). system.css and
+       lookback.css ALSO self-inject from their views; these static links win
+       the race and their injectors then no-op. -->
+  <link rel="stylesheet" href="./styles/projects.css" />
+  <link rel="stylesheet" href="./styles/system.css" />
+  <link rel="stylesheet" href="./styles/mind.css" />
+  <link rel="stylesheet" href="./styles/automate.css" />
+  <link rel="stylesheet" href="./styles/lookback.css" />
+  <!-- v4.3 MAP. AFTER work.css and components.css on purpose: the isometric
+       city reuses work.css's project drawer (it scopes one `.drawer-scrim`
+       override under `.map`) and components.css's `.btn` for the archive's
+       Restore verb, so both must already be resolved when this sheet lands. -->
+  <link rel="stylesheet" href="./styles/map.css" />
+  <!-- v4.3 FOCUS MODE — chrome overlay, not a surface; last because it
+       composes components.css `.btn--primary` and must win over it. Like
+       system.css and lookback.css, map.css and focus.css ALSO self-inject
+       from their modules; these static links win the race and the injectors
+       (which test for `link[href$="map.css"]` / `[href$="focus.css"]`) then
+       no-op, so exactly one copy of each sheet is ever in the document. -->
+  <link rel="stylesheet" href="./styles/focus.css" />
+</head>
+<body>
+  <!-- scanline atmosphere (pure CSS, pointer-events none) -->
+  <div id="scan-atmo" aria-hidden="true"></div>
+
+  <div id="v4">
+    <aside id="rail" aria-label="surfaces"></aside>
+    <div id="stage-wrap">
+      <header id="topstrip"></header>
+      <main id="stage"></main>
+    </div>
+  </div>
+
+  <!-- overlay layer: the command palette builds itself in here on first open
+       (above #v4, outside the stage so a surface re-mount never disturbs it) -->
+  <div id="overlays"></div>
+
+  <!-- the v2 data bundle, read-only (window.DATA) — same seam v3 uses -->
+  <script src="../../dashboard/data.js"></script>
+  <!-- ESM boot: nested relative module imports over file:// (proven in v3) -->
+  <script type="module" src="./src/core/boot.js"></script>
+</body>
+</html>

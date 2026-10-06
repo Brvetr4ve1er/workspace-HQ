@@ -1,0 +1,659 @@
+/* system.css — the SYSTEM surface (machine · screen time · social), revised in
+   v4.3 against the APPROVED EXEMPLAR, legacy/dashboard-v4/styles/home.css.
+
+   The v4.2 sheet outlined every box it owned — 11 `border: 1px solid`
+   declarations on passive containers, plus the full outline `.panel` brings
+   from components.css on top of them. That lattice IS the "too crowded /
+   messy" the user rejected twice. This sheet copies the exemplar's decisions
+   one at a time:
+
+   TYPE      body, titles and every sentence are MIXED CASE in the UI (sans)
+             family. ALL-CAPS + mono is a label register ONLY — the tab bar,
+             eyebrows, section keys, organ kind lines, stat captions. Never a
+             sentence, never a data value. Nothing below --fs-xs.
+   HIERARCHY exactly ONE display level per tab: `.sys-health` at --fs-2xl, on
+             the hero. On MACHINE that line is "N healthy, N warning, N
+             critical" — the focal element of the whole surface — and the organ
+             grid RECEDES beneath it in its own unglowing section.
+   CHROME    BORDER DIET. No passive container in this file is outlined. The
+             shared `.panel` / `.chip` / `.empty` chrome from components.css is
+             stripped back under `.sys-root` (see "borrowed chrome" below), so
+             a section is a heading on the page ground and a card is a
+             background step (--hud-panel over --hud-ink) plus a 2px seam on
+             its accent edge — exactly the exemplar's `.pick`.
+   COLOUR    VIOLET BUDGET = 2 per tab, and both are spent on that tab's focal:
+             the hero's edge glow, and (SCREEN TIME only) the dial arc at the
+             calm tier. Every other violet in the v4.2 sheet — the active tab,
+             three panel titles, the cleanup group headings, eleven command
+             blocks, the platform seams, the weekday bars, the social handles —
+             is now a neutral step or a muted status seam. Severity owns
+             red/amber, and only where something is actually wrong.
+   SPACE     sections --space-7 apart, cards padded --space-4/5, list rows
+             --space-2 apart. Nothing on this surface touches anything.
+   MOTION    none, beyond hover/focus feedback on real controls and the
+             disclosure caret's rotation (a real state change).
+
+   Layout invariants carried from v4.1 (each guards a real bug, do not "tidy"):
+   - .sys-root is height:100% of #stage's content box and the tab bar is fixed
+     while .sys-stage scrolls, so switching tabs never leaves you scrolled into
+     the middle of the previous section.
+   - .sys-stage and every panel in the chain carry min-height:0 — one missing
+     and an inner scroller grows instead of scrolling. */
+
+.sys-root {
+  /* The UI (sans) family the constitution requires for body text. base.css
+     sets the app font to --term (mono) and tokens.css carries no sans token;
+     this agent owns neither file, so the stack is declared here exactly as
+     home.css and tasks.css declare it — scoped to the surface. When the sans
+     stack is promoted to tokens.css all three become `var(--ui)` and nothing
+     else changes. Mono survives only where it earns its keep: figures, labels
+     and command text, where tabular alignment is the point. */
+  --ui: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  /* Muted, on-palette accents. Deliberately NOT the neon COL table the v4.2
+     sheet reached for (#3aff6e, #ff4757): six neon-green sparklines do not
+     recede, and a neon red on a CATEGORY reads as an alarm about nothing.
+     --sys-good is the exemplar's own win seam; --sys-chart is its momentum
+     blue. Mirrored as constants in machine.js / screen-time.js, because an SVG
+     stroke attribute and a CSS variable need the same value. */
+  --sys-good: #86b986;
+  --sys-chart: #74a8dc;
+
+  font-family: var(--ui);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------- tab bar */
+/* Borderless, exactly like the exemplar's `.mo-tab`: the active state is
+   brightness plus a hairline under the word. The v4.2 bar carried a full-width
+   rule AND a violet glowing tab — two pieces of chrome for one bit of state. */
+.sys-tabs {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  gap: var(--space-5);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+}
+.sys-tab {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  min-height: var(--tap-min);
+  padding: var(--space-1) 0;
+  color: var(--hud-text-dim);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.sys-tab:hover { color: var(--hud-text); }
+.sys-tab:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 3px; }
+.sys-tab.active { color: var(--hud-text); border-bottom-color: currentColor; }
+
+.sys-stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.sys-stage::-webkit-scrollbar { width: 8px; }
+.sys-stage::-webkit-scrollbar-thumb { background: var(--hud-line); border-radius: 4px; }
+.sys-stage::-webkit-scrollbar-track { background: transparent; }
+
+/* ----------------------------------------------------------- the column */
+/* A card shelf, not a text column: the constitution lets a wide grid exceed
+   --measure, and every run of prose inside is capped in ch. #stage contributes
+   --space-4 and this adds --space-4, for a --space-6 gutter — the board never
+   touches the viewport edge. */
+.sys-sec {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);                 /* the section rhythm — nothing here ever touches */
+}
+
+/* ------------------------------------------------------- borrowed chrome */
+/* components.css is not this agent's file and its `.panel` / `.chip` /
+   `.empty` / `.figure` / `.btn` carry the outlined, violet, ALL-CAPS register
+   the exemplar replaced. Rather than fork five components, the shared classes
+   are stripped back HERE, scoped to this surface, so every existing call site
+   inherits the exemplar's language without a markup rewrite. Nothing outside
+   .sys-root is touched. */
+
+/* A panel becomes a plain section: a heading on the page ground with raised
+   cards inside it. NOT a --hud-panel block — cards inside would then sit on
+   the same step and vanish. */
+.sys-root .panel,
+.sys-root .panel--focal {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  clip-path: none;
+  gap: var(--space-4);
+}
+.sys-root .panel-head {
+  border-bottom: 0;
+  padding: 0;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+/* The section key, in the label register. Was violet at every call site. */
+.sys-root .panel-title {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+/* A count and a sort order, not a heading — so it stays mono and dim for
+   alignment but is NOT uppercased. "11 SCRIPTS · MOST URGENT FIRST" shouted at
+   the reader is the ALL-CAPS-everywhere habit creeping back through a caption. */
+.sys-root .panel-sub {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .06em;
+  text-transform: none;
+  color: var(--hud-text-dim);
+}
+/* The body stacks its blocks with air rather than rules — this is what replaces
+   the `.an-group + .an-group` margin and the doom strip's old bottom margin. */
+.sys-root .panel-body {
+  padding: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* A chip becomes a colour-carrying word in the label register — the same move
+   the exemplar makes with `.pick-kind`. components.css's [data-sev] colours
+   still apply (its border-colors go inert with the border). This single rule
+   un-boxes ~25 elements: organ verdicts, danger gates, trend arrows, category
+   tags, outbox statuses and the account shelf. */
+.sys-root .chip {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--term);
+  letter-spacing: .2em;
+}
+
+/* Empty states are calm single sentences, not styled panels. */
+.sys-root .empty {
+  padding: 0;
+  border: 0;
+  font-family: var(--ui);
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--hud-text-dim);
+  max-width: 62ch;
+}
+.sys-root .empty code { font-family: var(--term); font-size: var(--fs-sm); color: var(--hud-text); }
+
+/* Figures step DOWN from the app-wide display size and lose the violet glow:
+   eight of them at --fs-2xl in neon violet is what flattened the hierarchy the
+   type ramp exists to protect. Severity still owns colour, so the [data-sev]
+   variants are re-declared at this specificity rather than left to lose. */
+.sys-root .figure {
+  font-size: var(--fs-xl);
+  color: var(--hud-text);
+  text-shadow: none;
+}
+.sys-root .figure[data-sev="red"]    { color: var(--hud-red); }
+.sys-root .figure[data-sev="orange"] { color: var(--hud-amber); }
+.sys-root .figure[data-sev="yellow"] { color: var(--hud-yellow); }
+.sys-root .figure[data-sev="dim"]    { color: var(--hud-text-dim); }
+
+/* Controls keep their border — the constitution gives borders to interactive
+   elements — but drop the shout. "✗ NOT SAVED — RETRY" and "NOTE FOR CLEANUP"
+   in tracked-out caps are sentences in the label register, which the type
+   rules ban outright. */
+.sys-root .btn {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  letter-spacing: .01em;
+  text-transform: none;
+  padding: var(--space-1) var(--space-4);
+  border-radius: 4px;
+}
+.sys-root .btn--sm { font-size: var(--fs-sm); padding: var(--space-1) var(--space-3); min-height: 28px; }
+/* A selected filter/tab, lit WITHOUT violet: the budget belongs to the focal,
+   and SOCIAL can show a tab and a platform filter selected at the same time. */
+.sys-root .btn.is-on {
+  color: var(--hud-text);
+  border-color: var(--hud-text-dim);
+  background: var(--hud-panel-hi);
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------ the hero */
+/* The ONE dominant element on each tab. Hexagon-cut like the shell's System
+   windows, carrying the scanline and the edge glow the constitution reserves
+   for focal moments. It does NOT compose `.panel`: an outlined hero over
+   unoutlined sections is the "everything is a box" look this surface exists to
+   replace. */
+.sys-hero {
+  position: relative;
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+  padding: var(--space-6);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .035) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+  /* VIOLET ACCENT 1 of 2. */
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 0 64px -32px var(--hud-violet), 0 30px 70px -40px #000;
+}
+.sys-hero-main { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+
+.sys-eyebrow {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+  margin-bottom: var(--space-3);
+}
+
+/* THE FOCAL ELEMENT. On MACHINE this is the health status line; on the other
+   tabs it is that tab's one-sentence verdict. Near-white by default, not
+   violet: size and position make it focal, and spending violet here would blow
+   the budget. Severity tints only the counts that are non-zero. */
+.sys-health {
+  font-family: var(--ui);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  color: var(--hud-text);
+  margin: 0;
+  max-width: 30ch;
+  text-wrap: balance;
+}
+.sh-warn { color: var(--hud-amber); }
+.sh-crit { color: var(--hud-red); }
+/* A zero is not a warning. Nothing wrong, nothing coloured. */
+.sh-zero { color: var(--hud-text-dim); }
+
+.sys-hero-sub {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--hud-text-dim);
+  max-width: 58ch;
+}
+/* Hardware and timestamps: mono for alignment, dim, and NOT uppercased. */
+.sys-hero-host {
+  margin: var(--space-2) 0 0;
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .05em;
+  line-height: 1.6;
+  color: var(--hud-text-dim);
+  max-width: 72ch;
+}
+.sys-hero-act { margin-top: var(--space-5); display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+/* A quiet mono caption. The register for a line that needs tabular alignment
+   but is a phrase, not a label — so it is never uppercased. */
+.sys-cap {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .05em;
+  line-height: 1.5;
+  color: var(--hud-text-dim);
+}
+
+/* ==================================================== MACHINE · vitals */
+/* Three per row by ARITHMETIC rather than by luck: the column caps at 1180px
+   with --space-4 of its own padding, so the widest a track row can be is
+   1148px, and a fourth 300px track plus its gap needs 1248px. The "max 3 tiles
+   in a row" rule therefore holds at every window size. */
+.organ-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+/* One vital, RECEDING: a flat background step, no outline, and a single 2px
+   seam on the accent edge carrying the status. --oc is set inline from the
+   STATUS table in machine.js. */
+.organ {
+  --oc: var(--hud-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--oc);
+  border-radius: 0 4px 4px 0;
+}
+.organ.is-ghost { opacity: .55; border-left-style: dashed; }
+
+/* The kind line: the anatomical caption (v3 content, kept) then the verdict,
+   in the label register. The verdict was a bordered chip on every card — eight
+   little boxes inside eight bigger boxes. */
+.organ-kind {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.organ-word { color: var(--oc); }
+.organ-sep { opacity: .5; }
+
+.organ-name {
+  margin: 0;
+  font-family: var(--ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--hud-text);
+}
+
+.organ-read { display: flex; align-items: baseline; gap: var(--space-2); }
+.organ-spark { width: 100%; height: 26px; display: block; }
+.organ-dx { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text); }
+.organ-tx { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text-dim); font-style: italic; }
+
+/* no-scan state: a flatline in the hero, then the eight named vitals waiting */
+.ekg { width: 100%; max-width: 380px; height: 28px; margin-top: var(--space-4); }
+.ekg-base { fill: none; stroke: var(--hud-line); stroke-width: 1.5; }
+.ekg-line { fill: none; stroke: var(--sys-chart); stroke-width: 1.5; opacity: .7; }
+
+/* ============================================== MACHINE · recommended fixes */
+.rx-list { display: flex; flex-direction: column; gap: var(--space-4); }
+.rx {
+  --oc: var(--hud-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--oc);
+  border-radius: 0 4px 4px 0;
+}
+.rx-top { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.rx-organ {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--oc);
+}
+.rx-title {
+  font-family: var(--ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--hud-text);
+}
+
+/* THE DANGER GATE, stated in colour as well as words. These three classes are
+   the contract with pc-health.json's `danger` field — do not collapse them:
+     dg-safe    read-only     the ONLY kind main will execute (hq:health-fix
+                              rebuilds the whitelist from pc-health.json and
+                              refuses everything else)
+     dg-caution deletes files copy-and-run-yourself
+     dg-admin   needs admin   copy-and-run-yourself, elevated
+   They are now coloured words rather than bordered chips: the gate is carried
+   by the word and its colour, which is the part a reader actually uses. */
+.rx-danger { margin-left: auto; }
+.rx-danger.dg-safe    { color: var(--hud-text-dim); }
+.rx-danger.dg-caution { color: var(--hud-amber); }
+.rx-danger.dg-admin   { color: var(--hud-red); }
+
+.rx-why { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text); max-width: 72ch; }
+.rx-teach { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text-dim); font-style: italic; max-width: 72ch; }
+/* A darker step, not an outlined box. */
+.rx-cmd {
+  padding: var(--space-3) var(--space-4);
+  background: #100d1e;
+  border-radius: 4px;
+  overflow-x: auto;                     /* a long PowerShell one-liner scrolls, never widens the card */
+}
+.rx-cmd code { font-family: var(--term); font-size: var(--fs-xs); line-height: 1.6; color: var(--hud-text); white-space: pre; }
+/* HUD chrome, not OS chrome — mirrors the panel-body rule in components.css */
+.rx-cmd::-webkit-scrollbar, .rx-out::-webkit-scrollbar { width: 8px; height: 8px; }
+.rx-cmd::-webkit-scrollbar-thumb, .rx-out::-webkit-scrollbar-thumb { background: var(--hud-line); border-radius: 4px; }
+.rx-cmd::-webkit-scrollbar-track, .rx-out::-webkit-scrollbar-track { background: transparent; }
+.rx-act { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.rx-out {
+  max-height: 200px;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  background: #0b0916;
+  border-radius: 4px;
+}
+.rx-out.is-err { color: var(--hud-red); }
+
+/* ===================================================== MACHINE · cleanup */
+.an-reclaim { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text-dim); max-width: 72ch; }
+.an-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.an-group-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.an-group-n { font-weight: 400; opacity: .7; font-variant-numeric: tabular-nums; }
+.an-list { display: flex; flex-direction: column; gap: var(--space-2); }
+/* Rows, not boxed rows: a background step and 8px of air between them. */
+.an-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--hud-panel);
+  border-radius: 4px;
+}
+.an-label { flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm); line-height: 1.5; word-break: break-word; }
+.an-note { flex: 0 0 auto; }
+
+/* ================================================= SCREEN TIME · overview */
+/* The rising-social warning: a seam, not a dashed box. Amber is earned here —
+   this is the one place on the tab where something is going wrong. */
+.wt-doom {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--hud-amber);
+  border-radius: 0 4px 4px 0;
+}
+.wt-doom-k {
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--hud-amber);
+}
+.wt-doom-t { font-size: var(--fs-sm); line-height: 1.5; color: var(--hud-text); }
+
+/* the distraction dial — it lives in the hero, so it carries no chrome of its
+   own; the tier drives the arc colour and nothing else */
+.wt-dial { flex: 0 0 auto; width: 216px; display: flex; flex-direction: column; gap: var(--space-2); }
+.wt-dial-svg { width: 100%; display: block; }
+.wt-arc { fill: none; stroke-width: 12; stroke-linecap: round; }
+.wt-arc.bg { stroke: var(--hud-line); }
+/* VIOLET ACCENT 2 of 2, and only on SCREEN TIME's calm tier: a violet arc reads
+   as "standing by", where amber or red would be an alarm about nothing. */
+.wt-arc.val { stroke: var(--hud-violet); transition: stroke-dashoffset 400ms ease; }
+.wt-dial[data-tier="mid"]  .wt-arc.val { stroke: var(--hud-amber); }
+.wt-dial[data-tier="high"] .wt-arc.val { stroke: var(--hud-red); }
+.wt-dial-num { font-family: var(--term); font-size: 34px; font-weight: 700; fill: var(--hud-text); }
+.wt-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--term);
+  font-size: var(--fs-xs);
+  letter-spacing: .1em;
+  color: var(--hud-text-dim);
+}
+.wt-scale .on { color: var(--hud-text); border-bottom: 1px solid currentColor; }
+.wt-dial-trend { display: flex; align-items: baseline; gap: var(--space-2); }
+
+.wt-trend[data-dir="up"]   { color: var(--hud-amber); }      /* more distraction is the mild-warning case */
+.wt-trend[data-dir="down"] { color: var(--sys-good); }
+.wt-trend[data-dir="flat"] { color: var(--hud-text-dim); }
+
+/* Two supporting cards, side by side and unmistakably secondary to the hero. */
+.wt-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); }
+.wt-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-radius: 4px;
+}
+.wt-k { display: block; }
+
+/* weekday rhythm — a track and a fill, no cell outlines */
+.wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-2); }
+.wt-wc { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.wt-wc .box { display: block; width: 100%; height: 40px; background: #100d1e; border-radius: 2px; overflow: hidden; }
+.wt-wc .box i { display: block; width: 100%; height: 100%; background: var(--sys-chart); }
+.wt-wc b { font-family: var(--term); font-size: var(--fs-xs); font-weight: 400; color: var(--hud-text-dim); }
+
+.wt-cen-row { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--fs-sm); color: var(--hud-text-dim); }
+.wt-cen-row b { font-family: var(--term); font-weight: 400; color: var(--hud-text); font-variant-numeric: tabular-nums; }
+
+/* ================================================ SCREEN TIME · platforms */
+.wt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); align-items: start; }
+/* A card that RECEDES: background step plus one 2px seam carrying the muted
+   category colour. The v4.2 card had a full outline AND a seam AND a violet
+   default AND an open-state glow. */
+.wt-card {
+  --cc: var(--hud-dim);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--cc);
+  border-radius: 0 4px 4px 0;
+}
+/* the summary IS the toggle: a real button, stripped back to the card face */
+.wt-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-5);
+  text-align: left;
+  font-family: var(--ui);
+  color: var(--hud-text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.wt-card-head:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: -2px; }
+.wt-dom-row { display: flex; align-items: baseline; gap: var(--space-2); }
+.wt-dom {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--fs-md); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wt-cat { color: var(--cc); }
+.wt-exp { color: var(--hud-text-dim); transition: transform 160ms ease; }
+.wt-card.is-open .wt-exp { transform: rotate(90deg); }
+.wt-total-row { display: flex; align-items: baseline; gap: var(--space-3); }
+.wt-spark { width: 100%; height: 26px; display: block; }
+.wt-cadence { display: block; }
+
+/* The detail is a darker step under the summary, not a ruled-off compartment. */
+.wt-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  background: rgba(0, 0, 0, .18);
+  border-radius: 0 0 4px 0;
+}
+.wt-dt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.wt-dt-c { display: flex; flex-direction: column; gap: 2px; }
+.wt-dt-c.is-wide { grid-column: 1 / -1; }
+.wt-dt-c span {
+  font-family: var(--term);
+  font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.wt-dt-c b { font-size: var(--fs-sm); font-weight: 400; color: var(--hud-text); }
+.wt-dt-title { font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-hist { display: flex; flex-direction: column; gap: 4px; }
+.wt-hrow {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) 96px;
+  align-items: center; gap: var(--space-2);
+  font-family: var(--term); font-size: var(--fs-xs);
+}
+.wt-hrow.is-zero { opacity: .4; }
+.wt-hd { color: var(--hud-text-dim); font-variant-numeric: tabular-nums; }
+.wt-hbar { height: 8px; background: #100d1e; border-radius: 2px; overflow: hidden; }
+.wt-hbar i { display: block; height: 100%; background: var(--cc); }
+.wt-hv { text-align: right; color: var(--hud-text); font-variant-numeric: tabular-nums; }
+
+.wt-empty-head { font-size: var(--fs-lg); line-height: 1.35; color: var(--hud-text); margin-bottom: var(--space-2); }
+.wt-empty-sub { display: block; }
+.wt-empty-sub code { font-family: var(--term); color: var(--hud-text); }
+
+/* ======================================================== SOCIAL */
+.so-accounts { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.so-acct { text-transform: none; letter-spacing: .04em; color: var(--hud-text); }
+
+/* Max three tiles in a row, by the same arithmetic as the organ grid. */
+.so-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); }
+.so-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  background: var(--hud-panel);
+  border-radius: 4px;
+}
+.so-tile-plat { color: var(--hud-text); letter-spacing: .2em; }
+
+.so-tabs, .so-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.so-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.so-card, .so-ob {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--hud-panel);
+  border-left: 2px solid var(--hud-dim);
+  border-radius: 0 4px 4px 0;
+}
+/* Muted status seams, on the same principle as the exemplar's pick cards:
+   nothing in an outbox is an emergency, so none of them are neon. */
+.so-ob[data-status="staged"]    { border-left-color: var(--hud-amber); }
+.so-ob[data-status="sent"]      { border-left-color: var(--sys-good); }
+.so-ob[data-status="failed"]    { border-left-color: var(--hud-red); }
+.so-ob[data-status="cancelled"] { border-left-color: var(--hud-dim); }
+
+.so-top { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.so-plat { font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .12em; color: var(--hud-text); }
+.so-auth { font-size: var(--fs-sm); color: var(--hud-text-dim); }
+.so-ago, .so-status { margin-left: auto; }
+.so-op { font-size: var(--fs-sm); color: var(--hud-text-dim); }
+.so-obtitle { font-size: var(--fs-md); font-weight: 600; line-height: 1.45; color: var(--hud-text); }
+.so-text { font-size: var(--fs-sm); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.so-counts { font-family: var(--term); }
+.so-hint { color: var(--hud-amber); }
+.so-oberr, .so-err { color: var(--hud-red); }

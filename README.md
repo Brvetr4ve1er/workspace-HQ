@@ -17,16 +17,21 @@ pixel mascot called Bit.
 ## Status
 
 - A personal tool, built for one machine. Windows only, no installer.
-- The live renderer is v3 (`dashboard-v3/`). The new one, v5 (`dashboard-v5/`, built from the Claude
-  Design file), is in progress. Try it for one launch with `HQ_UI_VERSION=v5`.
+- v5 (`dashboard-v5/`, built from the Claude Design file) is live: the app loads it by default.
+- The older renderers, v2 to v4, are quarantined in `legacy/`. They are kept in git but never load by
+  default. Rolling back is one command, `tools\rollback.ps1 v3` (or `v2` / `v4`), and
+  `tools\rollback.ps1 v5` returns to v5. Add `-DryRun` to see what it would do first.
+- The trailers stay silent until the soundtrack is muxed in.
 
 ## What's in the box
 
 | folder | what |
 |---|---|
 | `collector/` | The scan. Plain Node + git over the local filesystem, no prompts. An optional enrichment step asks the `claude` CLI for the soft fields (completion %, risk, insights). It is skipped when the CLI isn't installed. |
-| `dashboard/` | The Electron app (Electron 32): main process, tray, global hotkeys, the v2 renderer, and the IPC the newer renderers use. |
-| `dashboard-v3/`, `dashboard-v5/` | Renderers. Vanilla JS, no framework, no build step. |
+| `dashboard/` | The Electron app (Electron 32): main process, tray, global hotkeys, and the IPC every renderer uses. |
+| `dashboard-v5/` | The renderer. Vanilla JS, no framework, no build step. |
+| `legacy/` | The quarantined renderers v2, v3 and v4. Frozen, for rollback only. |
+| `mcp/workspacehq/` | The `workspacehq` MCP server that Claude Code sessions bind through `.mcp.json` ([tools](mcp/workspacehq/README.md)). |
 | `browser-bridge/` | Browser extension. It reports the active tab to the app. It also uses your logged-in sessions on Bluesky, Mastodon, Reddit, X, LinkedIn, Instagram, Threads, Facebook and YouTube to read your feeds, mentions, notifications and post stats into the app. It publishes a post that Claude staged only when you press approve & send ([how approval works](browser-bridge/README.md)). |
 | `schema/`, `spellbook/` | Scan data schema; curated automation ("spell") definitions. |
 | `tools/trailer/` | Renders the two trailers to video. |
@@ -73,14 +78,16 @@ node dashboard/build-data.mjs
 The full pipeline (collector → optional enrichment → assemble → render) is `.\run-pipeline.ps1`.
 Add `-NoEnrich` to stay offline, and `-ReportsDir <folder>` to choose where scan history is written.
 
-Choose the renderer in `data/.ui-version` (`v2` | `v3` | `v4` | `v5`; the file is gitignored), or for
-one launch with `$env:HQ_UI_VERSION = 'v5'`.
+The app runs v5. To switch renderers, run `tools\rollback.ps1 <v2|v3|v4|v5>`. It writes
+`data/.ui-version` (gitignored) and restarts the app. For one launch only, set
+`$env:HQ_UI_VERSION = 'v3'` instead.
 
 Tests (Node 25):
 
 ```powershell
 node --test dashboard/*.test.mjs
 node --test dashboard-v5/src/*.test.mjs dashboard-v5/src/dc/*.test.mjs dashboard-v5/src/live/*.test.mjs dashboard-v5/src/logic/*.test.mjs dashboard-v5/src/elements/*.test.mjs dashboard-v5/styles/*.test.mjs dashboard-v5/tools/*.test.mjs
+node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
 ```
 
 ## Working on it

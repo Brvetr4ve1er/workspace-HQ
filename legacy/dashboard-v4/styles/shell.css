@@ -1,0 +1,408 @@
+/* shell.css — rail buttons, topstrip chrome, and the shared HUD frame the
+   surfaces mount into. The hexagon-cut ".hud-frame" is the promoted form of
+   warroom.css's .wr-frame — the summoned "System" window, now app-wide.
+
+   v4.3 RESTYLE — this sheet is the frame around every screen, so it is held to
+   legacy/dashboard-v4/styles/home.css, the approved exemplar. What that meant here:
+
+   BORDER DIET  the sheet carried EIGHT `border: 1px solid` rules and the rail
+                and strip each drew a 1px rule from base.css on top of that. The
+                chrome read as a grid of outlined boxes — the "too crowded"
+                complaint, in the one place the user cannot navigate away from.
+                Every passive container now separates by a BACKGROUND STEP plus
+                space: stage ground (--hud-ink) < rail (--hud-panel) < topstrip
+                (--hud-panel-hi) < warden plate (a light wash) > gauge track
+                (near-black). Exactly ONE `border: 1px solid` survives in this
+                file — `.scrub-btn`, which is a real button and needs the
+                affordance. `.pal-input`'s underline and `.pal-row`'s selection
+                seam survive for the same reason: both are on interactive
+                elements. Severity keeps its accents (the off-latest amber).
+   VIOLET       ZERO violet GLOW in the shell, so the mounted surface owns the
+                whole ≤2 budget (HOME spends both on .oracle/.oracle-go). The
+                shell's one violet element is the ACTIVE RAIL ITEM — violet-hi
+                text over a 12% wash, no glow ring, no text-shadow — because
+                "where am I" is the one question the frame itself must answer.
+                Removed: the rail's violet spine and inset seam, the strip's
+                violet inset, the brand's glow, the LV number's violet + glow,
+                and the scrubber badge's violet "latest" state (latest is the
+                NORMAL state and should be quiet; past/none keep amber/red,
+                because severity owns colour).
+   HIERARCHY    the chrome steps DOWN so the stage can be focal: the brand is
+                dim at --fs-sm, and the LV numeral dropped from --fs-2xl to
+                --fs-xl so it cannot rival a surface's display-weight title.
+   LAYOUT       the strip WRAPS instead of crushing the warden plate. See the
+                warden block for the collision this fixes. */
+
+/* --- rail ------------------------------------------------------------- */
+/* WIDTH. --rail-w is 76px in tokens.css, sized when the rail held six short
+   abstract names. It cannot hold the familiar ones the constitution requires:
+   measured at 12px Cascadia, "AUTOMATIONS" is 88px and "PROJECTS" 64px against
+   a 60px button, so BOTH overflowed the rail — "AUTOMATIONS" rendered as
+   "UTOMATIONS" and the spill gave the rail a horizontal scrollbar. That was
+   true before this restyle too; it is fixed here rather than left, because a
+   rail name the user cannot read is the "you removed everything" complaint in
+   its most literal form. 112px = the 88px label + the button's 4px sides +
+   the rail's 8px sides. Overriding the token (rather than base.css's grid)
+   keeps ONE source of truth for the rail width; if tokens.css ever revises
+   --rail-w, delete this block instead of fighting it. */
+:root { --rail-w: 112px; }
+
+/* Nine stacked buttons: outlining each one turned the rail into a ladder of
+   boxes. The active item is a filled BAND instead — the wash reads at a glance
+   from the corner of the eye, which an outline never did. */
+.rail-btn {
+  align-self: stretch;              /* fill the rail's content box, so the active wash is a band */
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-1);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--hud-text-dim);
+  font-family: var(--term);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  transition: background-color .12s ease, color .12s ease;
+}
+.rail-btn:hover { color: var(--hud-text); background: rgba(233, 230, 245, .05); }
+.rail-btn:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: -2px; }
+/* THE SHELL'S ONE VIOLET ELEMENT. Colour and a wash — no glow, no outline. */
+.rail-btn.active {
+  color: var(--hud-violet-hi);
+  background: rgba(167, 139, 250, .12);
+}
+.rail-btn .glyph { font-size: var(--fs-lg); line-height: 1; }
+/* Bounded so a future surface with a longer name ellipsises INSIDE its button
+   instead of spilling across the rail edge and raising a scrollbar. shell.js
+   already puts the full label on the button's `title`, so nothing is lost.
+   Nothing truncates at the current nine names. */
+.rail-btn .lbl {
+  font-size: var(--fs-xs); letter-spacing: .08em;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* --- rail frame depth --------------------------------------------------
+   base.css draws a 1px rule down the rail's right edge. This sheet loads after
+   it and turns that rule off: the rail is already a full background step above
+   the stage, and a step plus a soft cast shadow separates the two without
+   adding an outline. (shell.css overriding base.css layout is the established
+   pattern here — see the #topstrip align-items override below.) */
+#rail {
+  border-right: 0;
+  padding: var(--space-4) var(--space-2);
+  /* 8px, not 4: with the active state now a filled band rather than an
+     outline, the band needs air around it to read as one item rather than as
+     a block of the list. Nine buttons at this rhythm still clear an 820px
+     viewport with room to spare. */
+  gap: var(--space-2);
+  background: var(--hud-panel);
+  box-shadow: 10px 0 30px -26px #000;
+}
+
+/* --- topstrip --------------------------------------------------------- */
+/* base.css sets `align-items: baseline` for the v4.0 one-line strip; the
+   warden plate and scrubber are two-line blocks, so centre them instead — and
+   its 1px bottom rule is turned off here, for the reason given on #rail.
+   WRAPPING: brand + plate + scrubber need ~1235px of content width. At a
+   1180px window there are 1104px, and the old strip took the difference out of
+   the warden plate, which is what drove the rank/XP-bar collision. Now the
+   strip wraps: the scrubber drops to a second line, right-aligned by its own
+   auto margin, and nothing is squeezed, truncated or hidden. */
+#topstrip {
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: var(--space-3);
+  column-gap: var(--space-5);
+  min-height: 62px;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 0;
+  background: linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  box-shadow: 0 10px 30px -26px #000;
+}
+/* Off-latest is a MODE, not a footnote: the whole strip picks up an amber
+   underline so "why is nothing changing" can never be a mystery. A severity
+   accent, which the border diet explicitly keeps. */
+#topstrip[data-past="yes"] { box-shadow: inset 0 -2px 0 var(--hud-amber), 0 10px 30px -26px #000; }
+
+/* The frame's own name is the least important thing on the screen, so it
+   recedes: dim, one step down the ramp, no glow. */
+#topstrip .brand {
+  font-weight: 600; letter-spacing: .1em; font-size: var(--fs-sm);
+  color: var(--hud-text-dim); flex: 0 0 auto; white-space: nowrap;
+}
+#topstrip .brand .hq { color: var(--hud-text); }
+
+/* --- warden plate (LV · XP · HEALTH · STREAK) --------------------------
+   The game layer, back from v3 chrome.js paintWarden(). Chamfered like every
+   other System panel — but the chamfer is now cut out of a BACKGROUND STEP
+   rather than drawn as an outline.
+
+   THE COLLISION THIS FIXES. The plate used to be `flex: 0 1 auto` with
+   `min-width: 0` on every cell. At 1180px the strip had ~130px less room than
+   the plate's content needed, so the LV cell was squeezed to 44px — while the
+   rank span inside it kept `white-space: nowrap` and its full 66px. The span's
+   box therefore hung outside its own cell and straight across the XP gauge:
+   measured, `.wp-rank` at [326,35→392,49] against `.wp-bar` at [334,43→482,48]
+   and the XP numeral at [358,21→417,41]. Six overlapping rect pairs.
+   The fix is two-part and both halves matter:
+     1. the plate NEVER shrinks (`flex: 0 0 auto` here and on every cell), so
+        the strip wraps instead of crushing it — the squeeze cannot start; and
+     2. the rank is bounded and ellipsised anyway, so a pathologically long
+        `account.title` from some future scan cannot re-open the same hole.
+        shell.js mirrors the full string into `.title`, so nothing is lost. */
+.warden {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--space-5);
+  padding: var(--space-2) var(--space-4);
+  background: rgba(233, 230, 245, .04);
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+}
+.warden[hidden] { display: none; }
+.wp-cell { flex: 0 0 auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wp-lv, .wp-streak { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+.wp-row { display: flex; align-items: baseline; gap: var(--space-2); }
+.wp-key {
+  font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--hud-text-dim); white-space: nowrap;
+}
+.wp-num {
+  font-family: var(--term); font-weight: 700; font-size: var(--fs-lg);
+  line-height: 1; color: var(--hud-text);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+}
+/* One step DOWN from the display sizes: this is chrome, and a --fs-2xl numeral
+   up here competed with whatever the mounted surface wants to be focal. Neutral
+   rather than violet, for the same reason home.css keeps `.oracle-label`
+   near-white — size and position make it read, and spending violet on the
+   frame would take the budget from the screen. */
+.wp-num--big { font-size: var(--fs-xl); color: var(--hud-text); }
+.wp-num[data-band="warn"] { color: var(--hud-amber); }
+.wp-num[data-band="crit"] { color: var(--hud-red); }
+.wp-rank {
+  font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--hud-text-dim);
+  /* bounded so a long scan-supplied title can never spill across the gauges;
+     shell.js puts the full string on `.title` */
+  min-width: 0; max-width: 16ch;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wp-sub { font-size: var(--fs-xs); color: var(--hud-text-dim); white-space: nowrap; }
+.wp-gauge { min-width: 148px; }
+/* The track is a near-black step INSIDE the plate's wash — no outline needed
+   to read as a groove. */
+.wp-bar {
+  height: 6px; background: #08060f; overflow: hidden;
+}
+.wp-fill {
+  display: block; height: 100%; width: 0;
+  /* motion on a real state change only (a scrub or a reload moves these) */
+  transition: width .45s cubic-bezier(.22, .61, .36, 1);
+}
+/* Fills carry their meaning in COLOUR. The glow each one used to cast is gone:
+   four glowing bars in the frame is exactly the "everything is at the same
+   visual volume" the constitution calls messy. */
+.wp-fill--xp { background: var(--hud-violet); }
+.wp-fill--hp[data-band="ok"]   { background: var(--hud-green); }
+.wp-fill--hp[data-band="warn"] { background: var(--hud-amber); }
+.wp-fill--hp[data-band="crit"] { background: var(--hud-red); }
+/* HP fell since the last painted value — one flash, not a loop */
+.wp-fill.drop { animation: wp-drop .5s ease-out 1; }
+@keyframes wp-drop { 0% { filter: brightness(2.4); } 100% { filter: none; } }
+
+/* --- snapshot scrubber (the time machine) ------------------------------ */
+/* `margin-left: auto` rather than a spacer element — it right-aligns the
+   scrubber on ONE line at 1440 and on the SECOND line at 1180, where a
+   `flex: 1 1 auto` spacer would have stranded it at the left edge. */
+.scrub {
+  flex: 0 0 auto; margin-left: auto;
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.scrub-read { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.scrub-line { display: flex; align-items: baseline; gap: var(--space-2); }
+.scrub-key {
+  font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--hud-text-dim);
+}
+.scrub-id {
+  font-size: var(--fs-sm); color: var(--hud-text);
+  font-variant-numeric: tabular-nums; letter-spacing: .04em;
+}
+/* A state chip, not a boxed label: the outline is gone and the state is told by
+   COLOUR over a faint wash. "latest" is the NORMAL state and is now quiet —
+   it used to be the loudest violet in the strip, shouting about nothing being
+   wrong. Only past/none raise their voice, and they are severity. */
+.scrub-badge {
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  padding: 2px var(--space-2);
+  background: rgba(233, 230, 245, .05);
+  color: var(--hud-text-dim);
+}
+.scrub-badge[data-state="past"] { color: var(--hud-amber); background: rgba(242, 163, 60, .12); }
+.scrub-badge[data-state="none"] { color: var(--hud-red);   background: rgba(242, 85, 90, .12); }
+.scrub-delta { font-size: var(--fs-xs); color: var(--hud-text-dim); }
+.scrub-pos { font-variant-numeric: tabular-nums; }
+.scrub-fresh { color: var(--hud-text-dim); }
+.scrub-fresh[hidden] { display: none; }
+.scrub-fresh[data-state="aging"] { color: var(--hud-amber); }
+.scrub-fresh[data-state="stale"] { color: var(--hud-red); }
+.dlt { display: inline-flex; align-items: baseline; gap: 3px; }
+.dlt[hidden], .dlt-base[hidden] { display: none; }
+.dlt i { font-style: normal; font-size: 10px; letter-spacing: .12em; color: var(--hud-dim); }
+.dlt b { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--hud-text-dim); }
+.dlt[data-dir="up"] b   { color: var(--hud-green); }
+.dlt[data-dir="down"] b { color: var(--hud-red); }
+.dlt-base { color: var(--hud-dim); }
+
+.scrub-ctl { display: flex; align-items: center; gap: var(--space-1); }
+.scrub-btn {
+  min-height: var(--tap-min); min-width: var(--tap-min);
+  padding: 0 var(--space-2);
+  background: linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  border: 1px solid var(--hud-line);
+  color: var(--hud-text-dim);
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .1em;
+  cursor: pointer;
+}
+/* THE ONE SURVIVING `border: 1px solid` IN THIS FILE (declared just above):
+   .scrub-btn is a real button and the outline IS its affordance. Hover is a
+   neutral brightening — violet stays reserved for the active rail item. */
+.scrub-btn:hover:not(:disabled) {
+  color: var(--hud-text); border-color: var(--hud-dim);
+  background: linear-gradient(180deg, #241e42, var(--hud-panel-hi));
+}
+.scrub-btn:focus-visible { outline: 2px solid var(--hud-violet-hi); outline-offset: 2px; }
+.scrub-btn:disabled { opacity: .4; cursor: not-allowed; }
+.scrub-latest { color: var(--hud-text); }
+#topstrip[data-past="yes"] .scrub-latest:not(:disabled) {
+  color: var(--hud-amber); border-color: #6b4a24;
+}
+
+/* --- HUD frame (shared panel) ----------------------------------------- */
+.hud-frame {
+  position: relative;
+  padding: var(--space-5);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .03) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  /* hexagon-cut corners = the summoned "System" window. A passive container:
+     the background step and the cast shadow separate it from the stage; the
+     1px outline it used to carry is gone. */
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 24px 60px -34px #000;
+}
+.hud-eyebrow {
+  font-family: var(--term); font-size: var(--fs-xs); letter-spacing: .22em;
+  color: var(--hud-text-dim); text-transform: uppercase;
+}
+.hud-title {
+  font-family: var(--term); font-size: var(--fs-2xl); font-weight: 700; line-height: 1.1;
+  color: var(--hud-violet-hi); text-shadow: 0 0 12px currentColor;
+  margin-top: var(--space-1);
+}
+.hud-line { font-size: var(--fs-sm); color: var(--hud-text); margin-top: var(--space-3); }
+.hud-dim { color: var(--hud-text-dim); }
+
+/* --- placeholder surface (the v4.0 stub factory, no longer mounted) ----- */
+.placeholder .hud-title { color: var(--hud-text-dim); text-shadow: none; }
+
+/* --- command palette (Ctrl/Cmd+K) --------------------------------------
+   Chrome overlay under #overlays, outside #stage — a surface re-mount (the
+   scrubber's included) never disturbs it. Ported from v3 palette.css onto the
+   System-HUD tokens: hexagon-cut panel, violet edge, one theme. */
+#overlays { position: relative; z-index: 70; }
+
+#palette.pal-wrap {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 12vh var(--space-4) var(--space-4);
+  background: rgba(4, 2, 12, .66);
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+#palette.pal-wrap[hidden] { display: none; }
+#palette.pal-wrap.open { opacity: 1; }
+
+.pal-panel {
+  width: min(620px, 94vw);
+  max-height: 74vh;
+  display: flex; flex-direction: column;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(167, 139, 250, .03) 3px 4px),
+    linear-gradient(180deg, var(--hud-panel-hi), var(--hud-panel));
+  /* No 1px violet outline. The panel is lifted off the scrim by a deep cast
+     shadow and a faint violet edge hint. This is the only violet in the shell
+     besides the active rail item, and it exists ONLY while the palette is open
+     — at which point the palette IS the focal element of the screen. */
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 0 0 1px var(--hud-glow), 0 30px 80px -28px #000;
+  transform: translateY(-6px);
+  transition: transform .16s ease;
+}
+#palette.pal-wrap.open .pal-panel { transform: translateY(0); }
+
+.pal-input {
+  appearance: none; width: 100%;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: 0; border-bottom: 1px solid var(--hud-line);
+  color: var(--hud-text);
+  font-family: var(--term); font-size: var(--fs-lg); letter-spacing: .02em;
+  outline: none;
+}
+.pal-input::placeholder { color: var(--hud-dim); }
+.pal-input:focus { box-shadow: inset 0 -1px 0 var(--hud-violet); }
+
+.pal-list { overflow-y: auto; padding: var(--space-1); }
+.pal-list::-webkit-scrollbar { width: 8px; }
+.pal-list::-webkit-scrollbar-thumb { background: var(--hud-line); border-radius: 4px; }
+.pal-list::-webkit-scrollbar-track { background: transparent; }
+
+.pal-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  color: var(--hud-text);
+}
+.pal-row.sel {
+  background: linear-gradient(90deg, rgba(167, 139, 250, .12), transparent);
+  border-left-color: var(--hud-violet);
+}
+.pal-ico { flex: 0 0 auto; width: 20px; text-align: center; font-size: var(--fs-md); color: var(--hud-text-dim); }
+.pal-row.sel .pal-ico { color: var(--hud-violet-hi); }
+.pal-label {
+  flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pal-hint {
+  flex: 0 1 auto; min-width: 0; font-size: var(--fs-xs); color: var(--hud-text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Same treatment as .scrub-badge: a tinted chip, not an outlined one. A list of
+   twenty outlined chips down the palette was the border habit at its worst. */
+.pal-kind {
+  flex: 0 0 auto;
+  font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  padding: 2px var(--space-2);
+  background: rgba(233, 230, 245, .06); color: var(--hud-text-dim);
+}
+.pal-kind[data-kind="surface"] { color: var(--hud-text); }
+.pal-kind[data-kind="verb"]    { color: var(--hud-text); }
+.pal-kind[data-kind="spell"]   { color: var(--hud-text-dim); }
+/* queue rows carry the WORK rail's own severity language, so the two agree */
+.pal-kind[data-sev="red"]    { color: var(--hud-red);    background: rgba(242, 85, 90, .14); }
+.pal-kind[data-sev="orange"] { color: var(--hud-amber);  background: rgba(242, 163, 60, .14); }
+.pal-kind[data-sev="yellow"] { color: var(--hud-yellow); background: rgba(230, 195, 74, .14); }
+.pal-kind[data-sev="dim"]    { color: var(--hud-text-dim); }
+
+.pal-empty { padding: var(--space-6) var(--space-4); color: var(--hud-text-dim); font-size: var(--fs-sm); text-align: center; }
+
+/* A passive divider became a background step — the foot is a darker shelf. */
+.pal-foot {
+  display: flex; gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: rgba(4, 2, 12, .5);
+  font-size: var(--fs-xs); color: var(--hud-dim); letter-spacing: .08em;
+}

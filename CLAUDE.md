@@ -7,7 +7,7 @@ editing anything; append an entry there when you finish a work block.**
 
 | Lane | Owns | Commit prefix |
 |---|---|---|
-| **frontend** | `dashboard/` (all of it: app.js, main.js, *.html, styles), `dashboard-v3/` (NEXUS v3, live until the v5 flip), `dashboard-v4/` (shelved), `dashboard-v5/` (the Claude Design build), `browser-bridge/` (extension) | `fe:` |
+| **frontend** | `dashboard/` (all of it: main.js, preload, satellites *.html/*.js), `dashboard-v5/` (the renderer — the Claude Design build), `legacy/` (quarantined renderers v2–v4 in `legacy/dashboard-vN/` — frozen, rollback only, never loaded by default), `mcp/workspacehq/` (the `workspacehq` MCP server, `.mcp.json`), `browser-bridge/` (extension) | `fe:` |
 | **structure** | `collector/`, `schema/`, `run-pipeline.ps1`, `scan-prompt.md`, `spellbook/` (curated spell defs) | `struct:` |
 | shared (either, announce in handoff first) | `data/` shapes, `docs/`, `.gitignore`, `tools/`, `.mcp.json` | `meta:` |
 
@@ -34,13 +34,19 @@ edits gated on in-flight work landing (new main-side features go in NEW files).
 
 - Electron 32 (Chromium 128). App entry: `dashboard/main.js`. Renderer is vanilla JS,
   no framework, no build step — edit and reload.
-- Restart app: kill `electron.exe` matching `*workspace hq*`, relaunch
-  `node_modules\electron\dist\electron.exe .` from `dashboard/` (PowerShell, not cmd).
+- Restart app: `tools\rollback.ps1 v5` (writes the flag, stops only the app's own
+  `electron.exe .` — never a `--user-data-dir` test instance — and relaunches it hidden;
+  `-DryRun` prints the plan). By hand: stop that process, relaunch
+  `node_modules\electron\dist\electron.exe . --hidden` from `dashboard/` (PowerShell, not cmd).
 - Rebuild renderer data after pipeline changes: `node dashboard/build-data.mjs`.
 - Test a scan without the LLM: `node collector/collector.mjs && node collector/assemble.mjs`.
 - Hotkeys already claimed: `Ctrl+Alt+X` (quick-run) · `Ctrl+Alt+G` (summon) · `Ctrl+Alt+S` / `Ctrl+Alt+Shift+S` (snip) ·
   `Ctrl+Alt+R` / `Ctrl+Alt+Shift+R` (record) · `Ctrl+Alt+L` (open Studio). `Ctrl+Alt+Space` was retired 2026-09-15.
-- Renderer switch: `data/.ui-version` (gitignored) = `v2` | `v3` | `v4` | `v5`; `HQ_UI_VERSION=v5` overrides it
-  for one launch. v5 = `dashboard-v5/` (template renderer `src/dc/runtime.js`, data `src/live/`).
+- Renderer: v5 is the default — `dashboard-v5/` (template renderer `src/dc/runtime.js`, data
+  `src/live/`). A missing/unreadable `data/.ui-version` (gitignored, owner's file) or any value
+  other than `v2` | `v3` | `v4` | `v5` loads v5. Rollback = `tools\rollback.ps1 v3` (or `v2`/`v4`):
+  loads `legacy/dashboard-vN/index.html` on the same preload, main logs
+  `[ui] legacy renderer vN (legacy/) — rollback mode`. `HQ_UI_VERSION=vN` overrides the file for one launch.
+  The rule lives in `dashboard/ui-version.js` (pure, `ui-version.test.mjs`).
 - Theme system invariants: never override `position` on `#tabs`/`.timemachine`;
   new themes must remap `--active`/`--active-arrow`/`--divider`/`--mono`.

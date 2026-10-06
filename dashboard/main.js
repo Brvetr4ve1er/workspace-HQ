@@ -136,14 +136,16 @@ function latest() {
   try { return JSON.parse(fs.readFileSync(path.join(DATA, 'latest.json'), 'utf8')); } catch { return null; }
 }
 
-// NEXUS v3 swap flag: data/.ui-version containing exactly "v3" loads the
-// parallel dashboard-v3 renderer with THIS preload (per IPC-CONTRACT.md the
-// swap needs zero channel changes). Anything else — missing file, "v2",
-// read error — stays v2, so rollback is one flip + restart away.
+// Renderer switch. v5 (dashboard-v5/) is the app. v2-v4 are quarantined in legacy/
+// (frozen, never loaded by default) and only come back as a rollback: data/.ui-version
+// holding exactly "v2" | "v3" | "v4" (`tools\rollback.ps1 v3` writes it and restarts
+// the app). A missing or unreadable file, or any other value, loads v5. Every
+// renderer runs on THIS preload: the IPC surface is shared (IPC-CONTRACT.md).
+// The decision is pure and unit-tested: ui-version.js + ui-version.test.mjs.
+const uiSwitch = require('./ui-version');
 function uiVersion() {
   // HQ_UI_VERSION tries a renderer for one launch without touching the user-owned file
-  if (/^v[2-5]$/.test(process.env.HQ_UI_VERSION || '')) return process.env.HQ_UI_VERSION;
-  try { return fs.readFileSync(path.join(DATA, '.ui-version'), 'utf8').trim(); } catch { return 'v2'; }
+  return uiSwitch.resolveUiVersion({ env: process.env, readFlag: () => fs.readFileSync(path.join(DATA, '.ui-version'), 'utf8') });
 }
 
 function createWindow(show = true) {
@@ -152,15 +154,10 @@ function createWindow(show = true) {
     icon: path.join(DIR, 'icon.png'), show,
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
   });
-  const uiv = uiVersion();   // "v5" → dashboard-v5 (Claude Design build), "v4" → dashboard-v4, "v3" → dashboard-v3, anything else → v2
-  if (uiv === 'v5') win.setBackgroundColor('#0d0d0f');   // v5's page colour, so the pre-paint frame doesn't flash
-  win.loadFile(uiv === 'v5'
-    ? path.join(DIR, '..', 'dashboard-v5', 'index.html')
-    : uiv === 'v4'
-    ? path.join(DIR, '..', 'dashboard-v4', 'index.html')
-    : uiv === 'v3'
-      ? path.join(DIR, '..', 'dashboard-v3', 'index.html')
-      : path.join(DIR, 'index.html'));
+  const uiv = uiVersion();   // "v5" → dashboard-v5 (the app); "v2" | "v3" | "v4" → legacy/dashboard-vN (rollback only)
+  if (uiSwitch.isLegacy(uiv)) console.log(`[ui] legacy renderer ${uiv} (legacy/) — rollback mode`);
+  else win.setBackgroundColor('#0d0d0f');   // v5's page colour, so the pre-paint frame doesn't flash
+  win.loadFile(uiSwitch.rendererPage(SCAN_DIR, uiv));
   // Close-to-tray: keep the app (and tray) alive when the user closes the window,
   // unless they explicitly quit. The dead app.isQuitting flag now drives this.
   win.on('close', (e) => {
@@ -494,7 +491,7 @@ ipcMain.handle('hq:snapshot', async (_e, projPath, name) => {
 // through both the hotkey UI and the MCP hq_capture tool. The IPC handler
 // stays because the v3 medbay realm's "Note for cleanup" button (via the
 // core/actions.mjs capture:note action) still writes captures programmatically,
-// and the MCP hq_capture tool (dashboard-v3/mcp/server.mjs) is unchanged.
+// and the MCP hq_capture tool (mcp/workspacehq/server.mjs) is unchanged.
 ipcMain.handle('hq:capture-save', (_e, text) => {
   const t = String(text || '').trim();
   if (!t) return false;
@@ -1074,8 +1071,8 @@ ipcMain.handle('hq:acted-on', (_e, entry) => {
   return true;
 });
 // hq:acted-on-read removed per 2026-09-15 dead-weight audit: consumer was the
-// v2 renderer (dashboard/app.js:822-823), and data/.ui-version=v3 makes v2
-// inactive at runtime. The v3 renderer bakes window.DATA.actedOn at build time
+// v2 renderer (now legacy/dashboard-v2/app.js:822-823), which is quarantined and
+// only loads as a rollback (data/.ui-version=v2). The v3 renderer bakes window.DATA.actedOn at build time
 // and never reads live. readActedOn() is still used by the ledger append path.
 const castRegistry = new Map();   // spellId -> { proc, castId, startedAt, timer }
 

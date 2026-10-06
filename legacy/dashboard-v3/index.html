@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="nexus">
+<head>
+  <meta charset="UTF-8" />
+  <!-- no eval, no remote origins; unsafe-inline styles allowed because realm
+       views set style attributes (same trade shard.html already makes) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>WorkspaceHQ — NEXUS</title>
+  <!-- Favicon set rasterized from legacy/dashboard-v3/icons/hq-icons.svg (see
+       icons/_raster.js in git history). All five sizes ship for pixel-perfect
+       taskbar/tab rendering across DPI settings. -->
+  <link rel="icon" type="image/png" sizes="16x16"   href="./icons/pngs/hq-16.png" />
+  <link rel="icon" type="image/png" sizes="32x32"   href="./icons/pngs/hq-32.png" />
+  <link rel="icon" type="image/png" sizes="48x48"   href="./icons/pngs/hq-48.png" />
+  <link rel="icon" type="image/png" sizes="128x128" href="./icons/pngs/hq-128.png" />
+  <link rel="icon" type="image/png" sizes="256x256" href="./icons/pngs/hq-256.png" />
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/base.css" />
+  <!-- components.css = realm-content rules extracted from v2 styles.css;
+       realms.css @imports per-realm files; fx.css = takeover/confetti/sfx UI -->
+  <link rel="stylesheet" href="./styles/components.css" />
+  <link rel="stylesheet" href="./styles/chrome.css" />
+  <link rel="stylesheet" href="./styles/realms.css" />
+  <link rel="stylesheet" href="./styles/fx.css" />
+  <!-- palette.css = the Ctrl/Cmd+K command palette overlay (chrome, theme-aware) -->
+  <link rel="stylesheet" href="./styles/palette.css" />
+  <!-- cinematic: the NEXUS (dark) theme's full skin — loads after the base layers -->
+  <link rel="stylesheet" href="./styles/cinematic.css" />
+  <!-- daylight: the clean light theme — loads AFTER cinematic; each is scoped to
+       its own [data-theme], so only the active theme's rules apply -->
+  <link rel="stylesheet" href="./styles/daylight.css" />
+</head>
+<body>
+  <!-- CRT atmosphere: scanlines + vignette + faint phosphor flicker (pure CSS, pointer-events none) -->
+  <div id="crt" aria-hidden="true"></div>
+
+  <!-- boot splash: shows once per session, dismissed by click/key or auto after the power-on animation -->
+  <div id="boot" aria-hidden="true">
+    <div class="boot-inner">
+      <div class="boot-logo">WORKSPACE<span>HQ</span></div>
+      <div class="boot-sub">PERSONAL OPS CONSOLE — v2</div>
+      <div class="boot-start">PRESS START</div>
+    </div>
+  </div>
+
+  <div id="nexus">
+    <aside id="rail-left" aria-label="realms"></aside>
+    <div id="stage-wrap">
+      <header id="topstrip"></header>
+
+      <!-- ====== STAGE SELECT: one-line scrubber by default; the dot rail is a power
+           feature that unfolds on demand (and auto-unfolds when viewing the past). ====== -->
+      <div class="timemachine collapsed" id="timemachine">
+        <div class="tm-head">
+          <button class="lbl" id="tm-toggle" title="Expand the snapshot rail">▸ STAGE SELECT</button>
+          <button class="tm-nav sm" id="tm-prev" title="Older (←)">◀</button>
+          <span class="date" id="tm-date">—</span>
+          <button class="tm-nav sm" id="tm-next" title="Newer (→)">▶</button>
+          <span class="live" id="tm-badge">live</span>
+          <button class="tm-live" id="tm-live" title="Jump back to the latest scan">⏎ BACK TO LIVE</button>
+          <span class="spacer"></span>
+          <span class="delta" id="tm-delta"></span>
+        </div>
+        <div class="tm-track">
+          <div class="tm-rail"><svg id="tm-spark"></svg><div class="tm-dots" id="tm-dots"></div></div>
+        </div>
+      </div>
+
+      <main id="stage"></main>
+    </div>
+    <aside id="rail-right" aria-label="ambient"></aside>
+  </div>
+  <div id="overlays">
+    <!-- pre-seeded overlay anchors (v2 siblings); realm/fx code creates its
+         own nodes programmatically — only chrome.js edits this file further -->
+    <div id="scrim"></div>
+    <aside id="drawer"></aside>
+  </div>
+
+  <footer id="statusbar">
+    <span class="coin-blink">● INSERT COIN</span>
+    <span id="status">loading…</span>
+  </footer>
+
+  <!-- v2's data bundle, read-only — build-data.mjs is never touched pre-swap -->
+  <script src="../../dashboard/data.js"></script>
+  <!-- ESM spike + boot: nested relative module imports over file:// -->
+  <script type="module" src="./src/core/boot.js"></script>
+</body>
+</html>

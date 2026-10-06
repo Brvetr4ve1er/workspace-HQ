@@ -59,12 +59,13 @@ test('app.css carries no second copy of the token blocks or @font-face', () => {
   assert.deepEqual(redefined, []);
 });
 
-test('index.html links tokens.css before app.css, favicons are v5-local, no file link into dashboard-v3', () => {
+test('index.html links tokens.css before app.css, favicons are v5-local, no file link into a legacy renderer', () => {
   const html = read('../index.html');
   const links = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="([^"]+)"/g)].map((m) => m[1]);
   const t = links.indexOf('./styles/tokens.css'), a = links.indexOf('./styles/app.css');
   assert.ok(t !== -1 && a !== -1 && t < a, `stylesheet order: ${links.join(' ')}`);
-  assert.deepEqual(links.filter((l) => l.includes('dashboard-v3')), []);
+  // v2-v4 are quarantined in legacy/ (rollback only): v5 must boot without them
+  assert.deepEqual(links.filter((l) => /dashboard-v[234]|(^|\/)legacy\//.test(l)), []);
   const icons = [...html.matchAll(/<link\b[^>]*rel="icon"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(icons.length >= 1, 'no favicon links');
   for (const href of icons) assert.ok(existsSync(resolve(HERE, '..', href)), `favicon missing: ${href}`);
