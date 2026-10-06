@@ -110,7 +110,21 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
       const d = readJsonOr(outboxFile, { actions: [] });
       const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
       if (!a) { send(404, { ok: false, error: 'unknown action id' }); return; }
-      // Only a staged action can be sent — ignore double-reports / tampering.
+      // A Skip / hq_social_cancel can land while an approved send is already in flight (the
+      // extension's staged re-check is check-then-act). If that send then reports success,
+      // the post IS live: keep 'canceled' (terminal, never re-listed, never 'sent') but record
+      // where it went instead of dropping the URL. First report only. CONTRACT.md 2026-10-06.
+      if (a.status === 'canceled' && body.ok && !a.sent_after_cancel) {
+        a.sent_after_cancel = true;
+        a.sent_at = new Date().toISOString();
+        a.result = { url: clamp(body.url || '', 500), uri: clamp(body.uri || '', 300) };
+        d.updated = a.sent_at;
+        try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
+        catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
+        send(200, { ok: true, id, status: 'canceled', sent_after_cancel: true });
+        return;
+      }
+      // Otherwise only a staged action can be settled — ignore double-reports / tampering.
       if (a.status !== 'staged') { send(200, { ok: true, ignored: true, status: a.status }); return; }
       if (body.ok) {
         a.status = 'sent';
@@ -130,7 +144,8 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
   // Popup "Skip": the human declines a staged post. Flips ONE staged action to
   // 'canceled' and does nothing else — no adapter, no extension message, no
   // sent_at/result. 'canceled' is terminal: GET /social/outbox stops listing it
-  // and /result ignores it (status !== 'staged'). Anything not staged is
+  // and /result never makes it 'sent' (a late success is recorded as
+  // sent_after_cancel, see /result above). Anything not staged is
   // refused with 409 and the file is left untouched. The MCP twin is
   // hq_social_cancel (dashboard-v3/mcp/server.mjs); both obey the same gate.
   if (req.method === 'POST' && url === '/social/outbox/cancel') {

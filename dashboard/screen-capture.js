@@ -84,6 +84,7 @@ const PANEL_SIZE = Object.freeze({
 const HARD_STOP_MS = 3000;              // a main-initiated stop waits this long for the panel
 const REC_LIMIT_MS = 30 * 60 * 1000;    // recorded (unpaused) time before the 'limit' stop
 const FINISHED_TTL_MS = 60 * 1000;      // a stop result stays answerable this long (late recStop)
+const RENAME_RETRY_MS = Object.freeze([50, 100, 200, 400]);   // waits between .part → .webm retries
 const SNIP_ACTIONS = Object.freeze(['save', 'copy', 'claude']);
 
 // -------------------------- pure helpers (exported as _pure for tests) --------------------------
@@ -762,6 +763,7 @@ function startRec(optsIn, owner) {
     backpressured: false,
     owner: owner && typeof owner.send === 'function' ? owner : null,
     onOwnerGone: null,
+    onOwnerNav: null,
   };
   r.q = createQueue({
     write(b) {
@@ -783,10 +785,21 @@ function startRec(optsIn, owner) {
     console.error('[studio] rec stream error:', e.message);
     broadcast(CH.REC_STATUS, { state: 'error', recId });
   });
-  // The panel went away mid-recording (closed, crashed, reloaded): keep what arrived.
+  // The panel went away mid-recording: keep what arrived. Closed = 'destroyed'; a crashed
+  // renderer is NOT destroyed, it fires 'render-process-gone' (and could never send recStop);
+  // a reload / main-frame navigation starts a new document that doesn't own this recording.
+  // Same three signals as hq:llm:chat in main.js.
   if (r.owner && typeof r.owner.once === 'function') {
     r.onOwnerGone = () => { if (recorders.get(recId) === r) stopRec(recId).catch(() => {}); };
-    try { r.owner.once('destroyed', r.onOwnerGone); } catch { r.onOwnerGone = null; }
+    r.onOwnerNav = (ev) => {
+      if (ev && (ev.isMainFrame === false || ev.isSameDocument === true)) return;
+      r.onOwnerGone();
+    };
+    try {
+      r.owner.once('destroyed', r.onOwnerGone);
+      r.owner.once('render-process-gone', r.onOwnerGone);
+      if (typeof r.owner.on === 'function') r.owner.on('did-start-navigation', r.onOwnerNav);
+    } catch { /* clearRecTimers removes whatever did register */ }
   }
   recorders.set(recId, r);
   ensureRecStatusPush();
@@ -826,6 +839,14 @@ function recPause(recId, paused) {
   return true;
 }
 
+// A webContents that can still receive a rec-command: present, not destroyed, renderer alive.
+function liveWebContents(wc) {
+  if (!wc || typeof wc.send !== 'function') return null;
+  if (typeof wc.isDestroyed === 'function' && wc.isDestroyed()) return null;
+  if (typeof wc.isCrashed === 'function' && wc.isCrashed()) return null;
+  return wc;
+}
+
 // A stop main decides on (hotkey, low disk, 30-min limit, write error): ask the panel that
 // feeds the recording to stop cleanly (flush its last chunk, then recStop), and hard-stop
 // with whatever arrived if it hasn't finished within HARD_STOP_MS. No live panel → hard-stop now.
@@ -834,8 +855,10 @@ function requestStop(recId, reason) {
   if (!r || r.stopping) return false;
   if (r.stopRequested) return true;
   r.stopRequested = reason;
-  let wc = r.owner && !(typeof r.owner.isDestroyed === 'function' && r.owner.isDestroyed()) ? r.owner : null;
-  if (!wc && panelWindow && !panelWindow.isDestroyed()) wc = panelWindow.webContents;
+  // A crashed renderer isn't destroyed but can't answer either: asking it would only
+  // delay the stop by HARD_STOP_MS.
+  let wc = liveWebContents(r.owner);
+  if (!wc && panelWindow && !panelWindow.isDestroyed()) wc = liveWebContents(panelWindow.webContents);
   let asked = false;
   if (wc) {
     try { wc.send(CH.REC_COMMAND, { cmd: 'stop', reason, recId }); asked = true; } catch { /* panel mid-teardown */ }
@@ -862,10 +885,32 @@ function closeStream(stream, how) {
 
 function clearRecTimers(r) {
   if (r.hardStopTimer) { clearTimeout(r.hardStopTimer); r.hardStopTimer = null; }
-  if (r.onOwnerGone && r.owner && typeof r.owner.removeListener === 'function') {
-    try { r.owner.removeListener('destroyed', r.onOwnerGone); } catch { /* ignore */ }
+  if (r.owner && typeof r.owner.removeListener === 'function') {
+    try {
+      if (r.onOwnerGone) {
+        r.owner.removeListener('destroyed', r.onOwnerGone);
+        r.owner.removeListener('render-process-gone', r.onOwnerGone);
+      }
+      if (r.onOwnerNav) r.owner.removeListener('did-start-navigation', r.onOwnerNav);
+    } catch { /* ignore */ }
   }
   r.onOwnerGone = null;
+  r.onOwnerNav = null;
+}
+
+// .part → .webm. On Windows a sync client / indexer / AV scanner holding the file without
+// FILE_SHARE_DELETE makes the rename fail with EBUSY / EPERM / EACCES for a moment: retry those
+// on a short backoff (deps.renameRetryMs). Returns null on success, the last error otherwise.
+const RENAME_RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES']);
+async function renameWithRetry(from, to) {
+  const waits = Array.isArray(deps && deps.renameRetryMs) ? deps.renameRetryMs : RENAME_RETRY_MS;
+  for (let attempt = 0; ; attempt++) {
+    try { fs.renameSync(from, to); return null; }
+    catch (e) {
+      if (attempt >= waits.length || !RENAME_RETRY_CODES.has(e && e.code)) return e || new Error('rename failed');
+      await new Promise((resolve) => setTimeout(resolve, waits[attempt]));
+    }
+  }
 }
 
 function rememberFinished(recId, result) {
@@ -899,17 +944,29 @@ function stopRec(recId) {
       const fd = fs.openSync(r.tmpPath, 'r+');
       try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     } catch { /* best-effort fsync */ }
-    try { fs.renameSync(r.tmpPath, r.finalPath); }
-    catch (e) { console.error('[studio] rec rename failed:', e.message); }
+    const renameErr = await renameWithRetry(r.tmpPath, r.finalPath);
 
     recorders.delete(recId);
     stopRecStatusPushIfIdle();
 
-    const result = {
-      path: r.finalPath, bytes: r.bytes, durationMs,
-      gaps: drained ? drained.gaps.length : null,
-      reason: r.stopRequested || null,
-    };
+    const gaps = drained ? drained.gaps.length : null;
+    const reason = r.stopRequested || null;
+    if (renameErr) {
+      // The bytes are safe in the .part (recoverPartials turns it into a .recovered.webm at
+      // the next launch), but there is no .webm: never report a path, never announce a capture.
+      const code = renameErr.code || 'error';
+      console.error('[studio] rec rename failed:', code, renameErr.message);
+      const error = `rename failed: ${code} — kept as ${path.basename(r.tmpPath)}, recovered at next launch`;
+      const failed = { path: null, error, partPath: r.tmpPath, bytes: r.bytes, durationMs, gaps, reason };
+      rememberFinished(recId, failed);
+      broadcast(CH.REC_STATUS, {
+        state: 'stopped', recId, elapsedMs: durationMs, bytes: r.bytes, paused: false,
+        sourceLabel: r.sourceLabel, lastPath: null, error,
+      });
+      return failed;
+    }
+
+    const result = { path: r.finalPath, bytes: r.bytes, durationMs, gaps, reason };
     rememberFinished(recId, result);
     broadcast(CH.CAPTURE_ADDED, {
       kind: 'rec', path: r.finalPath, at: endedAt, durationMs, bytes: r.bytes,
@@ -1105,6 +1162,8 @@ function init(bag) {
     nativeImage: bag.nativeImage || nativeImage,
     shell: bag.shell || shell,
     hardStopMs: Number.isFinite(bag.hardStopMs) ? bag.hardStopMs : HARD_STOP_MS,
+    renameRetryMs: Array.isArray(bag.renameRetryMs) && bag.renameRetryMs.every(Number.isFinite)
+      ? bag.renameRetryMs.slice() : RENAME_RETRY_MS,
   };
   bootTime = Date.now();
   envRoot = envRootFrom(process.env.HQ_STUDIO_ROOT);

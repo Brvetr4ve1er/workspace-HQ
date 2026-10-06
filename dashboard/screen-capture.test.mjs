@@ -89,7 +89,7 @@ test('envRootFrom: absolute paths only', () => {
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-screen-capture-test-'));
 test.after(() => { delete process.env.HQ_STUDIO_ROOT; fs.rmSync(TMP, { recursive: true, force: true }); });
 
-function harness({ getProjects, launchClaude, hardStopMs = 120 } = {}) {
+function harness({ getProjects, launchClaude, hardStopMs = 120, renameRetryMs } = {}) {
   const base = fs.mkdtempSync(path.join(TMP, 'h-'));
   const root = path.join(base, 'library');
   const videos = path.join(base, 'videos');
@@ -153,7 +153,7 @@ function harness({ getProjects, launchClaude, hardStopMs = 120 } = {}) {
   sc.init({
     ipcMain, app, BrowserWindow: FakeWin, screen, desktopCapturer,
     clipboard, nativeImage, shell: { showItemInFolder() {}, trashItem: async () => {} },
-    getProjects, launchClaude, hardStopMs,
+    getProjects, launchClaude, hardStopMs, renameRetryMs,
   });
 
   const h = {
@@ -370,6 +370,122 @@ test('the panel going away mid-recording stops it and keeps what arrived', async
   owner.emit('destroyed');
   assert.ok(await waitFor(() => h.broadcasts(CH.REC_STATUS).some((s) => s.state === 'stopped' && s.recId === recId)));
   assert.equal(owner.listenerCount('destroyed'), 0);
+});
+
+const OWNER_EVENTS = ['destroyed', 'render-process-gone', 'did-start-navigation'];
+const stoppedFor = (h, recId) => h.broadcasts(CH.REC_STATUS).filter((s) => s.state === 'stopped' && s.recId === recId);
+
+test('a crashed panel renderer (render-process-gone, not destroyed) stops the recording at once and keeps what arrived', async () => {
+  const h = harness({ hardStopMs: 5000 });
+  const owner = h.fakeOwner();
+  const { recId, tmpPath } = await h.invoke(CH.REC_START, { sourceId: 's' }, owner);
+  for (const ev of OWNER_EVENTS) assert.equal(owner.listenerCount(ev), 1, `listening for ${ev}`);
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  owner.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 });   // isDestroyed() stays false
+  assert.ok(await waitFor(() => stoppedFor(h, recId).length === 1, 1000), 'stopped without waiting for a hotkey or the limit');
+  const stopped = stoppedFor(h, recId)[0];
+  assert.equal(fs.readFileSync(stopped.lastPath, 'utf8'), 'A');
+  assert.ok(!fs.existsSync(tmpPath), 'the .part was finalized');
+  for (const ev of OWNER_EVENTS) assert.equal(owner.listenerCount(ev), 0, `${ev} listener removed`);
+  const ticks = () => h.broadcasts(CH.REC_STATUS).filter((s) => s.state === 'recording' && s.recId === recId).length;
+  const before = ticks();
+  await sleep(1200);   // the status push runs at 1 Hz
+  assert.equal(ticks(), before, 'no more "recording" ticks after the crash');
+});
+
+test('panel navigation: same-document and sub-frame navigations keep recording; a main-frame reload stops it', async () => {
+  const h = harness();
+  const owner = h.fakeOwner();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, owner);
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  owner.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true, url: 'file:///panel.html#x' });
+  owner.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false, url: 'about:blank' });
+  await sleep(50);
+  assert.equal(stoppedFor(h, recId).length, 0, 'still recording');
+  h.emit(CH.REC_CHUNK, { recId, seq: 1, buf: chunk('B') });
+  owner.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url: 'file:///panel.html' });
+  assert.ok(await waitFor(() => stoppedFor(h, recId).length === 1, 1000));
+  assert.equal(fs.readFileSync(stoppedFor(h, recId)[0].lastPath, 'utf8'), 'AB');
+  for (const ev of OWNER_EVENTS) assert.equal(owner.listenerCount(ev), 0, `${ev} listener removed`);
+});
+
+test('a main-initiated stop never asks a crashed renderer: no rec-command, no hard-stop wait', async () => {
+  const h = harness({ hardStopMs: 5000 });
+  const owner = h.fakeOwner();
+  owner.isCrashed = () => false;
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, owner);
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  owner.isCrashed = () => true;   // crashed, and the 'render-process-gone' push never reached us
+  const t0 = Date.now();
+  await h.invoke(CH.REC_TOGGLE, {});
+  assert.ok(await waitFor(() => stoppedFor(h, recId).length === 1, 1000), 'stopped now, not after hardStopMs');
+  assert.ok(Date.now() - t0 < 1000);
+  assert.equal(owner.sent.filter(([c]) => c === CH.REC_COMMAND).length, 0, 'the dead renderer was not asked');
+  assert.equal(stoppedFor(h, recId)[0].lastPath !== null, true);
+});
+
+// fs.renameSync is patched on the shared node:fs object (screen-capture.js calls it through
+// the module object). Only the .webm.part → .webm rename is intercepted.
+async function withRenameFault(fault, fn) {
+  const real = fs.renameSync;
+  const calls = [];
+  fs.renameSync = function (from, to) {
+    if (String(from).endsWith('.webm.part')) {
+      calls.push([from, to]);
+      const code = fault(calls.length);
+      if (code) { const e = new Error(`${code}: resource busy or locked, rename '${from}'`); e.code = code; throw e; }
+    }
+    return real.apply(this, arguments);
+  };
+  try { return await fn(calls); } finally { fs.renameSync = real; }
+}
+
+test('stop: a .part rename that is busy for a moment is retried and the recording still saves', async () => {
+  const h = harness({ renameRetryMs: [5, 5, 5, 5] });
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  await withRenameFault((n) => (n <= 2 ? 'EBUSY' : null), async (calls) => {
+    const res = await h.invoke(CH.REC_STOP, { recId });
+    assert.equal(calls.length, 3, 'two busy attempts, then the rename went through');
+    assert.ok(res.path && res.path.endsWith('.webm'));
+    assert.equal(res.error, undefined);
+    assert.equal(fs.readFileSync(res.path, 'utf8'), 'A');
+    assert.equal(h.broadcasts(CH.CAPTURE_ADDED).filter((c) => c.kind === 'rec').length, 1);
+  });
+});
+
+test('stop: a .part rename that keeps failing is reported as a failure — no path, no capture-added, the .part is kept', async () => {
+  const h = harness({ renameRetryMs: [5, 5] });
+  const { recId, tmpPath } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  await withRenameFault(() => 'EBUSY', async (calls) => {
+    const res = await h.invoke(CH.REC_STOP, { recId });
+    assert.equal(calls.length, 3, 'first try + one retry per backoff step');
+    assert.equal(res.path, null, 'never claims a .webm that does not exist');
+    assert.match(res.error, /^rename failed: EBUSY/);
+    assert.equal(res.partPath, tmpPath);
+    assert.equal(res.bytes, 1);
+    assert.equal(fs.readFileSync(tmpPath, 'utf8'), 'A', 'the bytes are still on disk for recovery');
+    assert.ok(!fs.existsSync(tmpPath.replace(/\.part$/, '')));
+    assert.equal(h.broadcasts(CH.CAPTURE_ADDED).length, 0, 'Studio is not told about a file that is not there');
+    const stopped = stoppedFor(h, recId);
+    assert.equal(stopped.length, 1);
+    assert.equal(stopped[0].lastPath, null);
+    assert.equal(stopped[0].error, res.error);
+    const late = await h.invoke(CH.REC_STOP, { recId });
+    assert.deepEqual(late, res, 'a late recStop gets the same failure, not a path');
+  });
+});
+
+test('stop: a rename error that is not transient is not retried', async () => {
+  const h = harness({ renameRetryMs: [5, 5, 5] });
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  await withRenameFault(() => 'EXDEV', async (calls) => {
+    const res = await h.invoke(CH.REC_STOP, { recId });
+    assert.equal(calls.length, 1);
+    assert.equal(res.path, null);
+    assert.match(res.error, /^rename failed: EXDEV/);
+  });
 });
 
 test('abort deletes the .part and reports aborted', async () => {

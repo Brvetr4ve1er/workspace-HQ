@@ -58,7 +58,7 @@ golden fixture. All `data/social/*` is **gitignored** (personal content + sessio
 | File | Written by | Read by | Shape |
 |---|---|---|---|
 | `data/social/inbox.json` | app relay (extension ingest) | `hq_social_feed/_mentions/_metrics` | tendril doc: `{updated, live, events[]}`; each event `{platform, kind:'feed'\|'mention'\|'notification'\|'metrics', id, ts, author?, text?, url?, uri?, counts?{likes,reposts,replies}, metrics?{followers,following,posts}}` |
-| `data/social/outbox.json` | `hq_social_post/_reply` (stage), `hq_social_cancel` + popup Skip (cancel), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, target?, title?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, canceled_at?, result?{url,uri}, error?, by}`. `target`/`title` are additive optional platform routing (Reddit subreddit + title). `canceled_at` (additive, optional) is set by the popup's Skip route; the MCP cancel leaves it absent. |
+| `data/social/outbox.json` | `hq_social_post/_reply` (stage), `hq_social_cancel` + popup Skip (cancel), extension (send result) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, target?, title?, status:'staged'→'sent'\|'failed'\|'canceled', staged_at, sent_at?, canceled_at?, result?{url,uri}, error?, by}`. `target`/`title` are additive optional platform routing (Reddit subreddit + title). `canceled_at` (additive, optional) is set by the popup's Skip route; the MCP cancel leaves it absent. `sent_after_cancel?:true` (additive, optional, with `sent_at` + `result`) marks a `canceled` action the extension then reported as published — see the 2026-10-06 amendment. |
 | `data/social/accounts.json` | extension (on connect) | `hq_social_status` | `{updated, accounts[]}`; account `{platform, handle, display?, connected_at}` |
 
 **Write-gate invariant (load-bearing):** MCP `hq_social_post/_reply` only ever
@@ -75,9 +75,27 @@ same `X-HQ-Bridge` + optional `X-HQ-Token` gate as the other routes). The route 
 `staged` with `409 {ok:false, error:'not staged', status}` and leaves the file byte-identical.
 An unknown id gets 404, a missing id 400, a failed auth check 403. A cancel never calls
 an adapter or messages the extension, and never writes `sent_at`/`result`. `canceled` is
-terminal: `GET /social/outbox` stops listing it and `/social/outbox/result` ignores it.
+terminal: `GET /social/outbox` stops listing it and `/social/outbox/result` never turns it
+into `sent` (see the 2026-10-06 amendment below for a success report that arrives late).
 On the extension side, `socialSend` re-reads the outbox before it publishes. It refuses
 (and reports nothing) when the post is no longer staged, when its payload
 (`platform/op/text/reply_to/target/title`) differs from what the popup showed, or when the
 app can't confirm either. So a post skipped or canceled while the popup was open can't
 be sent from a stale card. Pinned by `dashboard/social-cancel.test.mjs`.
+
+**Amendment (2026-10-06, clean-pass review contract-1) — a send that beats its cancel keeps
+its URL.** The re-read above is check-then-act: nothing moves the action out of `staged`
+while the adapter publishes, so a Skip (or `hq_social_cancel`) that lands during the
+seconds-long in-flight send still answers `canceled`, and the post goes live anyway. Until
+an atomic claim step exists, `/social/outbox/result` no longer drops that outcome: when it
+reports `ok:true` for an action that is already `canceled`, the relay keeps
+`status:'canceled'` (the action is still terminal, never re-listed, never `sent`) and records
+`sent_at`, `result{url,uri}` and `sent_after_cancel:true`, answering
+`200 {ok, id, status:'canceled', sent_after_cancel:true}`. `hq_social_outbox` already returns
+`sent_at`/`result`, so Claude sees the post is live and where. Only the first such report is
+recorded (a repeat is `ignored`); an `ok:false` report for a canceled action, and any report
+for `sent`/`failed`, stays `ignored` and writes nothing. Additive: no status value changes,
+the write-gate invariant is untouched (only a human-approved send produces a result).
+Planned follow-up (not shipped): `POST /social/outbox/claim` flipping `staged → sending`
+atomically before the adapter runs, so a cancel during a send is refused instead of
+recorded after the fact.

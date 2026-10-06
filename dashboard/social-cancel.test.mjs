@@ -89,13 +89,56 @@ test('a canceled action disappears from GET /social/outbox (the popup never sees
   assert.deepEqual(r.body.actions.map((a) => a.id), ['act-staged-2']);
 });
 
-test('a late send report for a canceled action is ignored — it can never become sent', async () => {
+// The race (CONTRACT.md 2026-10-06): Approve & Send is in flight, a Skip / hq_social_cancel
+// lands before the adapter finishes, then the adapter reports success. The post is live.
+test('a late SUCCESS report for a canceled action stays canceled but keeps the live URL (sent_after_cancel)', async () => {
   await call({ body: { id: 'act-staged-1' } });
-  const r = await call({ url: '/social/outbox/result', body: { id: 'act-staged-1', ok: true, url: 'https://example.org/x' } });
+  const r = await call({ url: '/social/outbox/result', body: { id: 'act-staged-1', ok: true, url: 'https://example.org/x', uri: 'at://example/post/x' } });
+  assert.equal(r.code, 200);
+  assert.deepEqual(r.body, { ok: true, id: 'act-staged-1', status: 'canceled', sent_after_cancel: true });
+  const d = readOutbox();
+  const a = byId(d, 'act-staged-1');
+  assert.equal(a.status, 'canceled', 'never becomes sent');
+  assert.equal(a.sent_after_cancel, true);
+  assert.match(a.sent_at, /^\d{4}-\d\d-\d\dT/);
+  assert.deepEqual(a.result, { url: 'https://example.org/x', uri: 'at://example/post/x' });
+  assert.match(a.canceled_at, /^\d{4}-\d\d-\d\dT/, 'the cancel is still on record');
+  for (const seeded of SEED.actions.slice(1)) assert.deepEqual(byId(d, seeded.id), seeded, seeded.id);
+  // still terminal: not re-listed, not cancelable again
+  const listed = await call({ method: 'GET', url: '/social/outbox' });
+  assert.deepEqual(listed.body.actions.map((x) => x.id), ['act-staged-2']);
+  assert.equal((await call({ body: { id: 'act-staged-1' } })).code, 409);
+});
+
+test('only the first late success is recorded; a repeat is ignored and writes nothing', async () => {
+  await call({ body: { id: 'act-staged-1' } });
+  await call({ url: '/social/outbox/result', body: { id: 'act-staged-1', ok: true, url: 'https://example.org/first' } });
+  const before = readFileSync(outboxFile, 'utf8');
+  const r = await call({ url: '/social/outbox/result', body: { id: 'act-staged-1', ok: true, url: 'https://example.org/second' } });
   assert.equal(r.code, 200);
   assert.equal(r.body.ignored, true);
-  assert.equal(byId(readOutbox(), 'act-staged-1').status, 'canceled');
+  assert.equal(readFileSync(outboxFile, 'utf8'), before);
 });
+
+test('a late FAILURE report for a canceled action is ignored — status and file untouched', async () => {
+  await call({ body: { id: 'act-staged-1' } });
+  const before = readFileSync(outboxFile, 'utf8');
+  const r = await call({ url: '/social/outbox/result', body: { id: 'act-staged-1', ok: false, error: 'adapter error' } });
+  assert.equal(r.code, 200);
+  assert.equal(r.body.ignored, true);
+  assert.equal(r.body.status, 'canceled');
+  assert.equal(readFileSync(outboxFile, 'utf8'), before);
+});
+
+for (const id of ['act-sent', 'act-failed']) {
+  test(`a result report for an already-settled action (${id}) is ignored, file byte-identical`, async () => {
+    const before = readFileSync(outboxFile, 'utf8');
+    const r = await call({ url: '/social/outbox/result', body: { id, ok: true, url: 'https://example.org/other' } });
+    assert.equal(r.code, 200);
+    assert.equal(r.body.ignored, true);
+    assert.equal(readFileSync(outboxFile, 'utf8'), before);
+  });
+}
 
 for (const id of ['act-sent', 'act-failed', 'act-canceled']) {
   test(`not staged (${id}) → 409, file byte-identical`, async () => {
