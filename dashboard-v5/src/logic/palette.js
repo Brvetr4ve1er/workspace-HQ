@@ -1,10 +1,16 @@
 // The command palette’s items (Ctrl K): verbs, go-to, projects, tasks, automations, commands.
 // Component.prototype mixin (src/app.js): same `this` as the class methods they were.
+import { libKindOf } from './library.js';
 
 export const paletteLogic = {
   paletteItems() {
     const S = this.state, raw = S.paletteQuery.trim(), q = raw.toLowerCase(), M = this.M, NAV = M.NAV;
     const g = [];
+    // everything the app can run, as on Automations: the background automations, then the
+    // interactive ones (Claude skills/commands, npm dev…), which open a terminal. Both go
+    // through the same confirm-first askRun (logic/runs.js).
+    const runPool = M.AUTOS.concat(M.INTERACTIVE || []);
+    const termHint = (a, bg) => (libKindOf(a) === 'interactive' ? 'opens a terminal' : bg);
     const vm = q.match(/^(commit|open|run|focus|theme|go)\s+(.+)$/), doItems = [];
     // capture <text>: the text keeps its case (the other verbs match lowercased)
     const cap = raw.match(/^capture\s+(.+)$/i);
@@ -12,7 +18,7 @@ export const paletteLogic = {
     if (vm) {
       const verb = vm[1], arg = vm[2].trim();
       if (verb === 'commit' || verb === 'open') this.projectsAt(0).filter((p) => p.name.toLowerCase().includes(arg) || p.id === arg).forEach((p) => doItems.push({ glyph: '›', label: (verb === 'commit' ? 'Commit ' : 'Open ') + p.name, hint: verb === 'commit' ? (p.dirty || 0) + ' files' : 'project page', run: () => (verb === 'commit' ? this.openCommit(p.id) : this.openProject(p.id)) }));
-      if (verb === 'run') M.AUTOS.filter((a) => a.name.toLowerCase().includes(arg)).forEach((a) => doItems.push({ glyph: '›', label: 'Run ' + a.name, hint: 'confirm first', run: () => this.askRun(a) }));
+      if (verb === 'run') runPool.filter((a) => a.name.toLowerCase().includes(arg)).forEach((a) => doItems.push({ glyph: '›', label: 'Run ' + a.name, hint: termHint(a, 'confirm first'), run: () => this.askRun(a) }));
       if (verb === 'focus') this.openTasks(0).filter((t) => t.title.toLowerCase().includes(arg)).forEach((t) => doItems.push({ glyph: '›', label: 'Focus · ' + t.title, hint: 'F', run: () => this.startFocus(t.id) }));
       if (verb === 'theme') ['dark', 'light', 'os'].filter((x) => x.startsWith(arg)).forEach((x) => doItems.push({ glyph: '›', label: 'Theme · ' + x, hint: '', run: () => this.setState({ themePref: x }) }));
       if (verb === 'go') NAV.filter((n) => n.label.toLowerCase().startsWith(arg)).forEach((n) => doItems.push({ glyph: '›', label: 'Go to ' + n.label, hint: '', run: () => this.go(n.id) }));
@@ -23,7 +29,7 @@ export const paletteLogic = {
     g.push(['Go to', go]);
     g.push(['Projects', this.projectsAt(0).map((p) => ({ glyph: '▦', label: p.name, hint: p.reason, run: () => this.openProject(p.id) }))]);
     g.push(['Tasks', this.openTasks(0).map((t) => ({ glyph: '◎', label: t.title, hint: 'Focus', run: () => this.startFocus(t.id) }))]);
-    g.push(['Automations', M.AUTOS.map((a) => ({ glyph: a.icon, label: 'Run ' + a.name, hint: 'background', run: () => this.askRun(a) }))]);
+    g.push(['Automations', runPool.map((a) => ({ glyph: a.icon, label: 'Run ' + a.name, hint: termHint(a, 'background'), run: () => this.askRun(a) }))]);
     const cmds = [
       { glyph: '⟳', label: 'Scan now', hint: 'uses Claude quota', run: () => this.scanNow() },
       { glyph: '◎', label: 'Start focus', hint: 'F', run: () => this.toggleFocus() },

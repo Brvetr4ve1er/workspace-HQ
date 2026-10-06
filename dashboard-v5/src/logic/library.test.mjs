@@ -232,6 +232,40 @@ test('the background confirm copy is unchanged', () => {
   assert.equal(v.confirm.kindTone, 'green');
 });
 
+// ---- the palette runs interactive items too, through the same confirm ------------------------
+test('palette: "run <name>" finds interactive items (hint "opens a terminal") and opens the same confirm', () => {
+  const { c, f } = make();
+  const pal = (query) => { c.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: query, paletteSel: 0 }); return c.paletteItems(); };
+  const doGroup = (P) => (P.groups.find((g) => g.name === 'Do') || { items: [] }).items;
+  let items = doGroup(pal('run review'));
+  assert.deepEqual(items.map((i) => [i.label, i.hint]), [['Run Code review', 'opens a terminal']]);
+  items[0].run();
+  assert.equal(c.state.confirm, 'skill:review', 'the confirm-first dialog, not a direct run');
+  assert.equal(c.state.paletteOpen, false);
+  assert.equal(f.called('castSpell').length, 0, 'nothing runs before the confirm');
+  // a background item keeps its hint; "run a" lists both kinds (background first)
+  assert.deepEqual(doGroup(pal('run deep')).map((i) => [i.label, i.hint]), [['Run Deep scan', 'confirm first']]);
+  assert.deepEqual(doGroup(pal('run a ·')).map((i) => [i.label, i.hint]), [['Run a · build', 'confirm first'], ['Run a · dev', 'opens a terminal']]);
+});
+
+test('palette: the Automations group lists interactive items after the background ones', () => {
+  const { c } = make();
+  const group = (query) => { c.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: query, paletteSel: 0 }); return (c.paletteItems().groups.find((g) => g.name === 'Automations') || { items: [] }).items.map((i) => [i.label, i.hint]); };
+  // the hint is searchable: "terminal" lists every interactive item, "background" the rest (adapter order)
+  assert.deepEqual(group('terminal'), [['Run a · dev', 'opens a terminal'], ['Run Code review', 'opens a terminal'], ['Run Deploy', 'opens a terminal'], ['Run Write a plan', 'opens a terminal']]);
+  assert.deepEqual(group('background'), [['Run Deep scan', 'background'], ['Run Backup notes', 'background'], ['Run a · build', 'background']]);
+  assert.deepEqual(group(''), [['Run Deep scan', 'background'], ['Run Backup notes', 'background'], ['Run a · build', 'background'], ['Run a · dev', 'opens a terminal']], 'no query: the first four, background first');
+  c.setState({ paletteQuery: 'write a plan' });
+  c.paletteItems().groups.find((g) => g.name === 'Automations').items[0].run();
+  assert.equal(c.state.confirm, 'skill:plan', 'same confirm-first askRun');
+});
+
+test('Automations header counts what opens a terminal as well as what runs in the background', () => {
+  const { c } = make();
+  c.setState({ tab: 'automations' });
+  assert.equal(c.renderVals().screenSub, '9 catalogued · 3 run in the background · 4 open a terminal');
+});
+
 // ---- Rescan --------------------------------------------------------------------------------
 test('rescan: the toast goes up before the call; {ok} leaves the reload to main', async () => {
   const { c, f, toasts, log, vals } = make();

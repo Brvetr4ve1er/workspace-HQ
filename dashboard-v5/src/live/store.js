@@ -160,7 +160,8 @@ export function createStore(DATA, hq) {
       if (!d || !d.castId) return;
       const c = live.casts[d.castId] || (live.casts[d.castId] = castRow(d));
       c.status = d.outcome === 'resolved' ? 'ok' : 'failed';
-      c.meta = Math.round((d.duration_ms || 0) / 1000) + 's' + (d.outcome === 'resolved' ? '' : d.timed_out ? ' · timed out' : ' · exit ' + d.exit_code);
+      // a chain settles with exit_code null (its member's cast has the code); null or missing reads "exit code unknown"
+      c.meta = Math.round((d.duration_ms || 0) / 1000) + 's' + (d.outcome === 'resolved' ? '' : d.timed_out ? ' · timed out' : ' · ' + A.exitLabel(d.exit_code));
       c.done = true;
       emit();
     }));

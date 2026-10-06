@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -271,6 +271,35 @@ test('automations: AUTOS unchanged; channeled spells become INTERACTIVE terminal
   assert.deepEqual(r.LIBRARY.find((l) => l[0] === 'npm scripts'), ['npm scripts', 2, 1]);
   assert.deepEqual(automations(null, null).INTERACTIVE, []);
   assert.deepEqual(automations(null, null).counts, { runnable: 0, interactive: 0, bySource: {} });
+});
+
+test('exitLabel: a number reads "exit N"; null / missing / not a number reads "exit code unknown"', () => {
+  assert.equal(exitLabel(0), 'exit 0');
+  assert.equal(exitLabel(2), 'exit 2');
+  assert.equal(exitLabel(-1), 'exit -1');
+  for (const x of [null, undefined, NaN, '1', Infinity]) assert.equal(exitLabel(x), 'exit code unknown', String(x));
+});
+
+test('automations: a failed cast with no exit code or duration never reads "exit ?" or starts with " · "', () => {
+  const sb = spellbook([
+    spell('grimoire:scan', { name: 'Deep scan', source: 'grimoire' }),
+    spell('script:chain', { name: 'Chain', source: 'script', kind: 'chain' }),
+    spell('npm:a:dev', { name: 'a · dev', kind: 'channeled', source: 'npm' }),
+  ]);
+  const tel = telemetry([
+    { cast_id: 'c1', spell_id: 'grimoire:scan', started_at: '2026-10-03T10:00:00Z', outcome: 'fizzled' },                                      // older telemetry: no code, no duration
+    { cast_id: 'c2', spell_id: 'script:chain', started_at: '2026-10-03T10:30:00Z', outcome: 'fizzled', exit_code: null, duration_ms: 4000 },   // a chain: main records null
+    { cast_id: 'c3', spell_id: 'npm:a:dev', started_at: '2026-10-03T11:00:00Z', outcome: 'fizzled', exit_code: null },
+    { cast_id: 'c4', spell_id: 'grimoire:scan', started_at: '2026-10-03T11:30:00Z', outcome: 'fizzled', exit_code: 1, duration_ms: 2000 },
+    { cast_id: 'c5', spell_id: 'npm:a:dev', started_at: '2026-10-03T11:45:00Z', outcome: 'channeled' },
+  ]);
+  const r = automations(sb, tel, Date.parse('2026-10-03T12:00:00Z'));
+  assert.equal(r.AUTOS.find((a) => a.id === 'script:chain').last.err, 'exit code unknown');
+  assert.equal(r.AUTOS.find((a) => a.id === 'grimoire:scan').last.err, 'exit 1');   // the newest cast wins
+  const t3 = automations(sb, telemetry([tel.casts[2]]), Date.parse('2026-10-03T12:00:00Z'));
+  assert.equal(t3.INTERACTIVE[0].last.err, 'exit code unknown');
+  assert.deepEqual(r.RUNS.map((x) => [x.id, x.meta]), [['c5', 'Opened in a terminal'], ['c4', '2s · exit 1'], ['c3', 'exit code unknown'], ['c2', '4s · exit code unknown'], ['c1', 'exit code unknown']]);
+  for (const x of r.RUNS) assert.doesNotMatch(x.meta, /^\s*·|exit (\?|null|undefined)/, x.id);
 });
 
 test('fileUrl: drive kept, segments encoded, UNC and POSIX handled, relative refused', () => {

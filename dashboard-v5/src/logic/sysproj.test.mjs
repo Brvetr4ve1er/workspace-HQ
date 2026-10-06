@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Component } from '../app.js';
 import { createStore } from '../live/store.js';
-import { systemLogic, CAPTURE_OFF, SCAN_TIP, SCAN_OFF } from './system.js';
+import { systemLogic, machineIssues, machineVerdict, CAPTURE_OFF, SCAN_TIP, SCAN_OFF } from './system.js';
 import { sheetLogic } from './sheet.js';
 import { projectLogic } from './project.js';
 import { proj, scan, organ, pcHealth } from '../live/__fixtures__/synthetic.mjs';
@@ -110,12 +110,13 @@ const vals = (c) => c.renderVals();
 function at(c, patch) { c.state = { ...c.state, ...patch, sub: { ...c.state.sub, ...(patch.sub || {}) } }; return c; }
 
 // ---- wiring ----------------------------------------------------------------------------------
-test('the System/project mixins are on the Component; the fix sheet override wins over sheet.js', () => {
+test('the System/project mixins are on the Component; sheet.js owns the only sheetOk', () => {
   for (const k of Object.keys(systemLogic)) assert.equal(Component.prototype[k], systemLogic[k], k);
   for (const k of Object.keys(projectLogic)) assert.equal(Component.prototype[k], projectLogic[k], k);
-  // systemLogic.sheetOk only works when it is mixed in after sheetLogic (app.js)
-  assert.equal(Component.prototype.sheetOk, systemLogic.sheetOk);
-  assert.notEqual(Component.prototype.sheetOk, sheetLogic.sheetOk);
+  // the fix branch marks the issue itself (markFixed), so no mixin-order override is left
+  assert.equal('sheetOk' in systemLogic, false, 'systemLogic must not override sheetOk');
+  assert.equal(Component.prototype.sheetOk, sheetLogic.sheetOk);
+  assert.equal(Component.prototype.markFixed, systemLogic.markFixed);
 });
 
 test('every added template element is marked for the designer', () => {
@@ -229,6 +230,59 @@ test('with every issue fixed the verdict says it isn’t re-checked, not "Machin
   // a clutter id in the set (older state) is not counted as a fixed issue
   const c2 = at(make(fakeHq()), { ...sys('machine'), fixed: ['dup'] });
   assert.deepEqual([vals(c2).hasFixed, vals(c2).verdict], [false, '2 issues to look at']);
+});
+
+test('only ok === true hides the issue; a truthy non-true ok still toasts but marks nothing', async (t) => {
+  timers(t);
+  const c = at(make(fakeHq({ healthFix: { ok: 1, output: 'odd answer' } })), sys('machine'));
+  await vals(c).issues[0].run();
+  await c.sheetOk();
+  assert.deepEqual(c.state.fixed || [], []);
+  assert.ok(toasts(c).includes('success · Ran · odd answer'));
+});
+
+// ---- the status rail's Machine card says what System says ---------------------------------------
+test('machineVerdict: issues, then fixes not re-checked, then not checked, else OK', () => {
+  const two = [{ id: 'organ-disk' }, { id: 'llm' }];
+  assert.deepEqual(machineVerdict(two, [], { scannedAt: 'x' }), { state: 'issues', n: 2, label: '2 issues to look at', short: '2 issues', color: 'var(--orange)' });
+  assert.deepEqual(machineVerdict(two, ['llm'], {}), { state: 'issues', n: 1, label: '1 issue to look at', short: '1 issue', color: 'var(--orange)' });
+  // fixes ran but nothing re-checked wins over "no pc-health data"
+  assert.deepEqual(machineVerdict(two, ['organ-disk', 'llm'], {}), { state: 'unconfirmed', n: 0, label: 'Fixes ran · not re-checked yet', short: 'Fixes ran · not re-checked yet', color: 'var(--blue)' });
+  assert.equal(machineVerdict([], ['organ-disk'], {}).state, 'unchecked', 'a fixed id with no issue to match is not a fix that ran');
+  assert.deepEqual(machineVerdict([], undefined, {}), { state: 'unchecked', n: 0, label: 'Not checked yet', short: 'Not checked yet', color: 'var(--muted)' });
+  assert.equal(machineVerdict([], [], { fresh: true }).label, 'Machine OK', 'a Re-examine this session is a check');
+  assert.equal(machineVerdict(null, null, { scannedAt: '2026-10-05T08:00:00Z' }).label, 'Machine OK');
+});
+
+test('the status rail Machine card agrees with System’s verdict in every state', (t) => {
+  timers(t);
+  const rail = (v) => v.amb.find((a) => a.label === 'Machine');
+  const check = (c, want, why) => {
+    const v = vals(at(c, sys('machine')));
+    const m = machineVerdict(machineIssues(c.M.ISSUES, c.LIVE.llm), c.state.fixed, { scannedAt: c.M.pcScannedAt, fresh: !!c.LIVE.pcHealth });
+    assert.equal(v.verdict, want, why + ' · System');
+    assert.equal(m.label, v.verdict, why + ' · machineVerdict = System’s text');
+    assert.equal(rail(v).title, m.short, why + ' · rail title');
+    assert.equal(rail(v).color, v.verdictColor, why + ' · rail colour = System’s');
+  };
+  // two organ issues
+  check(make(fakeHq()), '2 issues to look at', 'organs');
+  // + the local model: running but no chat model counts too (the old rail only counted "not running")
+  const noChat = make(fakeHq()); noChat.store.live.llm = { available: true, chatModel: null };
+  check(noChat, '3 issues to look at', 'no chat model');
+  const down = make(fakeHq()); down.store.live.llm = { available: false };
+  check(down, '3 issues to look at', 'model runtime down');
+  // one fixed this session
+  check(at(make(fakeHq()), { fixed: ['organ-disk'] }), '1 issue to look at', 'one fixed');
+  // every issue fixed, not re-examined: not "Machine OK"
+  check(at(make(fakeHq()), { fixed: ['organ-disk', 'organ-ram'] }), 'Fixes ran · not re-checked yet', 'all fixed');
+  // no pc-health data at all: unknown, not "Machine OK"
+  const none = make(fakeHq(), null, DATA({ pcHealth: undefined }));
+  check(none, 'Not checked yet', 'no pc-health');
+  assert.equal(rail(vals(none)).title, 'Not checked yet');
+  // …until a Re-examine report is loaded
+  none.store.refreshMachine(pcHealth([organ('cpu')]));
+  check(none, 'Machine OK', 're-examined, nothing flagged');
 });
 
 test('other sheets still go through sheet.js unchanged', async (t) => {

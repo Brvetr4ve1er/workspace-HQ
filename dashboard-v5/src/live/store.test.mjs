@@ -187,6 +187,19 @@ test('cast output for an unknown castId takes the catalog name/icon, then the sp
   st.stop();
 });
 
+test('a failed cast without an exit code reads "exit code unknown", never "exit null" / "exit undefined"', async () => {
+  const { hq, push } = fakeHq();
+  const st = createStore(DATA(), hq);
+  await st.start();
+  push.castDone({ castId: 'k1', spellId: 'grimoire:scan', outcome: 'fizzled', exit_code: null, duration_ms: 4100, chainId: 'k1' });   // a chain settles with null
+  push.castDone({ castId: 'k2', spellId: 'grimoire:scan', outcome: 'fizzled', duration_ms: 1000 });                                   // no exit_code at all
+  push.castDone({ castId: 'k3', spellId: 'grimoire:scan', outcome: 'fizzled', exit_code: null, timed_out: true, duration_ms: 600000 });
+  push.castDone({ castId: 'k4', spellId: 'grimoire:scan', outcome: 'resolved', exit_code: 0, duration_ms: 1500 });
+  const C = st.live.casts;
+  assert.deepEqual([C.k1.meta, C.k2.meta, C.k3.meta, C.k4.meta], ['4s · exit code unknown', '1s · exit code unknown', '600s · timed out', '2s']);
+  st.stop();
+});
+
 test('sessions map cwd → project against the latest snapshot (live and archived)', async () => {
   const list = [
     { jobId: 'j1', label: 'Fix A', status: 'running', startedAt: 0, cwd: 'c:/dev/PROJECT-A/src' },

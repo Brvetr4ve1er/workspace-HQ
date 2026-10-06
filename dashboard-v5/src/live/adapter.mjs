@@ -228,6 +228,11 @@ export function weeks(snaps, limit = 8) {
 // ---- Automations (spellbook + telemetry) ----------------------------------------------
 const RUNNABLE = new Set(['castable', 'chain']);
 const SOURCE_ORDER = ['grimoire', 'script', 'npm', 'task'];
+// A failed cast's exit code as people read it. Main records null for a timeout and for a
+// chain (its member's cast carries the code), and older telemetry has none at all: that
+// reads "exit code unknown", never "exit ?" / "exit null" / "exit undefined". The store's
+// live casts (store.js onCastDone) use it too.
+export const exitLabel = (code) => (typeof code === 'number' && Number.isFinite(code) ? 'exit ' + code : 'exit code unknown');
 const bySourceThenName = (a, b) => (SOURCE_ORDER.indexOf(a.source) + 9) % 9 - (SOURCE_ORDER.indexOf(b.source) + 9) % 9 || a.name.localeCompare(b.name);
 export function automations(spellbook, telemetry, now = Date.now()) {
   const sb = obj(spellbook), tel = obj(telemetry), spells = arr(sb.spells);
@@ -240,7 +245,7 @@ export function automations(spellbook, telemetry, now = Date.now()) {
       id: String(s.id), icon: String(s.icon || '▶'), name: String(s.name || s.id), source: String(s.source || ''),
       kind: s.kind === 'chain' ? 'chain' : String(s.source || 'script'), mode: 'bg',
       cmd: [s.command].concat(arr(s.args)).filter(Boolean).join(' '), dir: String(s.cwd || ''),
-      last: c ? { ok: c.outcome === 'resolved', ago: ago(Date.parse(c.started_at), now), err: c.outcome === 'resolved' ? '' : 'exit ' + (c.exit_code ?? '?') } : null,
+      last: c ? { ok: c.outcome === 'resolved', ago: ago(Date.parse(c.started_at), now), err: c.outcome === 'resolved' ? '' : exitLabel(c.exit_code) } : null,
       desc: String(s.description || ''), cat: SCHOOL[s.school] || 'Other',
       steps: chain.length ? chain.map((x) => String(obj(x).name || obj(x).id || x)) : undefined,
       destructive: !!s.confirm, hash: String(s.content_hash || ''), favorite: favs.has(s.id),
@@ -256,7 +261,7 @@ export function automations(spellbook, telemetry, now = Date.now()) {
       id: String(s.id), icon: String(s.icon || '›_'), name: String(s.name || s.id), source: String(s.source || ''),
       kind: 'interactive', mode: 'terminal',
       cmd: [s.command].concat(arr(s.args)).filter(Boolean).join(' '), dir: String(s.cwd || ''),
-      last: c ? { ok: !failed, ago: ago(Date.parse(c.started_at), now), err: failed ? 'exit ' + (c.exit_code ?? '?') : '' } : null,
+      last: c ? { ok: !failed, ago: ago(Date.parse(c.started_at), now), err: failed ? exitLabel(c.exit_code) : '' } : null,
       desc: String(s.description || ''), cat: SCHOOL[s.school] || 'Other', hash: String(s.content_hash || ''),
     };
   }).sort(bySourceThenName);
@@ -277,7 +282,9 @@ export function automations(spellbook, telemetry, now = Date.now()) {
   const total = num(obj(sb.counts).total, spells.length);
   const RUNS = arr(tel.casts).slice(-12).reverse().map((c) => {
     const s = spells.find((x) => x.id === c.spell_id);
-    return { id: String(c.cast_id), name: s ? String(s.name) : String(c.spell_id), kind: 'auto', status: c.outcome === 'resolved' ? 'ok' : c.outcome === 'channeled' ? 'opened' : 'failed', meta: (c.outcome === 'channeled' ? 'Opened in a terminal' : (c.duration_ms != null ? Math.round(c.duration_ms / 1000) + 's' : '')) + (c.outcome === 'fizzled' ? ' · exit ' + (c.exit_code ?? '?') : ''), started: fmtD(new Date(Date.parse(c.started_at))), out: [] };
+    // "<duration> · exit <code>", either part left out when unknown (never a dangling " · ")
+    const meta = [c.outcome === 'channeled' ? 'Opened in a terminal' : c.duration_ms != null ? Math.round(c.duration_ms / 1000) + 's' : '', c.outcome === 'fizzled' ? exitLabel(c.exit_code) : ''].filter(Boolean).join(' · ');
+    return { id: String(c.cast_id), name: s ? String(s.name) : String(c.spell_id), kind: 'auto', status: c.outcome === 'resolved' ? 'ok' : c.outcome === 'channeled' ? 'opened' : 'failed', meta, started: fmtD(new Date(Date.parse(c.started_at))), out: [] };
   });
   return { AUTOS, INTERACTIVE, counts: autoCounts, LIBRARY, SCHEDULED, RUNS, total };
 }

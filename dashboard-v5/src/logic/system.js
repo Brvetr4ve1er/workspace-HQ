@@ -8,7 +8,6 @@
 //                 "Add to ideas" button; the window usually reloads before 'noted' shows
 //   fixed         issue ids a safe fix ran ok:true on this session (hidden until Re-examine)
 import { FX } from './shared.js';
-import { sheetLogic } from './sheet.js';
 
 export const CAPTURE_OFF = 'Needs the live app — capture is unavailable in this preview';
 export const SCAN_TIP = 'Run a fresh health scan of this machine (~3s)';
@@ -22,6 +21,23 @@ export function machineIssues(issues, llm) {
   const down = !!llm && (!llm.available || !llm.chatModel);
   const llmIssue = down ? [{ id: 'llm', title: llm.available ? 'No local chat model installed' : 'Local model runtime is not running', why: 'Commit drafts fall back to Claude, which uses quota; Ask can’t answer.', fix: llm.available ? 'Pull a chat model with Ollama' : 'Start Ollama', cmd: llm.available ? 'ollama pull qwen2.5:7b-instruct-q4_K_M' : 'ollama serve', safe: false }] : [];
   return (Array.isArray(issues) ? issues : []).concat(llmIssue);
+}
+
+// The verdict over machineIssues(), in System's order: open issues, then fixes that ran
+// this session but weren't re-checked, then no machine check at all (no pc-health data
+// and no Re-examine), else OK. The status rail's Machine card (vals/shell.js) shows this,
+// so it can't say "Machine OK" while System says otherwise. vals/system.js states the
+// same rule inline; sysproj.test.mjs checks the two agree.
+//   all: machineIssues(…) · fixed: state.fixed · scannedAt: model pcScannedAt · fresh: a Re-examine report is loaded
+// label = System's verdict text; short = the rail card's ("2 issues"), the same verdict in fewer words
+export function machineVerdict(all, fixed, { scannedAt, fresh } = {}) {
+  const list = Array.isArray(all) ? all : [], done = Array.isArray(fixed) ? fixed : [];
+  const open = list.filter((i) => !done.includes(i.id)).length, fixedN = list.length - open;
+  const v = (state, label, color, short) => ({ state, n: open, label, short: short || label, color });
+  if (open) { const n = open + ' issue' + (open > 1 ? 's' : ''); return v('issues', n + ' to look at', 'var(--orange)', n); }
+  if (fixedN) return v('unconfirmed', 'Fixes ran · not re-checked yet', 'var(--blue)');
+  if (!scannedAt && !fresh) return v('unchecked', 'Not checked yet', 'var(--muted)');
+  return v('ok', 'Machine OK', 'var(--green)');
 }
 
 export const systemLogic = {
@@ -53,25 +69,12 @@ export const systemLogic = {
     FX().sfx('error');
   },
 
-  // a safe-listed fix ran ok: hide its issue until the next Re-examine
+  // a safe-listed fix ran ok: hide its issue until the next Re-examine. The fix confirm
+  // (logic/sheet.js sheetOk) calls this with the sheet's issueId when main answers ok:true;
+  // a fix sheet without one (not opened from System) passes undefined, which is a no-op.
   markFixed(id) {
     if (!id) return;
     this.setState((s) => { const f = s.fixed || []; return f.includes(id) ? null : { fixed: f.concat([id]) }; });
-  },
-
-  // The fix confirm is the designer's sheet (logic/sheet.js). A fix opened from
-  // System carries its issue id (vals/system.js); this runs it exactly as sheet.js
-  // does and, when main answers ok:true, hides that issue (markFixed). Any other
-  // sheet goes to sheet.js unchanged. This works only because systemLogic is mixed
-  // in after sheetLogic (app.js); sysproj.test.mjs checks the order.
-  async sheetOk() {
-    const s = this.state.sheet;
-    if (!s || s.act !== 'fix' || !s.issueId) return sheetLogic.sheetOk.call(this);
-    this.setState({ sheet: null });
-    const r = await this.call(() => this.hq.healthFix(s.cmd), 'Fix failed');
-    if (!r) return;
-    this.toast(r.ok ? 'success' : 'error', (r.ok ? 'Ran · ' : 'Didn’t run · ') + (String(r.output || '').split('\n').filter(Boolean).slice(-1)[0] || s.fixTitle), { ms: 6000 });
-    if (r.ok === true) { this.markFixed(s.issueId); FX().event('cheer', 'Fixed!'); }
   },
 
   // "Note for cleanup" / "Add to ideas" (v3 capture:note): hq.captureSave(text)

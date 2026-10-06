@@ -2,6 +2,7 @@
 // bottom nav, screen header and sub-tabs, prompt bar, status rail, settings, the
 // keyboard sheet and toasts.
 import { FX } from '../logic/shared.js';
+import { machineIssues, machineVerdict } from '../logic/system.js';
 
 export function shellVals(ctx) {
   const { S, H, LIVE, off, live, ps, cantWrite, writeReason, snap, viewedLabel, projects, open, unc, unp, sec, level, L, ambientDocked, v, ok, onPage, sub, subs, tabStyle, TR, rows, top, tierCount, TK } = ctx;
@@ -30,10 +31,14 @@ export function shellVals(ctx) {
   const running = this.runningCount();
   // ----- screen header -----
   const screenTitle = (H.NAV.find((n) => n.id === S.tab) || {}).label;
+  // what can run here: the background automations and the interactive ones (they open a
+  // terminal), worded like the Library intro (vals/automations.js libIntro)
+  const bgN = H.AUTOS.length, termN = (H.INTERACTIVE || []).length;
+  const runnableSub = [bgN + (bgN === 1 ? ' runs' : ' run') + ' in the background', termN ? termN + (termN === 1 ? ' opens' : ' open') + ' a terminal' : ''].filter(Boolean).join(' · ');
   const screenSub = {
     projects: projects.length + ' tracked · ' + snap.archived.length + ' archived',
     tasks: open.length + ' open · ' + tierCount('red') + ' critical · from the ' + (live ? 'latest' : viewedLabel) + ' scan',
-    automations: H.autoTotal + ' catalogued · ' + H.AUTOS.length + ' runnable here',
+    automations: H.autoTotal + ' catalogued · ' + runnableSub,
     claude: runningSessions + ' running · uses Claude quota',
     history: 'trends, timeline and milestones · ' + H.N + ' snapshots',
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
@@ -43,13 +48,15 @@ export function shellVals(ctx) {
   // ----- toasts -----
   const toasts = S.toasts.map((t) => ({ text: t.text, color: TK[t.kind], ref: this.toastRef(t.id), hasUndo: !!t.undo && !!this._pending['done:' + t.undo], undo: () => this.undoTask(t.undo), hasCancel: !!t.runSpell, cancel: () => this.cancelRun(t.runSpell), close: () => this.dismissToast(t.id), isProgress: t.kind === 'progress' }));
   // ----- ambient rail -----
-  const sysIssues = H.ISSUES.length + (LIVE.llm && !LIVE.llm.available ? 1 : 0);
+  // the Machine card says what System says: the same issue list (pc-health organs + the local
+  // model), the same fixed set and the same "not checked yet" rule (logic/system.js)
+  const machVerdict = machineVerdict(machineIssues(H.ISSUES, LIVE.llm), S.fixed, { scannedAt: H.pcScannedAt, fresh: !!LIVE.pcHealth });
   const mach = LIVE.machine, devList = Object.keys(LIVE.dev).filter((k) => LIVE.dev[k]);
   const siteMins = this.sum(H.SITES, (s) => s[1]);
   const amb = [
     { label: 'Do now', title: top ? top.title : 'Nothing on fire', sub: top ? (this.pname(top.proj) || 'Workspace') + ' · press F to focus' : 'Board is clear', color: top ? TR[top.tier].color : 'var(--green)', go: () => (top ? this.startFocus(top.id) : this.go('home')) },
     { label: 'Running', title: running ? running + ' running' : 'Nothing running', sub: devList.length ? 'Dev server · ' + devList.map((d) => this.pname(d)).join(', ') : 'No dev servers', color: running ? 'var(--gold)' : 'var(--faint)', go: () => this.setState({ runsOpen: true, ambientOverlay: false }) },
-    { label: 'Machine', title: sysIssues ? sysIssues + ' issue' + (sysIssues > 1 ? 's' : '') : 'Machine OK', sub: mach ? 'CPU ' + Math.round(mach.cpu) + '% · RAM ' + Math.round(mach.ram) + '%' : 'live vitals in the app only', color: sysIssues ? 'var(--orange)' : 'var(--green)', go: () => this.go('system') },
+    { label: 'Machine', title: machVerdict.short, sub: mach ? 'CPU ' + Math.round(mach.cpu) + '% · RAM ' + Math.round(mach.ram) + '%' : 'live vitals in the app only', color: machVerdict.color, go: () => this.go('system') },
     { label: 'Claude', title: runningSessions + ' session' + (runningSessions === 1 ? '' : 's') + ' running', sub: (LIVE.sessions.find((x) => x.status === 'running') || {}).title || '—', color: 'var(--purple)', go: () => this.go('claude') },
     { label: 'Screen time', title: snap.browser ? Math.floor(siteMins / 60) + 'h ' + (siteMins % 60) + 'm' : 'No data yet', sub: (snap.browser ? 'browser focus · last 3 days' : 'connect the browser extension') + (LIVE.browserNow && LIVE.browserNow.domain ? ' · now: ' + LIVE.browserNow.domain : ''), color: 'var(--blue)', go: () => this.go('life', 'screen') },
   ];
