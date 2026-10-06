@@ -638,6 +638,9 @@ function wireStatus() {
           if (payload.state === 'stopped' && payload.lastPath) {
             setStatus(savedText(payload.lastPath, 'saved'), 'saved');
             showReveal(payload.lastPath);
+          } else if (payload.state === 'stopped' && payload.error) {
+            // main stopped it but the .part → .webm rename failed: no file to show, say why
+            setStatus('Stopped — couldn’t save: ' + String(payload.error), 'err');
           } else {
             setStatus(payload.state === 'aborted' ? 'Recording discarded (main)' : 'Stopped (main)', 'warn');
           }

@@ -15,7 +15,8 @@ export function systemVals(ctx) {
       if (ro()) return;
       if (!i.safe || !this.hq.healthFix) { this.copy(i.cmd, 'Copied · run it in a terminal (this fix isn’t on the safe list)'); return; }
       // safe-listed fixes can still delete things (%TEMP% purge): show the command, then run.
-      // issueId: an ok:true answer hides this issue until Re-examine (logic/system.js sheetOk)
+      // issueId: an ok:true answer hides this issue until Re-examine (logic/sheet.js sheetOk
+      // calls logic/system.js markFixed with it)
       this.sheet({ act: 'fix', cmd: i.cmd, fixTitle: i.fix, issueId: i.id, title: i.fix + '?', body: 'Runs this PowerShell command now:\n\n' + i.cmd, ok: 'Run fix', danger: /Remove-Item|-Force|\bdel\b|\brm\b|Stop-Process/i.test(i.cmd) });
     },
     copy: () => this.copy(i.cmd, 'Copied · ' + i.cmd) }));

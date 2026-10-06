@@ -72,13 +72,18 @@ export const commitLogic = {
     if (r === false) { settle(); this.toast('error', 'Couldn’t commit — the project path wasn’t accepted'); FX().sfx('error'); return; }
     if (!r || r.error) {
       const hits = r && Array.isArray(r.envHits) ? r.envHits.map(String) : [];
+      // A refusal comes either before `git add -A` (this commit staged nothing) or after it, when
+      // main puts the index back to HEAD (commit-guard.js unstageAll) and says so in its error
+      // when that reset failed. Only then can files (the .env among them) still be staged.
+      const stuck = /couldn.t unstage/i.test(String((r && r.error) || ''));
+      const left = stuck ? ' · files may still be staged — run git reset in the project' : '';
       // the guard fails closed: envHits ['<git error>'] means git couldn't list the change set, not that an .env is in it
       if (hits.includes(GIT_ERROR_HIT)) {
         settle({ error: 'git couldn’t list the change set' });
-        this.toast('error', 'Couldn’t commit · git couldn’t list the change set (nothing was staged)');
+        this.toast('error', 'Couldn’t commit · git couldn’t list the change set' + (left || ' · nothing was committed, and the attempt left nothing staged'));
       } else if (hits.length) {   // main refused (.env in the change set): keep the dialog, now blocked, naming the files
         settle({ envHits: hits });
-        this.toast('error', 'Commit refused · .env in the change set: ' + hits.join(', '));
+        this.toast('error', 'Commit refused · .env in the change set: ' + hits.join(', ') + left);
       } else {
         settle();
         this.toast('error', 'Couldn’t commit · ' + ((r && r.error) || 'no answer from the app'));

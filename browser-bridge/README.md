@@ -21,7 +21,40 @@ while a Chrome window is focused and you're not idle (60s idle stops the clock).
 Sub-1.5s tab flickers are dropped. Everything stays **on your machine**: it's
 POSTed to `127.0.0.1` only, and the app keeps a rolling 3-day window.
 
-Pause anytime from the popup. Nothing is sent while paused.
+**Social feeds, mentions and metrics** (`social.js`). Every 5 minutes the
+extension reads the social sites you are **already logged into in an open tab**
+(the first open tab per site; no tab, nothing read). The read runs inside that
+tab with the site's own session, so the extension never stores a password or
+token. Per site:
+
+| Site | What it reads |
+|---|---|
+| Bluesky | your timeline (author, text, link, like/repost/reply counts), mentions and replies, other notifications, follower/following/post counts |
+| Mastodon (the instance you set in the popup) | the same as Bluesky |
+| Reddit | your front-page feed (titles), inbox mentions/replies, karma |
+| X | your home timeline, follower/following/post counts |
+| LinkedIn | notifications |
+| Instagram | notifications, follower/following/post counts |
+| Threads | follower/post counts |
+| Facebook | which account is logged in, nothing else |
+| YouTube | notifications |
+
+It also reports each logged-in account's handle and display name. All of it
+goes to `127.0.0.1` only: the app keeps the posts and counts in
+`data/social/inbox.json` (rolling 7-day window) and the accounts in
+`data/social/accounts.json`, and Claude reads them through the MCP tools
+(`hq_social_feed`, `hq_social_mentions`, `hq_social_metrics`, `hq_social_status`).
+
+**It also publishes posts, but only ones you approved.** When you click
+**approve & send** in the popup, the extension posts that exact text from your
+logged-in tab (see *Social posts: approve or skip* below). Nothing is published
+any other way. Posting works on Bluesky, Mastodon, Reddit, X and LinkedIn (no
+LinkedIn replies yet). Threads and Facebook refuse until a request id is pasted
+into `social.js`. Instagram and YouTube refuse: text-only posting isn't
+supported there.
+
+Pause anytime from the popup. While paused, no tab activity and no social
+reads are sent. Pausing doesn't block a post you approve & send yourself.
 
 ## Install (load unpacked)
 

@@ -376,10 +376,20 @@ test('doCommit: a refused path, an .env refusal and a git error each say so', as
   // the guard fails closed with envHits ['<git error>']: that is a git failure, not an .env file
   const closed = make({ doCommit: () => ({ error: 'refused: .env in change set', envHits: ['<git error>'] }) });
   await closed.c.openCommit('a'); await closed.c.doCommit();
-  assert.deepEqual([closed.last().kind, closed.last().text], ['error', 'Couldn’t commit · git couldn’t list the change set (nothing was staged)']);
+  assert.deepEqual([closed.last().kind, closed.last().text], ['error', 'Couldn’t commit · git couldn’t list the change set · nothing was committed, and the attempt left nothing staged']);
   const v = closed.c.renderVals().commit;
   assert.equal(v.none, true);
   assert.doesNotMatch(v.alert, /\.env/, 'no claim that an .env file is in the set');
+
+  // main's unstage after the refusal failed (commit-guard.js unstageAll): never claim nothing is staged
+  const stuckMsg = 'refused: .env in change set — couldn’t unstage it, run git reset in the project';
+  const stuck = make({ doCommit: () => ({ error: stuckMsg, envHits: ['<git error>'] }) });
+  await stuck.c.openCommit('a'); await stuck.c.doCommit();
+  assert.equal(stuck.last().text, 'Couldn’t commit · git couldn’t list the change set · files may still be staged — run git reset in the project');
+  assert.doesNotMatch(stuck.last().text, /nothing (was )?(left )?staged|left nothing staged/);
+  const stuckEnv = make({ doCommit: () => ({ error: stuckMsg, envHits: ['sub/.env'] }) });
+  await stuckEnv.c.openCommit('a'); await stuckEnv.c.doCommit();
+  assert.equal(stuckEnv.last().text, 'Commit refused · .env in the change set: sub/.env · files may still be staged — run git reset in the project');
 });
 
 // ---- C3 Ask ----------------------------------------------------------------------------

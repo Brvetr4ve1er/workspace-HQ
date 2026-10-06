@@ -4,10 +4,11 @@ import { usesQuota } from '../logic/library.js';
 
 // "HH:MM" from an ISO string or ms epoch; '' when it doesn't parse
 const clock = (t) => { const ms = typeof t === 'number' ? t : Date.parse(t); return Number.isFinite(ms) ? hhmm(new Date(ms)) : ''; };
-// A run's meta line as people read it. The telemetry history (adapter RUNS) builds
-// "<duration> · exit <code>" and a cast without a duration or an exit code came out
-// as " · exit ?" (the store's live casts can say "exit undefined"): an unknown code
-// reads "exit code unknown", and a line never starts with a dangling " · ".
+// A run's meta line as people read it: an unknown exit code reads "exit code unknown"
+// and a line never starts with a dangling " · ". Every producer now builds it that way at
+// the source (live/adapter.mjs exitLabel for the history's RUNS and last.err, store.js
+// onCastDone for live casts), so this rewrite is only the safety net for a producer that
+// slips; library.test.mjs pins it.
 export function runMeta(m) {
   const s = String(m == null ? '' : m).replace(/\bexit (?:\?|undefined|null)$/, 'exit code unknown');
   return s.replace(/^\s*·\s*/, '');

@@ -168,6 +168,30 @@ test('unknown id → 404, missing id → 400, bad json → 400; the file is unto
   assert.equal(readFileSync(outboxFile, 'utf8'), before);
 });
 
+// A null / non-object JSON body used to throw inside the request's 'end' handler (body.id on
+// null): an uncaught exception in the app's main process instead of a 400.
+test('result + accounts: a null or non-object body → 400, nothing written', async () => {
+  const before = readFileSync(outboxFile, 'utf8');
+  for (const raw of ['null', '[]', '"act-staged-1"', '42', 'true']) {
+    const r = await call({ url: '/social/outbox/result', raw });
+    assert.equal(r.code, 400, 'result ' + raw);
+    assert.equal(r.body.ok, false);
+    const a = await call({ url: '/social/accounts', raw });
+    assert.equal(a.code, 400, 'accounts ' + raw);
+    assert.equal(a.body.ok, false);
+  }
+  assert.equal(readFileSync(outboxFile, 'utf8'), before);
+  assert.equal(existsSync(join(dataDir, 'social', 'accounts.json')), false, 'no accounts snapshot written');
+});
+
+test('accounts: junk rows (null, strings) are skipped, the valid ones kept', async () => {
+  const r = await call({ url: '/social/accounts', body: { accounts: [null, 'x', 7, { platform: 'Bluesky', handle: '@example' }, { platform: 'reddit' }] } });
+  assert.equal(r.code, 200);
+  assert.deepEqual(r.body, { ok: true, count: 1 });
+  const snap = JSON.parse(readFileSync(join(dataDir, 'social', 'accounts.json'), 'utf8'));
+  assert.deepEqual(snap.accounts.map((a) => [a.platform, a.handle]), [['bluesky', '@example']]);
+});
+
 test('auth: no bridge header → 403; token set and missing/wrong → 403; right token → 200', async () => {
   const before = readFileSync(outboxFile, 'utf8');
   assert.equal((await call({ headers: {}, body: { id: 'act-staged-1' } })).code, 403);

@@ -120,6 +120,7 @@ function harness({ getProjects, launchClaude, hardStopMs = 120, renameRetryMs } 
     loadFile(file, o) { this.file = file; this.query = o && o.query; setImmediate(() => this.emit('ready-to-show')); return Promise.resolve(); }
     show() { this.visible = true; }
     showInactive() { this.visible = true; }
+    focus() { this.focused = (this.focused || 0) + 1; }
     hide() { this.visible = false; }
     isVisible() { return this.visible; }
     close() { this.destroyed = true; this.emit('closed'); }
@@ -505,6 +506,48 @@ test('recToggle with nothing recording and no source opens the panel instead of 
   const panel = h.windows.find((w) => w.opts.title === 'WorkspaceHQ Studio');
   assert.ok(panel);
   panel.close();   // the panel is module state; the next test makes its own
+});
+
+const studioPanel = (h) => h.windows.filter((w) => w.opts.title === 'WorkspaceHQ Studio' && !w.destroyed).pop() || null;
+
+test('recToggle with no source is show-only: a second press keeps the setup card up and focuses it', async (t) => {
+  const h = harness();
+  assert.deepEqual(await h.invoke(CH.REC_TOGGLE, {}), { toggled: 'panel-opened' });
+  const panel = studioPanel(h);
+  assert.ok(panel, 'panel created');
+  t.after(() => { if (!panel.destroyed) panel.close(); });   // module state: never leak the panel
+  assert.ok(await waitFor(() => panel.visible), 'shown once it is ready');
+  assert.deepEqual(await h.invoke(CH.REC_TOGGLE, {}), { toggled: 'panel-opened' });
+  assert.equal(panel.visible, true, 'the second press did not hide it (it used to toggle)');
+  assert.ok(panel.focused >= 1, 'brought to the front');
+  panel.hide();
+  await h.invoke(CH.REC_TOGGLE, {});
+  assert.equal(panel.visible, true, 'a hidden panel comes back');
+  assert.equal(h.windows.filter((w) => w.opts.title === 'WorkspaceHQ Studio').length, 1, 'never a second panel');
+});
+
+test('panel-toggle ("Open recorder") during a recording never hides the live pill; with nothing recording it toggles as before', async (t) => {
+  const h = harness();
+  await h.invoke(CH.PANEL_TOGGLE);
+  const panel = studioPanel(h);
+  assert.ok(panel, 'panel created');
+  t.after(() => { if (!panel.destroyed) panel.close(); });
+  assert.ok(await waitFor(() => panel.visible), 'panel up');
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 'screen:1:0', sourceLabel: 'Screen 1' }, panel.webContents);
+  assert.ok(recId);
+  t.after(() => h.invoke(CH.REC_STOP, { recId }));   // a failed assertion must not leave a recording running
+  assert.equal(await h.invoke(CH.PANEL_TOGGLE), true);
+  assert.equal(panel.visible, true, 'the live pill stays on screen');
+  assert.ok(panel.focused >= 1, 'and is brought to the front');
+  panel.hide();   // hidden some other way: a toggle while recording only ever shows it
+  await h.invoke(CH.PANEL_TOGGLE);
+  assert.equal(panel.visible, true);
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.ok(res && res.path, 'the recording saved');
+  await h.invoke(CH.PANEL_TOGGLE);
+  assert.equal(panel.visible, false, 'nothing recording: the panel\'s own Hide works again');
+  await h.invoke(CH.PANEL_TOGGLE);
+  assert.equal(panel.visible, true);
 });
 
 test('panel-mode sizes the transparent panel (setup 340×180 ↔ live 230×44) and restores non-resizable', async () => {

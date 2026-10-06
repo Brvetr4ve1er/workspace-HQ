@@ -44,6 +44,9 @@
 //     supplies a path — and the screenshot stays in the library (never copied into a repo).
 //   - HQ_STUDIO_ROOT (absolute path, env only, never persisted) points the library at another
 //     folder for one launch — the test seam rootOverride's IPC refusal below always intended.
+//   - showPanel() is show-only (create, or show + focus). recToggle's no-source branch uses it,
+//     and panel-toggle uses it while a recording runs: the panel is then the live pill, the
+//     recording's visible stop control, so "Open recorder" never hides it.
 
 const path = require('node:path');
 const fs = require('node:fs');
@@ -391,7 +394,22 @@ function setPanelMode(mode) {
   return true;
 }
 
+// Show-only: create the panel, or bring the existing one up and focus it. Never hides —
+// for every "open the recorder" path (the hotkey with no source, the realm's Open recorder).
+function showPanel() {
+  if (panelWindow && !panelWindow.isDestroyed()) {
+    try { if (!panelWindow.isVisible()) panelWindow.show(); } catch { /* window mid-teardown */ }
+    try { panelWindow.focus(); } catch { /* window mid-teardown */ }
+    return;
+  }
+  makePanel();
+}
+
+// hq:studio:panel-toggle — the panel's own Hide button and the realm's "Open recorder" both
+// land here. While anything is recording the panel IS the recording's live pill (its only
+// stop control besides the hotkey), so a toggle then only ever shows it.
 function togglePanel() {
+  if (recorders.size > 0) { showPanel(); return; }
   if (panelWindow && !panelWindow.isDestroyed()) {
     try {
       if (panelWindow.isVisible()) panelWindow.hide();
@@ -1008,9 +1026,10 @@ function recToggle(optsIn) {
   // MediaRecorder lives in the record-panel renderer — without a caller who is
   // already feeding chunks (i.e. opts.sourceId came from that renderer), opening
   // the file here just produces an empty .part. Hotkey with no live panel:
-  // surface the panel and let the user press Rec there.
+  // surface the panel and let the user press Rec there. Show-only: pressing the
+  // hotkey again while the setup card is up keeps it up (it used to hide it).
   if (!opts.sourceId) {
-    togglePanel();
+    showPanel();
     return { toggled: 'panel-opened' };
   }
   const merged = {
@@ -1216,12 +1235,12 @@ function init(bag) {
     tryReg('CommandOrControl+Alt+L',       () => { broadcast(CH.OPEN_REALM, { at: Date.now() }); });
   }
 
-  return { CH, snipArm, recToggle, togglePanel };
+  return { CH, snipArm, recToggle, togglePanel, showPanel };
 }
 
 // Exports: init is the one-shot setup call from main.js; the imperative helpers
-// (snipArm, recToggle, togglePanel) are exported directly so main.js's globalShortcut
-// callbacks call them by reference — no ipcMain.emit gymnastics.
+// (snipArm, recToggle, togglePanel, showPanel) are exported directly so main.js's
+// globalShortcut callbacks call them by reference — no ipcMain.emit gymnastics.
 module.exports = {
   init,
   CH,
@@ -1230,5 +1249,6 @@ module.exports = {
   snipArm: (kind) => snipArm(kind),
   recToggle: (opts) => recToggle(opts),
   togglePanel: () => togglePanel(),
+  showPanel: () => showPanel(),
 };
 

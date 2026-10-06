@@ -28,6 +28,10 @@ const path = require('node:path');
 const MAX_RESULT_BODY = 64 * 1024;
 const clamp = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '');
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+// A request body readBody parsed: valid JSON can still be null / an array / a scalar, and
+// `body.id` on null throws inside the request's 'end' handler (an uncaught main-process error).
+const isBodyObj = (b) => !!b && typeof b === 'object' && !Array.isArray(b);
+const NOT_OBJ = { ok: false, error: 'body must be a JSON object' };
 
 function readJsonOr(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
@@ -105,6 +109,7 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
     if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
     readBody(req, (err, body) => {
       if (err) { send(err === 'too big' ? 413 : 400, { ok: false, error: String(err) }); return; }
+      if (!isBodyObj(body)) { send(400, NOT_OBJ); return; }
       const id = clamp(String(body.id || ''), 80);
       if (!id) { send(400, { ok: false, error: 'id required' }); return; }
       const d = readJsonOr(outboxFile, { actions: [] });
@@ -135,7 +140,8 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
         a.error = clamp(body.error || 'send failed', 300);
       }
       d.updated = new Date().toISOString();
-      writeAtomic(outboxFile, JSON.stringify(d, null, 2));
+      try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
+      catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
       send(200, { ok: true, id, status: a.status });
     });
     return true;
@@ -147,7 +153,7 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
   // and /result never makes it 'sent' (a late success is recorded as
   // sent_after_cancel, see /result above). Anything not staged is
   // refused with 409 and the file is left untouched. The MCP twin is
-  // hq_social_cancel (dashboard-v3/mcp/server.mjs); both obey the same gate.
+  // hq_social_cancel (mcp/workspacehq/server.mjs); both obey the same gate.
   if (req.method === 'POST' && url === '/social/outbox/cancel') {
     if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
     readBody(req, (err, body) => {
@@ -173,14 +179,16 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
     if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
     readBody(req, (err, body) => {
       if (err) { send(err === 'too big' ? 413 : 400, { ok: false, error: String(err) }); return; }
+      if (!isBodyObj(body)) { send(400, NOT_OBJ); return; }   // never wipe the snapshot on junk
       const list = Array.isArray(body.accounts) ? body.accounts : [];
-      const accounts = list.slice(0, 50).map((a) => ({
+      const accounts = list.slice(0, 50).filter(isBodyObj).map((a) => ({   // a null row threw here too
         platform: clamp(String(a.platform || '').toLowerCase(), 20),
         handle: clamp(a.handle || '', 120),
         display: clamp(a.display || '', 120),
         connected_at: new Date().toISOString(),
       })).filter((a) => a.platform && a.handle);
-      writeAtomic(accountsFile, JSON.stringify({ updated: new Date().toISOString(), accounts }, null, 2));
+      try { writeAtomic(accountsFile, JSON.stringify({ updated: new Date().toISOString(), accounts }, null, 2)); }
+      catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
       send(200, { ok: true, count: accounts.length });
     });
     return true;

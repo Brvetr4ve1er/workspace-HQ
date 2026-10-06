@@ -78,9 +78,13 @@ export const MILESTONES = [
   { id: 'chain_caster', name: 'Chain Caster', icon: '⛓️', desc: 'Finish a multi-step automation without a failure.' },
 ];
 
-// Global hotkeys main.js registers (dashboard/main.js globalShortcut). Status is
-// "ok" unless main reports a registration failure (no channel for that yet).
-export const HOTKEYS = [['Ctrl Alt G', 'Summon palette', 'ok'], ['Ctrl Alt X', 'Quick-run palette', 'ok'], ['Ctrl Alt S', 'Snip', 'ok'], ['Ctrl Alt R', 'Record', 'ok'], ['Ctrl Alt L', 'Open Studio', 'ok']];
+// Global hotkeys main.js registers (dashboard/main.js globalShortcut), plus the Shift
+// variants dashboard/screen-capture.js registers. Status is "ok" unless main reports a
+// registration failure (no channel for that yet). Ctrl Alt R never starts a recording
+// (MediaRecorder lives in the record panel): with nothing recording it opens the recorder,
+// during a recording it stops it. Ctrl Alt Shift R calls the same recToggle (its mic/system
+// audio options only apply when a source is passed, which a hotkey never does).
+export const HOTKEYS = [['Ctrl Alt G', 'Summon palette', 'ok'], ['Ctrl Alt X', 'Quick-run palette', 'ok'], ['Ctrl Alt S', 'Snip', 'ok'], ['Ctrl Alt Shift S', 'Snap the screen under the cursor (saved + copied)', 'ok'], ['Ctrl Alt R', 'Open recorder / stop', 'ok'], ['Ctrl Alt Shift R', 'Open recorder / stop (same as Ctrl Alt R)', 'ok'], ['Ctrl Alt L', 'Open Studio', 'ok']];
 export const KEYS = [['Ctrl K  or  /', 'Search & commands'], ['Tab (in search)', 'Switch Go / Ask'], ['1 – 9', 'Destinations'], ['F', 'Focus on the next action'], ['← →', 'Scrub snapshots'], ['Esc', 'Close the top overlay'], ['?', 'This sheet']];
 
 // automation categories: spellbook "schools" in plain words (brief §6.4c)
