@@ -1,9 +1,10 @@
 // Project page render values ("pg") and its journal composer.
-import { FX } from '../logic/shared.js';
+import { FX, normText } from '../logic/shared.js';
 import { gapsOf } from '../live/adapter.mjs';
 
 // the same text twice in Next is one item: case, spacing and trailing punctuation don't count
-const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[\s.!…]+$/, '').trim();
+// (logic/shared.js normText, the key the capture buttons use too)
+const norm = normText;
 const FLAG_COLOR = { critical: 'var(--red)', high: 'var(--red)', danger: 'var(--red)', medium: 'var(--orange)', warning: 'var(--orange)' };
 const RISK_COLOR = { high: 'var(--red)', medium: 'var(--orange)', low: 'var(--green)' };
 const words = (t) => { const w = String(t || '').replace(/[-_]+/g, ' ').trim(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : 'Flag'; };

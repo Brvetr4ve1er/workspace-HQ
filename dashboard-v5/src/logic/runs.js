@@ -102,15 +102,23 @@ export const runsLogic = {
     const label = running ? (since ? 'Scanning since ' + since : 'Scanning…') : failed ? 'Last scan failed' + why : '';
     return { running, failed, done, code, startedAt, endedAt, label, error: (s && s.error) ? String(s.error) : '' };
   },
+  // LIVE.scan only says "running" once main's hq:scan-status push arrives, so a second click
+  // before that is held off by _scanStarting until hq.runScan() answers. A refusal removes
+  // only this click's progress toast, and says why from main's scan state: main also
+  // answers false when the spawn itself failed (state 'failed'), which is not "already running".
   scanNow() {
     if (!this.canWrite()) return this.denied();
     if (this.scanStatus().running) { this.toast('info', 'A scan is already running'); return; }
+    if (this._scanStarting) return;   // this window's own start is in flight: its toast is already up
     if (!this.hq.runScan) return this.denied('This window can’t start a scan');
     this.setState({ paletteOpen: false });
-    this.toast('progress', 'Scanning every project · the window reloads when it’s done', { scan: true });
+    const tid = this.toast('progress', 'Scanning every project · the window reloads when it’s done', { scan: true });
     FX().sfx('run'); FX().event('look', 'Scanning…');
+    this._scanStarting = true;
+    const refused = () => { const sc = this.scanStatus(); return sc.running ? 'A scan is already running' : 'The scan didn’t start' + (sc.error ? ' · ' + sc.error : ''); };
     return Promise.resolve().then(() => this.hq.runScan()).then(
-      (r) => { if (r === false) { this.setState((s) => ({ toasts: s.toasts.filter((t) => !t.scan) })); this.toast('info', 'A scan is already running'); } },
-      (e) => { this.setState((s) => ({ toasts: s.toasts.filter((t) => !t.scan) })); this.toast('error', 'The scan didn’t start · ' + ((e && e.message) || e)); });
+      (r) => { if (r === false) { this.dismissToast(tid); this.toast(this.scanStatus().running ? 'info' : 'error', refused()); } },
+      (e) => { this.dismissToast(tid); this.toast('error', 'The scan didn’t start · ' + ((e && e.message) || e)); })
+      .finally(() => { this._scanStarting = false; });
   },
 };

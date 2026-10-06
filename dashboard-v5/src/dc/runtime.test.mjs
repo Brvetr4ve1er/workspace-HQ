@@ -3,7 +3,7 @@
 // patcher need a DOM and are exercised by the CDP harness instead.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolve, compileAttr, styleMap, renderErrorPanel, failures } from './runtime.js';
+import { resolve, compileAttr, styleMap, renderErrorPanel, failures, unresolved } from './runtime.js';
 
 const vals = { a: { b: [{ c: 'deep' }] }, n: 0, t: true, s: 'x', list: ['p', 'q'], k: 1 };
 
@@ -28,6 +28,27 @@ test('compileAttr: a whole binding keeps its type; mixed text interpolates', () 
   assert.equal(compileAttr('{{ f }}')({ f: fn }), fn);
   assert.equal(compileAttr('width:{{ w }}%;color:{{ c }}')({ w: 40 }), 'width:40%;color:');
   assert.equal(compileAttr('static')({}), 'static');
+});
+
+// runtime-2: an attribute binding (onClick, src, style, disabled…) whose bare path resolves to
+// undefined is a hole, so the selftest's unresolved === 0 gate sees a dead handler. null is an
+// intentional absence (the attribute is removed) and is not a hole; neither is an expression.
+test('compileAttr: an undefined bare path in an attribute is a hole; null and expressions are not', () => {
+  const warn = console.warn; console.warn = () => {};
+  try {
+    unresolved.clear();
+    assert.equal(compileAttr('{{ snipp }}')({ snip: () => 1 }), undefined);
+    assert.equal(compileAttr('{{ a.missing }}')(vals), undefined);
+    assert.equal(compileAttr('width:{{ w }}%;color:{{ c.x }}')({ w: 40 }), 'width:40%;color:');
+    assert.deepEqual([...unresolved].sort(), ['a.missing', 'c.x', 'snipp']);
+    unresolved.clear();
+    assert.equal(compileAttr('{{ current }}')({ current: null }), null);
+    assert.equal(compileAttr('{{ n }}')(vals), 0);
+    assert.equal(compileAttr('{{ !nope }}')({}), true);
+    assert.equal(compileAttr("{{ s === 'y' }}")(vals), false);
+    assert.equal(compileAttr('x {{ a ? b : c }}')({}), 'x ');
+    assert.deepEqual([...unresolved], []);
+  } finally { unresolved.clear(); console.warn = warn; }
 });
 
 test('styleMap: strings keep declarations; objects follow React (px, unitless, custom props)', () => {

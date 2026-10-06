@@ -10,8 +10,12 @@ import * as AS from './ask-store.mjs';
 
 // the probe said no: the runtime isn't up, or it has no chat model
 const llmDown = (l) => !!l && (!l.available || !l.chatModel);
-const downText = (l) => (l.available ? 'No local chat model is installed. Pull one with Ollama, then retry.' : 'The local model runtime isn’t running. Start Ollama, then ask again.');
+// (the probe tries Ollama on :11434, then LM Studio on :1234: the down text names both)
+const downText = (l) => (l.available ? (l.runtime === 'lmstudio' ? 'No local chat model is loaded. Load one in LM Studio, then retry.' : 'No local chat model is installed. Pull one with Ollama, then retry.') : 'No local model answered (Ollama on :11434, LM Studio on :1234). Start one, then ask again.');
 const MAX_ENTRIES = AS.KEEP / 2;   // one entry = a question + its answer
+// The Ask button turns into Stop as soon as a question is sent, so the second click of a
+// double-click on Ask lands on Stop: a click this soon after sending is not a Stop.
+export const STOP_GRACE_MS = 500;
 const NO_STORAGE = { getItem: () => null, setItem() {} };
 const LS = () => { try { return globalThis.localStorage || NO_STORAGE; } catch { return NO_STORAGE; } };
 
@@ -58,6 +62,7 @@ export const askLogic = {
     if (S.snapOffset > 0) Object.assign(entry, { local: true, a: this.askRefusal('Ask only reads today’s data. Go back to live to ask about it.') });
     else if (!this.askBridge()) Object.assign(entry, { local: true, a: this.askRefusal('Ask runs on the local model inside the app; this window has no app bridge.') });
     const keep = o && o.keepDraft;
+    if (entry.a.status === 'thinking') this._askSentAt = Date.now();   // askButton's double-click grace
     this.setState((s) => Object.assign({ askHistory: (fresh ? [] : s.askHistory || []).concat([entry]).slice(-MAX_ENTRIES), askOpen: true, paletteOpen: false, paletteQuery: '', runsOpen: false }, keep ? {} : { askDraft: '' }));
     FX().sfx('open');
     this.saveAsk();   // pending: a reload before the answer lands shows "interrupted" (v3); a new day drops the old chat
@@ -109,6 +114,16 @@ export const askLogic = {
     this.setState((s) => ({ askHistory: (s.askHistory || []).map((h) => (h.id === id && (!partial || (h.a && h.a.status === 'thinking')) ? Object.assign({}, h, { a: Object.assign({}, h.a, a) }) : h)) }));
   },
 
+  // The panel's one Ask / Stop button (vals/ask.js askSubmit). While an answer streams it is
+  // Stop, except for a click within STOP_GRACE_MS of sending or the 2nd click of a double-click
+  // (e.detail > 1): that is the same press that sent the question, and is ignored. Enter has
+  // its own guard (askKey); New chat calls stopAsk directly and is not delayed.
+  askButton(e) {
+    if (!this.askBusy()) return this.submitAsk(this.state.askDraft);
+    if (e && e.detail > 1) return;
+    if (this._askSentAt && Date.now() - this._askSentAt < STOP_GRACE_MS) return;
+    return this.stopAsk();
+  },
   // Stop: main aborts the job and answers chat() with {status:'cancelled', output:<partial>}
   stopAsk() {
     const h = (this.state.askHistory || []).find((x) => x && x.a && x.a.status === 'thinking');

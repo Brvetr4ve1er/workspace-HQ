@@ -220,6 +220,15 @@ test('the overlay markup: never autoplays, loads nothing up front, text fallback
   assert.match(extrasTpl, /onClick="\{\{ closeWhatsNew \}\}"/);
 });
 
+// honesty-5: the overlay opens on its own on first launch and the trailers show made-up
+// projects and an Ask answer, silently; the card says so (as README.md does), under the grid
+test('the trailer grid is followed by a note: sample data, not your scans, and no sound', () => {
+  const grid = extrasTpl.indexOf('</sc-for>'), changes = extrasTpl.indexOf('What changed in this version');
+  const note = extrasTpl.indexOf('The trailers show sample data, not your scans');
+  assert.ok(grid > 0 && note > grid && note < changes, 'between the trailers and the change list');
+  assert.match(extrasTpl.slice(note, extrasTpl.indexOf('</div>', note)), /made up\. They have no sound yet\.$/);
+});
+
 test('every element in extras.tpl.js has a <!-- v5: --> marker right before it', () => {
   const lines = extrasTpl.split('\n').map((l) => l.trim());
   const unmarked = [];

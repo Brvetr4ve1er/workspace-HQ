@@ -17,8 +17,10 @@ export function automationsVals(ctx) {
     const pinned = S.pinned.includes(a.id);
     // an interactive (channeled) item opens a terminal; it goes through the same confirm-first run
     const term = a.kind === 'interactive' || a.mode === 'terminal';
+    // an interactive run only opened a terminal: no exit code comes back, so no ✓ (cast.js lastRun says the same)
+    const L = a.last, opened = !!(L && L.opened);
     return { icon: a.icon, name: a.name, desc: a.desc || a.cmd, cat: a.cat, mode: term ? 'Terminal' : 'Background', modeTone: term ? 'blue' : 'default', kindLabel: a.kind === 'chain' ? 'Chain · ' + (a.steps || []).length + ' steps' : a.kind, quota: usesQuota(a),
-      last: a.last ? (a.last.ok ? '✓ ' + a.last.ago : '✗ failed ' + a.last.ago) : 'never run', lastColor: a.last ? (a.last.ok ? 'var(--green)' : 'var(--red)') : 'var(--faint)',
+      last: L ? (opened ? '↗ terminal ' + L.ago : L.ok ? '✓ ' + L.ago : '✗ failed ' + L.ago) : 'never run', lastColor: L ? (opened ? 'var(--muted)' : L.ok ? 'var(--green)' : 'var(--red)') : 'var(--faint)',
       run: () => this.askRun(a), pin: () => togglePin(a.id), pinLabel: pinned ? '★' : '☆', pinTitle: pinned ? 'Unpin' : 'Pin to shelf', pinColor: pinned ? 'var(--gold)' : 'var(--faint)' };
   };
   // read the current list, not the render-time one: two quick clicks must not pass the cap

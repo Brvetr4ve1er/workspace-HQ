@@ -18,6 +18,7 @@ import { makeCtx } from '../vals/ctx.js';
 import { automationsVals } from '../vals/automations.js';
 import { runsVals, runMeta } from '../vals/runs.js';
 import { projectsVals, projMatches } from '../vals/projects.js';
+import { homeVals } from '../vals/home.js';
 import { libFilters, libView, libCountText, libKindOf, LIB_PAGE, LIB_MORE } from './library.js';
 import { proj, scan, spell, spellbook, telemetry } from '../live/__fixtures__/synthetic.mjs';
 
@@ -211,6 +212,49 @@ test('interactive: auto() finds it; the confirm says it opens a terminal; {chann
   assert.deepEqual(f.called('castSpell'), [['skill:review', 'h-skill:review']]);
   assert.equal(last().text, 'Opened in a terminal — output stays there');
   assert.equal(c.state.localRuns[0].status, 'opened');
+});
+
+// honesty-2: an interactive run only opened a terminal and no exit code ever comes back, so the
+// row and the confirm must not say "✓" / "finished" (the quick-run palette says "↗ terminal")
+test('interactive last run reads "↗ terminal <ago>" / "Last opened in a terminal", never ✓ or "finished"', () => {
+  const at = (h) => new Date(Date.now() - h * 3600e3).toISOString();
+  const casts = [
+    { cast_id: 'c1', spell_id: 'grimoire:scan', started_at: at(3), outcome: 'resolved', duration_ms: 4000, exit_code: 0 },
+    { cast_id: 'c2', spell_id: 'skill:review', started_at: at(2), outcome: 'channeled', exit_code: null },
+    { cast_id: 'c3', spell_id: 'skill:plan', started_at: at(1), outcome: 'fizzled', exit_code: 1 },
+  ];
+  const { c, vals } = make({}, { casts });
+  const row = (name) => vals().autos.find((a) => a.name === name);
+  assert.deepEqual([row('Code review').last, row('Code review').lastColor], ['↗ terminal 2h ago', 'var(--muted)']);
+  assert.deepEqual([row('Deep scan').last, row('Deep scan').lastColor], ['✓ 3h ago', 'var(--green)'], 'a background run that resolved keeps ✓');
+  assert.deepEqual([row('Write a plan').last, row('Write a plan').lastColor], ['✗ failed 1h ago', 'var(--red)']);
+  c.askRun(c.auto('skill:review'));
+  assert.deepEqual([vals().confirm.last, vals().confirm.lastColor], ['Last opened in a terminal 2h ago', 'var(--muted)']);
+  c.setState({ confirm: null });
+  c.askRun(c.auto('grimoire:scan'));
+  assert.equal(vals().confirm.last, 'Last run 3h ago · finished');
+});
+
+// honesty-1: Home's "Worth a re-run" prints the automation's LATEST run ("Failed <ago> · <exit>").
+// It used to pick the newest failed run in the history and then show that automation's latest
+// run, which had succeeded since: "Failed 19h ago ·" (empty exit) for a run that worked.
+test('Home "Worth a re-run" suggests only an automation whose latest run failed, with that run’s exit', () => {
+  const at = (h) => new Date(Date.now() - h * 3600e3).toISOString();
+  const home = (casts) => { const { c } = make({}, { casts }); return homeVals.call(c, makeCtx.call(c)).home; };
+  // Deep scan failed 2 days ago, then ran fine 3h ago: nothing to suggest
+  let h = home([
+    { cast_id: 'c1', spell_id: 'grimoire:scan', started_at: at(48), outcome: 'fizzled', exit_code: 1, duration_ms: 52000 },
+    { cast_id: 'c2', spell_id: 'grimoire:scan', started_at: at(3), outcome: 'resolved', exit_code: 0, duration_ms: 4000 },
+  ]);
+  assert.deepEqual([h.hasSuggest, h.suggest], [false, {}]);
+  // ...and Backup notes' own latest run failed 1h ago (after an older failure of Deep scan): that one
+  h = home([
+    { cast_id: 'c1', spell_id: 'grimoire:scan', started_at: at(48), outcome: 'fizzled', exit_code: 1, duration_ms: 52000 },
+    { cast_id: 'c2', spell_id: 'grimoire:scan', started_at: at(3), outcome: 'resolved', exit_code: 0, duration_ms: 4000 },
+    { cast_id: 'c3', spell_id: 'script:backup', started_at: at(1), outcome: 'fizzled', exit_code: 2, duration_ms: 1000 },
+  ]);
+  assert.equal(h.hasSuggest, true);
+  assert.deepEqual([h.suggest.name, h.suggest.last.ok, h.suggest.last.ago, h.suggest.last.err], ['Backup notes', false, '1h ago', 'exit 2']);
 });
 
 test('interactive: main asking to confirm again (changed command) reopens the same dialog with main’s hash', async () => {

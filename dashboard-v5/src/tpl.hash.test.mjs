@@ -15,10 +15,13 @@ import tpl from './app.tpl.js';
 // each marked with <!-- v5: reason -->; see the Phase 2 commits);
 // re-recorded 2026-10-05 for the Phase 3 v3-parity changes (review R-P3): 10 fragments
 // (ov-ask, ov-settings, system, project-page, studio, lightbox, claude, automations,
-// projects, extras), 24 hunks, every one carrying a <!-- v5: reason --> marker (22 → 63)
-const SHA256 = '804e07c17eee743c755fd615d9fa77cf7a701d04396f79e6fdbb920136304e1e';
-const LENGTH = 200391;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 200721;    // Buffer.byteLength(tpl, 'utf8')
+// projects, extras), 24 hunks, every one carrying a <!-- v5: reason --> marker (22 → 63);
+// re-recorded 2026-10-06 for the Phase 6 review fix honesty-5: one fragment (extras), one
+// hunk — the What's new overlay's note under the trailers ("sample data, not your scans …
+// no sound yet"), with its <!-- v5: reason --> marker
+const SHA256 = 'c94b51ed79e049ff9116fe6531e2e3b59a40b870a830ba85051b6775eeb01ea5';
+const LENGTH = 200750;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 201080;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

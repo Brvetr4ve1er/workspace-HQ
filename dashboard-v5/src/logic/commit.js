@@ -26,6 +26,10 @@ export const commitLogic = {
   // set shows "no changes" with Commit disabled.
   async openCommit(pid) {
     if (!this.canWrite()) return this.denied();
+    // already open for this project: a second trigger (Enter again on the focused Commit button
+    // behind the scrim) must not reset the dialog or run the preview and the draft again —
+    // a draft can fall back to the Claude CLI and use quota
+    if (this.state.commit && this.state.commit.pid === pid) return;
     const p = this.projectsAt(0).find((x) => x.id === pid); if (!p) return;
     if (!p.hasGit) return this.denied(p.name + ' has no git repository');
     this.setState({ commit: { pid, files: [], stat: '', envHits: [], branch: p.branch || '', error: '', busy: false, loading: true, msg: '', drafted: 'Drafting with the local model…' }, commitSel: 0, paletteOpen: false }); FX().sfx('open');

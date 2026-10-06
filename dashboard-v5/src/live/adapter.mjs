@@ -254,14 +254,16 @@ export function automations(spellbook, telemetry, now = Date.now()) {
   // channeled spells (Claude skills/commands/agents, npm dev/start/serve) open an
   // interactive terminal instead of running in the background — a separate list
   // so AUTOS (and every screen built on it) stays exactly as it was. A channeled
-  // cast is logged with outcome 'channeled': the terminal opened, that is success.
+  // cast is logged with outcome 'channeled': the terminal opened, and no exit code
+  // ever comes back, so `last.opened` says that and nothing claims it finished
+  // (rendered "↗ terminal …", like the quick-run palette's cast.js lastRun()).
   const INTERACTIVE = spells.filter((s) => obj(s).kind === 'channeled' && !obj(s).invalid).map((s) => {
     const c = lastCast.get(s.id), failed = c && c.outcome === 'fizzled';
     return {
       id: String(s.id), icon: String(s.icon || '›_'), name: String(s.name || s.id), source: String(s.source || ''),
       kind: 'interactive', mode: 'terminal',
       cmd: [s.command].concat(arr(s.args)).filter(Boolean).join(' '), dir: String(s.cwd || ''),
-      last: c ? { ok: !failed, ago: ago(Date.parse(c.started_at), now), err: failed ? exitLabel(c.exit_code) : '' } : null,
+      last: c ? { ok: !failed, opened: c.outcome === 'channeled', ago: ago(Date.parse(c.started_at), now), err: failed ? exitLabel(c.exit_code) : '' } : null,
       desc: String(s.description || ''), cat: SCHOOL[s.school] || 'Other', hash: String(s.content_hash || ''),
     };
   }).sort(bySourceThenName);

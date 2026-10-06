@@ -33,6 +33,8 @@ export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P
             </div>
           </sc-for>
         </div>
+        <!-- v5: honesty note (README.md says the same): the trailers are sample data rendered for the video, and silent until the soundtrack lands -->
+        <div style="font-size:12px;color:var(--faint);margin-top:8px">The trailers show sample data, not your scans: the projects, numbers and the question in them are made up. They have no sound yet.</div>
         <!-- v5: section label -->
         <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--faint);margin-top:18px">What changed in this version</div>
         <!-- v5: the change list (logic/whats-new.js CHANGES, only what this build does) -->

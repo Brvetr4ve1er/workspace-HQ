@@ -190,6 +190,42 @@ test('scanNow starts a scan without a local Activity row; the row comes from LIV
   assert.equal(row.out, 'collector exited 1');
 });
 
+// state-5: LIVE.scan says "running" only once main's push arrives. A second Scan now before
+// that used to send a second hq.runScan(), whose false answer removed EVERY scan toast (the
+// first click's included) and said "already running" about the user's own scan.
+test('Scan now twice before the running push: one runScan, one progress toast, no "already running"', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let release;
+  const { c, f, store } = make({ runScan: () => new Promise((r) => { release = r; }) });
+  c.toast = Component.prototype.toast;   // the real toast list (c.state.toasts)
+  store.live.scan = { state: 'idle', startedAt: null, endedAt: null, code: null };
+  const first = c.scanNow();
+  await tick();
+  await c.scanNow();                       // the second click while the first start is in flight
+  assert.equal(f.called('runScan').length, 1);
+  assert.deepEqual(c.state.toasts.map((x) => [x.kind, !!x.scan]), [['progress', true]]);
+  release(true); await first;
+  assert.deepEqual(c.state.toasts.map((x) => x.kind), ['progress'], 'the started scan keeps its toast');
+  assert.equal(c._scanStarting, false);
+});
+
+test('Scan now refused by main: only its own toast goes, and the reason comes from main’s scan state', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // another scan's progress toast is up (a scan this window started earlier); main refuses this one
+  const busy = make({ runScan: () => { busy.store.live.scan = { state: 'running', startedAt: '2026-10-05T14:02:00Z' }; return false; } });
+  busy.c.toast = Component.prototype.toast;
+  busy.store.live.scan = { state: 'idle' };
+  busy.c.setState({ toasts: [{ id: 'k-earlier', kind: 'progress', text: 'Scanning…', scan: true }] });
+  await busy.c.scanNow();
+  assert.deepEqual(busy.c.state.toasts.map((x) => [x.id, x.kind, x.text]), [['k-earlier', 'progress', 'Scanning…'], [busy.c.state.toasts[1].id, 'info', 'A scan is already running']]);
+  // main answers false because the spawn failed: that is "didn't start", not "already running"
+  const failed = make({ runScan: () => { failed.store.live.scan = { state: 'failed', code: -1, error: 'spawn powershell.exe ENOENT' }; return false; } });
+  failed.c.toast = Component.prototype.toast;
+  failed.store.live.scan = { state: 'idle' };
+  await failed.c.scanNow();
+  assert.deepEqual(failed.c.state.toasts.map((x) => [x.kind, x.text]), [['error', 'The scan didn’t start · spawn powershell.exe ENOENT']]);
+});
+
 test('a scan this window watched: its end replaces the progress toast; a failure from before the load does not toast', () => {
   const { c, store, toasts } = make();
   store.live.scan = { state: 'failed', code: 2, startedAt: '2026-10-05T09:00:00Z', endedAt: '2026-10-05T09:01:00Z' };
@@ -276,6 +312,25 @@ test('commit: disabled while loading, busy, empty or without a message; a previe
   const empty = make({ commitPreview: () => ({ files: [], stat: '', envHits: [], branch: 'main' }) });
   await empty.c.openCommit('a');
   assert.equal(empty.c.renderVals().commit.none, true, 'nothing to commit');
+});
+
+// state-6: the Commit button behind the scrim keeps keyboard focus; Enter on it again used to
+// reset the open dialog (clearing a drafted or typed message) and run preview + draft twice
+test('commit: triggering Commit again while its dialog is open changes nothing and runs nothing twice', async () => {
+  const { c, f } = make();
+  const first = c.openCommit('a');
+  const again = c.openCommit('a');          // while the preview is still loading
+  await Promise.all([first, again]);
+  assert.equal(f.called('commitPreview').length, 1);
+  assert.equal(f.called('draftCommit').length, 1);
+  c.setState((s) => ({ commit: Object.assign({}, s.commit, { msg: 'feat: my own words' }) }));
+  await c.openCommit('a');                  // after the draft landed
+  assert.equal(c.state.commit.msg, 'feat: my own words', 'the typed message survives');
+  assert.equal(c.state.commit.loading, false);
+  assert.deepEqual([f.called('commitPreview').length, f.called('draftCommit').length], [1, 1]);
+  c.setState({ commit: null });              // closed: Commit opens it again, fresh
+  await c.openCommit('a');
+  assert.deepEqual([f.called('commitPreview').length, f.called('draftCommit').length], [2, 2]);
 });
 
 test('commit: status badges tolerate unknown status strings', async () => {
@@ -391,10 +446,46 @@ test('Open in terminal uses the selected session’s project, not the composer�
   assert.deepEqual([last().kind, last().text], ['error', 'This session has no project folder']);
 });
 
+// state-7: hq.claudeQuest opens a new interactive Claude terminal on every call (main dedupes
+// nothing); a double-click used to open two and spend quota twice
+test('Open in terminal / ⚡ double-clicked: one terminal; the same one again only after the cooldown', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  let release;
+  const { c, f, store, toasts } = make({ claudeQuest: () => new Promise((r) => { release = r; }) });
+  store.live.sessions = A.sessions([{ jobId: 'j1', label: 'Fix the build', cwd: 'C:/dev/b', status: 'running', startedAt: '2026-10-05T09:40:00Z' }], store.model.at(0).P0);
+  const first = c.sessionTerminal('j1');
+  await c.sessionTerminal('j1');                         // 2nd click while main is spawning
+  release(true); await first;
+  await c.sessionTerminal('j1');                         // 3rd click right after it opened
+  assert.deepEqual(f.called('claudeQuest'), [['C:/dev/b', 'Fix the build']]);
+  assert.equal(toasts.filter((x) => /Opened interactive Claude/.test(x.text)).length, 1);
+  // ⚡ on a side quest goes through the same guard (same folder + prompt = same terminal)
+  const quest = { title: 'Fix the build' };
+  const q1 = c.questTerminal(quest, c.proj('b'));
+  await c.questTerminal(quest, c.proj('b'));
+  release(true); await q1;
+  assert.equal(f.called('claudeQuest').length, 1, 'held off: that exact terminal just opened');
+  t.mock.timers.tick(1500);                              // TERM_COOLDOWN_MS later it is a new request
+  const q2 = c.questTerminal(quest, c.proj('b'));
+  release(true); await q2;
+  assert.equal(f.called('claudeQuest').length, 2);
+  // a different prompt is a different terminal, not held off
+  const q3 = c.questTerminal({ title: 'Write the docs' }, c.proj('b'));
+  release(true); await q3;
+  assert.deepEqual(f.called('claudeQuest').at(-1), ['C:/dev/b', 'Write the docs']);
+});
+
 test('Open in terminal: main refusing the folder is an error toast', async () => {
   const { c, store, last } = make({ claudeQuest: () => false });
   store.live.sessions = A.sessions([{ jobId: 'j1', label: 'Fix the build', cwd: 'C:/dev/a', status: 'done', exitCode: 0 }], store.model.at(0).P0);
   await c.sessionTerminal('j1');
   assert.equal(last().kind, 'error');
   assert.match(last().text, /Couldn’t open a terminal/);
+  // a refusal (or a throw) holds nothing off: clicking again right away tries again (state-7)
+  const { c: c2, f: f2, store: s2 } = make({ claudeQuest: (() => { let n = 0; return () => { if (n++ === 0) throw new Error('spawn failed'); return false; }; })() });
+  s2.live.sessions = A.sessions([{ jobId: 'j1', label: 'Fix the build', cwd: 'C:/dev/a', status: 'done', exitCode: 0 }], s2.model.at(0).P0);
+  await c2.sessionTerminal('j1');
+  await c2.sessionTerminal('j1');
+  await c2.sessionTerminal('j1');
+  assert.equal(f2.called('claudeQuest').length, 3);
 });

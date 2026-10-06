@@ -8,7 +8,11 @@ export function homeVals(ctx) {
   const changes = snap.changes.map((c) => ({ g: c.g, t: c.t, c: c.c, open: c.proj ? () => this.openProject(c.proj) : () => this.go('history', 'timeline'), when: viewedLabel }));
   const recap = H.weeklyRecap;
   const recapStats = recap && recap.stats ? ['+' + (recap.stats.xp_gain || 0) + ' xp', plural(recap.stats.quests_completed || 0, 'task'), plural(recap.stats.achievements_unlocked || 0, 'milestone')].join(' · ') + ' · measured' : '';
-  const failed = H.INITIAL_RUNS.find((r) => r.status === 'failed'), suggest = failed ? H.AUTOS.find((a) => a.name === failed.name) : null;
+  // "Worth a re-run" prints the automation's LATEST run ("Failed <ago> · <exit>"), so it only
+  // suggests one whose latest run failed: the newest failed run in the history picks it, and
+  // an automation that has run fine since that failure is skipped
+  const failing = (a) => !!(a && a.last && !a.last.ok);
+  const suggest = H.INITIAL_RUNS.filter((r) => r.status === 'failed').map((r) => H.AUTOS.find((a) => a.name === r.name)).find(failing) || null;
   const home = {
     greeting: live ? 'Today' : viewedLabel,
     sub: live ? this.greet() + ' · ' + H.DOW[new Date().getDay()] + ', ' + H.fmtD(new Date()) + ' · ' + (open.filter((t) => t.tier === 'red').length ? open.filter((t) => t.tier === 'red').length + ' critical' : 'nothing critical') : 'Read-only snapshot · the next action as it stood that day',

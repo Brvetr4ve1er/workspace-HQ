@@ -261,9 +261,10 @@ test('automations: AUTOS unchanged; channeled spells become INTERACTIVE terminal
   assert.deepEqual(r.INTERACTIVE.map((a) => a.id), ['npm:a:dev', 'skill:review']);   // same source order as AUTOS
   assert.deepEqual(r.INTERACTIVE[1], {
     id: 'skill:review', icon: '›_', name: 'Review', source: 'skill', kind: 'interactive', mode: 'terminal',
-    cmd: 'claude /review', dir: 'C:/dev/a', last: { ok: true, ago: '1h ago', err: '' }, desc: 'Reviews the diff', cat: 'Analyze', hash: 'hs',
+    // honesty-2: a channeled cast only opened a terminal (no exit code comes back): opened, never "finished"
+    cmd: 'claude /review', dir: 'C:/dev/a', last: { ok: true, opened: true, ago: '1h ago', err: '' }, desc: 'Reviews the diff', cat: 'Analyze', hash: 'hs',
   });
-  assert.deepEqual(r.INTERACTIVE[0].last, { ok: false, ago: '3h ago', err: 'exit 2' });
+  assert.deepEqual(r.INTERACTIVE[0].last, { ok: false, opened: false, ago: '3h ago', err: 'exit 2' });
   assert.equal(r.INTERACTIVE[0].cmd, 'cmd /c npm run dev');
   assert.deepEqual(r.counts, { runnable: 2, interactive: 2, bySource: { grimoire: { runnable: 1, interactive: 0 }, npm: { runnable: 1, interactive: 1 }, skill: { runnable: 0, interactive: 1 } } });
   // LIBRARY's runnable column still counts castable + chain only (UI unchanged until C7)

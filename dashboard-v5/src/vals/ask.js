@@ -5,12 +5,17 @@ import { createRef } from '../dc/runtime.js';
 const llmDown = (l) => !!l && (!l.available || !l.chatModel);
 const btn = (off, extra) => Object.assign({ height: 30, padding: '0 10px', background: 'var(--ink)', border: '1px solid var(--frame)', borderRadius: 8, color: 'var(--muted)', fontFamily: 'var(--term)', fontSize: 12, cursor: off ? 'default' : 'pointer', opacity: off ? 0.5 : 1 }, extra || {});
 
-// v3's offline box copy (view.js:174-200), "the ORACLE" read as "Ask"
+// v3's offline box copy (view.js:174-200), "the ORACLE" read as "Ask". Only what the probe
+// (llm-local.js: Ollama on :11434, then LM Studio on :1234) actually found: nothing here
+// claims how the user's machine is set up (v3 said Ollama "is set to start at login").
 function offlineBox(bridge, l) {
   if (!bridge) return { title: 'Ask needs the live app.', pre: 'The model bridge isn’t available in this preview.', cmd: '', post: '', retry: false };
   if (!llmDown(l)) return null;
+  if (l.available && l.runtime === 'lmstudio') return { title: 'No local chat model installed.', pre: 'LM Studio is running but has no local chat model (cloud models are refused — Ask is local-only). Load one in ', cmd: 'LM Studio', post: ', then retry.', retry: true };
   if (l.available) return { title: 'No local chat model installed.', pre: 'Ollama is running but has no local chat model (cloud models are refused — Ask is local-only). Run ', cmd: 'ollama pull qwen2.5:7b', post: ', then retry.', retry: true };
-  return { title: 'The local model isn’t running.', pre: 'Open the ', cmd: 'Ollama', post: ' app — it is set to start at login — then retry.', retry: true };
+  // the probe's own reason, unless it only repeats the ports named here
+  const why = l.reason && !/11434|1234/.test(String(l.reason)) ? ' The probe said: ' + String(l.reason) + '.' : '';
+  return { title: 'The local model isn’t running.', pre: 'No local model answered on :11434 (Ollama) or :1234 (LM Studio). Start ', cmd: 'Ollama or LM Studio', post: ', then retry.' + why, retry: true };
 }
 
 export function askVals(ctx) {
@@ -53,7 +58,8 @@ export function askVals(ctx) {
     onAskInput: (e) => this.setState({ askDraft: e.target.value }),
     // Enter sends; while an answer streams it does nothing (the button is Stop then)
     askKey: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!this.askBusy()) this.submitAsk(this.state.askDraft); } },
-    askSubmit: () => (this.askBusy() ? this.stopAsk() : this.submitAsk(this.state.askDraft)),
+    // the Ask / Stop button: a double-click on Ask sends once and doesn't stop it (logic/ask.js askButton)
+    askSubmit: (e) => this.askButton(e),
     askBtnLabel: busy ? (canStop ? 'Stop' : 'Answering…') : 'Ask', askInputRef: this._askInput,
     // v3 parity: source chips, New chat, starter prompts, the offline box
     askSources, askBusy: busy,

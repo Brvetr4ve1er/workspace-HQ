@@ -7,6 +7,9 @@ export const loadPrefs = () => { try { return JSON.parse(localStorage.getItem(PR
 export const savePrefs = (p) => { try { localStorage.setItem(PREFS, JSON.stringify(p)); } catch {} };
 export const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 export const WRITE_DELAY = 1600;   // ms before a reloading write fires (Undo window)
+// one idea text, compared: case, spacing and trailing punctuation don't count. The project page's
+// Next (vals/project-page.js) and the capture buttons (logic/system.js) use this same key.
+export const normText = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[\s.!…]+$/, '').trim();
 
 // ---- shared UI prefs (theme, reduce motion) ------------------------------------
 // Main holds theme + reduce motion for every window (dashboard/ui-prefs.js,

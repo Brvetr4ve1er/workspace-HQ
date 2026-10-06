@@ -91,12 +91,18 @@ function resolvePath(vals, expr) {
 
 // `attr="{{ x }}"` yields the raw value (functions, objects, refs); a mixed
 // string interpolates, with unresolved holes rendering as ''.
+// A bare dotted path (`{{ a.b }}`) that resolves to undefined is reported as a hole,
+// like text and sc-if/sc-for bindings: a renamed or misspelled vals key on onClick,
+// src, style, disabled… would otherwise render as a dead control and the selftest
+// (unresolved === 0) could not see it. An intentional absence is null, not undefined.
+const BARE_PATH = /^\s*[A-Za-z_$][\w$]*(\.[\w$]+)*\s*$/;
+const checked = (expr, v) => { if (v === undefined && BARE_PATH.test(expr)) hole(expr); return v; };
 export function compileAttr(raw) {
   const whole = raw.match(/^\s*\{\{([\s\S]+?)\}\}\s*$/);
-  if (whole) return (vals) => resolve(vals, whole[1]);
+  if (whole) return (vals) => checked(whole[1], resolve(vals, whole[1]));
   if (raw.includes('{{')) {
     const parts = raw.split(/\{\{([\s\S]+?)\}\}/g);
-    return (vals) => parts.map((s, i) => (i & 1 ? resolve(vals, s) ?? '' : s)).join('');
+    return (vals) => parts.map((s, i) => (i & 1 ? checked(s, resolve(vals, s)) ?? '' : s)).join('');
   }
   return () => raw;
 }

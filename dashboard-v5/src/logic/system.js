@@ -7,9 +7,10 @@
 //   sysSaves      { [capture text]: 'saving' | 'noted' | 'failed' } per "Note for cleanup" /
 //                 "Add to ideas" button; the window usually reloads before 'noted' shows
 //   fixed         issue ids a safe fix ran ok:true on this session (hidden until Re-examine)
-import { FX } from './shared.js';
+import { FX, normText } from './shared.js';
 
 export const CAPTURE_OFF = 'Needs the live app — capture is unavailable in this preview';
+export const ALREADY_IDEA = 'Already in your ideas';
 export const SCAN_TIP = 'Run a fresh health scan of this machine (~3s)';
 export const SCAN_OFF = 'Needs the live app — the health scan is unavailable in this preview';
 const errText = (e) => { try { return String((e && e.message) || e); } catch { return 'unknown error'; } };
@@ -77,6 +78,19 @@ export const systemLogic = {
     this.setState((s) => { const f = s.fixed || []; return f.includes(id) ? null : { fixed: f.concat([id]) }; });
   },
 
+  // A capture text that is already one of your ideas (an open captured side quest in the
+  // latest scan, same text up to case / spacing / trailing punctuation). sysSaves is
+  // in-memory and the reload captureSave forces wipes it, so "noted" has to come from the
+  // data: without this, the clutter row's button was live again after the reload and each
+  // click appended another copy to the brain dump (main doesn't dedupe).
+  capturedIdea(text) {
+    const k = normText(text);
+    if (!k) return false;
+    const ideas = (this.M && this.M.IDEAS) || [];
+    if (this._capKeysOf !== ideas) { this._capKeysOf = ideas; this._capKeys = new Set(ideas.filter((i) => i && i.capture).map((i) => normText(i.title))); }
+    return this._capKeys.has(k);
+  },
+
   // "Note for cleanup" / "Add to ideas" (v3 capture:note): hq.captureSave(text)
   // appends to the brain dump, re-assembles and RELOADS this window, and the note
   // becomes an idea after that. So the toast goes out before the call, and nothing
@@ -87,6 +101,7 @@ export const systemLogic = {
     if (!t) return false;
     if (!this.canWrite()) { this.denied(); return false; }
     if (!this.canCapture()) { this.denied(CAPTURE_OFF); return false; }
+    if (this.capturedIdea(t)) { this.toast('info', ALREADY_IDEA + ' · “' + t + '”'); return false; }
     const cur = (this.state.sysSaves || {})[t];
     if (cur === 'saving' || cur === 'noted') return false;
     const mark = (st) => this.setState((s) => ({ sysSaves: Object.assign({}, s.sysSaves, { [t]: st }) }));
@@ -107,6 +122,7 @@ export const systemLogic = {
     if (!this.canWrite()) return { btn: idle, off: true, tip: this.writeReason() };
     if (st === 'saving') return { btn: 'Saving…', off: true, tip: '' };
     if (st === 'noted') return { btn: 'Noted', off: true, tip: 'Saved · it shows in your ideas after the refresh' };
+    if (this.capturedIdea(text)) return { btn: 'Noted', off: true, tip: ALREADY_IDEA };
     if (st === 'failed') return { btn: '✗ Not saved — retry', off: false, tip: 'Not saved. Click to retry.' };
     return { btn: idle, off: false, tip };
   },

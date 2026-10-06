@@ -1,6 +1,7 @@
 // Claude sessions: draft one from a task, start it in a project. Canvas "＋ Note".
 // Component.prototype mixin (src/app.js): same `this` as the class methods they were.
 import { FX } from './shared.js';
+import { TERM_SKIPPED } from './project.js';
 
 // main's hq:canvas-add accepts only these board names (no dots, no separators)
 export const CANVAS_NAME_RE = /^[\w][\w -]{0,63}$/;
@@ -83,8 +84,10 @@ export const claudeLogic = {
     if (!p) return this.denied('This session has no project folder');
     if (!this.hq.claudeQuest) return this.denied('This window can’t open a terminal');
     let ok;
-    try { ok = await this.hq.claudeQuest(p.path, s.title); }
+    // through claudeTerminal (logic/project.js): a double-click opens one terminal, not two
+    try { ok = await this.claudeTerminal(p.path, s.title); }
     catch (e) { this.toast('error', 'Couldn’t open a terminal · ' + ((e && e.message) || e)); FX().sfx('error'); return; }
+    if (ok === TERM_SKIPPED) return;
     if (ok === false) { this.toast('error', 'Couldn’t open a terminal · ' + p.name + '’s folder wasn’t accepted'); FX().sfx('error'); return; }
     this.toast('info', 'Opened interactive Claude in a terminal · ' + p.name);
   },

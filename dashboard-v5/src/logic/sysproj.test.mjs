@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Component } from '../app.js';
 import { createStore } from '../live/store.js';
-import { systemLogic, machineIssues, machineVerdict, CAPTURE_OFF, SCAN_TIP, SCAN_OFF } from './system.js';
+import { systemLogic, machineIssues, machineVerdict, CAPTURE_OFF, SCAN_TIP, SCAN_OFF, ALREADY_IDEA } from './system.js';
 import { sheetLogic } from './sheet.js';
 import { projectLogic } from './project.js';
 import { proj, scan, organ, pcHealth } from '../live/__fixtures__/synthetic.mjs';
@@ -42,7 +42,8 @@ define('innerHeight', 900);
 const Q = (id, tier, title, o = {}) => ({ id, tier, title, insight: '', project_id: o.proj, age_days: 2, xp: 10, status: 'open' });
 const SQ = (id, title, o = {}) => ({ id, project_id: o.proj || 'a', kind: o.kind || 'idea', title, detail: o.detail ?? '', source: o.source || 'deterministic', effort: 'S', impact: 'medium', ...(o.done ? { done: true } : {}), ...(o.dismissed ? { dismissed: true } : {}) });
 const CLONES = Array.from({ length: 14 }, (_, i) => ({ name: 'ref-lib-' + i, origin: 'example.org/ref-lib-' + i, diverged: i === 0 }));
-function DATA(o = {}) {
+function DATA(opts = {}) {
+  const { extraSide = [], ...o } = opts;   // extraSide: more feed side quests (state-2)
   const a = proj('a', {
     gitRisk: 'high', gitFlags: ['no-remote'],
     riskFlags: [{ type: 'uncommitted_work', severity: 'medium', detail: 'Many dirty files for days', location: 'project-a/' }, { type: 'hardcoded_secret', severity: 'high', detail: 'Token in source', location: 'src/x.js:4' }],
@@ -66,6 +67,7 @@ function DATA(o = {}) {
   const feed = [
     { ...SQ('sq-capture-1', 'Project A: set up CI'), source: 'capture', detail: 'captured', project_name: 'Project A' },
     { ...SQ('sq-a-readme', 'Write a README'), project_name: 'Project A' },
+    ...extraSide,
   ];
   const inv = { clones: CLONES, empty: ['old-folder'], duplicates: [{ type: 'twin', detail: 'Folder "x-copy" mirrors "x"', severity: 'warning' }] };
   return {
@@ -338,6 +340,29 @@ test('Note for cleanup: false or a throw shows "✗ Not saved — retry" and can
     await row().save();
     assert.equal(hq.calls.filter((x) => x[0] === 'captureSave').length, 2, 'retry sends again');
   }
+});
+
+// state-2: captureSave reloads the window before it answers, so the in-memory "Noted" never
+// survives; a clutter row whose note is already one of your ideas must stay noted (from the
+// data), or each click appends another copy to the brain dump.
+test('Note for cleanup on an item already in your ideas: disabled, and a click writes nothing', async (t) => {
+  timers(t);
+  const hq = fakeHq();
+  // after the reload: the note is now an open captured side quest (Inbox); case and a trailing dot don't matter
+  const noted = { ...SQ('sq-capture-2', 'clean up: Folder "x-copy" mirrors "x".'), project_id: null, source: 'capture', detail: 'captured', project_name: 'Inbox' };
+  const c = at(make(hq, null, DATA({ extraSide: [noted] })), sys('clutter'));
+  const row = () => vals(c).clutter.find((g) => g.title === 'Duplicate folders').items[0];
+  assert.deepEqual([row().btn, row().off, row().tip], ['Noted', true, ALREADY_IDEA]);
+  assert.equal(await row().save(), false);
+  assert.deepEqual(hq.calls.filter((x) => x[0] === 'captureSave'), [], 'no second copy');
+  assert.ok(toasts(c).some((x) => x.startsWith('info · ' + ALREADY_IDEA)));
+  // a row whose text no captured idea has is untouched
+  const other = vals(c).clutter.find((g) => g.title === 'Empty folders').items[0];
+  assert.deepEqual([other.btn, other.off], ['Note for cleanup', false]);
+  // only captured notes count: a scan-rule side quest with the same text doesn't block it
+  const rule = { ...SQ('sq-rule', 'Clean up: old-folder'), project_id: null, project_name: 'Inbox' };
+  const c2 = at(make(fakeHq(), null, DATA({ extraSide: [rule] })), sys('clutter'));
+  assert.equal(vals(c2).clutter.find((g) => g.title === 'Empty folders').items[0].off, false);
 });
 
 test('Note for cleanup without the bridge or in the past is disabled with the reason', async (t) => {

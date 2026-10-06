@@ -208,6 +208,21 @@ test('Open stays honestly not wired; Escape and the backdrop still close the lig
   assert.match(lightboxTpl, /<div onClick="\{\{ stop \}\}"/);
 });
 
+// runtime-3 (renderer half): main's panel-toggle hides a visible panel, so "● Open recorder"
+// clicked during a recording used to hide the live pill and leave no visible stop control
+test('● Open recorder during a recording leaves the live pill alone and says where it is', (t) => {
+  timers(t);
+  const hq = fakeHq();
+  const c = studio(hq);
+  c.store.live.recording = { state: 'recording', recId: 'r-1', elapsedMs: 4000 };
+  c.renderVals().record();
+  assert.deepEqual(hq.calls.filter((x) => x[0] === 'panelToggle'), [], 'never toggled (= hidden) mid-recording');
+  assert.ok(hasToast(c, 'info', 'the recorder is the pill on screen'), toasts(c));
+  c.store.live.recording = null;              // nothing recording: it opens the panel as before
+  c.renderVals().record();
+  assert.equal(hq.calls.filter((x) => x[0] === 'panelToggle').length, 1);
+});
+
 test('studio markup: real media, each change marked for the designer; no striped placeholder left', () => {
   assert.match(studioTpl, /<!-- v5:[^>]*-->(<[^>]*>)*<sc-if value="\{\{ c\.hasImg \}\}"[^>]*><img src="\{\{ c\.src \}\}"/);
   assert.match(studioTpl, /<sc-if value="\{\{ c\.recovered \}\}"[^>]*><span title="\{\{ c\.recoveredTip \}\}"[^>]*>recovered<\/span>/);

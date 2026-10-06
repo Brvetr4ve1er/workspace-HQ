@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { Component } from '../app.js';
 import { createStore } from '../live/store.js';
 import * as AS from './ask-store.mjs';
+import { STOP_GRACE_MS } from './ask.js';
 import askTpl from '../tpl/ov-ask.tpl.js';
 import { proj, scan, spellbook, telemetry } from '../live/__fixtures__/synthetic.mjs';
 
@@ -117,7 +118,8 @@ test('a sent question is stored as v3 pending; the settled answer replaces it wi
 });
 
 // ---- Stop / Retry / New chat --------------------------------------------------------------
-test('Stop cancels in main, keeps the partial answer (“stopped”), and that pair is never sent back', async () => {
+test('Stop cancels in main, keeps the partial answer (“stopped”), and that pair is never sent back', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const { c, f } = make();
   const p = c.submitAsk('Long question');
   await tick();
@@ -125,7 +127,8 @@ test('Stop cancels in main, keeps the partial answer (“stopped”), and that p
   c.onAskDelta({ jobId: id, text: '\n Partial ans' });
   let v = c.renderVals();
   assert.equal(v.askBtnLabel, 'Stop');
-  v.askSubmit();                                   // the Ask button is Stop while streaming
+  t.mock.timers.tick(STOP_GRACE_MS);              // past the double-click grace (see the next test)
+  v.askSubmit({ detail: 1 });                      // the Ask button is Stop while streaming
   await p;
   assert.deepEqual(f.called('llm.cancel'), [[id]]);
   const h = c.state.askHistory.at(-1);
@@ -142,6 +145,39 @@ test('Stop cancels in main, keeps the partial answer (“stopped”), and that p
   assert.deepEqual(f.called('llm.chat')[1][0].messages, [{ role: 'user', content: 'Next question' }]);
   f.answer(DONE('ok'));
   await p2;
+});
+
+// state-3: one button is Ask and then Stop. The second click of a double-click on Ask (~150 ms
+// later, e.detail 2) used to land on Stop and cancel the question it had just sent.
+test('double-clicking Ask sends once and does not stop it; a later click on Stop does', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const { c, f } = make({}, { askDraft: 'Why is the build slow?' });
+  const p = c.renderVals().askSubmit({ detail: 1 });          // 1st click: sends
+  await tick();
+  assert.equal(f.called('llm.chat').length, 1);
+  assert.equal(c.renderVals().askBtnLabel, 'Stop');
+  t.mock.timers.tick(150);
+  c.renderVals().askSubmit({ detail: 2 });                    // 2nd click of the double-click
+  c.renderVals().askSubmit({ detail: 1 });                    // a stray click inside the grace
+  await tick();
+  assert.deepEqual(f.called('llm.cancel'), [], 'the double-click must not cancel the job');
+  assert.equal(c.state.askHistory.at(-1).a.status, 'thinking');
+  assert.equal(f.called('llm.chat').length, 1, 'nothing is sent twice either');
+  t.mock.timers.tick(STOP_GRACE_MS);
+  c.renderVals().askSubmit({ detail: 1 });                    // a real Stop, later
+  await p;
+  assert.equal(f.called('llm.cancel').length, 1);
+  assert.equal(c.state.askHistory.at(-1).a.status, 'cancelled');
+});
+
+test('New chat still stops a running answer at once (the grace is only on the Ask / Stop button)', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const { c, f } = make();
+  const p = c.submitAsk('Quick one');
+  await tick();
+  c.renderVals().askNew();
+  await p;
+  assert.equal(f.called('llm.cancel').length, 1);
 });
 
 test('main’s partial output wins over the streamed text when it has one', async () => {
@@ -258,10 +294,24 @@ test('offline box: v3 copy for no chat model / runtime down; Retry probes with f
   assert.equal(last().text, 'Still no local model');
   assert.equal(c.state.askChecking, false);
 
-  store.live.llm = { available: false };
+  // honesty-8: the runtime-down box names both runtimes the probe tries and claims nothing
+  // about the user's machine (v3 said Ollama "is set to start at login")
+  store.live.llm = { available: false, reason: 'no local LLM runtime up on :11434 or :1234' };
   v = c.renderVals();
   assert.equal(v.askOffTitle, 'The local model isn’t running.');
-  assert.equal(v.askOffCmd, 'Ollama');
+  assert.equal(v.askOffPre + v.askOffCmd + v.askOffPost, 'No local model answered on :11434 (Ollama) or :1234 (LM Studio). Start Ollama or LM Studio, then retry.');
+  store.live.llm = { available: false, reason: 'connect ECONNREFUSED' };
+  v = c.renderVals();
+  assert.equal(v.askOffPost, ', then retry. The probe said: connect ECONNREFUSED.');
+  for (const llm of [{ available: false }, { available: true, chatModel: null }, { available: true, runtime: 'lmstudio', chatModel: null }]) {
+    store.live.llm = llm;
+    v = c.renderVals();
+    assert.doesNotMatch(v.askOffPre + v.askOffCmd + v.askOffPost, /start at login/);
+  }
+  store.live.llm = { available: true, runtime: 'lmstudio', chatModel: null };
+  v = c.renderVals();
+  assert.equal(v.askOffTitle, 'No local chat model installed.');
+  assert.equal(v.askOffPre + v.askOffCmd + v.askOffPost, 'LM Studio is running but has no local chat model (cloud models are refused — Ask is local-only). Load one in LM Studio, then retry.');
 
   const up = make();
   up.store.live.llm = { available: false };
@@ -269,6 +319,14 @@ test('offline box: v3 copy for no chat model / runtime down; Retry probes with f
   assert.deepEqual(up.f.called('probeLlm'), [[{ force: true }]]);
   assert.equal(up.f.called('llm.warm').length, 1);
   assert.equal(up.c.renderVals().askOffline, false);
+});
+
+test('the in-chat refusal when no runtime answers names both runtimes the probe tries', async () => {
+  const { c, f, store } = make({ probeLlm: () => ({ available: false, reason: 'no local LLM runtime up on :11434 or :1234' }) });
+  store.live.llm = { available: false };
+  await c.submitAsk('what changed?');
+  assert.deepEqual(f.called('llm.chat'), []);
+  assert.equal(c.state.askHistory.at(-1).a.text, 'No local model answered (Ollama on :11434, LM Studio on :1234). Start one, then ask again.');
 });
 
 test('offline box without a bridge says so and offers no Retry; nothing is sent', async () => {
