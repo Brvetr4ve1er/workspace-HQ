@@ -11,21 +11,44 @@
 //
 //   OUTBOX (app <-> extension):  handleRoute() serves the reverse channel the
 //     tendril model doesn't cover:
-//       GET  /social/outbox         -> staged actions awaiting YOUR approval
-//       POST /social/outbox/result  -> extension reports a send outcome
-//       POST /social/outbox/cancel  -> popup "Skip": staged -> canceled, never publishes
-//       POST /social/accounts       -> extension registers connected accounts
+//       GET  /social/outbox          -> staged actions awaiting YOUR approval
+//       POST /social/outbox/claim    -> approved send: staged -> sending, BEFORE the adapter runs
+//       POST /social/outbox/result   -> extension reports a send outcome (sending -> sent|failed)
+//       POST /social/outbox/cancel   -> popup "Skip": staged -> canceled, never publishes
+//       POST /social/outbox/release  -> owner, by hand: a stale claim (sending, no result
+//                                       for CLAIM_STALE_MIN) -> staged again; never publishes
+//       POST /social/accounts        -> extension registers connected accounts
 //
 // THE GATE: MCP only ever writes actions with status:"staged". This module NEVER
 // promotes staged->sent on its own — it only records the outcome the extension
 // reports AFTER a human clicked Approve & Send in the popup. There is no
 // server-side or MCP approve path by design. Don't add one without updating
 // docs/sync/CONTRACT.md's write-gate invariant.
+//
+// ATOMICITY: every outbox route reads, checks, mutates and writes synchronously
+// inside one readBody 'end' callback (sync fs, no await), so two requests that
+// race on the same action serialize on the event loop — exactly one of a claim
+// and a Skip wins. Keep it synchronous. (The MCP server is another process with
+// its own read-then-write; CONTRACT.md 2026-10-07 spells out what that leaves.)
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const MAX_RESULT_BODY = 64 * 1024;
+// A claim with no result for this long may be released back to 'staged' by the
+// owner (POST /social/outbox/release). Never automatically.
+const CLAIM_STALE_MIN = 10;
+const CLAIM_STALE_MS = CLAIM_STALE_MIN * 60 * 1000;
+
+// What gets published — the same six fields the popup shows and socialSend
+// compares. content_hash = sha256 hex of this canonical JSON; the extension
+// (browser-bridge/social.js socialContentHash) must compute the identical string.
+const PAYLOAD_KEYS = ['platform', 'op', 'text', 'reply_to', 'target', 'title'];
+function contentHash(a) {
+  const canon = JSON.stringify(PAYLOAD_KEYS.map((k) => (a[k] == null ? '' : String(a[k]))));
+  return crypto.createHash('sha256').update(canon, 'utf8').digest('hex');
+}
 const clamp = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '');
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 // A request body readBody parsed: valid JSON can still be null / an array / a scalar, and
@@ -129,8 +152,11 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
         send(200, { ok: true, id, status: 'canceled', sent_after_cancel: true });
         return;
       }
-      // Otherwise only a staged action can be settled — ignore double-reports / tampering.
-      if (a.status !== 'staged') { send(200, { ok: true, ignored: true, status: a.status }); return; }
+      // Otherwise only an in-flight action can be settled: 'sending' (claimed by an
+      // extension >= 0.3.0) or 'staged' (a 0.2.0 extension that wasn't reloaded publishes
+      // without claiming; also a late report for a claim the owner released). Anything
+      // else is a double-report / tampering — ignored, file untouched.
+      if (a.status !== 'sending' && a.status !== 'staged') { send(200, { ok: true, ignored: true, status: a.status }); return; }
       if (body.ok) {
         a.status = 'sent';
         a.sent_at = new Date().toISOString();
@@ -147,13 +173,82 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
     return true;
   }
 
+  // Approve & Send, step 1: the extension claims the post BEFORE any adapter runs.
+  // Flips ONE staged action to 'sending' (stamping claimed_at) and hands back the
+  // app's copy — the only copy the extension may publish. With content_hash, the
+  // claim also requires the payload to still be what the human saw. Anything not
+  // staged, or a changed payload, is refused with 409 and the file is left
+  // untouched. A claim publishes nothing; it only takes the post off the card so
+  // a Skip / second click can't race the send.
+  if (req.method === 'POST' && url === '/social/outbox/claim') {
+    if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
+    readBody(req, (err, body) => {
+      if (err) { send(err === 'too big' ? 413 : 400, { ok: false, error: String(err) }); return; }
+      if (!isBodyObj(body)) { send(400, NOT_OBJ); return; }
+      const id = clamp(String(body.id || ''), 80);
+      if (!id) { send(400, { ok: false, error: 'id required' }); return; }
+      const hasHash = body.content_hash != null && body.content_hash !== '';
+      if (hasHash && !(typeof body.content_hash === 'string' && /^[0-9a-f]{64}$/i.test(body.content_hash))) {
+        send(400, { ok: false, error: 'content_hash must be a sha256 hex string' }); return;
+      }
+      const d = readJsonOr(outboxFile, { actions: [] });
+      const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
+      if (!a) { send(404, { ok: false, error: 'unknown action id' }); return; }
+      if (a.status !== 'staged') { send(409, { ok: false, error: 'not staged', id, status: a.status }); return; }
+      if (hasHash && contentHash(a) !== body.content_hash.toLowerCase()) {
+        send(409, { ok: false, error: 'content changed', id, status: a.status }); return;
+      }
+      a.status = 'sending';
+      a.claimed_at = new Date().toISOString();
+      d.updated = a.claimed_at;
+      try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
+      catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
+      send(200, { ok: true, id, status: 'sending', claimed_at: a.claimed_at, action: { ...a } });
+    });
+    return true;
+  }
+
+  // Owner escape hatch for a claim that never got a result (service worker died
+  // mid-send, app down when the result came back): after CLAIM_STALE_MIN the owner
+  // may put it back to 'staged' by hand. It only returns the post to the approval
+  // card — a human must Approve & Send again. Nothing calls this on a timer.
+  // CONTRACT.md 2026-10-07: check the platform first, the stuck send may be live.
+  if (req.method === 'POST' && url === '/social/outbox/release') {
+    if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
+    readBody(req, (err, body) => {
+      if (err) { send(err === 'too big' ? 413 : 400, { ok: false, error: String(err) }); return; }
+      if (!isBodyObj(body)) { send(400, NOT_OBJ); return; }
+      const id = clamp(String(body.id || ''), 80);
+      if (!id) { send(400, { ok: false, error: 'id required' }); return; }
+      const d = readJsonOr(outboxFile, { actions: [] });
+      const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
+      if (!a) { send(404, { ok: false, error: 'unknown action id' }); return; }
+      if (a.status !== 'sending') { send(409, { ok: false, error: 'not sending', id, status: a.status }); return; }
+      const claimed = Date.parse(a.claimed_at || '');
+      // An unreadable claimed_at (hand edit) has no age to wait out: releasable now.
+      if (Number.isFinite(claimed) && Date.now() - claimed < CLAIM_STALE_MS) {
+        send(409, { ok: false, error: 'claim still fresh', id, status: a.status, claimed_at: a.claimed_at, release_after: new Date(claimed + CLAIM_STALE_MS).toISOString() });
+        return;
+      }
+      a.status = 'staged';
+      delete a.claimed_at;
+      a.released_at = new Date().toISOString();
+      d.updated = a.released_at;
+      try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
+      catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
+      send(200, { ok: true, id, status: 'staged', released_at: a.released_at });
+    });
+    return true;
+  }
+
   // Popup "Skip": the human declines a staged post. Flips ONE staged action to
   // 'canceled' and does nothing else — no adapter, no extension message, no
   // sent_at/result. 'canceled' is terminal: GET /social/outbox stops listing it
   // and /result never makes it 'sent' (a late success is recorded as
   // sent_after_cancel, see /result above). Anything not staged is
-  // refused with 409 and the file is left untouched. The MCP twin is
-  // hq_social_cancel (mcp/workspacehq/server.mjs); both obey the same gate.
+  // refused with 409 and the file is left untouched — a claimed ('sending') post
+  // as 'already publishing': the send already won, a Skip can't race it. The MCP
+  // twin is hq_social_cancel (mcp/workspacehq/server.mjs); both obey the same gate.
   if (req.method === 'POST' && url === '/social/outbox/cancel') {
     if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
     readBody(req, (err, body) => {
@@ -163,6 +258,7 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
       const d = readJsonOr(outboxFile, { actions: [] });
       const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
       if (!a) { send(404, { ok: false, error: 'unknown action id' }); return; }
+      if (a.status === 'sending') { send(409, { ok: false, error: 'already publishing', id, status: a.status }); return; }
       if (a.status !== 'staged') { send(409, { ok: false, error: 'not staged', id, status: a.status }); return; }
       a.status = 'canceled';
       a.canceled_at = new Date().toISOString();
@@ -209,4 +305,4 @@ function readBody(req, cb) {
   req.on('error', () => cb('read error'));
 }
 
-module.exports = { socialTendril, handleRoute };
+module.exports = { socialTendril, handleRoute, contentHash, CLAIM_STALE_MIN };

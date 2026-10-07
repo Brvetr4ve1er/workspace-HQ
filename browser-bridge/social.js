@@ -9,7 +9,9 @@
 //
 // THE GATE: this half only SENDS when socialSend() is called, and that only
 // happens from a human clicking "Approve & Send" in the popup. The periodic tick
-// is read-only (scrape -> /ingest/social). Nothing here can auto-publish.
+// is read-only (scrape -> /ingest/social). Nothing here can auto-publish. And a
+// send only runs after the app granted a claim on that exact post
+// (POST /social/outbox/claim, staged -> sending): no claim, no publish.
 
 /* global chrome */
 
@@ -511,20 +513,69 @@ async function socialConfirmStaged(shown) {
   return { ok: true, action: fresh };
 }
 
+// content_hash for the claim: sha256 hex of the six payload fields as canonical
+// JSON (null/missing -> ''). Must match dashboard/social-bridge.js contentHash()
+// byte for byte — docs/sync/CONTRACT.md 2026-10-07, pinned by social-claim.test.mjs.
+async function socialContentHash(a) {
+  const canon = JSON.stringify(SOCIAL_PAYLOAD_KEYS.map((k) => (a[k] == null ? '' : String(a[k]))));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canon));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// POST to the app and read {status, body} without throwing (status 0 = no answer).
+async function socialPostJson(route, body) {
+  try {
+    const r = await socialSendToApp(route, body);
+    let json = null;
+    try { json = await r.json(); } catch (e) { /* not JSON */ }
+    return { status: r.status, body: json };
+  } catch (e) { return { status: 0, body: null, error: String((e && e.message) || e) }; }
+}
+
+// Claim the exact post the human saw (staged -> sending on the app) BEFORE any
+// adapter runs. Only a 200 claim lets the publish happen; every other answer is a
+// refusal — and, since nothing was attempted, nothing is reported back.
+async function socialClaim(shown) {
+  const content_hash = await socialContentHash(shown);
+  const r = await socialPostJson('/social/outbox/claim', { id: shown.id, content_hash });
+  const b = r.body || {};
+  if (r.status === 200 && b.ok && b.action && b.action.id === shown.id) return { ok: true, action: b.action };
+  if (r.status === 0) return { ok: false, error: "app link off — couldn't claim the post, not sent" };
+  if (r.status === 409 && b.error === 'content changed') return { ok: false, error: 'the post changed since it was shown — not sent; review it again' };
+  if (r.status === 409 && b.status === 'sending') return { ok: false, error: 'already being published by another send — not sent again' };
+  if (r.status === 409) return { ok: false, error: 'no longer staged (' + (b.status || 'handled') + ') — not sent' };
+  if (r.status === 404 && b.error === 'unknown action id') return { ok: false, error: 'no longer in the outbox — not sent' };
+  if (r.status === 404) return { ok: false, error: "this app version can't claim posts — restart workspace-hq; not sent" };
+  if (r.status === 401 || r.status === 403) return { ok: false, error: 'the app refused the claim (check the token in settings) — not sent' };
+  return { ok: false, error: 'the app refused the claim (' + (b.error || 'HTTP ' + r.status) + ') — not sent' };
+}
+
 // WRITE pass: only ever called for an action the human approved in the popup.
+//   1. re-read: still staged and unchanged (cheap pre-check, nothing claimed yet)
+//   2. adapter + logged-in tab exist (never claim a post this browser can't send)
+//   3. claim it on the app with the hash of what the human saw — atomic there
+//   4. publish the app's claimed copy, then ALWAYS report the outcome
 async function socialSend(shown) {
   if (!shown || !shown.id) return { ok: false, error: 'no action id' };
   const check = await socialConfirmStaged(shown);
   if (!check.ok) return check;
-  const action = check.action;
-  const ad = SOCIAL_ADAPTERS[action.platform];
-  if (!ad) return { ok: false, error: 'no adapter for ' + action.platform };
+  const ad = SOCIAL_ADAPTERS[check.action.platform];
+  if (!ad) return { ok: false, error: 'no adapter for ' + check.action.platform };
   const cfg = await socialCfg();
   const tab = await firstTabFor(ad, cfg);
-  if (!tab) return { ok: false, error: 'open a logged-in ' + action.platform + ' tab first' };
+  if (!tab) return { ok: false, error: 'open a logged-in ' + check.action.platform + ' tab first' };
+  const claim = await socialClaim(shown);
+  if (!claim.ok) return claim;
+  // From here the post is 'sending' on the app: every path below reports a result.
+  const action = claim.action;
   let res;
-  try { res = await runInTab(tab.id, ad.send, [action]); } catch (e) { res = { ok: false, error: String((e && e.message) || e) }; }
-  res = res || { ok: false, error: 'no result from adapter' };
-  await socialSendToApp('/social/outbox/result', { id: action.id, ok: !!res.ok, url: res.url, uri: res.uri, error: res.error }).catch(() => {});
-  return res;
+  if (!socialSamePayload(action, shown)) {
+    res = { ok: false, error: "the app's claimed copy differs from the post shown — not sent" };
+  } else {
+    try { res = await runInTab(tab.id, ad.send, [action]); } catch (e) { res = { ok: false, error: String((e && e.message) || e) }; }
+    res = res || { ok: false, error: 'no result from adapter' };
+  }
+  const rep = await socialPostJson('/social/outbox/result', { id: action.id, ok: !!res.ok, url: res.url, uri: res.uri, error: res.error });
+  // reported:false — the app didn't record the outcome, so it still shows 'sending'.
+  return { ...res, reported: rep.status === 200 && !!(rep.body && rep.body.ok) };
 }

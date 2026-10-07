@@ -88,10 +88,33 @@ approval · 1 of N") with the full payload, its character and link count, and tw
 buttons:
 
 - **approve & send**: the extension first asks the app whether that exact post
-  is still staged and unchanged. If it is, the extension sends it from your
-  logged-in tab. If not, nothing is sent.
+  is still staged and unchanged, and checks that a logged-in tab for the platform
+  is open. Then it **claims** the post on the app (`POST /social/outbox/claim`,
+  status `staged → sending`, guarded by a hash of the text you saw). Only after
+  the claim succeeds does it send from your logged-in tab, and then it reports
+  the outcome (`sent` or `failed`). If the claim is refused (the post was
+  skipped, changed or is already being sent, or the app is too old or not
+  answering), nothing is sent.
 - **skip**: `POST /social/outbox/cancel` marks the post `canceled` in the app.
-  Skipping never publishes anything.
+  Skipping never publishes anything. A post that is already claimed for sending
+  can't be skipped (the app answers *already publishing*), so a skip can't race
+  a send that has already started.
+
+**A post stuck on `sending`.** If the extension dies mid-send, or the app is
+down when the result comes back, the post stays `sending`: it's off the card, and
+nobody can skip or claim it. After **10 minutes** you can put it back on the card
+by hand, from PowerShell on this PC:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:47821/social/outbox/release `
+  -Headers @{ 'X-HQ-Bridge' = '1' } -ContentType 'application/json' -Body '{"id":"<outbox id>"}'
+```
+
+(Add `'X-HQ-Token' = '<value of data/.bridge-token>'` to the headers if you set
+a token. MCP `hq_social_outbox` shows the id and `claimed_at`.) A release only
+returns the post to `staged`. You still have to approve & send it again, and
+nothing ever releases on its own. **Check the platform first:** the stuck send
+may have gone out, and approving a live post again posts it twice.
 
 The header shows **● connected** when the app answers on its endpoint. When it
 doesn't, the popup shows *Not connected* and a **check again** button. The popup
@@ -99,7 +122,10 @@ follows your OS light/dark setting; it can't read the app's theme choice.
 
 After updating these files, reload the extension at `chrome://extensions`
 (click the circular-arrow icon on the card). Chrome doesn't pick up changes to
-an unpacked extension on its own.
+an unpacked extension on its own. The claim step needs extension **0.3.0** and a
+restarted app. Until you reload, 0.2.0 keeps sending without claiming, and the app
+still records its results. A 0.3.0 extension talking to an app that hasn't been
+restarted refuses to send and asks you to restart workspace-hq.
 
 ## How Claude uses it
 

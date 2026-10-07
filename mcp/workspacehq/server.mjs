@@ -304,7 +304,8 @@ const TOOLS = [
         accounts: (accts.accounts || []).map((a) => ({ platform: a.platform, handle: a.handle })),
         events_total: (inbox.events || []).length,
         events_by_platform: byPlatform,
-        outbox: { staged: pending, sent: ob.actions.filter((a) => a.status === 'sent').length, failed: ob.actions.filter((a) => a.status === 'failed').length },
+        // sending: claimed by an approved send, publish in flight (CONTRACT.md 2026-10-07 claim amendment)
+        outbox: { staged: pending, sending: ob.actions.filter((a) => a.status === 'sending').length, sent: ob.actions.filter((a) => a.status === 'sent').length, failed: ob.actions.filter((a) => a.status === 'failed').length },
       };
     },
   },
@@ -405,18 +406,18 @@ const TOOLS = [
   },
   {
     name: 'hq_social_outbox',
-    description: 'List outbox actions and their status (staged / sent / failed / canceled). Read-only view of what is waiting for your approval and what has gone out. Optional status filter. A canceled action with sent_after_cancel:true was published anyway (the human-approved send finished after the cancel landed) — sent_at and result say when and where it went live.',
+    description: 'List outbox actions and their status (staged / sending / sent / failed / canceled). Read-only view of what is waiting for your approval and what has gone out. Optional status filter. sending = the human approved it and the extension claimed it (claimed_at) — the publish is in flight and it can no longer be canceled; a claim with no result for 10+ minutes may be stuck, and only the owner can release it back to staged after checking the platform (released_at marks that). A canceled action with sent_after_cancel:true was published anyway (the human-approved send finished after the cancel landed) — sent_at and result say when and where it went live.',
     inputSchema: {
       type: 'object',
-      properties: { status: { type: 'string', description: 'filter: staged | sent | failed | canceled' } },
+      properties: { status: { type: 'string', description: 'filter: staged | sending | sent | failed | canceled' } },
       additionalProperties: false,
     },
     run(args) {
       const f = args.status ? String(args.status).toLowerCase() : null;
-      // sent_after_cancel / canceled_at: additive outbox fields (CONTRACT.md, social bridge amendments)
+      // sent_after_cancel / canceled_at / claimed_at / released_at: additive outbox fields (CONTRACT.md, social bridge amendments)
       const actions = socialOutbox().actions
         .filter((a) => !f || a.status === f)
-        .map((a) => ({ id: a.id, platform: a.platform, op: a.op, status: a.status, text: a.text, reply_to: a.reply_to, target: a.target, title: a.title, staged_at: a.staged_at, sent_at: a.sent_at, result: a.result, error: a.error, canceled_at: a.canceled_at ?? null, sent_after_cancel: a.sent_after_cancel === true }));
+        .map((a) => ({ id: a.id, platform: a.platform, op: a.op, status: a.status, text: a.text, reply_to: a.reply_to, target: a.target, title: a.title, staged_at: a.staged_at, claimed_at: a.claimed_at ?? null, released_at: a.released_at ?? null, sent_at: a.sent_at, result: a.result, error: a.error, canceled_at: a.canceled_at ?? null, sent_after_cancel: a.sent_after_cancel === true }));
       return { count: actions.length, actions };
     },
   },

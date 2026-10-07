@@ -236,7 +236,7 @@ test('the atomic write leaves no temp files behind', async () => {
 const SOCIAL_JS = readFileSync(fileURLToPath(new URL('../browser-bridge/social.js', import.meta.url)), 'utf8');
 
 function loadExtension({ outbox, outboxThrows = false } = {}) {
-  const calls = { inject: [], results: [], gets: 0 };
+  const calls = { inject: [], results: [], gets: 0, claims: [] };
   const chrome = {
     storage: { local: { get: async () => ({ hq_cfg: { endpoint: 'http://127.0.0.1:1', token: '' } }) } },
     tabs: { query: async () => [{ id: 7, url: 'https://bsky.app/profile/example' }, { id: 8, url: 'https://www.reddit.com/r/example/' }] },
@@ -251,10 +251,19 @@ function loadExtension({ outbox, outboxThrows = false } = {}) {
       if (outboxThrows) throw new TypeError('Failed to fetch');
       return { json: async () => outbox };
     }
-    if (path === '/social/outbox/result') { calls.results.push(JSON.parse(opts.body)); return { ok: true, json: async () => ({ ok: true }) }; }
+    // Claim before publish (CONTRACT.md 2026-10-07): grant it for a still-listed post.
+    // The full claim state machine is in social-claim.test.mjs against the real relay.
+    if (path === '/social/outbox/claim') {
+      const { id, content_hash } = JSON.parse(opts.body);
+      calls.claims.push({ id, content_hash });
+      const a = ((outbox && outbox.actions) || []).find((x) => x.id === id);
+      return a ? { status: 200, json: async () => ({ ok: true, id, status: 'sending', action: { ...a, status: 'sending' } }) }
+        : { status: 409, json: async () => ({ ok: false, error: 'not staged', id, status: 'canceled' }) };
+    }
+    if (path === '/social/outbox/result') { calls.results.push(JSON.parse(opts.body)); return { status: 200, ok: true, json: async () => ({ ok: true }) }; }
     throw new Error('unexpected fetch ' + url);
   };
-  const ctx = vm.createContext({ chrome, fetch, URL, console, setTimeout, clearTimeout });
+  const ctx = vm.createContext({ chrome, fetch, URL, console, setTimeout, clearTimeout, crypto: globalThis.crypto, TextEncoder });
   vm.runInContext(SOCIAL_JS, ctx, { filename: 'social.js' });
   const socialSend = vm.runInContext('socialSend', ctx);
   return { socialSend, calls };
@@ -271,6 +280,8 @@ test('extension: a still-staged, unchanged post is sent once — with the app\'s
   assert.equal(calls.inject[0].args[0].id, SHOWN.id);
   assert.equal(calls.inject[0].args[0].text, SHOWN.text);
   assert.deepEqual(calls.results.map((r) => [r.id, r.ok]), [[SHOWN.id, true]]);
+  assert.deepEqual(calls.claims.map((c) => c.id), [SHOWN.id], 'claimed exactly once, before the send');
+  assert.match(calls.claims[0].content_hash, /^[0-9a-f]{64}$/);
 });
 
 test('extension: a post skipped/canceled after the popup rendered it is never sent', async () => {
@@ -280,6 +291,7 @@ test('extension: a post skipped/canceled after the popup rendered it is never se
   assert.match(res.error, /no longer staged/);
   assert.equal(calls.inject.length, 0);
   assert.equal(calls.results.length, 0, 'nothing attempted, nothing reported');
+  assert.equal(calls.claims.length, 0, 'nothing claimed either');
 });
 
 test('extension: a payload that changed since it was shown is never sent', async () => {

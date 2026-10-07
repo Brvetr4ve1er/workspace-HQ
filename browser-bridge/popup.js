@@ -3,8 +3,10 @@
 //
 // Write gate (docs/sync/CONTRACT.md): "approve & send" asks the service worker
 // to send (social:send → socialSend, which re-checks with the app that the post
-// is still staged and unchanged); "skip" POSTs /social/outbox/cancel, which only
-// flips a staged post to 'canceled' and never publishes. While either is in
+// is still staged and unchanged, then claims it — staged → sending — and only
+// publishes after the claim); "skip" POSTs /social/outbox/cancel, which only
+// flips a staged post to 'canceled' and never publishes (a claimed post answers
+// 409 'already publishing'). While either is in
 // flight the card is locked and the poll never swaps or re-enables it, so a
 // second click can't send twice or act on a different post.
 //
@@ -307,7 +309,10 @@ $('approve').addEventListener('click', async () => {
   let res;
   try { res = await chrome.runtime.sendMessage({ type: 'social:send', action: a }); }
   catch (e) { res = { ok: false, error: 'the extension did not answer: ' + String((e && e.message) || e) }; }
-  if (res && res.ok) flash('sent ✓' + (res.url ? ` · ${res.url}` : ''), 'ok', 8000);
+  // reported:false — published, but the app didn't record it (it stays 'sending' there):
+  // say so, so nobody releases + re-approves a post that is already live.
+  if (res && res.ok && res.reported === false) flash('sent ✓' + (res.url ? ` · ${res.url}` : '') + ' · the app did not record it (it still says sending) — it is live, don\'t release it', 'ok', 15_000);
+  else if (res && res.ok) flash('sent ✓' + (res.url ? ` · ${res.url}` : ''), 'ok', 8000);
   else flash('not sent — ' + ((res && res.error) || 'no result from the extension'), 'bad', 10_000);
   await settle();
 });
@@ -324,6 +329,7 @@ $('skip').addEventListener('click', async () => {
   });
   const err = r.body && r.body.error;
   if (r.status === 200) flash('skipped — canceled, never sent', 'ok');
+  else if (r.status === 409 && err === 'already publishing') flash('not skipped — an approved send already claimed it and is publishing', 'bad', 8000);
   else if (r.status === 409) flash(`not skipped — it is already ${(r.body && r.body.status) || 'handled'}`, 'bad', 8000);
   else if (r.status === 404 && err === 'unknown action id') flash('not skipped — it is no longer in the outbox', 'bad', 8000);
   else if (r.status === 404) flash('not skipped — this app version has no skip route yet; restart workspace-hq', 'bad', 10_000);
