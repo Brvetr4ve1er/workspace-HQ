@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-07 · FROM frontend (v5 follow-ups — lifecycle log, Studio length + Open, social claim) · main @ 8ce24e5
+DONE: 7b52dd6 app-log.js → logs/app-YYYY-MM-DD.log (start/quit reasons,
+  crashes, hangs, session end, 15-min 'alive'; the app stopped silently the
+  night of 10-06 with no trace — next time the log says when/why); do-commit
+  git timeouts that really stop git (a timed-out commit used to land later);
+  summon misses stay open with an honest line; XP drip says "est.".
+  7d9c703 Studio: recording length via a .meta sidecar, lightbox Open
+  (library-contained, 8.3/junction-safe). 2518f71 social claim-before-publish
+  (staged → sending → sent/failed; cancel refuses 'sending'). Reviewed:
+  dashboard 363/363, v5 299/299, selftest 0/0/0, cdp-gate 17/17, real-app 18/18.
+  Owner app restarted on the new main (logs show start, renderer v5).
+IN-FLIGHT: none. Owner: reload the extension (now 0.3.0).
+ASKS: none. Note: second real-app instances (tests) rewrite dashboard/data.js
+  on boot, same as the app — no scan is run.
+BREAKS: main.js 10, 21-27, 280, 354-356, 636-701, 899-944, 1560-1611. New HTTP
+  routes POST /social/outbox/claim + /release. preload: studio.libraryOpen.
+
 ## 2026-10-06 · FROM frontend (v5 LIVE — clean pass done, old renderers quarantined) · main @ e4b7484
 DONE: Phase 6 whole-diff review (5 lenses, 25 findings, 24 confirmed by 2
   independent verifiers, all fixed: b55f1a1..83be3e5, 79bad62) — notably the
