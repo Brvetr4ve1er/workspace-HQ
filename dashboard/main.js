@@ -7,7 +7,7 @@
 // Tauri alternative: dashboard/ is the distDir; a src-tauri wrapper would call the
 // same run-pipeline.ps1 and the same data/quest-overrides.json from a Rust command.
 
-const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer, nativeTheme, powerMonitor } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -18,11 +18,13 @@ const llmLocal = require('./llm-local');               // PC-Brain L3: local mod
 const screenCapture = require('./screen-capture');     // v3 STUDIO: snip + record + library (Group 1)
 const trayMenu = require('./tray-menu');               // v5 M4: tray menu as data (trayTemplate) + scanCounts (tray + mini HUD)
 const { launchClaudeTerminal } = require('./claude-launch');   // v5 M4: hq:claude-quest + snip "send to Claude" (K-5); HQ_DRY_LAUNCH=1 only logs
+const appLog = require('./app-log').create({ appRoot: path.join(__dirname, '..'), env: process.env });   // lifecycle log → logs/app-YYYY-MM-DD.log (app-log.js; gates set HQ_APP_LOG_DIR)
+appLog.attach({ app });   // crashes, hangs, session end, quit — every window, screen-capture's included
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
 // whole main process (and every window) down. Log and keep the app alive.
-process.on('uncaughtException', (e) => console.error('[uncaught]', e));
-process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
+process.on('uncaughtException', (e) => { console.error('[uncaught]', e); appLog.error('uncaughtException', e); });
+process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', e); appLog.error('unhandledRejection', e); });
 
 const DIR = __dirname;
 const SCAN_DIR = path.join(DIR, '..');
@@ -275,7 +277,7 @@ function buildTrayMenu() {
       snapshotDirty: (dirty) => confirmThen(`Snapshot ${dirty.length} dirty repo(s)?`, 'Filtered backup copy to backups/ — safe, non-disruptive.', () => { let ok = 0; for (const p of dirty) { const b = resolveProjectPath(p.path); if (b && snapshotProject(b, p.name)) ok++; } trayNotify('📦 Snapshotted', `${ok}/${dirty.length} repos → backups/`); }),
       killServers: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); } activeDevServers.clear(); pushMachine(); updateTray(); },
       openUrgent: (tp) => { const b = resolveProjectPath(tp.path); if (b) shell.openPath(b); },
-      quit: () => { app.isQuitting = true; app.quit(); },
+      quit: () => { appLog.setQuitReason('tray'); app.isQuitting = true; app.quit(); },
     }));
 }
 function updateTray() {
@@ -349,9 +351,9 @@ function applyDone(ids) {
   rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini();
   // organic feedback: an XP drip sprouts on the desktop even when the app is hidden
   try {
-    const xp = list.length * 60;   // rough until the ledger settles on next scan
+    const xp = list.length * 60;   // rough until the ledger settles on next scan — so the line says est.
     const wa = screen.getPrimaryDisplay().workArea;
-    spawnShard({ widget: 'xp-drip', payload: { text: `+~${xp} XP · ${list.length} quest${list.length > 1 ? 's' : ''} cleared` }, x: wa.x + wa.width - 270, y: wa.y + wa.height - 100, ttl: 6000, clickThrough: true });
+    spawnShard({ widget: 'xp-drip', payload: { text: `+~${xp} XP est. · ${list.length} quest${list.length > 1 ? 's' : ''} cleared` }, x: wa.x + wa.width - 270, y: wa.y + wa.height - 100, ttl: 6000, clickThrough: true });
   } catch { /* shards are garnish, never block the core loop */ }
   return true;
 }
@@ -631,7 +633,7 @@ HARD RULES:
 - Reply with ONLY an HTML fragment (no \`\`\` fences, no <html>/<head>/<body>).
 - Everything inline: <style scoped to your own class names> + optional inline <script>.
 - NO external resources of any kind (no URLs, no fonts, no images, no fetch/XHR/WebSocket).
-- Dark translucent card look: background rgba(12,10,30,.92); 1px border #322a5e; border-radius 10px; neon accents (#00f0ff cyan, #ff2bd6 magenta, #ffd23f gold); monospace font.
+- Card look from the host page's CSS variables (already defined there: use them, never redefine them, no :root rules, no hard-coded palette): background var(--card); 1px solid var(--frame) border; border-radius 10px; text var(--text), secondary text var(--muted); accents var(--gold) and var(--purple); font-family var(--term).
 - Max footprint ~340x260px. It must be immediately useful and interactive if the request implies it (buttons, counters, inputs all work via inline JS).
 - If the request implies live time, use setInterval. State can live in JS variables only.`;
   // MA: routed through the sessions registry — tracked, killable, presence-visible
@@ -649,6 +651,10 @@ HARD RULES:
 }
 
 // Summon router: known words materialize built-ins; everything else is conjured.
+// A built-in with nothing to show answers { ok:false, reason, message } instead of a
+// shard id, so the palette can stay open and say so (IPC-CONTRACT hq:shard-summon).
+const SUMMON_MISS = { 'no-quest': 'No open quest right now', 'no-scan': 'No scan data yet — run a scan first', error: 'Couldn’t open that widget' };
+const summonMiss = (reason) => ({ ok: false, reason, message: SUMMON_MISS[reason] });
 function summonWidget(text, at = {}) {
   const t = String(text || '').trim();
   if (!t) return false;
@@ -656,8 +662,8 @@ function summonWidget(text, at = {}) {
   if ((m = t.match(/^n(?:ote)?[:\s]+(.+)/i))) return spawnShard({ widget: 'note', payload: { text: m[1] }, persist: true, ...at });
   if ((m = t.match(/^timer\s+(\d+)\s*m?(?:in)?s?$/i)) || (m = t.match(/^(\d+)\s*m(?:in)?s?$/i)))
     return spawnShard({ widget: 'timer', payload: { minutes: Math.max(1, Math.min(180, +m[1])) }, ...at });
-  if (/^quests?$/i.test(t)) { const q = topQuestPayload(); return q ? spawnShard({ widget: 'quest', payload: q, ...at }) : false; }
-  if (/^(hp|stats?|hud)$/i.test(t)) { const p = miniPayload(); return p ? spawnShard({ widget: 'hp', payload: p, ...at }) : false; }
+  if (/^quests?$/i.test(t)) { const q = topQuestPayload(); return q ? spawnShard({ widget: 'quest', payload: q, ...at }) : summonMiss(latest() ? 'no-quest' : 'no-scan'); }
+  if (/^(hp|stats?|hud)$/i.test(t)) { const p = miniPayload(); return p ? spawnShard({ widget: 'hp', payload: p, ...at }) : summonMiss('no-scan'); }
   if (/^lib(rary)?$/i.test(t)) return spawnShard({ widget: 'library', payload: libraryPayload(), w: 380, h: 300, ...at });
   // library hit: a past creation matching this prompt re-materializes instantly
   const hit = libFind(t);
@@ -686,10 +692,13 @@ function openSummon() {
   summonWin.on('closed', () => { summonWin = null; });
 }
 
+// Answer first, close after: a miss leaves the palette open with r.message (summon.js);
+// a spawn closes it (the new shard's focus has usually blurred it shut already).
 ipcMain.handle('hq:shard-summon', (_e, text) => {
-  const at = summonAt || {};
-  if (summonWin && !summonWin.isDestroyed()) summonWin.close();
-  return summonWidget(text, at);
+  let r;
+  try { r = summonWidget(text, summonAt || {}); } catch (e) { console.error('[summon] failed:', e); r = summonMiss('error'); }
+  if (typeof r === 'string' && summonWin && !summonWin.isDestroyed()) summonWin.close();
+  return r;
 });
 ipcMain.handle('hq:shard-summon-cancel', () => { if (summonWin && !summonWin.isDestroyed()) summonWin.close(); return true; });
 // shard self-service: resolve the calling shard by its webContents
@@ -887,6 +896,19 @@ function runNodeAsync(script, args = []) {
     p.on('error', reject);
   });
 }
+// Every git call in hq:do-commit has a deadline, like commit-guard's: spawnSync blocks
+// all of main, and a hung git (index.lock wait, AV scan, a hook that never returns)
+// must end as an honest error, never a frozen app. A timeout fails closed.
+const COMMIT_GIT_MS = { add: 60000, recheck: 15000, commit: 120000 };   // commit runs the commit hooks
+const gitTimedOut = (r) => !!(r && r.error && r.error.code === 'ETIMEDOUT');
+// Git for Windows: `git` on PATH is a launcher (cmd\git.exe) that runs the real git as its
+// child, and spawnSync's timeout kills only the launcher — the real git and its hooks then
+// finished the add/commit AFTER the timeout was reported (seen in the 2026-10-07 gate). So a
+// timeout also stops the launcher's children, trees included. Timeout path only (~0.6 s).
+function stopGitTree(r) {
+  if (process.platform !== 'win32' || !r || !Number.isInteger(r.pid)) return;
+  try { spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Get-CimInstance Win32_Process -Filter 'ParentProcessId=${r.pid}' | ForEach-Object { taskkill.exe /pid $_.ProcessId /t /f | Out-Null }`], { windowsHide: true, timeout: 15000 }); } catch { /* best effort */ }
+}
 ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return false;
@@ -894,22 +916,34 @@ ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   // .env-style file (listed file by file, fails closed — commit-guard.js) …
   const before = commitGuard.envHits(cwd);
   if (before.length) return { error: 'refused: .env in change set', envHits: before };
-  const a = spawnSync('git', ['-C', cwd, 'add', '-A'], { encoding: 'utf8' });
+  // maxBuffer (review 2026-10-07): spawnSync's 1 MiB default kills git on chatty output (one CRLF
+  // warning per file on `add -A`, a lint hook in `commit`) — and, like a timeout, only the launcher.
+  const a = spawnSync('git', ['-C', cwd, 'add', '-A'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true, timeout: COMMIT_GIT_MS.add });
+  if (gitTimedOut(a)) {   // stop the real git first, then put the index back (it may hold part of the tree), as the .env refusal does
+    stopGitTree(a);
+    const u = commitGuard.unstageAll(cwd);
+    return { error: 'git add timed out after 60 s — nothing committed' + (u.ok ? ', nothing left staged' : '; files may still be staged, run git reset in the project') };
+  }
   if (a.status !== 0) return { error: 'add failed' };
   // … and re-check what actually got staged (a file can appear between the check
   // and the add). On a hit — or when git can't list the index — put the whole
   // index back to HEAD and refuse: the refusal "stages nothing" (IPC-CONTRACT).
   // Not `reset -- <hits>`: those paths are root-relative, a reset pathspec is
   // cwd-relative, so a subfolder project kept its .env staged (commit-guard.js unstageAll).
-  const staged = spawnSync('git', ['-C', cwd, '-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z'], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+  // A timeout here is a git error (status null): the fail-closed refusal below.
+  const staged = spawnSync('git', ['-C', cwd, '-c', 'diff.relative=false', 'diff', '--cached', '--name-only', '-z'], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: COMMIT_GIT_MS.recheck });
+  if (gitTimedOut(staged)) stopGitTree(staged);
   const after = staged.status === 0 ? String(staged.stdout || '').split('\0').filter((p) => p && commitGuard.isEnvPath(p)) : [commitGuard.GIT_ERROR_HIT];
   if (after.length) {
     const u = commitGuard.unstageAll(cwd);
     if (!u.ok) console.error('[do-commit] unstage after refusal failed:', u.error || u.remaining.join(', '));
     return { error: 'refused: .env in change set' + (u.ok ? '' : ' — couldn’t unstage it, run git reset in the project'), envHits: after };
   }
-  const c = spawnSync('git', ['-C', cwd, 'commit', '-m', String(message || 'wip')], { encoding: 'utf8' });
-  if (c.status !== 0) return { error: (c.stderr || c.stdout || '').slice(0, 300) };
+  const c = spawnSync('git', ['-C', cwd, 'commit', '-m', String(message || 'wip')], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, windowsHide: true, timeout: COMMIT_GIT_MS.commit });
+  // Stopped mid-commit (hooks included). A stop that lands mid-write is undefined, so it says
+  // check before retrying — and no rescan.
+  if (gitTimedOut(c)) { stopGitTree(c); return { error: 'git commit timed out after 120 s and was stopped — check the project’s git status and log before retrying' }; }
+  if (c.status !== 0) return { error: (c.stderr || c.stdout || '').slice(0, 300).trim() || 'git commit failed' };   // never error:'' (v5 reads it as success)
   // MA: the post-commit rescan runs async — the commit returns immediately
   // instead of freezing main for a full collector pass; the window reloads
   // by itself once fresh data is bundled.
@@ -1525,9 +1559,12 @@ ipcMain.handle('hq:kill-servers', () => {
 // Single-instance lock: a second launch (e.g. autostart + manual) just focuses the
 // running window instead of opening a duplicate tray / racing the pipeline writers.
 if (!app.requestSingleInstanceLock()) {
+  appLog.secondary(); appLog.event('second-launch-exit', { argv: process.argv });   // this process loses the lock; the running app logs 'second-instance'
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  appLog.start({ version: app.getVersion(), electron: process.versions.electron, renderer: uiVersion(), argv: process.argv });   // + prev: what the last run wrote last
+  app.on('second-instance', (_e, argv) => {
+    appLog.event('second-instance', { argv });
     if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
     else createWindow(true);
   });
@@ -1546,6 +1583,7 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   app.whenReady().then(() => {
+    appLog.watchPower(powerMonitor); appLog.heartbeat();   // suspend / resume / shutdown + a 15-min 'alive' line (app-log.js)
     // Persist as the main dashboard: launch at login, hidden to tray.
     if (app.isPackaged) {
       app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
@@ -1572,6 +1610,7 @@ if (!app.requestSingleInstanceLock()) {
     // dev/test hook: `electron . --summon="timer 5"` materializes a shard on launch
     const sArg = process.argv.find((a) => a.startsWith('--summon='));
     if (sArg) setTimeout(() => summonWidget(sArg.slice(9).replace(/^["']|["']$/g, '')), 1200);
+    if (process.argv.includes('--summon-open')) setTimeout(openSummon, 1200);   // dev/test hook: opens the summon palette (gates)
     // Quick-cast palette: the spellbook must be reachable faster than a terminal.
     const CAST_HOTKEY = 'CommandOrControl+Alt+X';
     try { globalShortcut.register(CAST_HOTKEY, openCastPalette); } catch (e) { console.error('cast hotkey failed:', e); }

@@ -30,6 +30,10 @@
   .ft { margin-top:auto; padding:8px 14px; border-top:1px solid var(--frame); font-size:11px; color:var(--faint);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ft .ai { color:var(--purple); }
+  /* v5: the footer is also the palette's answer line (summon.js): #msg stays rendered
+     (an empty live region) and the hint steps aside while it speaks */
+  .ft .msg { color:var(--text); }
+  .ft [hidden] { display:none; }
   [data-hq-reduce] * { animation:none !important; transition:none !important; }
 </style>
 </head>
@@ -40,7 +44,10 @@
       <label class="field"><span class="p" aria-hidden="true">›</span><input id="in" autofocus spellcheck="false" autocomplete="off" aria-label="Summon a widget" placeholder="note … · timer 25 · quest · hp · lib" /></label>
     </div>
     <!-- v5: free text spends Claude quota; say so before Enter (design: purple = ai only) -->
-    <div class="ft">anything new → <span class="ai">✦ claude writes it</span> · uses quota · esc close</div>
+    <!-- v5: when a built-in has nothing to show ('quest' with no open quest, 'quest'/'hp'
+         before a scan) main answers instead of spawning: #msg replaces the hint and the
+         palette stays open (IPC-CONTRACT hq:shard-summon, summon.js) -->
+    <div class="ft"><span id="hint">anything new → <span class="ai">✦ claude writes it</span> · uses quota · esc close</span><span id="msg" class="msg" role="status" aria-live="polite"></span></div>
   </div>
   <!-- v5: the inline script moved here (script-src 'self') -->
   <script src="./summon.js"></script>

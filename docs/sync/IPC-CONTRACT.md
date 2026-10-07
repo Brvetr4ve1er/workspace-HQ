@@ -63,7 +63,7 @@ grep the channel name).
 | `getSpellTelemetry()` | `hq:spell-telemetry` | — | telemetry object | main |
 | `hideCastPalette()` | `hq:cast-palette-hide` | — | `true` (closes window) | cast palette |
 | **Organic UI (shards)** | | | | |
-| `shardSummon(text)` | `hq:shard-summon` | summon prompt | — | summon palette |
+| `shardSummon(text)` | `hq:shard-summon` | summon prompt | shard id `string` (spawned) \| `{ok:false, reason, message}` (nothing to show — palette stays open) \| `false` (empty text). Since 2026-10-07, see the MAIN package section | summon palette |
 | `shardSummonCancel()` | `hq:shard-summon-cancel` | — | `true` (closes window) | summon palette |
 | `shardClose()` | `hq:shard-close` | — (sender-scoped) | `true` | shard |
 | `shardSave(patch)` | `hq:shard-save` | patch object (sender-scoped) | — | shard |
@@ -264,6 +264,62 @@ is 404, a missing id or bad JSON 400, an oversized body 413, a missing/invalid t
 The canceled entry gains an optional `canceled_at` (ISO). `canceled` is terminal: `GET /social/outbox` stops listing
 it and `/result` ignores it. Cancelling never publishes (CONTRACT.md write-gate
 amendment lands with it).
+
+## 2026-10-07 — post-go-live fixes (rows announced before the handlers land)
+
+Additive only, as above. Three packages land together; each block names its owner.
+
+### MAIN package (`dashboard/main.js`, `dashboard/app-log.js`, `dashboard/organic/summon.*`)
+
+| `window.hq` method | Channel | Args | Returns | Owner file · surface |
+|---|---|---|---|---|
+| `shardSummon(text)` | `hq:shard-summon` | summon text | **Main answers before it closes anything.** A shard id `string` = spawned; main then closes the palette (the new shard's focus has usually blurred it shut already). `{ok:false, reason:'no-quest'\|'no-scan'\|'error', message}` = nothing spawned: the palette stays open and shows `message` in its footer until the text changes — `'quest'` with no open quest → `'No open quest right now'`; `'quest'`/`'hp'` before any scan → `'No scan data yet — run a scan first'`; a main-side throw → `'Couldn’t open that widget'`. `false` = empty text (unchanged). The failure object is truthy: callers test `typeof r === 'string'` | `main.js` summonWidget · `organic/summon.js` |
+
+**Additive values on existing channels**
+
+| Channel | Addition |
+|---|---|
+| `hq:do-commit` | Every git call now has a deadline and fails closed, like `commit-guard.js`: `git add -A` 60 s, the post-add `git diff --cached` recheck 15 s, `git commit` 120 s (commit hooks run inside it). On Git for Windows, `git` on PATH is a launcher (`cmd\git.exe`) and spawnSync's timeout kills only the launcher; the real git and its hooks kept going and a timed-out commit landed afterwards (2026-10-07 gate). So on a timeout main also stops the launcher's child processes (trees included) before it answers, and a timed-out add/commit does not complete later. New `{error}` strings: `'git add timed out after 60 s — nothing committed, nothing left staged'` or `'git add timed out after 60 s — nothing committed; files may still be staged, run git reset in the project'` (after stopping git, main puts the index back to HEAD with `commitGuard.unstageAll`, as the .env refusal does, and says whether that worked); `'git commit timed out after 120 s and was stopped — check the project’s git status and log before retrying'` (a stop that lands mid-write is undefined, so no rescan runs and the files stay staged). A recheck timeout is a git error, so it takes the existing fail-closed refusal (`envHits:['<git error>']`). A failed commit with no git output now returns `'git commit failed'`; before this it returned `error:''`, which the v5 commit sheet read as success |
+
+**Main-internal (not IPC)**
+
+| What | Shape |
+|---|---|
+| Lifecycle log `dashboard/app-log.js` (init hooks in `main.js`) | One JSON line per event in `logs/app-YYYY-MM-DD.log` (LOCAL date; `logs/` is gitignored): `{ts (local ISO + offset), event, pid, …}`. Events: `start` {version, electron, renderer, flags, prev} · `second-instance` {flags} · `second-launch-exit` {flags} · `render-process-gone` {window, reason, exitCode} · `child-process-gone` {type, reason, exitCode, name} · `unresponsive` / `responsive` {window} · `session-end` {window} · `suspend` / `resume` / `shutdown` · `uncaughtException` / `unhandledRejection` {error:{name, code?, message, stack}} · `alive` every 15 min {uptimeMin, rssMb, heapMb} · `before-quit` / `will-quit` {reason} · `quit` {exitCode, reason} · `exit` {code} (only when no `quit` line) · `log-capped` {maxBytes}. `reason` = `'tray'` \| `'session-end'` \| `'shutdown'` \| `'second-launch'` \| `'unknown'` (never guessed). Lines from a process that lost the single-instance lock carry `secondary:true`. `prev` = the previous primary run's last line `{pid, event, ts, clean}` (`clean` = it ended on `quit`/`exit`) or `null`. A hard kill (`Stop-Process`, `tools\rollback.ps1`, a native crash, power loss) writes nothing; the last `alive` brackets it. Privacy: `flags` = argv flag NAMES only; `window` = the page file (`dashboard-v5/index.html`, `organic/summon.html`), never a title; error text keeps repo paths as `<app>\…`, every other path → `<path>`; **review:** any other URL → `<url>`, an e-mail address → `<email>`, every double-quoted span → `"…"` (V8 quotes the JSON it failed to parse) and a single-quoted span over 40 chars → `'…'`. Day files older than 30 days are pruned at start (only `app-YYYY-MM-DD.log`); 5 MiB/day cap. Electron 32 emits `session-end` per window (win32) and has no `query-session-end`; `powerMonitor` `shutdown` fires on linux/darwin only. **Env `HQ_APP_LOG_DIR`** (absolute path, read at launch) moves the log; gates set it so the owner's log stays clean |
+| Dev args | `--summon-open` opens the summon palette ~1.2 s after ready (for gates), next to the existing `--summon="<text>"` |
+| Shards | the conjure prompt (`generateInto`) now asks for the page's tokens (`var(--card)` / `--frame` / `--text` / `--muted` / `--gold` / `--purple`, font `var(--term)`) instead of the old neon hex palette. Creations already in `data/shard-library.json` keep their old HTML until regenerated (↻) |
+
+### STUDIO and SOCIAL packages (rows written from the code in the working tree on 2026-10-07; checked against the handlers, preload and fake-preload by the 2026-10-07 review, which also landed the fixes marked "review")
+
+| `window.hq` method | Channel | Args | Returns | Owner file · surface |
+|---|---|---|---|---|
+| `studio.libraryOpen(path)` | `hq:studio:library-open` | absolute path | `true` (opened with the OS default app) \| `false` (refused) \| `{error}` (`shell.openPath` failed). Stricter than `libraryReveal`, because opening RUNS the file's handler: only a capture itself is opened, meaning a `.png` directly in `screenshots/` or a `.webm` (`.recovered.webm` included) directly in `recordings/`. It must be a regular file whose real path (links and junctions followed) stays inside the real library root. Never a dot-file, `.thumbs/`, `.meta/`, a name with `:` (NTFS stream), or a `\\?\` / `\\.\` path. **Review:** every name rule is checked again on the real path (8.3 aliases expanded — `PAYLOA~1.PNG` for `payload.pngexe` or `SECRET~1.PNG` for `.secret.png` is refused), and the real path is what `shell.openPath` receives. Other spellings (another case, URL-encoding, `file:` URLs) are refused, never reinterpreted | `screen-capture.js` openableCapture · STUDIO realm |
+
+| Channel | Addition |
+|---|---|
+| `hq:studio:library-list` | entries gain `durationMs`: a number for a recording that has a length sidecar `recordings/.meta/<base>.json` `{durationMs, startedAt, bytes}`. The sidecar is written only on a clean, gap-free save, after the rename and before `studio:capture-added`, so the list re-read on that push already has it. `durationMs` is main's recorded time (pauses excluded), not the WebM's own duration. `durationMs` is `null` for shots, older recordings, `.recovered.webm`, recordings with gaps, and a sidecar whose `bytes` no longer match the file. **Review:** "clean" also means the FIRST stop was the panel's own `hq:studio:rec-stop` (a hard stop after `HARD_STOP_MS`, a vanished panel or a write error may have lost a tail, so no sidecar) and the recording never hit backpressure (the panel paused its MediaRecorder for the disk while main's clock ran); and the sidecar is written only when `recordings/.meta` really resolves inside the library root (a junction elsewhere gets nothing) |
+| `hq:studio:library-delete` | also moves a recording's `.meta` length sidecar to the Recycle Bin (best effort, and only when `.meta` really resolves inside the library root), so a stale length never describes another file |
+
+**HTTP (`dashboard/social-bridge.js`, extension token required → else 403; full status semantics in
+CONTRACT.md's 2026-10-07 claim amendment):**
+- `POST /social/outbox/claim` `{id, content_hash?}` (`content_hash` = sha256 hex of the payload the
+  human saw). This is Approve & Send step 1, before any adapter runs. It atomically flips ONE `staged`
+  action to `sending`, stamps `claimed_at`, and answers `200 {ok, id, status:'sending', claimed_at, action}`
+  (the app's copy is the only one the extension may publish). Error answers: 409
+  `{ok:false, error:'not staged'|'content changed', id, status}` with the file untouched, 404
+  unknown id, 400 missing id / bad JSON / bad `content_hash`, 413 oversized body. A claim publishes
+  nothing. `/result` now settles `sending` → `sent`|`failed` (keeping `claimed_at`), or `staged`,
+  from an unreloaded 0.2.0 extension (which publishes without claiming — the relay can only record
+  it) or a late report on a released claim.
+- `POST /social/outbox/cancel` (amended): a `sending` entry → 409
+  `{ok:false, error:'already publishing', id, status:'sending'}`, file untouched — the approved
+  send already won, a Skip can't race it. Claim, cancel, result and release each read, check and
+  write synchronously inside one request callback, so racing requests serialize in the relay. The
+  MCP server writes the same file from another process (CONTRACT.md 2026-10-07 claim amendment).
+- `POST /social/outbox/release` `{id}` is the owner's escape hatch, run by hand only: a `sending` claim with
+  no result for 10 min goes back to `staged` (`claimed_at` removed, `released_at` stamped). It answers
+  `200 {ok, id, status:'staged', released_at}`, or 409 `'not sending'` / `'claim still fresh'` (with
+  `release_after`). A human must Approve & Send again; nothing calls it on a timer.
 
 ## Rules
 
