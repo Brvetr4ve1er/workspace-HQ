@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const sc = require('./screen-capture.js');
@@ -89,11 +90,19 @@ test('envRootFrom: absolute paths only', () => {
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-screen-capture-test-'));
 test.after(() => { delete process.env.HQ_STUDIO_ROOT; fs.rmSync(TMP, { recursive: true, force: true }); });
 
-function harness({ getProjects, launchClaude, hardStopMs = 120, renameRetryMs } = {}) {
+function harness({ getProjects, launchClaude, hardStopMs = 120, renameRetryMs, openPath, before } = {}) {
   const base = fs.mkdtempSync(path.join(TMP, 'h-'));
   const root = path.join(base, 'library');
   const videos = path.join(base, 'videos');
   process.env.HQ_STUDIO_ROOT = root;
+  if (typeof before === 'function') before({ base, root });   // e.g. lay out the tree before init()
+  // the shell is recorded, never real: nothing is revealed, trashed or opened on the desktop
+  const opened = [], trashed = [];
+  const shell = {
+    showItemInFolder() {},
+    trashItem: async (p) => { trashed.push(p); },
+    openPath: async (p) => { opened.push(p); return typeof openPath === 'function' ? openPath(p) : ''; },
+  };
 
   const handlers = new Map();
   const listeners = new Map();
@@ -153,12 +162,12 @@ function harness({ getProjects, launchClaude, hardStopMs = 120, renameRetryMs } 
   const mainWin = new FakeWin({ title: 'main' });   // receives broadcasts, like the real main window
   sc.init({
     ipcMain, app, BrowserWindow: FakeWin, screen, desktopCapturer,
-    clipboard, nativeImage, shell: { showItemInFolder() {}, trashItem: async () => {} },
+    clipboard, nativeImage, shell,
     getProjects, launchClaude, hardStopMs, renameRetryMs,
   });
 
   const h = {
-    root, videos, windows, mainWin, clipboard,
+    base, root, videos, windows, mainWin, clipboard, opened, trashed,
     invoke: (ch, arg, sender = null) => handlers.get(ch)({ sender }, arg),
     emit: (ch, arg, sender = null) => listeners.get(ch)({ sender }, arg),
     broadcasts: (ch) => mainWin.sent.filter(([c]) => c === ch).map(([, p]) => p),
@@ -566,4 +575,334 @@ test('panel-mode sizes the transparent panel (setup 340×180 ↔ live 230×44) a
   assert.equal(await h.invoke(CH.PANEL_MODE, { mode: 'giant' }), false);
   assert.equal(await h.invoke(CH.PANEL_MODE, null), false);
   panel.close();
+});
+
+// ---------------------------------------------------------------- recording length sidecar (2026-10-07)
+
+const recsOf = (h) => path.join(h.root, 'recordings');
+const shotsOf = (h) => path.join(h.root, 'screenshots');
+const metaDirOf = (h) => path.join(recsOf(h), '.meta');
+const metaOf = (h, file) => path.join(metaDirOf(h), path.basename(file).replace(/\.webm$/i, '') + '.json');
+
+test('a clean stop writes recordings/.meta/<base>.json {durationMs, startedAt, bytes} BEFORE capture-added; library-list rows carry durationMs', async () => {
+  const h = harness();
+  const t0 = Date.now();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('ABC') });
+  await sleep(120);
+  // the renderer re-reads library-list on capture-added, so the sidecar must already be on disk then
+  const atBroadcast = [];
+  const send = h.mainWin.webContents.send;
+  h.mainWin.webContents.send = (ch, p) => { if (ch === CH.CAPTURE_ADDED) atBroadcast.push(fs.existsSync(metaOf(h, p.path))); send(ch, p); };
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.deepEqual(atBroadcast, [true], 'sidecar written before capture-added');
+  const metaPath = metaOf(h, res.path);
+  assert.ok(metaPath.startsWith(h.root + path.sep), 'the sidecar lives inside the library root');
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  assert.deepEqual(Object.keys(meta).sort(), ['bytes', 'durationMs', 'startedAt']);
+  assert.equal(meta.durationMs, Math.round(res.durationMs));
+  assert.ok(meta.durationMs >= 100, `durationMs ${meta.durationMs} counts the recorded time`);
+  assert.ok(meta.startedAt >= t0 && meta.startedAt <= Date.now(), 'startedAt is the start, epoch ms');
+  assert.equal(meta.bytes, 3, 'tied to the saved file size');
+  const rows = await h.invoke(CH.LIB_LIST, { kind: 'rec' });
+  assert.equal(rows.length, 1, 'the .meta folder is not a library row');
+  assert.equal(rows[0].path, res.path);
+  assert.equal(rows[0].durationMs, meta.durationMs);
+  assert.ok(!fs.readdirSync(metaDirOf(h)).some((n) => n.endsWith('.part')), 'no temp sidecar left');
+});
+
+test('library-list: shots, recovered recordings and recordings without a usable sidecar list durationMs null', async () => {
+  const h = harness();
+  const rd = recsOf(h), md = metaDirOf(h);
+  fs.mkdirSync(md, { recursive: true });
+  const put = (name, body, meta) => {
+    fs.writeFileSync(path.join(rd, name), body);
+    if (meta !== undefined) fs.writeFileSync(path.join(md, name.replace(/\.webm$/, '') + '.json'), typeof meta === 'string' ? meta : JSON.stringify(meta));
+  };
+  put('old.webm', 'xx');                                                         // recorded before sidecars
+  put('ok.webm', 'xxxx', { durationMs: 4200, startedAt: 1, bytes: 4 });
+  put('nobytes.webm', 'x', { durationMs: 1500, startedAt: 1 });                  // no bytes field: taken as is
+  put('changed.webm', 'xxxxx', { durationMs: 4200, startedAt: 1, bytes: 4 });    // the file changed since
+  put('corrupt.webm', 'x', '{nope');
+  put('string.webm', 'x', { durationMs: '3000', bytes: 1 });
+  put('negative.webm', 'x', { durationMs: -1, bytes: 1 });
+  put('absurd.webm', 'x', { durationMs: 1e12, bytes: 1 });
+  put('array.webm', 'x', '[3000]');
+  put('big.webm', 'x', JSON.stringify({ durationMs: 3000, bytes: 1, pad: 'p'.repeat(5000) }));
+  put('a.recovered.webm', 'x', { durationMs: 999, bytes: 1 });                  // recovered: never trusted
+  fs.writeFileSync(path.join(shotsOf(h), 's.png'), 'png');
+  const rows = await h.invoke(CH.LIB_LIST, { kind: 'all' });
+  assert.ok(rows.every((r) => 'durationMs' in r), 'every row carries the field');
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.name, r.durationMs])), {
+    'old.webm': null, 'ok.webm': 4200, 'nobytes.webm': 1500, 'changed.webm': null, 'corrupt.webm': null,
+    'string.webm': null, 'negative.webm': null, 'absurd.webm': null, 'array.webm': null, 'big.webm': null,
+    'a.recovered.webm': null, 's.png': null,
+  });
+});
+
+test('a save with missing chunks gets no sidecar: the recorded time is not that file’s length', async () => {
+  const h = harness();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  h.emit(CH.REC_CHUNK, { recId, seq: 2, buf: chunk('C') });   // 1 never arrives
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.equal(res.gaps, 1);
+  assert.ok(!fs.existsSync(metaOf(h, res.path)));
+  const [row] = await h.invoke(CH.LIB_LIST, { kind: 'rec' });
+  assert.equal(row.durationMs, null);
+});
+
+test('a failed save (rename keeps failing) writes no sidecar', async () => {
+  const h = harness({ renameRetryMs: [5] });
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  await withRenameFault(() => 'EBUSY', async () => {
+    const res = await h.invoke(CH.REC_STOP, { recId });
+    assert.equal(res.path, null);
+  });
+  const left = fs.existsSync(metaDirOf(h)) ? fs.readdirSync(metaDirOf(h)) : [];
+  assert.deepEqual(left, []);
+});
+
+// Review 2026-10-07: the recorded time is the file's length only when the panel itself stopped
+// (flushing its last chunk first) and the disk never made it pause. Otherwise: no sidecar.
+test('durations: a hard stop (silent panel) writes no sidecar — main counted time the file never got', async () => {
+  const h = harness({ hardStopMs: 80 });
+  const owner = h.fakeOwner();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, owner);
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  await h.invoke(CH.REC_TOGGLE, {});
+  assert.ok(await waitFor(() => h.broadcasts(CH.REC_STATUS).some((s) => s.state === 'stopped' && s.recId === recId), 2000));
+  const late = await h.invoke(CH.REC_STOP, { recId });   // the panel's recStop after the hard stop: same result, still no sidecar
+  assert.equal(late.gaps, 0, 'no hole in what arrived — gaps alone would have passed it');
+  assert.ok(!fs.existsSync(metaOf(h, late.path)));
+  const [row] = await h.invoke(CH.LIB_LIST, { kind: 'rec' });
+  assert.equal(row.durationMs, null);
+});
+
+test('durations: the panel vanishing mid-recording writes no sidecar (its last chunk never came)', async () => {
+  const h = harness();
+  const owner = h.fakeOwner();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, owner);
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  owner.destroyed = true;
+  owner.emit('destroyed');
+  assert.ok(await waitFor(() => h.broadcasts(CH.CAPTURE_ADDED).length === 1, 2000));
+  const p = h.broadcasts(CH.CAPTURE_ADDED)[0].path;
+  assert.ok(!fs.existsSync(metaOf(h, p)));
+});
+
+test('durations: a recording that hit backpressure writes no sidecar (the panel paused, main’s clock did not)', async () => {
+  const h = harness();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: Buffer.alloc(256 * 1024, 1) });   // over the stream's highWaterMark
+  assert.ok(h.broadcasts(CH.REC_STATUS).some((s) => s.state === 'backpressure' && s.recId === recId), 'backpressure was signalled');
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.equal(res.gaps, 0);
+  assert.ok(res.path && !fs.existsSync(metaOf(h, res.path)));
+});
+
+test('durations: a main-initiated stop the panel completes itself (hotkey → flush → recStop) still gets its sidecar', async () => {
+  const h = harness({ hardStopMs: 5000 });
+  const owner = h.fakeOwner();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, owner);
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  await h.invoke(CH.REC_TOGGLE, {});
+  h.emit(CH.REC_CHUNK, { recId, seq: 1, buf: chunk('B') });
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.equal(res.reason, 'hotkey');
+  const meta = JSON.parse(fs.readFileSync(metaOf(h, res.path), 'utf8'));
+  assert.equal(meta.durationMs, Math.round(res.durationMs));
+});
+
+test('sidecars stay inside the library: a .meta junction to elsewhere gets no write and no trash', { skip: process.platform !== 'win32' }, async (t) => {
+  let linked = false, why = '';
+  let elsewhere;
+  const h = harness({
+    before: ({ base, root }) => {
+      elsewhere = path.join(base, 'elsewhere-meta');
+      fs.mkdirSync(elsewhere, { recursive: true });
+      fs.mkdirSync(path.join(root, 'recordings'), { recursive: true });
+      try { fs.symlinkSync(elsewhere, path.join(root, 'recordings', '.meta'), 'junction'); linked = true; } catch (e) { why = e.code || e.message; }
+    },
+  });
+  if (!linked) { t.skip('junctions unavailable here: ' + why); return; }
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.ok(res.path && fs.existsSync(res.path), 'the recording itself is saved');
+  assert.deepEqual(fs.readdirSync(elsewhere), [], 'nothing was written through the junction');
+  // a sidecar that is already out there (planted) is never trashed through the junction either
+  fs.writeFileSync(path.join(elsewhere, path.basename(res.path).replace(/\.webm$/i, '') + '.json'), JSON.stringify({ durationMs: 1, bytes: 1 }));
+  assert.equal(await h.invoke(CH.LIB_DELETE, res.path), true);
+  assert.deepEqual(h.trashed, [res.path], 'only the recording went to the Recycle Bin');
+});
+
+test('deleting a recording also trashes its length sidecar (so a stale one never describes another file)', async () => {
+  const h = harness();
+  const { recId } = await h.invoke(CH.REC_START, { sourceId: 's' }, h.fakeOwner());
+  h.emit(CH.REC_CHUNK, { recId, seq: 0, buf: chunk('A') });
+  const res = await h.invoke(CH.REC_STOP, { recId });
+  assert.ok(fs.existsSync(metaOf(h, res.path)));
+  assert.equal(await h.invoke(CH.LIB_DELETE, res.path), true);
+  assert.deepEqual(h.trashed, [res.path, metaOf(h, res.path)]);
+});
+
+// ---------------------------------------------------------------- library-open (2026-10-07)
+
+test('library-open: the channel name', () => {
+  assert.equal(CH.LIB_OPEN, 'hq:studio:library-open');
+});
+
+// What shell.openPath receives is the capture's REAL path (8.3 aliases such as ROGSTR~1 in
+// %TEMP% expanded, links followed) — the exact name every rule was checked on (review 2026-10-07).
+const real = (p) => fs.realpathSync.native(p);
+
+test('library-open: a screenshot, a recording and a recovered recording reach shell.openPath (stubbed) as real paths', async () => {
+  const h = harness();
+  const shot = path.join(shotsOf(h), 'a.png'), rec = path.join(recsOf(h), 'b.webm'), recovered = path.join(recsOf(h), 'c.recovered.webm');
+  for (const f of [shot, rec, recovered]) fs.writeFileSync(f, 'x');
+  for (const f of [shot, rec, recovered]) assert.equal(await h.invoke(CH.LIB_OPEN, f), true, f);
+  assert.deepEqual(h.opened, [real(shot), real(rec), real(recovered)]);
+  // redundant segments that stay inside resolve to the same capture
+  const S = path.sep;
+  assert.equal(await h.invoke(CH.LIB_OPEN, recsOf(h) + S + 'sub' + S + '..' + S + '.' + S + 'b.webm'), true);
+  assert.equal(h.opened.at(-1), real(rec));
+  // forward / mixed separators are the same file, not a different rule
+  assert.equal(await h.invoke(CH.LIB_OPEN, shot.replace(/\\/g, '/')), true);
+  assert.equal(await h.invoke(CH.LIB_OPEN, rec.replace(/\\recordings\\/, '/recordings/')), true);
+  assert.deepEqual(h.opened.slice(-2), [real(shot), real(rec)]);
+});
+
+test('library-open: other spellings of a capture only ever over-refuse — case, URL-encoding, file: URLs', async () => {
+  const h = harness();
+  const shot = path.join(shotsOf(h), 'a.png');
+  fs.writeFileSync(shot, 'x');
+  const cases = [
+    [path.join(h.root, 'Screenshots', 'A.PNG'), 'another case of the kind folder'],
+    [shot.replace('a.png', 'a%2Epng'), 'a URL-encoded dot'],
+    [shot.replace(/\\screenshots\\/, '\\screenshots%5C'), 'a URL-encoded separator'],
+    ['file:///' + shot.replace(/\\/g, '/'), 'a file: URL'],
+    [encodeURI('file:///' + shot.replace(/\\/g, '/')), 'an encoded file: URL'],
+  ];
+  for (const [p, why] of cases) assert.equal(await h.invoke(CH.LIB_OPEN, p), false, why);
+  assert.deepEqual(h.opened, [], 'shell.openPath never ran');
+});
+
+// Windows answers an 8.3 alias as if it were the file, so the lexical name rules were checked on a
+// name that is not the file's: SECRET~1.PNG is really .secret.png (a dot-file), PAYLOA~1.PNG is
+// really payload.pngexe (not a .png). Review 2026-10-07 — both opened before the real-name check.
+function shortNames(dir) {
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    '(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:HQ_SN_DIR).Files | ForEach-Object { $_.Name + [char]9 + $_.ShortName }'],
+  { encoding: 'utf8', windowsHide: true, timeout: 20000, env: { ...process.env, HQ_SN_DIR: dir } });
+  return new Map(String(r.stdout || '').split(/\r?\n/).filter(Boolean).map((l) => l.split('\t')));
+}
+test('library-open: an 8.3 alias never smuggles a dot-file or a non-capture extension past the rules', { skip: process.platform !== 'win32' }, async (t) => {
+  const h = harness();
+  const shots = shotsOf(h), recs = recsOf(h);
+  for (const n of ['.secret.png', 'payload.pngexe', 'ok-long-capture-name.png']) fs.writeFileSync(path.join(shots, n), 'x');
+  fs.writeFileSync(path.join(recs, 'payload.webmexe'), 'x');
+  const sn = shortNames(shots);
+  const alias = (n) => sn.get(n);
+  if (!['.secret.png', 'payload.pngexe', 'ok-long-capture-name.png'].every((n) => /~/.test(alias(n) || ''))) { t.skip('8.3 names are off on this volume'); return; }
+  assert.match(alias('.secret.png'), /\.PNG$/i, 'the alias of a dot-file looks like a plain .png');
+  assert.match(alias('payload.pngexe'), /\.PNG$/i, 'the alias of payload.pngexe ends in .PNG');
+  assert.equal(await h.invoke(CH.LIB_OPEN, path.join(shots, alias('.secret.png'))), false, 'a dot-file behind its 8.3 alias');
+  assert.equal(await h.invoke(CH.LIB_OPEN, path.join(shots, alias('payload.pngexe'))), false, 'payload.pngexe behind PAYLOA~1.PNG');
+  assert.deepEqual(h.opened, [], 'shell.openPath never ran');
+  // control: a real capture reached through its alias opens — as its real (long) name
+  assert.equal(await h.invoke(CH.LIB_OPEN, path.join(shots, alias('ok-long-capture-name.png'))), true);
+  assert.deepEqual(h.opened, [real(path.join(shots, 'ok-long-capture-name.png'))]);
+  assert.equal(path.basename(h.opened[0]), 'ok-long-capture-name.png');
+});
+
+test('library-open: the OS failing to open is {error} with its message, never true', async () => {
+  const msg = 'No application is associated with the specified file for this operation.';
+  const h = harness({ openPath: () => msg });
+  const shot = path.join(shotsOf(h), 'a.png');
+  fs.writeFileSync(shot, 'x');
+  assert.deepEqual(await h.invoke(CH.LIB_OPEN, shot), { error: msg });
+  const h2 = harness({ openPath: () => { throw new Error('boom'); } });
+  const shot2 = path.join(shotsOf(h2), 'a.png');
+  fs.writeFileSync(shot2, 'x');
+  assert.deepEqual(await h2.invoke(CH.LIB_OPEN, shot2), { error: 'boom' });
+});
+
+test('library-open refuses everything that is not a capture file in the library (shell.openPath never runs)', async () => {
+  const h = harness();
+  const R = h.root, S = path.sep, recs = recsOf(h), shots = shotsOf(h);
+  // real files at every refused location, so no refusal is just "file not found"
+  const outside = path.join(h.base, 'outside.webm');
+  const sibling = path.join(R + '-evil', 'recordings', 'a.webm');
+  fs.mkdirSync(path.dirname(sibling), { recursive: true });
+  fs.mkdirSync(path.join(recs, 'sub'), { recursive: true });
+  fs.mkdirSync(path.join(recs, '.meta'), { recursive: true });
+  for (const f of [outside, sibling, path.join(recs, 'a.webm'), path.join(recs, 'evil.exe'), path.join(recs, 'evil.lnk'), path.join(recs, 'evil.bat'),
+    path.join(recs, 'evil.url'), path.join(shots, 'a.webm'), path.join(recs, 'a.png'), path.join(R, 'a.webm'), path.join(recs, 'sub', 'a.webm'),
+    path.join(recs, '.thumbs', 'a.thumb.jpg'), path.join(recs, '.meta', 'a.json'), path.join(recs, '.hidden.webm')]) fs.writeFileSync(f, 'x');
+  const inRoot = path.join(recs, 'a.webm');
+  const cases = [
+    [R + S + 'recordings' + S + '..' + S + '..' + S + 'outside.webm', '.. climbing out of the root'],
+    [outside, 'an absolute path outside the root'],
+    [sibling, 'a sibling folder sharing the root as a prefix'],
+    ['\\\\host\\share\\recordings\\a.webm', 'a UNC path'],
+    ['//host/share/recordings/a.webm', 'a UNC path with forward slashes'],
+    ['\\\\?\\' + inRoot, 'a \\\\?\\ namespace path to an in-root capture'],
+    ['\\\\.\\' + inRoot, 'a \\\\.\\ device path'],
+    ['recordings' + S + 'a.webm', 'a relative path'],
+    [path.join(recs, 'evil.exe'), 'an executable dropped into the library'],
+    [path.join(recs, 'evil.lnk'), 'a shortcut (.lnk)'],
+    [path.join(recs, 'evil.url'), 'an internet shortcut (.url)'],
+    [path.join(recs, 'evil.bat'), 'a batch file'],
+    [inRoot + ':evil.exe', 'an NTFS alternate data stream'],
+    [path.join(shots, 'a.png') + ':x.png', 'a stream that ends in a library extension'],
+    [inRoot + '.', 'a trailing dot (Windows would strip it)'],
+    [inRoot + ' ', 'a trailing space'],
+    [path.join(shots, 'a.webm'), 'a .webm in screenshots/'],
+    [path.join(recs, 'a.png'), 'a .png in recordings/'],
+    [path.join(R, 'a.webm'), 'a file directly in the root'],
+    [path.join(recs, 'sub', 'a.webm'), 'a file nested below recordings/'],
+    [path.join(recs, '.thumbs', 'a.thumb.jpg'), 'a thumbnail sidecar'],
+    [path.join(recs, '.meta', 'a.json'), 'a length sidecar'],
+    [path.join(recs, '.hidden.webm'), 'a dot-file'],
+    [path.join(recs, 'missing.webm'), 'a capture that is gone'],
+    [recs, 'a directory'],
+    [R, 'the root itself'],
+    [inRoot + '\0.exe', 'an embedded NUL'],
+    ['x'.repeat(5000), 'an absurdly long string'],
+    ['', 'empty'], [null, 'null'], [undefined, 'undefined'], [42, 'a number'], [{ path: inRoot }, 'an object'], [[inRoot], 'an array'],
+  ];
+  for (const [p, why] of cases) assert.equal(await h.invoke(CH.LIB_OPEN, p), false, why);
+  assert.deepEqual(h.opened, [], 'shell.openPath never ran');
+  assert.equal(await h.invoke(CH.LIB_OPEN, inRoot), true, 'control: the real capture opens');
+  assert.deepEqual(h.opened, [real(inRoot)]);
+});
+
+test('library-open follows links: a junction inside the library that points outside is refused', async (t) => {
+  let linked = false, why = '';
+  const h = harness({
+    before: ({ base, root }) => {
+      const elsewhere = path.join(base, 'elsewhere');
+      fs.mkdirSync(elsewhere, { recursive: true });
+      fs.writeFileSync(path.join(elsewhere, 'a.webm'), 'x');
+      fs.mkdirSync(root, { recursive: true });
+      try { fs.symlinkSync(elsewhere, path.join(root, 'recordings'), 'junction'); linked = true; } catch (e) { why = e.code || e.message; }
+    },
+  });
+  if (!linked) { t.skip('junctions unavailable here: ' + why); return; }
+  const p = path.join(recsOf(h), 'a.webm');
+  assert.ok(fs.existsSync(p), 'the junction shows the outside file inside the library');
+  assert.equal(await h.invoke(CH.LIB_OPEN, p), false);
+  assert.deepEqual(h.opened, []);
+});
+
+test('library-open refuses a symlinked file even when it sits in recordings/', async (t) => {
+  const h = harness();
+  const target = path.join(h.base, 'target.webm');
+  fs.writeFileSync(target, 'x');
+  const link = path.join(recsOf(h), 'link.webm');
+  try { fs.symlinkSync(target, link, 'file'); } catch (e) { t.skip('file symlinks need privileges here: ' + (e.code || e.message)); return; }
+  assert.equal(await h.invoke(CH.LIB_OPEN, link), false);
+  assert.deepEqual(h.opened, []);
 });

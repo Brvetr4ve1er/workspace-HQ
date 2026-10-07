@@ -392,3 +392,20 @@ test('captures keep recovered (boolean) and the snip/rec kind', () => {
   ], now);
   assert.deepEqual(c.map((x) => [x.id, x.kind, x.recovered]), [['r1', 'rec', true], ['r2', 'rec', false], ['s1', 'snip', false]]);
 });
+
+// 2026-10-07: library-list rows carry durationMs (main's recording-length sidecar)
+test('captures map a recording’s durationMs; anything else (a snip, absent, junk) is null — never a made-up length', () => {
+  const now = new Date(2026, 9, 3, 15), at = (h) => new Date(2026, 9, 3, h).getTime();
+  const c = captures([
+    { kind: 'rec', path: 'r1', name: 'a.webm', mtimeMs: at(12), durationMs: 3000 },
+    { kind: 'rec', path: 'r2', name: 'b.webm', mtimeMs: at(11), durationMs: 0 },
+    { kind: 'rec', path: 'r3', name: 'c.webm', mtimeMs: at(10), durationMs: null },
+    { kind: 'rec', path: 'r4', name: 'd.webm', mtimeMs: at(9) },                       // an older main: no field
+    { kind: 'rec', path: 'r5', name: 'e.webm', mtimeMs: at(8), durationMs: '3000' },
+    { kind: 'rec', path: 'r6', name: 'f.webm', mtimeMs: at(7), durationMs: -5 },
+    { kind: 'rec', path: 'r7', name: 'g.webm', mtimeMs: at(6), durationMs: NaN },
+    { kind: 'rec', path: 'r8', name: 'h.webm', mtimeMs: at(5), durationMs: Infinity },
+    { kind: 'shot', path: 's1', name: 'i.png', mtimeMs: at(4), durationMs: 5000 },
+  ], now);
+  assert.deepEqual(c.map((x) => [x.id, x.durationMs]), [['r1', 3000], ['r2', 0], ['r3', null], ['r4', null], ['r5', null], ['r6', null], ['r7', null], ['r8', null], ['s1', null]]);
+});

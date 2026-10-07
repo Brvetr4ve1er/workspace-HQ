@@ -133,7 +133,7 @@ function createFake(opts) {
     ['studio.recSources', () => []], ['studio.recStart', WRITE], ['studio.recChunk', SEND], ['studio.recStop', WRITE],
     ['studio.recAbort', SEND], ['studio.recToggle', WRITE], ['studio.recPause', SEND], ['studio.panelMode', WRITE],
     ['studio.onRecCommand', 'on:hq:studio:rec-command'],
-    ['studio.libraryList', () => []], ['studio.libraryReveal', WRITE], ['studio.libraryDelete', WRITE],
+    ['studio.libraryList', () => []], ['studio.libraryReveal', WRITE], ['studio.libraryDelete', WRITE], ['studio.libraryOpen', WRITE],
     ['studio.settingsGet', () => ({})], ['studio.settingsSet', WRITE],
     ['studio.recStatus', 'on:hq:studio:rec-status'], ['studio.onCaptureAdded', 'on:studio:capture-added'],
     ['studio.onSnipFrozen', 'on:hq:studio:snip-frozen'], ['studio.onOpenRealm', 'on:hq:studio:open-realm'],

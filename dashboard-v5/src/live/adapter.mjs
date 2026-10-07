@@ -372,7 +372,11 @@ export function captures(rows, now = new Date()) {
     const d = new Date(num(r.mtimeMs));
     const day = d.toDateString() === today ? 'Today' : d.toDateString() === y.toDateString() ? 'Yesterday' : fmtD(d);
     // recovered: a recording rebuilt from chunks after a crash (studio library-list)
-    return { id: String(r.path), path: String(r.path), kind: r.kind === 'rec' ? 'rec' : 'snip', recovered: r.recovered === true, name: String(r.name || ''), day, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), size: fmtBytes(r.size), thumb: typeof r.thumbDataUrl === 'string' && r.thumbDataUrl.startsWith('data:image/') ? r.thumbDataUrl : null, mtime: num(r.mtimeMs) };
+    // durationMs: a recording's length from main's sidecar (library-list, 2026-10-07); null when
+    // unknown — a snip, an older main, a recording without a sidecar, or anything not a finite ms count
+    const isRec = r.kind === 'rec';
+    const durationMs = isRec && typeof r.durationMs === 'number' && Number.isFinite(r.durationMs) && r.durationMs >= 0 ? r.durationMs : null;
+    return { id: String(r.path), path: String(r.path), kind: isRec ? 'rec' : 'snip', recovered: r.recovered === true, name: String(r.name || ''), day, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), size: fmtBytes(r.size), thumb: typeof r.thumbDataUrl === 'string' && r.thumbDataUrl.startsWith('data:image/') ? r.thumbDataUrl : null, mtime: num(r.mtimeMs), durationMs };
   }).sort((a, b) => b.mtime - a.mtime);
 }
 // Windows paths compare case-insensitively with either slash; trailing slash dropped

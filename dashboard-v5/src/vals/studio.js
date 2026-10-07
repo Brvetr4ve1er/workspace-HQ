@@ -3,8 +3,9 @@
 // Phase 3 P4: real media (v3 parity). Tiles: the sidecar thumbnail, else the snip
 // file itself, else a glyph (▶ for a recording). The hero and the lightbox show
 // the file (<img> / <video controls>) through model.fileUrl. A recording's length
-// shows once its video has reported one (logic/studio.js); recovered recordings
-// are badged.
+// comes from main's sidecar (capture durationMs) or, without one, once its video has
+// reported one (logic/studio.js) — the video's own length wins when both exist;
+// recovered recordings are badged. Open → studio.libraryOpen (logic/studio.js).
 import { fmtDur } from '../logic/studio.js';
 
 const RECOVERED = 'Restored from a recording that ended abnormally — the last few seconds may be missing';
@@ -20,7 +21,12 @@ export function studioVals(ctx) {
     const src = isRec ? pick([c.thumb]) : pick(big ? [file, c.thumb] : [c.thumb, file]);
     return { src, hasImg: !!src, noImg: !src, glyph: isRec ? '▶' : '▢', onErr: () => this.markCapBad(src) };
   };
-  const durOf = (c) => (c.kind === 'rec' ? fmtDur(this.capDur(c.path)) : '');
+  // m:ss, or '' while unknown: the video's reported length, else main's recorded length
+  const durOf = (c) => {
+    if (c.kind !== 'rec') return '';
+    const seen = this.capDur(c.path);
+    return fmtDur(seen || (typeof c.durationMs === 'number' ? c.durationMs / 1000 : 0));
+  };
   // ---- studio ----
   const caps = H.CAPTURES.filter((c) => S.studioFilter === 'all' || c.kind === S.studioFilter);
   const days = []; caps.slice(0, 120).forEach((c) => {
@@ -58,8 +64,8 @@ export function studioVals(ctx) {
       studio.panelToggle();
     },
     hasLightbox: !!lbC, lb, closeLightbox: () => this.setState({ lightbox: null }),
-    // there is no "open this capture in its own app" channel (hq.openFile only opens files inside project folders)
-    lbOpen: () => lbC && this.notWired('Opening a capture in its own app'), lbCopy: () => lbC && this.copy(lbC.path, 'Copied the file path'), lbReveal: () => lbC && this.revealCapture(lbC.path),
+    // studio.libraryOpen: main opens a capture file inside the library only (a main without it → "not wired")
+    lbOpen: () => lbC && this.openCapture(lbC.path, lbC.name), lbCopy: () => lbC && this.copy(lbC.path, 'Copied the file path'), lbReveal: () => lbC && this.revealCapture(lbC.path),
     lbDelete: () => lbC && !ro() && this.sheet({ act: 'delete', path: lbC.path, name: lbC.name, title: 'Delete ' + lbC.name + '?', body: 'It goes to the Recycle Bin.', ok: 'Delete', danger: true }),
   };
 }

@@ -58,7 +58,11 @@ function fakeHq(o = {}) {
   return {
     calls,
     canvasAdd: rec('canvasAdd', or('canvasAdd', true)),
-    studio: { libraryReveal: rec('libraryReveal', or('libraryReveal', true)), libraryDelete: rec('libraryDelete', true), panelToggle: rec('panelToggle', true), snipArm: rec('snipArm', true) },
+    studio: Object.assign(
+      { libraryReveal: rec('libraryReveal', or('libraryReveal', true)), libraryDelete: rec('libraryDelete', true), panelToggle: rec('panelToggle', true), snipArm: rec('snipArm', true) },
+      // libraryOpen: o.libraryOpen === undefined → a main that predates it (no method at all)
+      'libraryOpen' in o && o.libraryOpen !== undefined ? { libraryOpen: rec('libraryOpen', o.libraryOpen) } : {},
+    ),
   };
 }
 function make(hq, state, dataOpts) {
@@ -76,7 +80,7 @@ const settle = () => new Promise((r) => setImmediate(r));
 
 // captures in the shape live/adapter.mjs captures() produces (+ recovered, contract K-2)
 const THUMB = 'data:image/jpeg;base64,AAAA';
-const cap = (name, kind, o = {}) => ({ id: 'C:/captures/' + name, path: 'C:/captures/' + name, kind, name, day: 'Today', time: o.time || '09:00', size: '1.0 MB', thumb: o.thumb || null, mtime: o.mtime || 1, recovered: !!o.recovered });
+const cap = (name, kind, o = {}) => ({ id: 'C:/captures/' + name, path: 'C:/captures/' + name, kind, name, day: 'Today', time: o.time || '09:00', size: '1.0 MB', thumb: o.thumb || null, mtime: o.mtime || 1, recovered: !!o.recovered, durationMs: o.durationMs ?? null });
 const CAPS = () => [
   cap('snip 1.png', 'snip', { thumb: THUMB, mtime: 6, time: '09:50' }),
   cap('snip-2.png', 'snip', { mtime: 5, time: '09:40' }),
@@ -194,11 +198,66 @@ test('Show in folder goes through studio.libraryReveal; a refusal or a missing b
   assert.ok(hasToast(nb, 'error', 'Unavailable — the bridge is offline'), toasts(nb));
 });
 
-test('Open stays honestly not wired; Escape and the backdrop still close the lightbox', (t) => {
+// 2026-10-07: a recording's length from main's sidecar (library-list durationMs) shows at once
+test('a recording with a sidecar length shows it on the tile and in the lightbox at once; the video’s own length wins once reported', () => {
+  const path = 'C:/captures/rec-len.webm';
+  const c = studio(undefined, { lightbox: path });
+  c.store.live.captures = CAPS().concat([cap('rec-len.webm', 'rec', { durationMs: 83200, mtime: 1, time: '09:05' })]);
+  let v = c.renderVals();
+  assert.deepEqual([tile(v, 'rec-len.webm').dur, tile(v, 'rec-len.webm').hasDur], ['1:23', true], 'no loadedmetadata needed');
+  assert.equal(v.lb.meta, 'Today 09:05 · 1.0 MB · 1:23');
+  assert.deepEqual([tile(v, 'rec-1.webm').dur, tile(v, 'rec-1.webm').hasDur], ['', false], 'no sidecar: still unknown');
+  // the file itself reports a (finite) length: that is the file's truth
+  v.lb.onMeta({ target: { duration: 84.6 } });
+  v = c.renderVals();
+  assert.equal(tile(v, 'rec-len.webm').dur, '1:25');
+  // Infinity from the recorder WebM never replaces the sidecar
+  const d = studio(undefined, { lightbox: path });
+  d.store.live.captures = [cap('rec-len.webm', 'rec', { durationMs: 3000 })];
+  d.renderVals().lb.onMeta({ target: { duration: Infinity } });
+  assert.equal(tile(d.renderVals(), 'rec-len.webm').dur, '0:03');
+  // a zero / null sidecar is unknown, and a snip never has a length even if one is set
+  const z = studio();
+  z.store.live.captures = [cap('zero.webm', 'rec', { durationMs: 0 }), cap('none.webm', 'rec'), cap('s.png', 'snip', { durationMs: 5000 })];
+  v = z.renderVals();
+  for (const n of ['zero.webm', 'none.webm', 's.png']) assert.deepEqual([tile(v, n).dur, tile(v, n).hasDur], ['', false], n);
+});
+
+test('Open goes through studio.libraryOpen: true says it is opening; a refusal, an OS error and a throw are said, not swallowed', async (t) => {
   timers(t);
-  const c = studio(undefined, { lightbox: 'C:/captures/snip-2.png' });
+  const path = 'C:/captures/snip-2.png';
+  const ok = fakeHq({ libraryOpen: true }), c1 = studio(ok, { lightbox: path });
+  c1.renderVals().lbOpen(); await settle();
+  assert.deepEqual(ok.calls.filter((x) => x[0] === 'libraryOpen'), [['libraryOpen', path]]);
+  assert.ok(hasToast(c1, 'success', 'Opening snip-2.png in its default app'), toasts(c1));
+  assert.ok(!c1.state.toasts.some((x) => x.kind === 'error'), toasts(c1));
+  for (const [ret, text] of [
+    [false, 'Couldn’t open snip-2.png · it isn’t a capture in the library, or it was moved or deleted'],
+    [null, 'Couldn’t open snip-2.png · it isn’t a capture in the library, or it was moved or deleted'],
+    [{ error: 'No application is associated with the specified file' }, 'Couldn’t open snip-2.png · No application is associated with the specified file'],
+    [{ __throw: 'boom' }, 'Couldn’t open snip-2.png · boom'],
+    [{ __throw: "Error invoking remote method 'hq:studio:library-open': Error: No handler registered for 'hq:studio:library-open'" }, 'Couldn’t open snip-2.png · restart WorkspaceHQ first'],
+  ]) {
+    const hq = fakeHq({ libraryOpen: ret }), c = studio(hq, { lightbox: path });
+    c.renderVals().lbOpen(); await settle();
+    assert.equal(hq.calls.filter((x) => x[0] === 'libraryOpen').length, 1);
+    assert.ok(hasToast(c, 'error', text), JSON.stringify(ret) + '\n' + toasts(c));
+    assert.ok(!hasToast(c, 'success', 'Opening'), 'no success claim for ' + JSON.stringify(ret));
+  }
+  const nb = studio({}, { lightbox: path });   // a bridge without studio
+  nb.renderVals().lbOpen(); await settle();
+  assert.ok(hasToast(nb, 'error', 'Unavailable — the bridge is offline'), toasts(nb));
+  const none = studio(undefined, {});          // no lightbox open: nothing happens
+  none.renderVals().lbOpen(); await settle();
+  assert.equal(none.state.toasts.length, 0);
+});
+
+test('Open on a main that predates libraryOpen stays honestly not wired; Escape and the backdrop still close the lightbox', (t) => {
+  timers(t);
+  const hq = fakeHq();   // studio bridge without libraryOpen
+  const c = studio(hq, { lightbox: 'C:/captures/snip-2.png' });
   c.renderVals().lbOpen();
-  assert.ok(hasToast(c, 'info', 'isn’t wired'), toasts(c));
+  assert.ok(hasToast(c, 'info', 'Opening a capture in its own app isn’t wired'), toasts(c));
   c.renderVals().closeLightbox();
   assert.equal(c.state.lightbox, null);
   c.state.lightbox = 'C:/captures/snip-2.png';

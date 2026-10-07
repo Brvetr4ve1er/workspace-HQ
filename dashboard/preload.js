@@ -175,6 +175,8 @@ contextBridge.exposeInMainWorld('hq', {
     libraryList: (query) => ipcRenderer.invoke('hq:studio:library-list', query),
     libraryReveal: (p) => ipcRenderer.invoke('hq:studio:library-reveal', p),
     libraryDelete: (p) => ipcRenderer.invoke('hq:studio:library-delete', p),
+    // 2026-10-07: open a library capture in its default app (main: library files only)
+    libraryOpen: (p) => ipcRenderer.invoke('hq:studio:library-open', p),
     settingsGet: () => ipcRenderer.invoke('hq:studio:settings-get'),
     settingsSet: (patch) => ipcRenderer.invoke('hq:studio:settings-set', patch),
     // Every subscription helper returns an unsubscribe function — v3 realm
