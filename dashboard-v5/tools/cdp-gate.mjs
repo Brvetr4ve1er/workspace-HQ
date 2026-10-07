@@ -485,6 +485,11 @@ const SCENARIOS = {
       // one answer at a time: a third question now is refused, not sent
       await t.evaluate(`WHQ.app.logic.submitAsk('Placeholder question while busy')`);
       if (await t.evaluate(`hqFake.calls('llm.chat').length`) !== 2) out.push('a question asked while one streams was sent anyway');
+      // Since 8be7801 a click within STOP_GRACE_MS (500 ms) of sending is the same press that sent
+      // it and is ignored (logic/ask.js askButton; ask.test.mjs covers the grace itself). The fake's
+      // whole stream is ~300 ms, so step past the grace the way ask.test.mjs ticks its clock —
+      // without this the click was swallowed and the scenario failed from 8be7801 on (review 2026-10-07).
+      await t.evaluate(`(() => { WHQ.app.logic._askSentAt = Date.now() - 10000; return true; })()`);
       await t.evaluate(`${btn('Stop')}.click()`);
       if (!await t.waitFor(`${hist}[1].a.status === 'cancelled'`, 3000)) return out.concat(['Stop did not settle the answer as cancelled']);
       await t.sleep(150);
