@@ -12,6 +12,36 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-10 · FROM frontend (COLLECT realm — media collector) · fe/collect-realm
+DONE: COLLECT — a 16th v3 realm (rail order 16, after STUDIO; keys 1-9
+  unchanged; nightfall label THE RELIQUARY). Paste a link, see the media a
+  direct link or public page really exposes, save the source file.
+  dashboard/media-collector/ (new): engine + init(); main.js gets ONE hook
+    line after session-api's. Stores in <userData>/media-collector/, NOT
+    data/ — no CONTRACT.md shape change. Network guard: http(s) only,
+    private/loopback/metadata ranges refused, DNS pinned, redirects
+    re-validated. No platform scraping: Tumblr/Reddit authorization-
+    required boundaries, Instagram/Facebook unavailable.
+  dashboard/preload.js: additive `hq.media` block. IPC-CONTRACT: hq:media:*
+    invoke rows + hq:media:queue / hq:media:job push rows.
+  dashboard-v3/src/realms/collector/: tab host (Inbox · Queue · Library ·
+    Sources · Settings) + realm-local html`` escaping helper (audit R1),
+    .mc-scoped CSS on shared tokens only (rides all 7 themes), 16 sprite
+    symbols (realm-collector + mc-*), app-lifetime badge subscriber.
+  Verified: 55/55 media tests (npm run test:media); v3 selftest 112 combos
+    0 errors (was 105); live e2e harness (real preload + init + local
+    server): scan → 7 candidates, previews, 6 downloads verified, conflict
+    dialog → "cover (2).png", library SHA-256s, 5 themes visually checked.
+IN-FLIGHT: none.
+ASKS: none. Optional later: Tumblr/Reddit OAuth adapters (need API keys +
+  safeStorage), and the 16th sigil is reachable only via rail/palette.
+BREAKS: dashboard/package.json gains htmlparser2 — run `npm install` in
+  dashboard/ once. Skipping it does NOT break boot: init() fails closed
+  (registers only hq:media:info, the realm shows the npm install fix).
+  No hotkeys, no contract shapes, no existing channels.
+
+---
+
 ## 2026-10-01 · FROM frontend (PC-BRAIN PHASE 2 — ORACLE realm) · main @ 56489ae
 DONE: ORACLE — a 15th v3 realm (rail order 10.5, after ASSISTANT; keys 1-9
   unchanged) for chatting with the LOCAL model about the user's own data.
