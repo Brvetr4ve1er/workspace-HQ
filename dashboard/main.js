@@ -1063,6 +1063,7 @@ const sessionTails = require('./session-tails');
 claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessionTails.withTails(sessions)));
 ipcMain.handle('hq:sessions-list', () => sessionTails.withTails(claudeSessions.list()));
 require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
+require('./media-collector').init({ ipcMain, app, send: castSend, getWin: () => win });   // COLLECT realm: media collector IPC (IPC-CONTRACT.md hq:media:*)
 
 // ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
 // fs-watched so both the Warden and the Familiar (via the MCP server writing

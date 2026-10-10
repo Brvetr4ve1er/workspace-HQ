@@ -117,6 +117,27 @@ this row omits `baseline` entirely; treat a missing field as `{state:'none'}`.
 | `studio.libraryDelete(path)` | `hq:studio:library-delete` | absolute path | `true`/`false` — same containment check; `shell.trashItem` + best-effort thumb sidecar | STUDIO realm |
 | `studio.settingsGet()` | `hq:studio:settings-get` | — | `{rootOverride, defaultFps, hotkeysEnabled, defaultSourceId, defaultMic, defaultSysAudio, panelPosition}` (persisted at `userData/studio-settings.json`) | STUDIO realm / panel |
 | `studio.settingsSet(patch)` | `hq:studio:settings-set` | partial of the above (whitelisted keys only) | full settings after merge | STUDIO realm / panel |
+| **COLLECT — media collector (owns `dashboard/media-collector/`)** | | | | |
+| `media.info()` | `hq:media:info` | — | `{version, dataDir, userAgent}` | COLLECT realm |
+| `media.resolve(url)` | `hq:media:resolve` | URL string | ResolverResult `{pageUrl, source, capability{id,label,state,stateLabel,nextAction}, title, candidates[], warnings[], nextAction, scannedAt, error}` — never throws; a failure is a ResolverResult with `error` set. A new call aborts the previous scan | COLLECT realm |
+| `media.cancelResolve()` | `hq:media:resolve-cancel` | — | `true` | COLLECT realm |
+| `media.preview(url)` | `hq:media:preview` | URL string | `{dataUrl, mime, bytes}` \| `{error}` — main fetches ≤ 3 MB through the guarded net layer and returns verified raster bytes only (no SVG), so the renderer never loads a remote URL | COLLECT realm |
+| `media.sources()` | `hq:media:sources` | — | capability registry `[{id, label, state, auth, urlTypes, mediaTypes, pagination, rateLimits, limitations, nextAction, docs}]` | COLLECT realm |
+| `media.queueAdd(candidates)` | `hq:media:queue-add` | candidate[] (≤ 500; re-sanitized main-side) | `[job]` with `{refused:{code,message}}` entries for over-limit items | COLLECT realm |
+| `media.queueList()` | `hq:media:queue-list` | — | `[job]` `{id, status:'queued'\|'running'\|'paused'\|'conflict'\|'done'\|'failed'\|'cancelled'\|'skipped', name, finalPath, bytesDone, bytesTotal, speedBps, attempts, error, conflict, result{libraryId, sha256, bytes, path, duplicateOf}}` | COLLECT realm |
+| `media.queueCancel/Pause/Resume/Retry/Remove(id)` | `hq:media:queue-cancel` / `-pause` / `-resume` / `-retry` / `-remove` | job id | `true`/`false` | COLLECT realm |
+| `media.queueConflict(id, choice)` | `hq:media:queue-conflict` | job id, `'skip'\|'rename'\|'replace'` | `true`/`false` | COLLECT realm |
+| `media.queuePauseAll/ResumeAll/Clear()` | `hq:media:queue-pause-all` / `-resume-all` / `-clear` | — | `true` | COLLECT realm |
+| `media.libraryList(opts)` | `hq:media:library-list` | `{q, sort:'savedAt'\|'finalName'\|'bytes'\|'host'\|'kind', dir, kind}` | `[record]` — URLs are origin+path only (no query strings) | COLLECT realm |
+| `media.libraryUpdate(id, patch)` | `hq:media:library-update` | id, `{tags?, note?}` | record \| `null` | COLLECT realm |
+| `media.libraryRemove/Restore(id)` | `hq:media:library-remove` / `-restore` | record id | `true`/`false` (soft delete; the file stays on disk) | COLLECT realm |
+| `media.libraryClear()` | `hq:media:library-clear` | — | `true` (records only) | COLLECT realm |
+| `media.settingsGet()` / `settingsSet(patch)` | `hq:media:settings-get` / `-set` | — / partial settings | settings / `{value, errors}` — every key validated + clamped main-side; system directories refused as destination | COLLECT realm |
+| `media.chooseDestination()` | `hq:media:choose-destination` | — | path \| `null` \| `{error}` (native folder dialog) | COLLECT realm |
+| `media.openFile/showInFolder(id)` | `hq:media:open-file` / `-show-in-folder` | library record id OR finished job id — never a path | `true`/`false` | COLLECT realm |
+| `media.openDestination()` / `openDataDir()` | `hq:media:open-destination` / `-open-data-dir` | — | `true`/`false` | COLLECT realm |
+| `media.openExternal(url)` | `hq:media:open-external` | URL | `true`/`false` — http(s) only | COLLECT realm |
+| `media.clipboard()` | `hq:media:clipboard` | — | clipboard text (≤ 8 KB) | COLLECT realm |
 
 **Overlay-only channels (`ipcRenderer.send`, no invoke shape).** These flow between
 the snip overlay window and main; the STUDIO realm never uses them.
@@ -149,6 +170,8 @@ realm switches is the #1 porting hazard).
 | `llm.onDelta(cb)` | `hq:llm:delta` | `{jobId, text}` — the ACCUMULATED answer so far (not an increment), throttled ~25/s, so a realm that re-mounts mid-answer re-attaches cleanly. Untrusted model text — render via `mdLite()`/`textContent` only | an `llm.chat` job streams tokens |
 | `studio.recStatus(cb)` | `hq:studio:rec-status` | `{state:'recording'\|'backpressure'\|'drained'\|'stopped'\|'aborted'\|'auto-split'\|'stopped-lowdisk'\|'error', recId, elapsedMs?, bytes?, sourceLabel?, mic?, sysAudio?, lastPath?}` | 1 Hz push while any recording is live, plus one-shot state transitions |
 | `studio.onCaptureAdded(cb)` | `studio:capture-added` | `{kind:'shot'\|'rec', path, at, durationMs?, bytes?}` | atomic write of a shot or recording finishes; STUDIO realm prepends a tile without polling |
+| `media.onQueue(cb)` | `hq:media:queue` | full `[job]` list (shape as `media.queueList()`) | any job state change (add, start, finish, fail, pause, conflict, remove) |
+| `media.onJob(cb)` | `hq:media:job` | one `job` | progress tick for a running job (~every 150 ms) |
 | `studio.onSnipFrozen(cb)` | `hq:studio:snip-frozen` | `{displayId, pngDataUrl, bounds, scaleFactor, kind, displayIndex}` | overlay window is ready; main hands it the freeze so the paint is real pixels |
 | `studio.onOpenRealm(cb)` | `hq:studio:open-realm` | `{at}` | Ctrl+Alt+L pressed; renderer routes v3 to the STUDIO realm |
 

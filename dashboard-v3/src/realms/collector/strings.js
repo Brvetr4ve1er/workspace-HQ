@@ -1,0 +1,52 @@
+// COLLECT copy. WorkspaceHQ speaks English; keys keep the panes readable and
+// leave one place to localize later. T(key, {vars}) fills {placeholders}.
+const S = {
+  tab_inbox: 'Inbox', tab_queue: 'Queue', tab_library: 'Library', tab_sources: 'Sources', tab_settings: 'Settings',
+  lead: 'Paste a link. See what media is available. Save the source file.',
+  offline_h: 'COLLECT runs in the live app', offline_body: 'Downloads, previews and the library live in the main process. Open WorkspaceHQ (with data/.ui-version = v3) to use this realm; the dev harness has no bridge.',
+  inbox_placeholder: 'https://… a page, a post, or a direct image / video / audio link',
+  inbox_detect: 'Detect media', inbox_scanning: 'Scanning…', inbox_cancel: 'Cancel',
+  inbox_note: 'Direct media links and public pages work without an account. One page is scanned, nothing is crawled, scripts never run. What each platform allows is under Sources.',
+  inbox_results: 'Candidates', inbox_scanned_one: 'Only this page was scanned.',
+  inbox_select_visible: 'Select visible', inbox_clear_sel: 'Clear', inbox_add_selected: 'Add {n} to queue', inbox_add_one: 'Save this file',
+  inbox_selected: '{n} selected', inbox_view_grid: 'Grid', inbox_view_list: 'List',
+  f_all: 'All', f_image: 'Images', f_video: 'Video', f_audio: 'Audio',
+  inbox_preview: 'Preview', inbox_preview_loading: 'Loading preview…', inbox_open_page: 'Open source page', inbox_open_url: 'Open link',
+  inbox_empty: 'Nothing scanned yet. Paste a link above.', inbox_unprobed: 'not checked', inbox_dims_unknown: 'dimensions unknown', inbox_size_unknown: 'size unknown',
+  inbox_next: 'Next step', inbox_notes: 'Notes', inbox_recent: 'Recent links',
+  q_direct: 'direct file', q_page_largest: 'largest variant on page', q_page_variant: 'page variant', q_metadata: 'page metadata', q_thumbnail: 'thumbnail', q_unknown: 'quality unknown',
+  kind_image: 'image', kind_video: 'video', kind_audio: 'audio', kind_unknown: 'unknown',
+  queue_empty: 'The queue is empty. Add candidates from the Inbox.',
+  queue_pause: 'Pause', queue_resume: 'Resume', queue_cancel: 'Cancel', queue_retry: 'Retry', queue_remove: 'Remove', queue_clear_done: 'Clear finished',
+  queue_pause_all: 'Pause all', queue_resume_all: 'Resume all', queue_open_file: 'Open file', queue_show_folder: 'Show in folder', queue_decide: 'Decide',
+  st_queued: 'queued', st_running: 'downloading', st_paused: 'paused', st_conflict: 'needs a decision', st_done: 'saved', st_failed: 'failed', st_cancelled: 'cancelled', st_skipped: 'skipped',
+  conflict_h: 'A file with this name already exists', conflict_body: '{name} is already in the destination. What should happen?',
+  conflict_skip: 'Skip', conflict_rename: 'Save as a new name', conflict_replace: 'Replace the existing file',
+  queue_retrying: 'retrying in {s}s', queue_attempt: 'attempt {n}', queue_duplicate: 'Same bytes as an earlier file in the library.',
+  lib_search: 'Search by name, title, host…', lib_empty: 'No saved files yet.', lib_count: '{n} files · {bytes}',
+  lib_sort_date: 'Newest', lib_sort_name: 'Name', lib_sort_size: 'Size', lib_sort_host: 'Host',
+  lib_open: 'Open', lib_folder: 'Folder', lib_delete: 'Remove record', lib_undo: 'Undo', lib_deleted: 'Record removed (the file stays on disk).',
+  lib_note: 'Note', lib_tags: 'Tags (comma-separated)', lib_save: 'Save', lib_missing: 'The file is no longer on disk.',
+  src_intro: 'What each source really allows. Nothing here bypasses a login, a paywall, or a rate limit.',
+  src_urls: 'URL types', src_auth: 'Access', src_types: 'Media', src_pagination: 'Pagination', src_limits: 'Rate limits', src_limitations: 'Limitations', src_next: 'What works today', src_docs: 'Official documentation',
+  'state_supported': 'Supported', 'state_limited': 'Supported with limits', 'state_authorization-required': 'Authorization required', 'state_unavailable': 'Unavailable', 'state_unsupported': 'Unsupported',
+  scope_h: 'Out of scope by design',
+  scope_body: 'No login or paywall bypass, no CAPTCHA or bot-check evasion, no DRM removal, no cookie or session import, no credential collection, no proxy rotation or fingerprint spoofing, no profile crawling, no watermark removal, no automatic reposting.',
+  set_dest: 'Destination folder', set_choose: 'Choose folder…', set_dest_hint: 'Files are saved only here. Partial downloads live in a hidden .umc-partial folder inside it.',
+  set_downloads: 'Downloads', set_concurrency: 'Parallel downloads (1-4)', set_max_file: 'Max file size (MB)', set_template: 'Filename template',
+  set_template_hint: 'Tokens: {source} {host} {date} {time} {title} {id} {title-or-id} {index}. The extension always comes from the saved file type.',
+  set_overwrite: 'When a file name already exists', ow_ask: 'Ask me', ow_skip: 'Skip', ow_rename: 'Save with a new name', set_keep_partial: 'Keep partial files when cancelling',
+  set_scanning: 'Scanning', set_robots: 'Respect robots.txt for page scans', set_max_page: 'Max page size (MB)', set_max_candidates: 'Max candidates per page', set_probe_limit: 'Candidates checked per scan', set_auto_preview: 'Load image previews automatically (under {mb} MB)',
+  set_save: 'Save', set_saved: 'Settings saved',
+  set_privacy: 'Privacy', set_privacy_body: 'Everything stays on this computer. No analytics, no telemetry, no cloud. Stored per saved file: source page and link without query strings, local path, type, size, SHA-256, your tags and note. When an official-API source is connected later, its tokens go to the OS credential vault, never to disk, logs, or the page.',
+  set_data_dir: 'Data folder', set_open: 'Open', set_ua: 'Identifies itself to servers as', set_clear_lib: 'Delete library history', set_clear_lib_hint: 'Removes the records only; your files stay.', set_reset_ack: 'Show the permission notice again',
+  ack_h: 'Before you collect', ack_body: 'This realm saves media you own, created, or have permission to keep. Public visibility alone does not grant the right to republish or redistribute. It never defeats access controls.',
+  ack_check: 'I will only save media I own or am permitted to save.', ack_go: 'Continue',
+  plate_active: 'active', plate_saved: 'saved this session', plate_dest: 'destination',
+  toast_queued: '{n} added to the queue', toast_saved: 'Saved {name}', yes: 'Yes', no: 'No',
+};
+export const T = (k, vars) => {
+  let s = S[k] ?? k;
+  if (vars) for (const [n, v] of Object.entries(vars)) s = s.split(`{${n}}`).join(String(v));
+  return s;
+};

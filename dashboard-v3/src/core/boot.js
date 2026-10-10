@@ -44,6 +44,8 @@ import { manifest as socialM } from '../realms/social/manifest.js';
 import { view as socialV } from '../realms/social/view.js';
 import { manifest as studioM } from '../realms/studio/manifest.js';
 import { view as studioV } from '../realms/studio/view.js';
+import { manifest as collectorM } from '../realms/collector/manifest.js';
+import { view as collectorV } from '../realms/collector/view.js';
 import { initPalette } from './palette.js';
 import { initActions } from './actions.mjs';
 // v3 icon sprite — fetched once and injected into <body> so every rail button
@@ -75,6 +77,7 @@ register(chronicleM, chronicleV);
 register(conjureM, conjureV);
 register(socialM, socialV);
 register(studioM, studioV);
+register(collectorM, collectorV);   // COLLECT — media collector (order 16, after STUDIO)
 
 // Restore the scrubbed scan + active realm across win.reload() (main reloads
 // on scan/commit/etc.) so a data refresh doesn't snap the user home.

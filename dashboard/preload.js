@@ -26,6 +26,50 @@ contextBridge.exposeInMainWorld('hq', {
       return () => ipcRenderer.removeListener('hq:llm:delta', handler);
     },
   },
+  // COLLECT realm (media-collector/): paste a link, see what media is really
+  // available, save the source file. onQueue/onJob return unsubscribers.
+  media: {
+    info: () => ipcRenderer.invoke('hq:media:info'),
+    resolve: (url) => ipcRenderer.invoke('hq:media:resolve', String(url)),
+    cancelResolve: () => ipcRenderer.invoke('hq:media:resolve-cancel'),
+    preview: (url) => ipcRenderer.invoke('hq:media:preview', String(url)),
+    sources: () => ipcRenderer.invoke('hq:media:sources'),
+    queueAdd: (candidates) => ipcRenderer.invoke('hq:media:queue-add', candidates),
+    queueList: () => ipcRenderer.invoke('hq:media:queue-list'),
+    queueCancel: (id) => ipcRenderer.invoke('hq:media:queue-cancel', String(id)),
+    queuePause: (id) => ipcRenderer.invoke('hq:media:queue-pause', String(id)),
+    queueResume: (id) => ipcRenderer.invoke('hq:media:queue-resume', String(id)),
+    queueRetry: (id) => ipcRenderer.invoke('hq:media:queue-retry', String(id)),
+    queueRemove: (id) => ipcRenderer.invoke('hq:media:queue-remove', String(id)),
+    queueConflict: (id, choice) => ipcRenderer.invoke('hq:media:queue-conflict', String(id), String(choice)),
+    queuePauseAll: () => ipcRenderer.invoke('hq:media:queue-pause-all'),
+    queueResumeAll: () => ipcRenderer.invoke('hq:media:queue-resume-all'),
+    queueClear: () => ipcRenderer.invoke('hq:media:queue-clear'),
+    libraryList: (opts) => ipcRenderer.invoke('hq:media:library-list', opts || {}),
+    libraryUpdate: (id, patch) => ipcRenderer.invoke('hq:media:library-update', String(id), patch || {}),
+    libraryRemove: (id) => ipcRenderer.invoke('hq:media:library-remove', String(id)),
+    libraryRestore: (id) => ipcRenderer.invoke('hq:media:library-restore', String(id)),
+    libraryClear: () => ipcRenderer.invoke('hq:media:library-clear'),
+    settingsGet: () => ipcRenderer.invoke('hq:media:settings-get'),
+    settingsSet: (patch) => ipcRenderer.invoke('hq:media:settings-set', patch || {}),
+    chooseDestination: () => ipcRenderer.invoke('hq:media:choose-destination'),
+    openFile: (id) => ipcRenderer.invoke('hq:media:open-file', String(id)),
+    showInFolder: (id) => ipcRenderer.invoke('hq:media:show-in-folder', String(id)),
+    openDestination: () => ipcRenderer.invoke('hq:media:open-destination'),
+    openDataDir: () => ipcRenderer.invoke('hq:media:open-data-dir'),
+    openExternal: (url) => ipcRenderer.invoke('hq:media:open-external', String(url)),
+    clipboard: () => ipcRenderer.invoke('hq:media:clipboard'),
+    onQueue: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:media:queue', handler);
+      return () => ipcRenderer.removeListener('hq:media:queue', handler);
+    },
+    onJob: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:media:job', handler);
+      return () => ipcRenderer.removeListener('hq:media:job', handler);
+    },
+  },
   logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),

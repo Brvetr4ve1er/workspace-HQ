@@ -6,9 +6,13 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build-data": "node build-data.mjs"
+    "build-data": "node build-data.mjs",
+    "test:media": "node --test \"media-collector/test/*.test.js\""
   },
   "devDependencies": {
     "electron": "^32.0.0"
+  },
+  "dependencies": {
+    "htmlparser2": "^9.1.0"
   }
 }
