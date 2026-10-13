@@ -224,12 +224,13 @@ function api(db) {
       if (projectId) { w.push('c.project_id = ?'); a.push(projectId); }
       if (source) { w.push('c.source = ?'); a.push(source); }
       a.push(Math.max(1, Math.min(50, Number(limit) || 30)));
-      try {
-        return q(`SELECT m.id AS messageId, m.conversation_id AS conversationId, m.at, m.role, c.title, c.source, c.project_id AS projectId,
-          snippet(message_fts, 0, '${SNIP_START}', '${SNIP_END}', '…', 12) AS snippet, bm25(message_fts) AS rank
-          FROM message_fts JOIN message m ON m.rowid = message_fts.rowid JOIN conversation c ON c.id = m.conversation_id
-          WHERE ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(...a);
-      } catch { return []; }   // a malformed MATCH can never reach here via ftsQuery, but never throw on a query
+      // No try/catch on purpose: ftsQuery() only emits quoted prefix terms, so a malformed MATCH is unreachable, and
+      // anything that does throw here (locked db after busy_timeout, corrupt db, closed handle) must surface as an
+      // error rather than masquerade as "no matches" (empty states say why).
+      return q(`SELECT m.id AS messageId, m.conversation_id AS conversationId, m.at, m.role, c.title, c.source, c.project_id AS projectId,
+        snippet(message_fts, 0, '${SNIP_START}', '${SNIP_END}', '…', 12) AS snippet, bm25(message_fts) AS rank
+        FROM message_fts JOIN message m ON m.rowid = message_fts.rowid JOIN conversation c ON c.id = m.conversation_id
+        WHERE ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(...a);
     },
     getMeta: (key) => { const r = st.getMeta.get(key); return r ? r.value : null; },
     setMeta: (key, value) => st.setMeta.run(key, String(value)),
