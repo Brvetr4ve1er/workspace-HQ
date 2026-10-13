@@ -170,3 +170,9 @@ recorded after the fact. Same `X-HQ-Bridge` + optional `X-HQ-Token` gate (403), 
   `hq_social_status` counts `outbox.sending`.
 - The write-gate invariant is unchanged. Nothing reaches `sent` except a human-approved
   send, and claim and release never publish.
+
+### `data/claude/` — Claude Hub index (frontend lane, local only, gitignored)
+
+`data/claude/hub.sqlite` (+ `-wal`, `.lock`): SQLite schema v1 (`dashboard/claude-hub/store.mjs`).
+Written only by the Hub process; never read by `collector/` or committed. Shape changes bump
+`SCHEMA_VERSION`; an older app refuses a newer db instead of corrupting it.

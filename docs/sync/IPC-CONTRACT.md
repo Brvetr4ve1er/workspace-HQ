@@ -321,6 +321,24 @@ CONTRACT.md's 2026-10-07 claim amendment):**
   `200 {ok, id, status:'staged', released_at}`, or 409 `'not sending'` / `'claim still fresh'` (with
   `release_after`). A human must Approve & Send again; nothing calls it on a timer.
 
+## 2026-10-13 — Claude Hub, phase H1 (rows written before the handler lands)
+
+Additive only. Main-side code lives in a NEW file with one-line hooks in `main.js` (rule 2).
+
+### Claude Hub (spec 2026-10-13-claude-hub-design.md, phase H1)
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `claudeHub.health()` | `hq:claude-hub:health` (invoke) | `{state:'ready'\|'indexing'\|'no-node'\|'starting'\|'down', role?:'writer'\|'reader', node, backfill?:{done,total}, counts?:{projects,conversations,messages}, dbBytes?, error?/lastError?}` — never throws; `no-node` = system Node < 22.13 or missing |
+| `claudeHub.on(cb)` | push `hq:claude-hub:event` | `{event:'ready'\|'progress'\|'changed'\|'error'\|'health', data}`; `progress` = `{done,total}` (≤ 2/s), `changed` = `{ids:[conversationId]}`, `health` = `{state,node,error}` (the host itself settling in `no-node` or `down`; the Hub's own events are passed through unchanged) |
+
+Main side: `dashboard/claude-hub-host.js` spawns `dashboard/claude-hub/hub.mjs` on the system Node
+(`HQ_HUB_NODE` overrides the binary; `HQ_CLAUDE_DB` the db file; `HQ_CLAUDE_HOME` the `~/.claude`
+folder read). One writer per db (`<db>.lock`); a second app instance gets a read-only reader. A Hub that exits
+is restarted on a 1 s / 5 s / 30 s backoff, then the host settles in `down` (a Hub that stayed up 60 s starts the
+backoff over). Hub stderr and error text reach `logs/app-*.log` only through `appLog.error` (redacted: no paths,
+URLs, addresses or quoted fragments).
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

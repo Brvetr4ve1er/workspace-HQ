@@ -153,3 +153,17 @@ test('the real sheetOk, driven by the fake healthFix, takes the success path (re
   assert.deepEqual(fixed, ['issue-1'], 'an ok:true fix hides its System issue');
   assert.equal(self.state.sheet, null);
 });
+
+// Claude Hub (H1): health answers the Hub's shape (the host adds `node`), and the event push reaches subscribers
+test('claudeHub.health answers the canned Hub shape; claudeHub.on gets hq:claude-hub:event pushes until disposed', async () => {
+  const { hq, control } = createFake();
+  const h = await hq.claudeHub.health();
+  assert.deepEqual(h, { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576 });
+  const seen = [];
+  const off = hq.claudeHub.on((e) => seen.push(e));
+  assert.equal(control.emit('hq:claude-hub:event', { event: 'changed', data: { ids: ['code:sess-a1'] } }), 1);
+  off();
+  assert.equal(control.emit('hq:claude-hub:event', { event: 'ready', data: {} }), 0);
+  assert.deepEqual(seen, [{ event: 'changed', data: { ids: ['code:sess-a1'] } }]);
+  assert.deepEqual(control.calls('claudeHub.health').map((c) => c.method), ['claudeHub.health']);
+});

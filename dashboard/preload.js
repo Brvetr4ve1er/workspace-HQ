@@ -37,6 +37,14 @@ contextBridge.exposeInMainWorld('hq', {
       return () => ipcRenderer.removeListener('hq:ui-prefs', handler);
     },
   },
+  claudeHub: {
+    health: () => ipcRenderer.invoke('hq:claude-hub:health'),
+    on: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:claude-hub:event', handler);
+      return () => ipcRenderer.removeListener('hq:claude-hub:event', handler);
+    },
+  },
   liveState: () => ipcRenderer.invoke('hq:live-state'),
   onScanStatus: (callback) => {
     const handler = (_event, data) => callback(data);

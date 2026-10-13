@@ -44,6 +44,7 @@ const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes(
 let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null, canvasWatcher = null;
 let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
 let navBridge = null;   // v5 M4: nav-bridge init() result ({ openAt }) — tray Show / Open Automations
+let claudeHub = null;   // Claude Hub host (claude-hub-host.js), set in whenReady
 const activeDevServers = new Map();
 
 // Push the live browser tab (from the bridge extension) to any open windows so
@@ -1590,6 +1591,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     rebuildData();
     require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
+    claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog });   // Claude Hub (spec 2026-10-13): index of every Claude Code session
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();
@@ -1633,6 +1635,7 @@ if (!app.requestSingleInstanceLock()) {
     try { globalShortcut.unregisterAll(); } catch {}
     for (const w of [watcher, qbWatcher, dailyWatcher, canvasWatcher]) if (w) try { w.close(); } catch {}
     if (bridge) try { bridge.stop(); } catch {}
+    try { claudeHub && claudeHub.stop(); } catch {}   // the Hub releases its db lock on stdin close
     // no orphaned incantations: kill any live cast trees on the way out
     for (const [, entry] of castRegistry) {
       if (entry.timer) clearTimeout(entry.timer);

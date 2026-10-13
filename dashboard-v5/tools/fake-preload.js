@@ -108,6 +108,8 @@ function createFake(opts) {
     ['probeLlm', () => ({ available: true, runtime: 'fake', chatModel: 'fake-model' })],
     ['llm.warm', () => ({ status: 'warm', model: 'fake-model' })], ['llm.chat', chat], ['llm.cancel', cancelChat], ['llm.onDelta', 'on:hq:llm:delta'],
     ['uiPrefs.get', () => prefs], ['uiPrefs.set', setPrefs], ['uiPrefs.on', 'on:hq:ui-prefs'],
+    ['claudeHub.health', () => ({ state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576 })],
+    ['claudeHub.on', 'on:hq:claude-hub:event'],
     ['liveState', () => ({ dev: [], casts: [], scan: { state: 'idle' } })], ['onScanStatus', 'on:hq:scan-status'],
     ['openAt', WRITE], ['onNavigate', 'on:hq:navigate'],
     ['commitPreview', () => ({
