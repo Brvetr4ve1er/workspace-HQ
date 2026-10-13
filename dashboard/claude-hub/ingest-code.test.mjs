@@ -1,5 +1,5 @@
 // dashboard/claude-hub/ingest-code.test.mjs
-import { test, after } from 'node:test';
+import { test, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -195,4 +195,99 @@ test('watchRoot: one debounced callback per <folder>/<session>.jsonl; nested and
 test('watchRoot on a missing root does not throw; close() is safe to call twice', () => {
   const w = watchRoot(path.join(tmp(), 'nope'), () => {});
   w.close(); w.close();
+});
+
+// ---- fix round 1 (task review): masking behind the parser's cut, and listing errors that must not read as "empty" ----
+
+test('a private key longer than the parser cut is masked end to end (the cut drops the END marker)', async () => {
+  const dir = tmp(), root = path.join(dir, 'projects'), folder = path.join(root, 'C--placeholder-k');
+  fs.mkdirSync(folder, { recursive: true });
+  const f = path.join(folder, 'sess-k.jsonl');
+  const body = 'Zm9vYmFy'.repeat(10);   // an 80-char placeholder "key" line
+  const pem = '-----BEGIN ' + 'RSA PRIVATE KEY-----\n' + (body + '\n').repeat(40) + '-----END ' + 'RSA PRIVATE KEY-----';   // ~3.3 KB, over TOOL_RESULT_MAX
+  fs.writeFileSync(f, JSON.stringify({ type: 'user', uuid: 'k1', parentUuid: null, sessionId: 'sess-k', timestamp: '2026-10-01T10:00:00.000Z',
+    cwd: 'C:\placeholder\project-k', isSidechain: false, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: pem }] } }) + '\n');
+  const s = openStore(':memory:');
+  assert.equal((await ingestFile(s, root, f)).added, 1);
+  const [m] = s.getConversation({ id: 'code:sess-k' }).messages;
+  assert.equal(m.role, 'tool');
+  assert.ok(m.text.includes('••• secret (private-key)'), m.text.slice(0, 120));
+  assert.ok(!m.text.includes('Zm9vYmFy'), 'no key material in the stored text');
+  assert.equal(s.search({ q: body }).length, 0, 'no key material in the FTS index either');
+});
+
+const eperm = (code, message) => Object.assign(new Error(message), { code });
+// fs.promises.* is looked up at call time by ingest-code.mjs, so a test can fail one path deterministically
+// (chmod does not model EACCES on Windows).
+function failing(fn, pathEndsWith, err) {
+  const real = fs.promises[fn];
+  return mock.method(fs.promises, fn, async (p, ...rest) => {
+    if (String(p).endsWith(pathEndsWith)) throw err;
+    return real.call(fs.promises, p, ...rest);
+  });
+}
+
+test('listTranscripts reports unreadable folders and files, skips vanished ones quietly, and still lists the rest', async () => {
+  const { root } = makeClaudeHome(tmp());
+  const run = async () => { const errs = []; const files = await listTranscripts(root, { onError: (where, e, isRoot) => errs.push([where, e.code, isRoot]) }); return { errs, names: files.map((f) => path.basename(f.file)).sort() }; };
+  let m = failing('readdir', 'C--placeholder-project-b', eperm('EACCES', 'EACCES: permission denied'));
+  try {
+    const r = await run();
+    assert.deepEqual(r.errs, [['C--placeholder-project-b', 'EACCES', false]]);
+    assert.deepEqual(r.names, ['sess-a1.jsonl', 'sess-a2.jsonl']);
+  } finally { m.mock.restore(); }
+  m = failing('stat', 'sess-a2.jsonl', eperm('EPERM', 'EPERM: operation not permitted'));
+  try {
+    const r = await run();
+    assert.deepEqual(r.errs, [[path.join('C--placeholder-project-a', 'sess-a2.jsonl'), 'EPERM', false]]);
+    assert.deepEqual(r.names, ['sess-a1.jsonl', 'sess-b1.jsonl']);
+  } finally { m.mock.restore(); }
+  for (const [fn, tail] of [['readdir', 'C--placeholder-project-b'], ['stat', 'sess-a2.jsonl']]) {   // deleted between readdir and stat: not an error
+    m = failing(fn, tail, eperm('ENOENT', 'ENOENT: no such file or directory'));
+    try { assert.deepEqual((await run()).errs, [], fn); } finally { m.mock.restore(); }
+  }
+  assert.equal((await run()).names.length, 3, 'back to normal once the fault is gone');
+});
+
+test('a missing transcripts root is reported with a reason (not an empty "ready"); an empty root is not an error; the note clears when the root appears', async () => {
+  const dir = tmp(), root = path.join(dir, 'nope', 'projects');
+  const s = openStore(':memory:');
+  assert.deepEqual(await backfill(s, root), { done: 0, total: 0 });
+  assert.equal(s.getMeta('last_error'), 'no transcripts root at ' + root);
+  s.setMeta('last_error', '');
+  assert.deepEqual(await sweep(s, root), []);
+  assert.equal(s.getMeta('last_error'), 'no transcripts root at ' + root, 'sweep says it too');
+  fs.mkdirSync(root, { recursive: true });   // legitimately empty: Claude Code installed, nothing run yet
+  assert.deepEqual(await sweep(s, root), []);
+  assert.equal(s.getMeta('last_error'), '', 'the stale "no root" note is cleared');
+  s.setMeta('last_error', 'sess-x.jsonl: disk on fire');
+  await sweep(s, root);
+  assert.equal(s.getMeta('last_error'), 'sess-x.jsonl: disk on fire', 'only the "no root" note is ever cleared');
+});
+
+test('a transcripts root that cannot be read is recorded by backfill and sweep, with the root and the error', async () => {
+  const dir = tmp(), root = path.join(dir, 'projects');
+  fs.writeFileSync(root, 'not a folder');   // readdir on a file: ENOTDIR (or the platform's equivalent), not ENOENT
+  const s = openStore(':memory:');
+  assert.deepEqual(await backfill(s, root), { done: 0, total: 0 });
+  const err = s.getMeta('last_error') || '';
+  assert.ok(err.startsWith(root + ': '), err);
+  assert.ok(!err.startsWith('no transcripts root'), err);
+  s.setMeta('last_error', '');
+  await sweep(s, root);
+  assert.ok((s.getMeta('last_error') || '').startsWith(root + ': '));
+});
+
+test('an unreadable folder is recorded by backfill and sweep; the other folders still ingest', async () => {
+  const { root } = makeClaudeHome(tmp());
+  const s = openStore(':memory:');
+  const m = failing('readdir', 'C--placeholder-project-b', eperm('EACCES', 'EACCES: permission denied'));
+  try {
+    assert.deepEqual(await backfill(s, root), { done: 2, total: 2 });
+    assert.match(s.getMeta('last_error') || '', /^C--placeholder-project-b: EACCES: permission denied/);
+    assert.equal(s.counts().conversations, 2);
+    s.setMeta('last_error', '');
+    await sweep(s, root);
+    assert.match(s.getMeta('last_error') || '', /^C--placeholder-project-b: EACCES/);
+  } finally { m.mock.restore(); }
 });

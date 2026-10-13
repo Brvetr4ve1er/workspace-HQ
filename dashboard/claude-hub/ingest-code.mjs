@@ -110,17 +110,27 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
   return { added, bad, skippedLong, reset };
 }
 
-export async function listTranscripts(root) {
+// Listing failures are never turned into an empty result silently: onError(where, error, isRoot) hears every one of
+// them. Only ENOENT on a folder or file below the root is quiet (it was deleted between readdir and stat). A missing
+// or unreadable ROOT is always reported — an absent tree is not the same thing as an empty one.
+const gone = (e) => !!e && e.code === 'ENOENT';
+export async function listTranscripts(root, { onError = () => {} } = {}) {
   const out = [];
-  const dirs = await fs.promises.readdir(root, { withFileTypes: true }).catch(() => []);
+  let dirs;
+  try { dirs = await fs.promises.readdir(root, { withFileTypes: true }); }
+  catch (e) { onError(root, e, true); return out; }
   for (const d of dirs) {
     if (!d.isDirectory()) continue;
-    const files = await fs.promises.readdir(path.join(root, d.name), { withFileTypes: true }).catch(() => []);
+    let files;
+    try { files = await fs.promises.readdir(path.join(root, d.name), { withFileTypes: true }); }
+    catch (e) { if (!gone(e)) onError(d.name, e, false); continue; }
     for (const f of files) {
       if (!f.isFile() || !f.name.endsWith('.jsonl')) continue;
-      const file = path.join(root, d.name, f.name);
-      const st = await fs.promises.stat(file).catch(() => null);
-      if (st) out.push({ file, rel: path.relative(root, file), size: st.size, mtimeMs: st.mtimeMs });
+      const file = path.join(root, d.name, f.name), rel = path.relative(root, file);
+      let st;
+      try { st = await fs.promises.stat(file); }
+      catch (e) { if (!gone(e)) onError(rel, e, false); continue; }
+      out.push({ file, rel, size: st.size, mtimeMs: st.mtimeMs });
     }
   }
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -130,8 +140,25 @@ export async function listTranscripts(root) {
 // Hub's health) rather than vanishing. A dead store makes this setMeta throw too, which rejects the caller's run.
 const recordError = (store, rel, e) => store.setMeta('last_error', rel + ': ' + String(e && e.message || e).slice(0, 300));
 
+// listTranscripts with its failures routed to meta.last_error. A missing root is informational (Claude Code may simply
+// not be installed yet): backfill still completes, but the Hub can say why it holds nothing, and the note clears itself
+// once the root exists. An existing-but-empty root is legitimately empty and records nothing.
+const NO_ROOT = 'no transcripts root at ';
+async function listReporting(store, root) {
+  let rootFailed = false;
+  const files = await listTranscripts(root, {
+    onError: (where, e, isRoot) => {
+      if (isRoot) rootFailed = true;
+      if (isRoot && gone(e)) store.setMeta('last_error', NO_ROOT + root);
+      else recordError(store, where, e);
+    },
+  });
+  if (!rootFailed) { const cur = store.getMeta('last_error'); if (cur && cur.startsWith(NO_ROOT)) store.setMeta('last_error', ''); }
+  return files;
+}
+
 export async function backfill(store, root, { onProgress = () => {}, shouldStop = () => false } = {}) {
-  const files = await listTranscripts(root);
+  const files = await listReporting(store, root);
   let done = 0, stopped = false;
   onProgress({ done, total: files.length });
   for (const f of files) {
@@ -148,7 +175,7 @@ export async function backfill(store, root, { onProgress = () => {}, shouldStop 
 
 export async function sweep(store, root) {
   const changed = [];
-  for (const f of await listTranscripts(root)) {
+  for (const f of await listReporting(store, root)) {
     const cur = store.getCursor(f.rel);
     if (cur && cur.size === f.size && Math.floor(cur.mtime_ms) === Math.floor(f.mtimeMs)) continue;
     let r;
