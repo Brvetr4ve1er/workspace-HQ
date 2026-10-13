@@ -31,7 +31,7 @@ The owner made these decisions on 2026-10-13: both sources; claude.ai comes in t
 ## 2. Constraints
 
 - **Public repo.** Imported data, indexes and logs live only under `data/claude/`, which is gitignored. Test fixtures use placeholder text only.
-- **Runtime.** The Electron main process runs Node 20.18 and has no `node:sqlite`. The system Node (v25.6.1, SQLite 3.51.2) has `node:sqlite` with FTS5; this was verified on 2026-10-13. The index therefore runs in a separate process on system Node 22.5 or later.
+- **Runtime.** The Electron main process runs Node 20.18 and has no `node:sqlite`. The system Node (v25.6.1, SQLite 3.51.2) has `node:sqlite` with FTS5; this was verified on 2026-10-13. The index therefore runs in a separate process on system Node 22.13 or later (the first 22.x line where `node:sqlite` needs no `--experimental-sqlite` flag).
 - **Lanes.** New main-side code goes in new files with one-line hooks in `main.js`. Every new channel gets an `IPC-CONTRACT.md` row before its handler is written. The `data/claude/` shape gets a `CONTRACT.md` entry. `collector/` is not touched (struct lane).
 - **v5 conventions.** Template additions carry `<!-- v5: reason -->` markers. Goldens are re-recorded only after every changed scenario has been attributed. Honesty rules apply: no invented numbers, and estimates are labelled. CSP stays `default-src 'self'`.
 - **Owner's app.** It stays usable between phases. Each phase ships separately.
@@ -42,7 +42,7 @@ The owner made these decisions on 2026-10-13: both sources; claude.ai comes in t
  ~/.claude/projects/**.jsonl ──watch──┐
  claude.ai export ZIP ──import────────┤        ┌───────────────────────┐
  extension (claude.ai, logged-in) ────┼──────▶ │  Claude Hub process   │──▶ data/claude/hub.sqlite (FTS5)
-   POST /claude/* on the local bridge │        │  (system Node ≥ 22.5) │
+   POST /claude/* on the local bridge │        │  (system Node ≥ 22.13) │
                                       │        └──────────┬────────────┘
                                       │      JSON lines over stdio (request/response + events)
                                       │                   │
@@ -57,7 +57,7 @@ The owner made these decisions on 2026-10-13: both sources; claude.ai comes in t
 
 | Unit | File(s) | Job | Depends on |
 |---|---|---|---|
-| Hub host | `dashboard/claude-hub-host.js` (new; main process) | Find system Node ≥ 22.5; spawn the Hub with `windowsHide`; restart it with backoff if it crashes; route requests by id with timeouts; turn Hub events into window pushes; report health | `child_process` |
+| Hub host | `dashboard/claude-hub-host.js` (new; main process) | Find system Node ≥ 22.13; spawn the Hub with `windowsHide`; restart it with backoff if it crashes; route requests by id with timeouts; turn Hub events into window pushes; report health | `child_process` |
 | Hub process | `dashboard/claude-hub/hub.mjs` (new; system Node) | Own `hub.sqlite`; handle the query and ingest API; run the watchers | `node:sqlite`, `fs.watch` |
 | Code ingest | `dashboard/claude-hub/ingest-code.mjs` | Parse Claude Code transcripts incrementally by byte offset per file, with resumable backfill | pure parser + db |
 | Web ingest | `dashboard/claude-hub/ingest-web.mjs` | Import the claude.ai export ZIP; accept extension pushes; de-duplicate | pure parser + db |
@@ -208,7 +208,7 @@ New rows go into `docs/sync/IPC-CONTRACT.md` before any handler.
 
 ## 10. Errors, privacy, honesty
 
-- **No Node 22.5+ on the system.** Hub state `no-node`. The Claude tab shows "Claude Hub needs Node 22.5 or newer (found: …)" and links to install instructions. Nothing else breaks.
+- **No Node 22.13+ on the system.** Hub state `no-node`. The Claude tab shows "Claude Hub needs Node 22.13 or newer (found: …)" and links to install instructions. Nothing else breaks.
 - **Hub down or restarting.** Lists show the last loaded data with a "reconnecting" note. Search is disabled with the reason shown.
 - **Empty states** say why: no sessions yet, or the export not imported. They never show zero as if it were data.
 - **Logging.** Errors go to the existing app log, `logs/app-*.log`, as messages only, with no conversation text.

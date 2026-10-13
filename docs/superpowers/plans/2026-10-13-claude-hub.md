@@ -4,7 +4,7 @@
 
 **Goal:** WorkspaceHQ receives every Claude Code session and every claude.ai chat and Project, and lets the owner browse, search, chat, ask and save them. This plan details phase **H1** (the Hub process, its host, the store, Claude Code ingest and System health) and outlines H2–H5.
 
-**Architecture:** A separate **Claude Hub** process runs on system Node ≥ 22.5 (`node:sqlite` + FTS5) and owns `data/claude/hub.sqlite`. It ingests `~/.claude/projects/**.jsonl` incrementally and answers JSON-line requests over stdio. `dashboard/claude-hub-host.js` in the Electron main process (Node 20, which has no sqlite) finds Node, spawns and supervises the Hub, and bridges it to IPC. v5 shows the Hub's health on System.
+**Architecture:** A separate **Claude Hub** process runs on system Node ≥ 22.13 (`node:sqlite` + FTS5) and owns `data/claude/hub.sqlite`. It ingests `~/.claude/projects/**.jsonl` incrementally and answers JSON-line requests over stdio. `dashboard/claude-hub-host.js` in the Electron main process (Node 20, which has no sqlite) finds Node, spawns and supervises the Hub, and bridges it to IPC. v5 shows the Hub's health on System.
 
 **Tech Stack:**
 - Node 25 (system) with `node:sqlite`.
@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- **Hub runtime:** system Node **≥ 22.5**. The Electron main process never imports `node:sqlite`.
+- **Hub runtime:** system Node **≥ 22.13**. The Electron main process never imports `node:sqlite`.
 - **Storage:** all imported data, indexes and logs live under **`data/claude/`**, which is gitignored before any data is written.
 - **Fixtures:** placeholder text only. Secret-shaped test strings are built at runtime (e.g. `'sk_' + 'live_' + 'A'.repeat(24)`), never committed literally.
 - **Large files:** never read a transcript whole. Stream with a byte cursor (one file is 630 MB, and `readFileSync` on it throws `ERR_STRING_TOO_LONG`).
@@ -295,7 +295,7 @@ Expected: FAIL, `Cannot find module …/store.mjs`.
 ```js
 // dashboard/claude-hub/store.mjs
 // Claude Hub store (spec §4): one SQLite file with FTS5, owned by the Hub process
-// on system Node ≥ 22.5. The Electron main process never opens it.
+// on system Node ≥ 22.13. The Electron main process never opens it.
 // node:sqlite binds numbers/strings/null only — booleans become 0/1, undefined → null.
 import { DatabaseSync } from 'node:sqlite';
 
@@ -1158,7 +1158,7 @@ Expected: FAIL. The spawned process exits because `hub.mjs` is missing, so the `
 
 ```js
 // dashboard/claude-hub/hub.mjs
-// Claude Hub process (spec §6). Spawned by dashboard/claude-hub-host.js on system Node ≥ 22.5.
+// Claude Hub process (spec §6). Spawned by dashboard/claude-hub-host.js on system Node ≥ 22.13.
 // stdin: one JSON request per line → stdout: one JSON response/event per line. stderr: diagnostics.
 // One writer per database (a <db>.lock holding the pid); any other Hub on the same db is a
 // read-only reader (e.g. a test instance of the app while the owner's app runs).
@@ -1319,17 +1319,17 @@ readline.createInterface({ input: process.stdin }).on('line', (l) => { const r =
   if (r.op === 'health') out({ id: r.id, ok: true, result: { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 2, messages: 3 } } });
   else if (r.op === 'slow') {} else out({ id: r.id, ok: false, error: 'unknown op' }); });`;
 
-test('nodeOk / findNode: version floor 22.5 and missing node', () => {
-  assert.equal(nodeOk('v22.5.0'), true); assert.equal(nodeOk('v22.4.9'), false); assert.equal(nodeOk('v25.6.1'), true); assert.equal(nodeOk('garbage'), false);
+test('nodeOk / findNode: version floor 22.13 and missing node', () => {
+  assert.equal(nodeOk('v22.13.0'), true); assert.equal(nodeOk('v22.12.9'), false); assert.equal(nodeOk('v22.5.0'), false); assert.equal(nodeOk('v25.6.1'), true); assert.equal(nodeOk('garbage'), false);
   assert.deepEqual(findNode({ env: {}, run: () => ({ status: 0, stdout: 'v20.18.1\n' }) }), { cmd: 'node', version: 'v20.18.1', ok: false });
   assert.equal(findNode({ env: {}, run: () => { throw new Error('ENOENT'); } }), null);
 });
 
-test('no Node ≥ 22.5 → state no-node, health says so, requests answer honestly', async () => {
+test('no Node ≥ 22.13 → state no-node, health says so, requests answer honestly', async () => {
   const sent = [];
   const h = create({ hubScript: 'x', dbFile: 'y', findNodeFn: () => ({ cmd: 'node', version: 'v20.1.0', ok: false }), send: (c, d) => sent.push([c, d]) });
   h.start();
-  assert.deepEqual(await h.health(), { state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.5 or newer (found v20.1.0)' });
+  assert.deepEqual(await h.health(), { state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' });
   assert.deepEqual(await h.request('health'), { error: 'hub not running' });
   assert.equal(sent.at(-1)[0], 'hq:claude-hub:event');
 });
@@ -1364,7 +1364,7 @@ Expected: FAIL, `Cannot find module './claude-hub-host.js'`.
 ```js
 // dashboard/claude-hub-host.js
 // Main-process side of the Claude Hub (spec §3.1, §6). Electron's Node 20 has no node:sqlite,
-// so the index runs in dashboard/claude-hub/hub.mjs on the system Node (≥ 22.5). This module
+// so the index runs in dashboard/claude-hub/hub.mjs on the system Node (≥ 22.13). This module
 // finds that Node, spawns the Hub, routes JSON-line requests with timeouts, restarts it with
 // backoff, and forwards its events to the windows. It never lets a Hub failure throw into main.
 const { spawn, spawnSync } = require('node:child_process');
@@ -1372,7 +1372,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const readline = require('node:readline');
 
-const MIN = [22, 5];
+const MIN = [22, 13];   // node:sqlite is unflagged from 22.13 (22.5–22.12 need --experimental-sqlite)
 function nodeOk(v) {
   const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(v || '').trim());
   if (!m) return false;
@@ -1401,7 +1401,7 @@ function create({ hubScript, dbFile, env = process.env, spawnFn = spawn, findNod
     node = findNodeFn();
     if (!node || !node.ok) {
       state = 'no-node';
-      error = 'Claude Hub needs Node 22.5 or newer (found ' + (node ? node.version : 'none') + ')';
+      error = 'Claude Hub needs Node 22.13 or newer (found ' + (node ? node.version : 'none') + ')';
       push('health', { state, node: node ? node.version : null, error });
       return;
     }
@@ -1485,7 +1485,7 @@ Expected: PASS (3 tests).
 
 | Preload | Channel | Shape |
 |---|---|---|
-| `claudeHub.health()` | `hq:claude-hub:health` (invoke) | `{state:'ready'\|'indexing'\|'no-node'\|'starting'\|'down', role?:'writer'\|'reader', node, backfill?:{done,total}, counts?:{projects,conversations,messages}, dbBytes?, error?/lastError?}` — never throws; `no-node` = system Node < 22.5 or missing |
+| `claudeHub.health()` | `hq:claude-hub:health` (invoke) | `{state:'ready'\|'indexing'\|'no-node'\|'starting'\|'down', role?:'writer'\|'reader', node, backfill?:{done,total}, counts?:{projects,conversations,messages}, dbBytes?, error?/lastError?}` — never throws; `no-node` = system Node < 22.13 or missing |
 | `claudeHub.on(cb)` | push `hq:claude-hub:event` | `{event:'ready'\|'progress'\|'changed'\|'error'\|'health', data}`; `progress` = `{done,total}` (≤ 2/s), `changed` = `{ids:[conversationId]}` |
 
 Main side: `dashboard/claude-hub-host.js` spawns `dashboard/claude-hub/hub.mjs` on the system Node
@@ -1560,7 +1560,7 @@ Over CDP on 9491, `await hq.claudeHub.health()` must return `role:'writer'` (or 
 
 ```bash
 git add -- dashboard/claude-hub-host.js dashboard/claude-hub-host.test.mjs dashboard/main.js dashboard/preload.js .gitignore docs/sync/IPC-CONTRACT.md docs/sync/CONTRACT.md dashboard-v5/tools/fake-preload.js dashboard-v5/tools/fake-preload.test.mjs
-git commit -m "fe+meta: Claude Hub H1.6 — main-side host (find Node ≥22.5, spawn, route, restart), hq:claude-hub IPC, data/claude gitignored + contracts
+git commit -m "fe+meta: Claude Hub H1.6 — main-side host (find Node ≥22.13, spawn, route, restart), hq:claude-hub IPC, data/claude gitignored + contracts
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1601,7 +1601,7 @@ test('every hub state reads honestly', () => {
   assert.equal(ok.state, 'Indexed'); assert.equal(ok.detail, '40 chats · 3 projects · 900 messages'); assert.equal(ok.color, 'var(--green)');
   assert.equal(hubCard({ state: 'ready', role: 'reader', counts: { projects: 0, conversations: 0, messages: 0 } }, true).detail,
     'Read-only — another WorkspaceHQ window owns the index · nothing indexed yet');
-  assert.equal(hubCard({ state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.5 or newer (found v20.1.0)' }, true).state, 'Needs Node 22.5 or newer (found v20.1.0)');
+  assert.equal(hubCard({ state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }, true).state, 'Needs Node 22.13 or newer (found v20.1.0)');
   assert.equal(hubCard({ state: 'down', error: 'Claude Hub exited (1)' }, true).detail, 'Claude Hub exited (1)');
 });
 ```
@@ -1628,7 +1628,7 @@ export function hubCard(h, hasBridge) {
   const counted = (c.conversations || 0) + (c.projects || 0) > 0
     ? plural(c.conversations || 0, 'chat', 'chats') + ' · ' + plural(c.projects || 0, 'project', 'projects') + ' · ' + plural(c.messages || 0, 'message', 'messages')
     : 'nothing indexed yet';
-  if (h.state === 'no-node') return { ...none, show: true, state: 'Needs Node 22.5 or newer (found ' + (h.node || 'none') + ')', color: 'var(--orange)', detail: 'Install Node 22.5+ and restart WorkspaceHQ — nothing else is affected' };
+  if (h.state === 'no-node') return { ...none, show: true, state: 'Needs Node 22.13 or newer (found ' + (h.node || 'none') + ')', color: 'var(--orange)', detail: 'Install Node 22.13+ and restart WorkspaceHQ — nothing else is affected' };
   if (h.state === 'down') return { ...none, show: true, state: 'Not running', color: 'var(--red)', detail: h.error || 'The Claude Hub stopped' };
   if (h.state === 'starting') return { ...none, show: true, state: 'Starting…' };
   if (h.state === 'indexing') {
@@ -1732,7 +1732,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - Stop only your PIDs and remove temp folders by literal path.
 - [ ] **Step 2: Restart the owner's app** with `tools\rollback.ps1 v5` so the real Hub starts, then confirm `logs/app-*.log` shows the start line. The System card on the owner's machine will show real backfill progress, which is their own data and never committed.
 - [ ] **Step 3: Docs.**
-  - CLAUDE.md "Facts": add a line "Claude Hub: `dashboard/claude-hub/` (system Node ≥ 22.5, `node:sqlite`) indexes `~/.claude/projects` into gitignored `data/claude/hub.sqlite`; tests `node --test dashboard/claude-hub/*.test.mjs`; overrides `HQ_CLAUDE_HOME`, `HQ_CLAUDE_DB`, `HQ_HUB_NODE`."
+  - CLAUDE.md "Facts": add a line "Claude Hub: `dashboard/claude-hub/` (system Node ≥ 22.13, `node:sqlite`) indexes `~/.claude/projects` into gitignored `data/claude/hub.sqlite`; tests `node --test dashboard/claude-hub/*.test.mjs`; overrides `HQ_CLAUDE_HOME`, `HQ_CLAUDE_DB`, `HQ_HUB_NODE`."
   - README: add the test command.
   - HANDOFF: an entry with DONE (commits), BREAKS (main.js lines, the new preload, `data/claude/` ignored) and ASKS (none).
 - [ ] **Step 4: Commit**
