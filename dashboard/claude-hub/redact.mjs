@@ -5,6 +5,10 @@ export const MASK = (name) => `••• secret (${name})`;
 // order matters: specific shapes before generic ones (sk-ant- before sk-)
 const RULES = [
   { name: 'private-key', re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g },
+  // A block with no END line: the parser cuts a long tool result (2 KB) or system text (500) before masking, which
+  // drops the END marker and leaves the key body behind. Anything after an unterminated BEGIN is masked to the end
+  // of the text (conservative: never leak the tail). Runs after the terminated rule so a complete block keeps its context.
+  { name: 'private-key', re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*$/g },
   { name: 'anthropic-key', re: /\bsk-ant-[A-Za-z0-9_-]{20,}/g },
   { name: 'openai-key', re: /\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}/g },
   { name: 'stripe-key', re: /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/g },
