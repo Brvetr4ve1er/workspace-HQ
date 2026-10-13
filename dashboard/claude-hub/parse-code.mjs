@@ -5,11 +5,18 @@
 // parentUuid, timestamp, cwd, gitBranch, sessionId, isSidechain, isMeta,
 // isCompactSummary are relied on; every other field and line type is ignored.
 export const TOOL_RESULT_MAX = 2048;
+// ONE text-cap rule for every content shape (string or block array): system-role text (isMeta, compact
+// summary, command echoes: harness noise, skill-body injections of 20-45k chars) is cut to SYSTEM_TEXT_MAX,
+// everything else to TEXT_MAX; a cut always ends with '…' so truncation is never silent.
+export const SYSTEM_TEXT_MAX = 500;
+export const TEXT_MAX = 200000;
 const COMMAND_ECHO = /^\s*<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/;
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const clean = (s, max) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim().slice(0, max);
 const iso = (v) => { const t = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isFinite(t) ? new Date(t).toISOString() : null; };
 const cut = (s, max) => (s.length > max ? s.slice(0, max) + '…' : s);
+// control-char strip + trim, then the role's cap with its marker. NUL survives in SQLite but reads back truncated at the NUL.
+const body = (s, role) => cut(clean(s, Infinity), role === 'system' ? SYSTEM_TEXT_MAX : TEXT_MAX);
 
 function toolHint(input) {
   if (!input || typeof input !== 'object') return '';
@@ -28,7 +35,7 @@ function resultText(c) {
 function toText(content, type, systemish) {
   if (typeof content === 'string') {
     const role = type === 'assistant' ? 'assistant' : systemish || COMMAND_ECHO.test(content) ? 'system' : 'user';
-    return { role, text: clean(content, role === 'system' ? 500 : 200000), toolName: null };
+    return { role, text: body(content, role), toolName: null };
   }
   if (!Array.isArray(content)) return { role: type === 'assistant' ? 'assistant' : 'user', text: '', toolName: null };
   const parts = []; let toolName = null, onlyResults = content.length > 0;
@@ -44,8 +51,8 @@ function toText(content, type, systemish) {
   }
   const role = onlyResults ? 'tool' : type === 'assistant' ? 'assistant' : systemish ? 'system' : 'user';
   const joined = parts.join('\n');
-  // tool output goes through clean() too: a NUL byte survives in SQLite but reads back truncated at the NUL
-  return { role, text: clean(joined, 200000), toolName };
+  // tool output goes through the same strip + cap (body) as every other role, system included
+  return { role, text: body(joined, role), toolName };
 }
 
 function normUsage(u) {

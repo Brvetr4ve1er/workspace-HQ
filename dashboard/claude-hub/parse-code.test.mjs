@@ -1,7 +1,7 @@
 // dashboard/claude-hub/parse-code.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCodeLine, TOOL_RESULT_MAX } from './parse-code.mjs';
+import { parseCodeLine, TOOL_RESULT_MAX, SYSTEM_TEXT_MAX, TEXT_MAX } from './parse-code.mjs';
 
 const L = (o) => JSON.stringify(o);
 const base = { sessionId: 's1', uuid: 'u1', parentUuid: null, timestamp: '2026-10-01T10:00:00.000Z', cwd: 'C:\\placeholder\\project-a', gitBranch: 'main' };
@@ -42,6 +42,40 @@ test('titles, command echoes and meta lines', () => {
   const compact = parseCodeLine(L({ ...base, type: 'user', isCompactSummary: true, message: { role: 'user', content: 'This session is being continued…' } }));
   assert.equal(compact.role, 'system');
   assert.deepEqual(parseCodeLine(L({ type: 'file-history-snapshot', messageId: 'x' })), { kind: 'meta', type: 'file-history-snapshot' });
+});
+
+test('system text is capped by ONE rule whatever the content shape, and a cut is never silent', () => {
+  assert.equal(SYSTEM_TEXT_MAX, 500); assert.equal(TEXT_MAX, 200000);
+  const big = 'y'.repeat(SYSTEM_TEXT_MAX + 5000);
+  const exact = 'z'.repeat(SYSTEM_TEXT_MAX);
+  const str = (extra, content) => parseCodeLine(L({ ...base, type: 'user', ...extra, message: { role: 'user', content } }));
+  const arr = (extra, text) => str(extra, [{ type: 'text', text }]);
+  // every system flavour × both content shapes → identical cap and the same visible marker
+  const cases = {
+    'string isMeta': str({ isMeta: true }, big),
+    'array isMeta': arr({ isMeta: true }, big),
+    'string isCompactSummary': str({ isCompactSummary: true }, big),
+    'array isCompactSummary': arr({ isCompactSummary: true }, big),
+    'string command echo': str({}, '<local-command-stdout>' + big + '</local-command-stdout>'),
+  };
+  for (const [name, m] of Object.entries(cases)) {
+    assert.equal(m.role, 'system', name);
+    assert.equal(m.text.length, SYSTEM_TEXT_MAX + 1, name + ': cut to the cap plus the marker');
+    assert.ok(m.text.endsWith('…'), name + ': truncation is marked');
+  }
+  // at exactly the cap nothing is cut, so nothing is marked
+  for (const m of [str({ isMeta: true }, exact), arr({ isMeta: true }, exact), arr({ isCompactSummary: true }, exact)]) {
+    assert.equal(m.text, exact); assert.ok(!m.text.endsWith('…'));
+  }
+  // the system cap does not leak onto real conversation: user + assistant text above 500 chars stay whole
+  const mid = 'w'.repeat(SYSTEM_TEXT_MAX + 5000);
+  assert.equal(str({}, mid).text, mid);
+  assert.equal(arr({}, mid).text, mid);
+  const asst = parseCodeLine(L({ ...base, type: 'assistant', message: { id: 'm', role: 'assistant', content: [{ type: 'text', text: mid }] } }));
+  assert.equal(asst.role, 'assistant'); assert.equal(asst.text, mid);
+  // the general ceiling is marked too
+  const huge = 'v'.repeat(TEXT_MAX + 10);
+  for (const m of [str({}, huge), arr({}, huge)]) { assert.equal(m.text.length, TEXT_MAX + 1); assert.ok(m.text.endsWith('…')); }
 });
 
 test('robust input: BOM, CRLF, blank, broken JSON, missing uuid, bad timestamp (Review Focus 4, 5)', () => {
