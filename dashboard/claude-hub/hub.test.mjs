@@ -440,6 +440,74 @@ test('a reindex asked for while a live ingest of a big file is mid-stream waits 
   } finally { await h.stop(); }
 });
 
+// forget is a privacy removal: when it lands while that conversation's transcript is being ingested, the ingest's remaining
+// batches used to re-create the rows it had just removed (and the Hub still answered "true"). forget now waits its turn in
+// the write queue, so the answer arrives only once nothing in flight can bring the data back.
+async function forgetMidStream(target, verify) {
+  const dir = tmp('hub-forgetmid-');
+  const { home, files } = makeClaudeHome(dir);
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '60000' }, path.join(dir, 'hub.sqlite'));
+  try {
+    const base = await h.healthy();
+    assert.equal(base.counts.conversations, 3); assert.equal(base.counts.messages, 5);
+    const N = 6000, filler = 'lorem ipsum '.repeat(60);
+    let chunk = '';
+    for (let i = 0; i < N; i++) chunk += userLine({ uuid: 'big-' + i, sessionId: 'sess-a2', at: '2026-10-08T10:00:00.000Z', text: 'big append ' + i + ' ' + filler });
+    fs.appendFileSync(files.a2, chunk);   // ~5 MB arrives at once: the watcher's ingest of it takes a while, in 500-line batches
+    let mid = null;
+    assert.ok(await h.until(async () => { const x = (await h.req('health')).result; if (x.counts.messages > base.counts.messages + 100 && x.counts.messages < base.counts.messages + N - 500) { mid = x; return true; } return false; }, 20000), 'caught the ingest mid-stream');
+
+    const r = await h.req('forget', target, 30000);   // lands while sess-a2 is still being read
+    assert.equal(r.ok, true); assert.equal(r.result, true, 'the removal is reported only because it happened');
+    const ids = (await h.req('listConversations', { limit: 10 })).result.map((c) => c.id);
+    assert.equal(ids.includes('code:sess-a2'), false, 'the answer comes after the in-flight ingest, so nothing re-creates the conversation');
+    const done = await h.healthy(30000);
+    assert.equal((await h.req('getConversation', { id: 'code:sess-a2' })).result, null, 'no partial zombie once the ingest has settled');
+    assert.equal((await h.req('search', { q: 'big append' })).result.length, 0, 'none of the streamed lines survive in the index');
+    await verify(h, done, base);
+    assert.deepEqual(h.events.filter((e) => e.event === 'error'), []);
+    assert.equal(done.lastError, null);
+    assert.ok(mid);
+  } finally { await h.stop(); }
+}
+
+test('forget of a conversation landing mid-ingest of its transcript stays forgotten (no zombie rows from the rest of the ingest)', async () => {
+  await forgetMidStream({ conversationId: 'code:sess-a2' }, async (h, done, base) => {
+    assert.deepEqual((await h.req('listConversations', { limit: 10 })).result.map((c) => c.id).sort(), ['code:sess-a1', 'code:sess-b1']);
+    assert.equal(done.counts.conversations, 2);
+    assert.equal(done.counts.messages, base.counts.messages - 1, 'only sess-a2 (its 1 original message and every streamed one) is gone');
+  });
+});
+
+test('forget of a project landing mid-ingest of one of its transcripts stays forgotten', async () => {
+  await forgetMidStream({ projectId: 'code:C--placeholder-project-a' }, async (h, done) => {
+    assert.deepEqual((await h.req('listConversations', { limit: 10 })).result.map((c) => c.id), ['code:sess-b1']);
+    assert.deepEqual((await h.req('listProjects')).result.map((p) => p.id), ['code:C--placeholder-project-b'], 'the project row is not re-created either');
+    assert.deepEqual(done.counts, { projects: 1, conversations: 1, messages: 1 });
+  });
+});
+
+test('a forget that fails inside the write queue is answered as an error; the queue and the Hub carry on', async () => {
+  const dir = tmp('hub-forgeterr-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '60000' }, db);
+  try {
+    assert.equal((await h.healthy()).counts.conversations, 3);
+    const other = openStore(db);   // break the index underneath the running Hub: forget cannot record its tombstone
+    other.db.exec('DROP TABLE tombstone'); other.close();
+    const r = await h.req('forget', { conversationId: 'code:sess-b1' });
+    assert.equal(r.ok, false); assert.match(r.error, /tombstone/);
+    assert.equal((await h.req('listConversations')).result.length, 3, 'the failed removal rolled back, nothing half-forgotten');
+    assert.equal((await h.req('health')).ok, true);
+    assert.equal(h.p.exitCode, null, 'the Hub survives a failed forget');
+    const repair = openStore(db);   // the index is repaired (the store re-creates the missing table when opened): the next forget runs in the same queue
+    repair.close();
+    assert.equal((await h.req('forget', { conversationId: 'code:sess-b1' })).result, true, 'the write queue still runs jobs after the failed one');
+    assert.equal((await h.req('listConversations')).result.length, 2);
+  } finally { await h.stop(); }
+});
+
 test('starts through a junction (the entry check compares real paths)', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-junction-'));   // handed to the cleanup only once the link is gone
   const { home } = makeClaudeHome(dir);

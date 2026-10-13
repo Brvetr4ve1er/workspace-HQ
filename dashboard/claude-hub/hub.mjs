@@ -126,8 +126,9 @@ function main() {
   };
   const dbBytes = () => { let n = 0; for (const f of [dbFile, dbFile + '-wal']) { try { n += fs.statSync(f).size; } catch { /* absent */ } } return n; };
 
-  // ---- indexing. Everything that writes (backfill run, watch ingest, sweep) goes through one queue, so a reindex never
-  // overlaps a live ingest of the same file and two ingests never interleave on the same cursor.
+  // ---- indexing. Everything that writes (backfill run, watch ingest, sweep, forget) goes through one queue, so a reindex
+  // never overlaps a live ingest of the same file, two ingests never interleave on the same cursor, and a forget never
+  // lands in the middle of an ingest that would re-create what it removed.
   let queue = Promise.resolve();
   const serial = (fn) => { const p = queue.then(fn); queue = p.catch(() => {}); return p; };
   let running = false, resetNext = false, lastProgressAt = 0, sweeping = false;
@@ -176,7 +177,11 @@ function main() {
     getConversation: (a) => (store ? store.getConversation(a) : null),
     search: (a) => (store ? store.search(a) : []),
     reindex: () => { if (!writer) notOwner(); resetNext = true; progress = { done: 0, total: 0 }; runIndex(); return { started: true }; },
-    forget: (a) => { if (!writer) notOwner(); return store.forget(a); },
+    // forget writes, so it takes its turn in the queue: run beside an in-flight ingest of the same transcript, it would be
+    // undone by that ingest's remaining batches (they re-create the rows it removed; the tombstone is only checked on
+    // entry) while still answering "true". Queued behind the ingest, the tombstone is in place before any later one starts.
+    // The answer therefore waits for the slot in progress (a live append: one file; the first backfill: the whole run).
+    forget: (a) => { if (!writer) notOwner(); return serial(() => store.forget(a)); },
   };
 
   // ---- stdin: requests, split on '\n' only (readline also splits on U+2028/U+2029, which a search query may hold)
@@ -186,8 +191,14 @@ function main() {
     if (!req || typeof req !== 'object' || typeof req.id !== 'number') { diag('dropped a request without a numeric id'); return; }
     const fn = Object.prototype.hasOwnProperty.call(ops, req.op) ? ops[req.op] : null;
     if (!fn) { send({ id: req.id, ok: false, error: 'unknown op' }); return; }
-    try { send({ id: req.id, ok: true, result: fn(req.args || {}) }); }
-    catch (e) { send({ id: req.id, ok: false, error: msg(e) }); }
+    // An op returns its result, or a promise of it (the ones that go through the write queue). Plain results are answered
+    // at once, in the order the requests arrived; a promise is answered when it settles, so the response can come after
+    // later requests' responses. Either way a failure is an {ok:false} response, never an unhandled rejection.
+    const ok = (result) => send({ id: req.id, ok: true, result });
+    const bad = (e) => send({ id: req.id, ok: false, error: msg(e) });
+    let out;
+    try { out = fn(req.args || {}); } catch (e) { bad(e); return; }
+    if (out && typeof out.then === 'function') out.then(ok, bad); else ok(out);
   };
   const decoder = new StringDecoder('utf8');
   let pending = '';
