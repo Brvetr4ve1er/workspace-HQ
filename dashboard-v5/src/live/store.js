@@ -46,6 +46,7 @@ export function createStore(DATA, hq) {
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
+    claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
   };
 
   // machine() is pure; memoise on the source object so the getters below stay cheap
@@ -170,6 +171,17 @@ export function createStore(DATA, hq) {
     if (hq.liveState) reads.push(pull(() => hq.liveState(), hydrate));
     if (hq.uiPrefs && hq.uiPrefs.on) sub(() => hq.uiPrefs.on((p) => { if (isObj(p)) { prefsPushed = true; live.uiPrefs = p; emit(); } }));
     if (hq.uiPrefs && hq.uiPrefs.get) reads.push(pull(() => hq.uiPrefs.get(), (p) => { if (isObj(p) && !prefsPushed) live.uiPrefs = p; }));
+    if (hq.claudeHub && hq.claudeHub.health) reads.push(pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : null; }));
+    if (hq.claudeHub && hq.claudeHub.on) sub(() => hq.claudeHub.on((e) => {
+      if (!isObj(e)) return;
+      if (e.event === 'progress' && isObj(e.data)) {
+        live.claudeHub = { ...(live.claudeHub || {}), state: e.data.done >= e.data.total ? 'ready' : 'indexing', backfill: e.data };
+        if (e.data.done >= e.data.total) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+      } else if (e.event === 'health' && isObj(e.data)) live.claudeHub = e.data;
+      // a Hub that came up after the first health() answered "starting" (a reader never backfills, so no progress follows)
+      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+      emit();
+    }));
     if (hq.studio) {
       reads.push(refreshCaptures());
       if (hq.studio.onCaptureAdded) sub(() => hq.studio.onCaptureAdded(() => { refreshCaptures(); }));

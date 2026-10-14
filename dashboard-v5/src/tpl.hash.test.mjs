@@ -18,10 +18,13 @@ import tpl from './app.tpl.js';
 // projects, extras), 24 hunks, every one carrying a <!-- v5: reason --> marker (22 → 63);
 // re-recorded 2026-10-06 for the Phase 6 review fix honesty-5: one fragment (extras), one
 // hunk — the What's new overlay's note under the trailers ("sample data, not your scans …
-// no sound yet"), with its <!-- v5: reason --> marker
-const SHA256 = 'c94b51ed79e049ff9116fe6531e2e3b59a40b870a830ba85051b6775eeb01ea5';
-const LENGTH = 200750;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 201080;    // Buffer.byteLength(tpl, 'utf8')
+// no sound yet"), with its <!-- v5: reason --> marker;
+// re-recorded 2026-10-13 for H1 Claude Hub card (Task 7): one fragment (system), one hunk, +1289 chars /
+// +1292 bytes, no line removed — the Claude Hub section after Vitals on System > Machine, with its
+// <!-- v5: reason --> marker
+const SHA256 = '04bcee0f6e91a0cb229860ff5e25bfd3482551726d01179783032e98d860d8b4';
+const LENGTH = 202039;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 202372;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

@@ -121,7 +121,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm };
+    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -130,6 +130,17 @@ export async function run(W = window.WHQ) {
       const gapText = gapP ? gapsOf(gapP)[0].text : '';
       const inter = (M.INTERACTIVE || [])[0];
       const board = () => { LV.canvasBoards = [{ name: 'Selftest Board', nodes: [], edges: [] }]; };
+      // H1 Claude Hub card (System > Machine): every state the Hub can be in, injected into the store (never window.hq).
+      // The card shows only with a bridge: dev-main.js --preload=fake, or the real app (without one these render it hidden).
+      const HUB_COUNTS = { projects: 3, conversations: 40, messages: 900 };
+      const HUB = [
+        ['none', null],
+        ['indexing', { state: 'indexing', role: 'writer', backfill: { done: 8, total: 32 }, counts: HUB_COUNTS, dbBytes: 5 * 1048576 }],
+        ['ready', { state: 'ready', role: 'writer', backfill: { done: 32, total: 32 }, counts: HUB_COUNTS, dbBytes: 2048 }],
+        ['reader', { state: 'ready', role: 'reader', counts: { projects: 0, conversations: 0, messages: 0 } }],
+        ['no-node', { state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }],
+        ['down', { state: 'down', error: 'Claude Hub exited (1)' }],
+      ];
       const STATES = [
         ['ask-empty', at('home'), { askOpen: true, askHistory: [] }],
         ['ask-streaming', at('home'), { askOpen: true, askHistory: ASK_STREAMING }],
@@ -138,6 +149,7 @@ export async function run(W = window.WHQ) {
         ['palette-capture', at('home'), { paletteOpen: true, paletteMode: 'go', paletteQuery: 'capture A selftest idea' }],
         ['system-examining', at('system', 'machine'), { sysExamining: true }],
         ['system-fixed', at('system', 'machine'), { fixed: M.ISSUES.map((i) => i.id).concat(['llm']) }],
+        ...HUB.map(([n, h]) => ['hub-' + n, at('system', 'machine'), {}, () => { LV.claudeHub = h; }]),
         ...['saving', 'noted', 'failed'].map((st) => cleanText && ['clutter-' + st, at('system', 'clutter'), { sysSaves: { [cleanText]: st } }]),
         ['project-security', at('projects', 'grid', (M.P0[0] || {}).id), { diagTab: 'security' }],
         ...['saving', 'noted', 'failed'].map((st) => gapP && ['project-gaps-' + st, at('projects', 'grid', gapP.id), { sysSaves: { [gapText]: st } }]),

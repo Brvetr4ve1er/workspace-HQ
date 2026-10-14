@@ -31,6 +31,15 @@ export default String.raw`        <sc-if value="{{ v.system }}" hint-placeholder
                   <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Vitals</div>
                   <div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ vitals }}" as="vt" hint-placeholder-count="8"><span style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;font-size:13px"><span style="width:7px;height:7px;background:{{ vt.color }}"></span><span style="color:var(--muted)">{{ vt.k }}</span><span>{{ vt.v }}</span></span></sc-for></div>
                 </section>
+                <!-- v5: Claude Hub (spec 2026-10-13 §9 System) — the local index of every Claude Code session; honest states incl. no Node / read-only -->
+                <sc-if value="{{ hubShow }}" hint-placeholder-val="{{ true }}">
+                  <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:8px">Claude Hub</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:baseline"><span style="font-size:16px;color:{{ hubColor }}">{{ hubState }}</span><sc-if value="{{ hubHasSize }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;color:var(--faint)">{{ hubSize }}</span></sc-if></div>
+                    <div style="font-size:13px;color:var(--muted);margin-top:4px">{{ hubDetail }}</div>
+                    <sc-if value="{{ hubBar }}" hint-placeholder-val="{{ false }}"><div style="height:4px;background:var(--frame);border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;width:{{ hubBarW }};background:var(--blue)"></div></div></sc-if>
+                  </section>
+                </sc-if>
               </div>
             </sc-if>
             <sc-if value="{{ isClutter }}" hint-placeholder-val="{{ false }}">

@@ -347,3 +347,101 @@ test('the model keeps fileUrl; captures from libraryList carry recovered', async
   assert.equal(st.model.fileUrl(st.live.captures[0].path), 'file:///C:/caps/a.recovered.webm');
   st.stop();
 });
+
+// ---- Claude Hub (H1.7): hq.claudeHub.health() / .on() -> live.claudeHub -----------------------------------
+// The shared fake has no claudeHub (its subscription count is asserted above), so these tests bolt one on.
+function hubHq(health) {
+  const f = fakeHq(), hubCbs = [], calls = { health: 0, disposed: 0 };
+  f.hq.claudeHub = {
+    health: () => { calls.health++; return typeof health === 'function' ? health(calls.health) : Promise.resolve(health); },
+    on: (cb) => { hubCbs.push(cb); return () => { calls.disposed++; hubCbs.splice(hubCbs.indexOf(cb), 1); }; },
+  };
+  return { ...f, calls, hubCbs, fire: (e) => hubCbs.slice().forEach((cb) => cb(e)) };
+}
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
+test('claudeHub: health() hydrates live.claudeHub; anything that is not an object reads as null', async () => {
+  const { hq } = hubHq({ state: 'ready', role: 'writer', counts: { projects: 1, conversations: 2, messages: 3 } });
+  const st = createStore(DATA(), hq);
+  assert.equal(st.live.claudeHub, null);
+  await st.start();
+  assert.deepEqual(st.live.claudeHub, { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 2, messages: 3 } });
+  st.stop();
+  for (const junk of ['nope', null, [1], 7]) {
+    const { hq: h } = hubHq(junk);
+    const s = createStore(DATA(), h);
+    await s.start();
+    assert.equal(s.live.claudeHub, null, 'junk ' + JSON.stringify(junk));
+    s.stop();
+  }
+});
+
+test('claudeHub: progress moves the card on, and done === total re-pulls health (fresh counts, "ready")', async () => {
+  const answers = [{ state: 'indexing', role: 'writer', backfill: { done: 0, total: 32 }, counts: { projects: 0, conversations: 0, messages: 0 } },
+    { state: 'ready', role: 'writer', backfill: { done: 32, total: 32 }, counts: { projects: 3, conversations: 40, messages: 900 }, dbBytes: 2048 }];
+  const { hq, calls, fire } = hubHq((n) => Promise.resolve(answers[n - 1]));
+  const st = createStore(DATA(), hq);
+  let emits = 0; st.on(() => { emits++; });
+  await st.start();
+  assert.equal(st.live.claudeHub.state, 'indexing');
+  fire({ event: 'progress', data: { done: 8, total: 32 } });
+  assert.equal(st.live.claudeHub.state, 'indexing');
+  assert.deepEqual(st.live.claudeHub.backfill, { done: 8, total: 32 });
+  assert.equal(st.live.claudeHub.role, 'writer', 'the rest of the last health answer is kept');
+  assert.equal(calls.health, 1, 'a mid-backfill progress does not re-pull');
+  const before = emits;
+  fire({ event: 'progress', data: { done: 32, total: 32 } });
+  assert.equal(st.live.claudeHub.state, 'ready', 'flips at once, before the re-pull lands');
+  assert.equal(emits, before + 1);
+  await settle();
+  assert.equal(calls.health, 2);
+  assert.deepEqual(st.live.claudeHub.counts, { projects: 3, conversations: 40, messages: 900 });
+  assert.equal(st.live.claudeHub.dbBytes, 2048);
+  assert.ok(emits > before + 1, 'the re-pull emits too');
+  st.stop();
+});
+
+test('claudeHub: a health push replaces the whole value; a re-pull that answers junk keeps what we had', async () => {
+  const { hq, calls, fire } = hubHq((n) => Promise.resolve(n === 1 ? { state: 'starting' } : 'junk'));
+  const st = createStore(DATA(), hq);
+  await st.start();
+  fire({ event: 'health', data: { state: 'down', node: 'v25.6.1', error: 'Claude Hub exited (1)' } });
+  assert.deepEqual(st.live.claudeHub, { state: 'down', node: 'v25.6.1', error: 'Claude Hub exited (1)' });
+  fire({ event: 'progress', data: { done: 1, total: 1 } });
+  await settle();
+  assert.equal(calls.health, 2);
+  assert.equal(st.live.claudeHub.state, 'ready', 'the junk re-pull answer did not wipe the value');
+  st.stop();
+});
+
+test('claudeHub: a "ready" event after a "starting" answer re-pulls health (a reader never reports progress)', async () => {
+  const { hq, calls, fire } = hubHq((n) => Promise.resolve(n === 1 ? { state: 'starting', node: 'v25.6.1' } : { state: 'ready', role: 'reader', counts: { projects: 1, conversations: 1, messages: 1 } }));
+  const st = createStore(DATA(), hq);
+  await st.start();
+  assert.equal(st.live.claudeHub.state, 'starting');
+  fire({ event: 'ready', data: { role: 'reader' } });
+  await settle();
+  assert.equal(calls.health, 2);
+  assert.equal(st.live.claudeHub.state, 'ready');
+  assert.equal(st.live.claudeHub.role, 'reader');
+  st.stop();
+});
+
+test('claudeHub: junk and unrelated events change nothing; stop() unsubscribes; an older preload without claudeHub still starts', async () => {
+  const { hq, calls, hubCbs, fire } = hubHq({ state: 'ready', role: 'writer' });
+  const st = createStore(DATA(), hq);
+  await st.start();
+  const snapshot = st.live.claudeHub;
+  for (const e of [null, 'x', 7, [], {}, { event: 'progress' }, { event: 'progress', data: 'x' }, { event: 'health', data: null }, { event: 'changed', data: { ids: ['c1'] } }]) fire(e);
+  assert.equal(st.live.claudeHub, snapshot);
+  assert.equal(calls.health, 1);
+  assert.equal(hubCbs.length, 1);
+  st.stop();
+  assert.equal(calls.disposed, 1);
+  assert.equal(hubCbs.length, 0);
+  const { hq: old } = fakeHq();
+  const s2 = createStore(DATA(), old);
+  await s2.start();
+  assert.equal(s2.live.claudeHub, null);
+  s2.stop();
+});

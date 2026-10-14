@@ -361,6 +361,15 @@ add('system.reexamined', { hq: P3_HQ, live: (L, store) => { store.refreshMachine
 add('system.all-fixed', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), fixed: ['organ-disk', 'organ-ram'] }) });
 add('system.clutter-saves', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), sysSaves: { 'Clean up: Project A copy ↔ Project A': 'saving', 'Clean up: notes ↔ notes-old': 'noted', 'Clean up: x ↔ y': 'failed' } }) });
 add('system.clutter-past', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), snapOffset: 1 }) });
+// H1 Claude Hub card (spec 2026-10-13 §9 System): each state of the Hub, injected into the store.
+// An (inert) bridge is part of every one: without window.hq the card is hidden (hubShow false).
+const HUB_COUNTS = { projects: 3, conversations: 40, messages: 900 };
+const hubAt = (hub) => ({ hq: P3_HQ, live: (L) => { L.claudeHub = hub; }, state: tabSub('system', 'machine') });
+add('system.hub-indexing', hubAt({ state: 'indexing', role: 'writer', node: 'v25.6.1', backfill: { done: 8, total: 32 }, counts: HUB_COUNTS, dbBytes: 5 * 1048576 }));
+add('system.hub-ready', hubAt({ state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 32, total: 32 }, counts: HUB_COUNTS, dbBytes: 2048 }));
+add('system.hub-reader', hubAt({ state: 'ready', role: 'reader', node: 'v25.6.1', counts: { projects: 0, conversations: 0, messages: 0 } }));
+add('system.hub-no-node', hubAt({ state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }));
+add('system.hub-down', hubAt({ state: 'down', node: 'v25.6.1', error: 'Claude Hub exited (1)' }));
 // P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
 add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });
 add('project.c.git-risk', { state: page('c', 'git') });

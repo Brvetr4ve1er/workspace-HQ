@@ -1,6 +1,7 @@
 // System render values: machine issues and vitals, workspace clutter.
 // Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
 import { SCAN_TIP, SCAN_OFF, machineIssues } from '../logic/system.js';
+import { hubCard } from '../logic/claude-hub.js';
 
 // a clutter group lists at most this many items; the rest is counted, not hidden silently
 const CLUTTER_ROWS = 12;
@@ -48,6 +49,7 @@ export function systemVals(ctx) {
   const unchecked = !verdictBad && !H.pcScannedAt && !fresh;
   const unconfirmed = !verdictBad && fixedN > 0;
   const when = H.pcScannedAt ? new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const hub = hubCard(LIVE.claudeHub, !!this.hq);
   return {
     isMachine: sub === 'machine', isClutter: sub === 'clutter', issues, hasIssues: issues.length > 0,
     verdict: verdictBad ? issues.length + ' issue' + (issues.length > 1 ? 's' : '') + ' to look at' : unconfirmed ? 'Fixes ran · not re-checked yet' : unchecked ? 'Not checked yet' : 'Machine OK',
@@ -57,5 +59,6 @@ export function systemVals(ctx) {
     sysScan: () => this.reexamine(), sysScanLabel: examining ? 'Scanning…' : 'Re-examine', sysScanOff: examining || !canScan, sysScanTip: canScan ? SCAN_TIP : SCAN_OFF,
     hasFixed: fixedN > 0, fixedNote: fixedN + ' fixed this session · Re-examine to confirm',
     vitals, clutter, hasClutter: clutter.length > 0, noClutter: clutter.length === 0,
+    hubShow: hub.show, hubState: hub.state, hubColor: hub.color, hubDetail: hub.detail, hubSize: hub.size, hubHasSize: !!hub.size, hubBar: hub.bar, hubBarW: hub.barW,
   };
 }
