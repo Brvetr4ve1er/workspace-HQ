@@ -10,13 +10,35 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { makeClaudeHome, userLine } from './__fixtures__/make-fixture.mjs';
 import { openStore } from './store.mjs';
-import { acquireLock, resolveClaudeRoot } from './hub.mjs';
+import { backfill, INDEX_VERSION } from './ingest-code.mjs';
+import { acquireLock, resolveClaudeRoot, splitCommandLine } from './hub.mjs';
 
 const HUB = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hub.mjs');
 const dirs = [], procs = new Set();
 const tmp = (prefix) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); dirs.push(d); return d; };
 const LS = String.fromCharCode(0x2028), PS = String.fromCharCode(0x2029);   // line/paragraph separators, built rather than spelled
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const WIN = process.platform === 'win32';
+const NO_QUERY = !WIN && 'the lock-owner check queries Windows processes';
+
+// the lock file's content: {pid, db} (or the older plain pid)
+const lockOf = (file) => { const t = fs.readFileSync(file, 'utf8').trim(); return t.startsWith('{') ? JSON.parse(t) : { pid: Number(t) }; };
+// A live process the lock check takes for a Hub of `db` (node.exe running a script named hub.mjs with --db <db>) that never
+// opens the index: "another WorkspaceHQ" that has not created or migrated the file yet.
+function standInHub(dir, db, body = 'setTimeout(() => {}, 120000);') {
+  const d = fs.mkdtempSync(path.join(dir, 'stand-in-'));
+  const script = path.join(d, 'hub.mjs');
+  fs.writeFileSync(script, body);
+  const p = spawn(process.execPath, [script, '--db', db], { stdio: ['ignore', 'pipe', 'ignore'] });
+  procs.add(p);
+  return p;
+}
+// a live process that is not node at all (what a reused pid usually is)
+function otherProgram() {
+  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Start-Sleep -Seconds 60'], { stdio: 'ignore', windowsHide: true });
+  procs.add(p);
+  return p;
+}
 
 after(async () => {
   for (const p of procs) { try { p.kill('SIGKILL'); } catch { /* gone */ } }
@@ -122,31 +144,95 @@ test('a reader serves what the writer indexed and never ingests itself', async (
   } finally { await a.stop(); }
 });
 
-test('acquireLock: fresh file, live owner, dead owner and unreadable content', () => {
+test('acquireLock: fresh file ({pid, db}), dead owner in either format, unreadable content', () => {
   const dir = tmp('hub-lock-');
-  const lock = path.join(dir, 'x.lock');
+  const lock = path.join(dir, 'x.sqlite.lock');
   assert.equal(acquireLock(lock), true);
-  assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
+  assert.deepEqual(JSON.parse(fs.readFileSync(lock, 'utf8')), { pid: process.pid, db: path.join(dir, 'x.sqlite') }, 'the lock names its writer and its index');
 
+  let asked = 0;
+  const dead = spawnSync(process.execPath, ['-e', '0']).pid;   // exited by the time spawnSync returns
+  for (const held of [String(dead), JSON.stringify({ pid: dead, db: path.join(dir, 'x.sqlite') })]) {
+    fs.writeFileSync(lock, held);
+    assert.equal(acquireLock(lock, { inspect: () => { asked++; return null; } }), true, 'a dead owner leaves a stale lock that is taken over: ' + held);
+    assert.equal(lockOf(lock).pid, process.pid);
+  }
+  assert.equal(asked, 0, 'a dead pid is never looked up (the ordinary restart pays nothing)');
+
+  for (const junk of ['', 'not-a-pid', '-4', '0', '{"pid":', '{}', '{"pid":"x"}', '[]']) {
+    fs.writeFileSync(lock, junk);
+    assert.equal(acquireLock(lock), true, 'content that names no process is stale: ' + JSON.stringify(junk));
+    assert.equal(lockOf(lock).pid, process.pid);
+  }
+  assert.equal(acquireLock(path.join(dir, 'no-such-dir', 'x.lock')), false, 'a lock that cannot be created is not held');
+});
+
+// A hard kill (tools\rollback.ps1, a crash) leaves the lock behind, and Windows reuses pids: a live pid owns the index only
+// as a Claude Hub of this same db. Replaces the old "a live node sleeper keeps the lock" case, which inverts by design.
+test('acquireLock: a live pid keeps the lock only as a Hub of the same index; node that is no Hub, another program or a Hub of another index do not', { skip: NO_QUERY }, async () => {
+  const dir = tmp('hub-lockown-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite'), lock = db + '.lock';
+  const notes = [];
+  const take = (file = lock) => acquireLock(file, { note: (t) => notes.push(t) });
+
+  const a = startHub({ HQ_CLAUDE_HOME: home }, db);   // a real Hub: the owner
+  try {
+    await a.ready();
+    const held = fs.readFileSync(lock, 'utf8');
+    assert.deepEqual(JSON.parse(held), { pid: a.p.pid, db });
+    assert.equal(take(), false, 'a live Hub on the same db keeps the lock');
+    assert.equal(fs.readFileSync(lock, 'utf8'), held, 'and its file is left alone');
+    assert.deepEqual(notes, [], 'a verified owner needs no note');
+    const elsewhere = path.join(dir, 'other.sqlite.lock');   // the same live Hub named in ANOTHER index's lock
+    fs.writeFileSync(elsewhere, JSON.stringify({ pid: a.p.pid, db: path.join(dir, 'other.sqlite') }));
+    assert.equal(take(elsewhere), true, 'a Hub of another index does not own this one');
+    assert.match(notes.pop(), new RegExp('reclaimed a stale index lock \\(pid ' + a.p.pid + ' is a Claude Hub on another index\\)'));
+  } finally { await a.stop(); }
+
+  const sleeper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });   // node, but no Hub
+  procs.add(sleeper);
+  try {
+    fs.writeFileSync(lock, String(sleeper.pid));   // the older plain format
+    assert.equal(take(), true, 'a node process that is not a Hub does not own the index');
+    assert.equal(lockOf(lock).pid, process.pid);
+    assert.match(notes.pop(), new RegExp('reclaimed a stale index lock \\(pid ' + sleeper.pid + ' was node\\.exe, not a Claude Hub\\)'));
+    assert.equal(sleeper.exitCode, null, 'the process itself is left alone');
+  } finally { sleeper.kill('SIGKILL'); }
+
+  const other = otherProgram();   // a dead Hub's pid handed to something else entirely
+  try {
+    fs.writeFileSync(lock, JSON.stringify({ pid: other.pid, db }));
+    assert.equal(take(), true, 'an unrelated live program does not own the index');
+    assert.match(notes.pop(), new RegExp('reclaimed a stale index lock \\(pid ' + other.pid + ' was powershell\\.exe\\)', 'i'));
+  } finally { other.kill('SIGKILL'); }
+  assert.deepEqual(notes, []);
+});
+
+test('acquireLock: an owner that cannot be checked counts as live (the old rule) and the reason is reported', () => {
+  const dir = tmp('hub-lockq-');
+  const lock = path.join(dir, 'x.sqlite.lock');
   const sleeper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
   procs.add(sleeper);
   try {
-    fs.writeFileSync(lock, String(sleeper.pid));
-    assert.equal(acquireLock(lock), false, 'a live owner keeps the lock');
-    assert.equal(fs.readFileSync(lock, 'utf8'), String(sleeper.pid), 'and its file is left alone');
+    const held = JSON.stringify({ pid: sleeper.pid, db: path.join(dir, 'x.sqlite') });
+    fs.writeFileSync(lock, held);
+    const notes = [], note = (t) => notes.push(t);
+    assert.equal(acquireLock(lock, { inspect: () => { throw new Error('query timed out'); }, note }), false, 'the query failed: a live pid keeps the lock');
+    assert.match(notes.pop(), new RegExp('could not check the index lock owner \\(pid ' + sleeper.pid + ': query timed out\\), assumed live'));
+    assert.equal(acquireLock(lock, { inspect: () => ({ name: 'node.exe', commandLine: null }), note }), false, 'a node whose command line is unreadable is trusted');
+    assert.match(notes.pop(), /could not read the command line of pid \d+ \(node\.exe\), assumed it owns the index lock/);
+    assert.equal(fs.readFileSync(lock, 'utf8'), held, 'left alone both times');
+    assert.equal(acquireLock(lock, { inspect: () => null, note }), true, 'gone by the time it is asked: an ordinary stale lock');
+    assert.deepEqual(notes, []);
   } finally { sleeper.kill('SIGKILL'); }
+});
 
-  const dead = spawnSync(process.execPath, ['-e', '0']).pid;   // exited by the time spawnSync returns
-  fs.writeFileSync(lock, String(dead));
-  assert.equal(acquireLock(lock), true, 'a dead owner leaves a stale lock that is taken over');
-  assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
-
-  for (const junk of ['', 'not-a-pid', '-4', '0']) {
-    fs.writeFileSync(lock, junk);
-    assert.equal(acquireLock(lock), true, 'content that names no process is stale: ' + JSON.stringify(junk));
-    assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
-  }
-  assert.equal(acquireLock(path.join(dir, 'no-such-dir', 'x.lock')), false, 'a lock that cannot be created is not held');
+test('splitCommandLine: the Windows quoting rules the lock check reads a Hub command line with', () => {
+  assert.deepEqual(splitCommandLine('"C:\\Program Files\\nodejs\\node.exe" --no-warnings "C:\\Users\\A B\\workspace hq\\dashboard\\claude-hub\\hub.mjs" --db "C:\\Users\\A B\\data\\claude\\hub.sqlite"'),
+    ['C:\\Program Files\\nodejs\\node.exe', '--no-warnings', 'C:\\Users\\A B\\workspace hq\\dashboard\\claude-hub\\hub.mjs', '--db', 'C:\\Users\\A B\\data\\claude\\hub.sqlite']);
+  assert.deepEqual(splitCommandLine('node  hub.mjs\t--db x.sqlite '), ['node', 'hub.mjs', '--db', 'x.sqlite']);
+  assert.deepEqual(splitCommandLine('a\\\\b "c\\"d" "e\\\\" f\\\\\\"g ""'), ['a\\\\b', 'c"d', 'e\\', 'f\\"g', '']);
 });
 
 test('resolveClaudeRoot: HQ_CLAUDE_HOME wins, else ~/.claude', () => {
@@ -168,9 +254,111 @@ test('a writer that was killed hard leaves a stale lock; the next Hub takes over
     await b.ready();
     const hb = await b.healthy();
     assert.equal(hb.role, 'writer'); assert.equal(hb.counts.conversations, 3, 'the index survived the crash');
-    assert.equal(fs.readFileSync(db + '.lock', 'utf8'), String(b.p.pid));
+    assert.deepEqual(lockOf(db + '.lock'), { pid: b.p.pid, db });
   } finally { await b.stop(); }
+  assert.equal(fs.existsSync(db + '.lock'), false, 'the writer removes its own {pid, db} lock on exit');
+});
+
+// The regression behind the lock rule: the writer was hard-killed (its lock stays) and Windows has since handed its pid to an
+// unrelated live process. Before, every later Hub saw "a live owner" and became a read-only reader for good.
+test('a stale lock whose pid now belongs to an unrelated live program is reclaimed: the new Hub is the writer', { skip: NO_QUERY }, async () => {
+  const dir = tmp('hub-pidreuse-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const other = otherProgram();
+  try {
+    assert.ok(other.pid > 0);
+    fs.writeFileSync(db + '.lock', JSON.stringify({ pid: other.pid, db }));
+    const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+    try {
+      await h.ready();
+      assert.deepEqual(h.events.find((e) => e.event === 'ready').data, { role: 'writer' });
+      const hh = await h.healthy();
+      assert.equal(hh.role, 'writer'); assert.equal(hh.counts.conversations, 3, 'and it indexes');
+      assert.deepEqual(lockOf(db + '.lock'), { pid: h.p.pid, db });
+      assert.match(h.err(), new RegExp('reclaimed a stale index lock \\(pid ' + other.pid + ' was powershell\\.exe\\)', 'i'));
+      assert.equal(other.exitCode, null, 'the unrelated program is left alone');
+    } finally { await h.stop(); }
+  } finally { other.kill('SIGKILL'); }
   assert.equal(fs.existsSync(db + '.lock'), false);
+});
+
+test('a Hub started with HQ_CLAUDE_DB (no --db on its command line) is still the live owner: the next Hub is a reader', { skip: NO_QUERY }, async () => {
+  const dir = tmp('hub-envowner-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const a = startHub({ HQ_CLAUDE_HOME: home, HQ_CLAUDE_DB: db }, null);
+  try {
+    assert.equal((await a.healthy()).role, 'writer');
+    const b = startHub({ HQ_CLAUDE_HOME: home }, db);
+    try {
+      await b.ready();
+      assert.equal((await b.req('health')).result.role, 'reader');
+      assert.doesNotMatch(b.err(), /reclaimed/);
+      assert.equal(lockOf(db + '.lock').pid, a.p.pid, 'the owner keeps its lock');
+    } finally { await b.stop(); }
+  } finally { await a.stop(); }
+});
+
+test('when the lock owner cannot be checked, the next Hub stays a reader and health says why (until it restarts)', { skip: NO_QUERY }, async () => {
+  const dir = tmp('hub-noquery-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  openStore(db).close();   // an index exists, so the reader can open it
+  const sleeper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });   // live, would fail the check
+  procs.add(sleeper);
+  try {
+    fs.writeFileSync(db + '.lock', JSON.stringify({ pid: sleeper.pid, db }));
+    // no PowerShell under %windir%: the query fails, and the old rule (a live pid owns the lock) applies. (Windows env names
+    // are case-insensitive, but a second spelling in the env block is ignored: override the one in use.)
+    const winKey = Object.keys(process.env).find((k) => k.toUpperCase() === 'WINDIR') || 'windir';
+    const h = startHub({ HQ_CLAUDE_HOME: home, [winKey]: path.join(dir, 'no-windows-here') }, db);
+    try {
+      await h.ready();
+      const hh = await h.healthy();
+      assert.equal(hh.role, 'reader');
+      assert.match(hh.lastError, new RegExp('could not check the index lock owner \\(pid ' + sleeper.pid + ': .*\\), assumed live'), 'the read-only state is explained, not silent');
+      assert.match(h.err(), /could not check the index lock owner/);
+      assert.equal(lockOf(db + '.lock').pid, sleeper.pid);
+    } finally { await h.stop(); }
+  } finally { sleeper.kill('SIGKILL'); }
+});
+
+// Finding: the owner's hub.sqlite was written by the cut-before-mask code. Its cursors skip every byte already ingested and
+// INSERT OR IGNORE never rewrites a row, so without a rebuild the straddled fragments stay searchable for ever.
+test('an index without index_version (written by older code) is rebuilt on the next writer start; a current one is not', async () => {
+  const dir = tmp('hub-idxver-');
+  const { home, root } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const fragment = 'sk-' + 'ant-' + 'Gh5'.repeat(5);   // a straddled key's prefix the old code let through (under the rule's 20 chars)
+  const old = openStore(db);
+  await backfill(old, root);   // everything ingested: every cursor sits at the end of its file
+  old.addMessages('code:sess-a1', [{ id: 'code:sess-a1:leak', role: 'tool', at: '2026-10-01T10:00:30.000Z', text: 'printed ' + fragment + '…' }]);
+  old.forget({ conversationId: 'code:sess-b1' });   // a forgotten chat must stay forgotten through the rebuild
+  assert.equal(old.getMeta('index_version'), null);
+  assert.equal(old.search({ q: 'Gh5' }).length, 1, 'the seeded fragment is searchable');
+  old.close();
+
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    const hh = await h.healthy();
+    assert.equal(hh.role, 'writer'); assert.equal(hh.lastError, null);
+    assert.deepEqual((await h.req('search', { q: 'Gh5' })).result, [], 'the fragment is gone from the index');
+    assert.equal((await h.req('getConversation', { id: 'code:sess-a1' })).result.messages.some((m) => m.text.includes('sk-ant-')), false);
+    assert.equal(hh.counts.conversations, 2); assert.equal(hh.counts.messages, 4, 'rebuilt from the transcripts: 3 + 1, the seeded row is not among them');
+    assert.equal((await h.req('getConversation', { id: 'code:sess-b1' })).result, null, 'forgotten stays forgotten');
+  } finally { await h.stop(); }
+
+  const cur = openStore(db);
+  try {
+    assert.equal(cur.getMeta('index_version'), String(INDEX_VERSION), 'the rebuild stamped the version');
+    cur.addMessages('code:sess-a1', [{ id: 'code:sess-a1:marker', role: 'user', at: '2026-10-01T10:00:40.000Z', text: 'sentinel kept across restarts' }]);
+  } finally { cur.close(); }
+  const h2 = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    await h2.healthy();
+    assert.equal((await h2.req('search', { q: 'sentinel kept' })).result.length, 1, 'a current index is not rebuilt on every start');
+  } finally { await h2.stop(); }
 });
 
 test('reader whose index never appears: retries ~5 s, then runs store-less with health.lastError and never exits', async () => {
@@ -178,7 +366,9 @@ test('reader whose index never appears: retries ~5 s, then runs store-less with 
   const { home } = makeClaudeHome(dir);
   const db = path.join(dir, 'hub.sqlite');
   fs.writeFileSync(db, '');                                 // exists but was never migrated (the owner has not finished opening it)
-  fs.writeFileSync(db + '.lock', String(process.pid));      // a live "writer": this test runner
+  const holder = standInHub(dir, db);                       // a live "writer" that has not migrated it yet
+  const held = JSON.stringify({ pid: holder.pid, db });
+  fs.writeFileSync(db + '.lock', held);
   const t0 = Date.now();
   const h = startHub({ HQ_CLAUDE_HOME: home }, db);
   try {
@@ -199,15 +389,16 @@ test('reader whose index never appears: retries ~5 s, then runs store-less with 
     assert.equal((await h.req('getConversation', { id: 'code:sess-a1' })).result, null);
     assert.equal((await h.req('reindex')).ok, false);
     assert.equal(h.p.exitCode, null, 'the reader is still running');
-  } finally { assert.equal((await h.stop()).code, 0); }
-  assert.equal(fs.readFileSync(db + '.lock', 'utf8'), String(process.pid), 'a reader never touches the writer\'s lock');
+  } finally { assert.equal((await h.stop()).code, 0); holder.kill('SIGKILL'); }
+  assert.equal(fs.readFileSync(db + '.lock', 'utf8'), held, 'a reader never touches the writer\'s lock');
 });
 
 test('reader started before the index exists opens it once the owner has created and migrated it', async () => {
   const dir = tmp('hub-late-');
   const { home } = makeClaudeHome(dir);
   const db = path.join(dir, 'hub.sqlite');
-  fs.writeFileSync(db + '.lock', String(process.pid));
+  const holder = standInHub(dir, db);   // the live owner, before it has created the index
+  fs.writeFileSync(db + '.lock', JSON.stringify({ pid: holder.pid, db }));
   const h = startHub({ HQ_CLAUDE_HOME: home }, db);
   let owner = null;
   try {
@@ -223,7 +414,7 @@ test('reader started before the index exists opens it once the owner has created
     assert.equal(health.state, 'ready'); assert.equal(health.lastError, null, 'the waiting note clears itself');
     assert.equal((await h.req('search', { q: 'hello owner' })).result.length, 1);
     assert.equal((await h.req('listConversations')).result.length, 1);
-  } finally { await h.stop(); if (owner) owner.close(); }
+  } finally { await h.stop(); if (owner) owner.close(); holder.kill('SIGKILL'); }
 });
 
 test('a writer that cannot open its index reports it and exits non-zero without leaving a lock', async () => {
@@ -354,22 +545,21 @@ test('a missing transcripts root: the Hub runs and health says why it holds noth
 
 test('acquireLock: a lock file that is still being filled in is held, not stolen', async () => {
   const dir = tmp('hub-lockrace-');
-  const lock = path.join(dir, 'x.lock');
-  const script = path.join(dir, 'slow-owner.mjs');
-  // creates the lock empty, announces it, and writes its pid 80 ms later — the window a second Hub can land in
-  fs.writeFileSync(script, [
+  const db = path.join(dir, 'x.sqlite'), lock = db + '.lock';
+  // a Hub-shaped owner (hub.mjs --db <db>) that creates the lock empty, announces it, and writes {pid, db} 80 ms later —
+  // the window a second Hub can land in
+  const owner = standInHub(dir, db, [
     "import fs from 'node:fs';",
-    "const fd = fs.openSync(process.argv[2], 'wx');",
+    "const db = process.argv[process.argv.indexOf('--db') + 1];",
+    "const fd = fs.openSync(db + '.lock', 'wx');",
     "process.stdout.write('created\\n');",
-    "setTimeout(() => { fs.writeSync(fd, String(process.pid)); fs.closeSync(fd); }, 80);",
+    "setTimeout(() => { fs.writeSync(fd, JSON.stringify({ pid: process.pid, db })); fs.closeSync(fd); }, 80);",
     "setTimeout(() => {}, 30000);",
   ].join('\n'));
-  const owner = spawn(process.execPath, [script, lock], { stdio: ['ignore', 'pipe', 'ignore'] });
-  procs.add(owner);
   try {
     await new Promise((res, rej) => { owner.stdout.once('data', res); owner.once('exit', () => rej(new Error('owner exited'))); });
     assert.equal(acquireLock(lock), false, 'the half-written lock belongs to a live process');
-    assert.equal(fs.readFileSync(lock, 'utf8'), String(owner.pid));
+    assert.deepEqual(lockOf(lock), { pid: owner.pid, db });
   } finally { owner.kill('SIGKILL'); }
 });
 
@@ -514,10 +704,14 @@ test('starts through a junction (the entry check compares real paths)', async (t
   const link = path.join(dir, 'linked-hub');
   try { fs.symlinkSync(path.dirname(HUB), link, 'junction'); } catch (e) { dirs.push(dir); t.skip('cannot create a junction here: ' + e.code); return; }
   let h = null;
+  const db = path.join(dir, 'hub.sqlite');
   try {
-    h = startHub({ HQ_CLAUDE_HOME: home }, path.join(dir, 'hub.sqlite'), { script: path.join(link, 'hub.mjs') });
+    h = startHub({ HQ_CLAUDE_HOME: home }, db, { script: path.join(link, 'hub.mjs') });
     assert.ok(await h.ready(), 'main() ran');
     assert.equal((await h.healthy()).counts.conversations, 3);
+    // the lock check reads hub.mjs by its basename: a writer reached through a junction is still the live owner
+    const b = startHub({ HQ_CLAUDE_HOME: home }, db);
+    try { await b.ready(); assert.equal((await b.req('health')).result.role, 'reader'); } finally { await b.stop(); }
   } finally {
     if (h) await h.stop();
     try { fs.rmdirSync(link); } catch { /* reported below */ }
