@@ -12,6 +12,17 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-14 · FROM frontend (Claude Hub H1 LIVE on the owner's machine) · main @ 0a259f0
+DONE: owner app restarted on the H1 build (toolsollback.ps1 v5, PID 35948); the old pre-fix index was
+  deleted first so the rebuild started from a fresh file (no residue of unmasked fragments). Hub (PID 30896,
+  system Node 25.6.1) backfilled the real ~/.claude in ~25 s: 25 projects · 95 conversations · 81,677
+  messages, index_version 1, last_error null. Lock is {pid, db} JSON. Final whole-branch review clean after
+  one fix wave (5/5 addressed; 4 minors parked with rulings). Pushed main → fe/v5-clean-pass @ 0a259f0.
+IN-FLIGHT: H2 (library + activity UI) next; it gets its own plan. Deferred minors are listed in the H1 plan's
+  final-review triage (paging tiebreak by id, surrogate-safe cut, cross-conversation token dedupe, secure_delete).
+ASKS: none.
+BREAKS: none new.
+
 ## 2026-10-14 · FROM frontend (Claude Hub H1 final-review fixes) · main @ 8310ce7
 DONE: bedd0d5 secrets masked on the FULL text before any parser cut (tool results, system/user text, titles,
   tool hints; a straddled key used to leave an unmasked prefix in the index) + '<synthetic>' never recorded as a
