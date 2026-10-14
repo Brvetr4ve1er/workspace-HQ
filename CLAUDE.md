@@ -40,6 +40,7 @@ edits gated on in-flight work landing (new main-side features go in NEW files).
   `node_modules\electron\dist\electron.exe . --hidden` from `dashboard/` (PowerShell, not cmd).
 - Rebuild renderer data after pipeline changes: `node dashboard/build-data.mjs`.
 - Test a scan without the LLM: `node collector/collector.mjs && node collector/assemble.mjs`.
+- Claude Hub: `dashboard/claude-hub/` (system Node ≥ 22.13, `node:sqlite`) indexes `~/.claude/projects` into gitignored `data/claude/hub.sqlite`; tests `node --test dashboard/claude-hub/*.test.mjs`; overrides `HQ_CLAUDE_HOME`, `HQ_CLAUDE_DB`, `HQ_HUB_NODE`.
 - Hotkeys already claimed: `Ctrl+Alt+X` (quick-run) · `Ctrl+Alt+G` (summon) · `Ctrl+Alt+S` / `Ctrl+Alt+Shift+S` (snip) ·
   `Ctrl+Alt+R` / `Ctrl+Alt+Shift+R` (record) · `Ctrl+Alt+L` (open Studio). `Ctrl+Alt+Space` was retired 2026-09-15.
 - Renderer: v5 is the default — `dashboard-v5/` (template renderer `src/dc/runtime.js`, data

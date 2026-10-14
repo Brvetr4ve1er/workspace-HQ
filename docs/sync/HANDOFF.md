@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-14 · FROM frontend (Claude Hub H1 — every Claude Code session indexed locally, System card) · main @ 51148c8
+DONE: 727b6f8..49100ab (Tasks 1-7: secret masking, SQLite/FTS5 store, transcript parser, incremental
+  ingest, the Hub process, main-side host + hq:claude-hub IPC, System › Machine "Claude Hub" card) and the
+  gate fixes 4670ac9 (card re-asks health on the Hub's "changed") + 51148c8 (a dead Hub is pushed as
+  "starting"). Real second-instance gate (fixture ~/.claude, own db + profile, port 9492) 10/10: card
+  "Indexed · 3 chats · 2 projects · 5 messages"; an appended line shows within 1.4 s; killing the Hub child
+  shows "Starting…" then "Indexed" again; repo data/claude/ untouched. dashboard + claude-hub 438/438, v5
+  310/310. H2-H5 are outlined in docs/superpowers/plans/2026-10-13-claude-hub.md.
+IN-FLIGHT: owner's app not yet restarted on this build (tools\rollback.ps1 v5); its first run backfills the
+  real ~/.claude into data/claude/hub.sqlite (gitignored, owner's data).
+ASKS: none.
+BREAKS: main.js 47, 1594, 1638 (one-line hooks; all logic is in the new dashboard/claude-hub-host.js).
+  preload: claudeHub.health() / claudeHub.on(cb). data/claude/ is gitignored (CONTRACT.md entry); no
+  latest.json or sidecar shape changed. New env overrides: HQ_CLAUDE_HOME, HQ_CLAUDE_DB, HQ_HUB_NODE. The
+  Hub needs system Node >= 22.13 (the app shows "Needs Node 22.13 or newer" otherwise; nothing else breaks).
+
 ## 2026-10-07 · FROM frontend (v5 follow-ups — lifecycle log, Studio length + Open, social claim) · main @ 8ce24e5
 DONE: 7b52dd6 app-log.js → logs/app-YYYY-MM-DD.log (start/quit reasons,
   crashes, hangs, session end, 15-min 'alive'; the app stopped silently the
