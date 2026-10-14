@@ -17,7 +17,10 @@ export function hubCard(h, hasBridge) {
   if (h.state === 'starting') return { ...none, show: true, state: 'Starting…' };
   if (h.state === 'indexing') {
     const b = h.backfill || {}, total = b.total || 0, done = Math.min(b.done || 0, total);
-    return { show: true, state: total ? 'Indexing ' + done + ' of ' + total + ' sessions' : 'Indexing…', color: 'var(--blue)', detail: counted,
+    // The counts come from the last health() answer and are only re-pulled when the pass ends, so a first backfill shows zeros
+    // while sessions are already being read: "nothing indexed yet" would be false there, not merely stale.
+    const detail = (c.conversations || 0) + (c.projects || 0) > 0 || done === 0 ? counted : 'counts appear when indexing finishes';
+    return { show: true, state: total ? 'Indexing ' + done + ' of ' + total + ' sessions' : 'Indexing…', color: 'var(--blue)', detail,
       size: size(h.dbBytes), bar: total > 0, barW: (total ? Math.round(done / total * 100) : 0) + '%' };
   }
   const reader = h.role === 'reader' ? 'Read-only — another WorkspaceHQ window owns the index · ' : '';

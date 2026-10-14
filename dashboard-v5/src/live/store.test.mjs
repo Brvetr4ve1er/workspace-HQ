@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from './store.js';
+import { hubCard } from '../logic/claude-hub.js';
 import { proj, scan, spell, spellbook, telemetry, organ, pcHealth } from './__fixtures__/synthetic.mjs';
 
 // A recording fake of the preload bridge. Every on*/push subscription returns a
@@ -398,6 +399,20 @@ test('claudeHub: progress moves the card on, and done === total re-pulls health 
   assert.deepEqual(st.live.claudeHub.counts, { projects: 3, conversations: 40, messages: 900 });
   assert.equal(st.live.claudeHub.dbBytes, 2048);
   assert.ok(emits > before + 1, 'the re-pull emits too');
+  st.stop();
+});
+
+test('claudeHub: a first backfill (zero counts, progress 8/32) renders no "nothing indexed yet" next to a filling bar', async () => {
+  const { hq, calls, fire } = hubHq({ state: 'indexing', role: 'writer', backfill: { done: 0, total: 32 }, counts: { projects: 0, conversations: 0, messages: 0 } });
+  const st = createStore(DATA(), hq);
+  await st.start();
+  assert.equal(hubCard(st.live.claudeHub, true).detail, 'nothing indexed yet', 'nothing read yet: the zeros are accurate');
+  fire({ event: 'progress', data: { done: 8, total: 32 } });
+  assert.equal(calls.health, 1, 'counts are not re-pulled mid-backfill, so they stay at the first answer (zeros)');
+  const card = hubCard(st.live.claudeHub, true);
+  assert.equal(card.state, 'Indexing 8 of 32 sessions');
+  assert.equal(card.bar, true);
+  assert.equal(card.detail, 'counts appear when indexing finishes');
   st.stop();
 });
 
