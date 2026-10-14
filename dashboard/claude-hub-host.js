@@ -96,6 +96,7 @@ function create({ hubScript, dbFile, env = process.env, spawnFn = spawn, findNod
       if (stopping) { state = 'idle'; return; }
       if (attempt >= backoff.length) { error = error || 'Claude Hub exited (' + code + ')'; settle('down'); return; }
       state = 'starting';
+      push('health', { state, node: node ? node.version : null, error });   // tell the windows now: until the new Hub is up they would keep showing the old one's last answer
       timer = setTimeout(() => { restarts++; start(); }, backoff[attempt++]);
     };
     c.on('error', (e) => { error = errText(e); if (c.pid === undefined) onGone(-1); });
@@ -117,7 +118,9 @@ function create({ hubScript, dbFile, env = process.env, spawnFn = spawn, findNod
     for (let i = 0; i < 40 && state === 'starting'; i++) await new Promise((r) => setTimeout(r, 50));
     if (state !== 'running') return { state: state === 'idle' ? 'down' : state, node: node ? node.version : null, error };
     const h = await request('health');
-    return h && !h.error ? { ...h, node: h.node || node.version } : { state: 'down', node: node.version, error: h && h.error };
+    if (h && !h.error) return { ...h, node: h.node || node.version };
+    if (state === 'starting') return { state: 'starting', node: node.version, error };   // the Hub died under this request and a restart is pending
+    return { state: 'down', node: node.version, error: h && h.error };
   }
 
   function stop() {

@@ -330,7 +330,7 @@ Additive only. Main-side code lives in a NEW file with one-line hooks in `main.j
 | Preload | Channel | Shape |
 |---|---|---|
 | `claudeHub.health()` | `hq:claude-hub:health` (invoke) | `{state:'ready'\|'indexing'\|'no-node'\|'starting'\|'down', role?:'writer'\|'reader', node, backfill?:{done,total}, counts?:{projects,conversations,messages}, dbBytes?, error?/lastError?}` — never throws; `no-node` = system Node < 22.13 or missing |
-| `claudeHub.on(cb)` | push `hq:claude-hub:event` | `{event:'ready'\|'progress'\|'changed'\|'error'\|'health', data}`; `progress` = `{done,total}` (≤ 2/s), `changed` = `{ids:[conversationId]}`, `health` = `{state,node,error}` (the host itself settling in `no-node` or `down`; the Hub's own events are passed through unchanged) |
+| `claudeHub.on(cb)` | push `hq:claude-hub:event` | `{event:'ready'\|'progress'\|'changed'\|'error'\|'health', data}`; `progress` = `{done,total}` (≤ 2/s), `changed` = `{ids:[conversationId]}`, `health` = `{state,node,error}` (the host itself: `starting` the moment a Hub dies and a restart is pending, then `no-node` or `down` when it settles; the Hub's own events are passed through unchanged). `changed` means the counts in `health()` moved: re-ask |
 
 Main side: `dashboard/claude-hub-host.js` spawns `dashboard/claude-hub/hub.mjs` on the system Node
 (`HQ_HUB_NODE` overrides the binary; `HQ_CLAUDE_DB` the db file; `HQ_CLAUDE_HOME` the `~/.claude`

@@ -103,6 +103,42 @@ test('a request that reaches a hub that just died answers {error}, never throws 
   } finally { h.stop(); }
 });
 
+// gate finding (H1 real-instance gate): a Hub that died stayed "Indexed" in the System card for the whole backoff, because the
+// host changed its own state to "starting" without telling the windows.
+test('a hub that dies is announced to the windows as "starting" before the restart (the card must not keep saying Indexed)', async () => {
+  const dir = tmp('hub-host-');
+  const sent = [];
+  const h = create({ hubScript: fakeHub(dir, ECHO), dbFile: path.join(dir, 'db'), findNodeFn: thisNode, send: (c, d) => sent.push([c, d]), backoff: [400] });
+  h.start();
+  try {
+    assert.equal((await h.health()).state, 'ready');
+    sent.length = 0;
+    h._child().kill();
+    assert.equal(await until(() => h.state === 'starting'), true);
+    const pushes = sent.filter(([c]) => c === 'hq:claude-hub:event').map(([, d]) => d);
+    assert.deepEqual(pushes, [{ event: 'health', data: { state: 'starting', node: process.version, error: null } }], 'one health push, before the new Hub is up');
+    assert.equal(await until(() => sent.some(([, d]) => d.event === 'ready')), true, 'then the new Hub says ready');
+    assert.equal(sent.findIndex(([, d]) => d.event === 'health') < sent.findIndex(([, d]) => d.event === 'ready'), true, 'in that order');
+  } finally { h.stop(); }
+});
+
+test('a health() that was in flight when the hub died answers "starting" (a restart is pending), not "down"', async () => {
+  const dir = tmp('hub-host-');
+  const HANG = `import readline from 'node:readline';
+process.stdout.write(JSON.stringify({ event: 'ready', data: { role: 'writer' } }) + '\\n');
+readline.createInterface({ input: process.stdin }).on('line', () => {});`;
+  const h = create({ hubScript: fakeHub(dir, HANG), dbFile: path.join(dir, 'db'), findNodeFn: thisNode, backoff: [5000] });
+  h.start();
+  try {
+    assert.equal(await until(() => h.state === 'running'), true);
+    const inFlight = h.health();
+    await new Promise((r) => setTimeout(r, 100));
+    h._child().kill();
+    const r = await inFlight;
+    assert.equal(r.state, 'starting', JSON.stringify(r));
+  } finally { h.stop(); }
+});
+
 test('stop() during a restart backoff cancels the restart and leaves the host idle', async () => {
   const dir = tmp('hub-host-');
   const h = create({ hubScript: fakeHub(dir, ECHO), dbFile: path.join(dir, 'db'), findNodeFn: thisNode, backoff: [150] });
