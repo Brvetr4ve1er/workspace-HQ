@@ -442,12 +442,42 @@ test('claudeHub: a "ready" event after a "starting" answer re-pulls health (a re
   st.stop();
 });
 
+test('claudeHub: a "changed" event re-pulls health (the counts move on while the app sits open)', async () => {
+  // gate finding (H1 real-instance gate): the Hub indexed an appended line and said so with "changed", but the card kept the old
+  // counts until the next backfill or restart, because nothing re-asked for them.
+  const answers = [{ state: 'ready', role: 'writer', counts: { projects: 2, conversations: 3, messages: 5 } },
+    { state: 'ready', role: 'writer', counts: { projects: 2, conversations: 3, messages: 6 }, dbBytes: 4096 }];
+  const { hq, calls, fire } = hubHq((n) => Promise.resolve(answers[n - 1]));
+  const st = createStore(DATA(), hq);
+  let emits = 0; st.on(() => { emits++; });
+  await st.start();
+  assert.equal(hubCard(st.live.claudeHub, true).detail, '3 chats · 2 projects · 5 messages');
+  const before = emits;
+  fire({ event: 'changed', data: { ids: ['code:sess-a2'] } });
+  await settle();
+  assert.equal(calls.health, 2, 'one re-pull per changed event');
+  assert.equal(hubCard(st.live.claudeHub, true).detail, '3 chats · 2 projects · 6 messages');
+  assert.ok(emits > before, 'the card is told to render');
+  st.stop();
+});
+
+test('claudeHub: a "changed" event whose re-pull answers junk keeps the value we had', async () => {
+  const { hq, calls, fire } = hubHq((n) => Promise.resolve(n === 1 ? { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 1, messages: 1 } } : 'junk'));
+  const st = createStore(DATA(), hq);
+  await st.start();
+  fire({ event: 'changed', data: { ids: ['c1'] } });
+  await settle();
+  assert.equal(calls.health, 2);
+  assert.equal(st.live.claudeHub.counts.messages, 1);
+  st.stop();
+});
+
 test('claudeHub: junk and unrelated events change nothing; stop() unsubscribes; an older preload without claudeHub still starts', async () => {
   const { hq, calls, hubCbs, fire } = hubHq({ state: 'ready', role: 'writer' });
   const st = createStore(DATA(), hq);
   await st.start();
   const snapshot = st.live.claudeHub;
-  for (const e of [null, 'x', 7, [], {}, { event: 'progress' }, { event: 'progress', data: 'x' }, { event: 'health', data: null }, { event: 'changed', data: { ids: ['c1'] } }]) fire(e);
+  for (const e of [null, 'x', 7, [], {}, { event: 'progress' }, { event: 'progress', data: 'x' }, { event: 'health', data: null }, { event: 'error', data: { message: 'x' } }]) fire(e);
   assert.equal(st.live.claudeHub, snapshot);
   assert.equal(calls.health, 1);
   assert.equal(hubCbs.length, 1);

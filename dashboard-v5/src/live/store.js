@@ -180,6 +180,8 @@ export function createStore(DATA, hq) {
       } else if (e.event === 'health' && isObj(e.data)) live.claudeHub = e.data;
       // a Hub that came up after the first health() answered "starting" (a reader never backfills, so no progress follows)
       else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+      // the Hub indexed something new (a live append, a sweep): the card's counts are from the last answer, so ask again
+      else if (e.event === 'changed' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
       emit();
     }));
     if (hq.studio) {
