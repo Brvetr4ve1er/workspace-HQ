@@ -334,7 +334,9 @@ Additive only. Main-side code lives in a NEW file with one-line hooks in `main.j
 
 Main side: `dashboard/claude-hub-host.js` spawns `dashboard/claude-hub/hub.mjs` on the system Node
 (`HQ_HUB_NODE` overrides the binary; `HQ_CLAUDE_DB` the db file; `HQ_CLAUDE_HOME` the `~/.claude`
-folder read). One writer per db (`<db>.lock`); a second app instance gets a read-only reader. A Hub that exits
+folder read). One writer per db (`<db>.lock` = `{pid, db}`); a second app instance gets a read-only reader. A lock
+whose pid is alive but is not node running `hub.mjs` on that db (Windows reused a hard-killed Hub's pid) is reclaimed;
+when that check itself fails, a live pid still owns the lock and `health().lastError` says so. A Hub that exits
 is restarted on a 1 s / 5 s / 30 s backoff, then the host settles in `down` (a Hub that stayed up 60 s starts the
 backoff over). Hub stderr and error text reach `logs/app-*.log` only through `appLog.error` (redacted: no paths,
 URLs, addresses or quoted fragments).

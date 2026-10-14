@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-14 · FROM frontend (Claude Hub H1 final-review fixes) · main @ 8310ce7
+DONE: bedd0d5 secrets masked on the FULL text before any parser cut (tool results, system/user text, titles,
+  tool hints; a straddled key used to leave an unmasked prefix in the index) + '<synthetic>' never recorded as a
+  session's model. 8310ce7 the index lock survives pid reuse (a live pid owns it only as node running hub.mjs on
+  the same db; a hard kill + reused pid no longer makes every later Hub a reader) + meta.index_version: an index
+  written by older code is rebuilt once. claude-hub 73/73, dashboard 377/377, v5 310/310.
+IN-FLIGHT: none. Owner: the next app start rebuilds data/claude/hub.sqlite once (card shows Indexing; the reset
+  takes a few seconds, then a full backfill). Not restarted by this session.
+ASKS: none.
+BREAKS: nothing for the struct lane. data/claude/hub.sqlite.lock is now {pid, db} JSON (plain pid still read);
+  CONTRACT.md data/claude entry + IPC-CONTRACT.md Hub paragraph amended (additive).
+
 ## 2026-10-14 · FROM frontend (Claude Hub H1 — every Claude Code session indexed locally, System card) · main @ 51148c8
 DONE: 727b6f8..49100ab (Tasks 1-7: secret masking, SQLite/FTS5 store, transcript parser, incremental
   ingest, the Hub process, main-side host + hq:claude-hub IPC, System › Machine "Claude Hub" card) and the

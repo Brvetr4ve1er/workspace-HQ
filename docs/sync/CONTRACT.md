@@ -176,3 +176,7 @@ recorded after the fact. Same `X-HQ-Bridge` + optional `X-HQ-Token` gate (403), 
 `data/claude/hub.sqlite` (+ `-wal`, `.lock`): SQLite schema v1 (`dashboard/claude-hub/store.mjs`).
 Written only by the Hub process; never read by `collector/` or committed. Shape changes bump
 `SCHEMA_VERSION`; an older app refuses a newer db instead of corrupting it.
+(2026-10-14, additive) `meta.index_version` (`INDEX_VERSION` in `dashboard/claude-hub/ingest-code.mjs`) records which
+parsing/masking produced the rows; when it is missing or lower, the next writer rebuilds the code index from the
+transcripts (tombstones and projects kept). The first one: secrets masked on the full text before any cut. The lock
+file holds `{"pid","db"}` (a plain pid is still read).
