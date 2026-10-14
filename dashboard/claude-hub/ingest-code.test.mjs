@@ -291,3 +291,50 @@ test('an unreadable folder is recorded by backfill and sweep; the other folders 
     assert.match(s.getMeta('last_error') || '', /^C--placeholder-project-b: EACCES/);
   } finally { m.mock.restore(); }
 });
+
+// ---- final review: mask before cut (end to end), '<synthetic>' model ----
+
+test('secrets straddling the parser cuts never reach the store or the FTS index (tool result, system text, tool hint, title)', async () => {
+  const dir = tmp(), root = path.join(dir, 'projects'), folder = path.join(root, 'C--placeholder-s');
+  fs.mkdirSync(folder, { recursive: true });
+  const f = path.join(folder, 'sess-s.jsonl');
+  // runtime-built secrets, each with a distinctive body the FTS tokenizer indexes as its own token
+  const ant = 'sk-' + 'ant-' + 'Vq9'.repeat(20), stripe = 'sk_' + 'live_' + 'Jx4'.repeat(12), tok = 'Mw2'.repeat(16), aws = 'AK' + 'IA' + 'ZPQRSTUVWXYZ2345';
+  // each starts 10 chars before its cap (2048 tool result, 500 system text, 80 tool hint, 200 title) and runs past it
+  const at = (cap, lead, s) => 'w'.repeat(cap - 10 - 1 - lead.length) + ' ' + lead + s + ' tail';
+  const line = (o) => JSON.stringify({ parentUuid: null, sessionId: 'sess-s', timestamp: '2026-10-01T10:00:00.000Z', cwd: 'C:\\placeholder\\project-s', isSidechain: false, ...o }) + '\n';
+  fs.writeFileSync(f,
+    line({ type: 'user', uuid: 's1', message: { role: 'user', content: 'run the placeholder checks' } }) +
+    line({ type: 'user', uuid: 's2', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: at(2048, '', ant) }] } }) +
+    line({ type: 'user', uuid: 's3', isMeta: true, message: { role: 'user', content: at(500, '', stripe) } }) +
+    line({ type: 'assistant', uuid: 's4', message: { id: 'msg_s', model: 'claude-placeholder', role: 'assistant',
+      content: [{ type: 'tool_use', name: 'Bash', input: { command: at(80, 'curl -H "Authorization: ' + 'Bearer ', tok) } }] } }) +
+    JSON.stringify({ type: 'custom-title', customTitle: at(200, '', aws), sessionId: 'sess-s' }) + '\n');
+  const s = openStore(':memory:');
+  assert.equal((await ingestFile(s, root, f)).added, 4);
+  const conv = s.getConversation({ id: 'code:sess-s' });
+  const stored = conv.messages.map((m) => m.text).join('\n') + '\n' + conv.conversation.title;
+  for (const frag of ['sk-ant-', 'Vq9', 'sk_live_', 'Jx4', 'Mw2', 'AKIA']) assert.ok(!stored.includes(frag), 'stored text holds no ' + frag);
+  for (const q of ['Vq9', 'Jx4', 'Mw2', 'AKIAZP', 'ant']) assert.deepEqual(s.search({ q }), [], 'no FTS hit for ' + q);
+  assert.equal(conv.messages.filter((m) => m.text.includes('••• secret')).length, 3, 'tool result, system text and tool hint each carry a mask');
+  assert.ok(conv.conversation.title.endsWith('••• secret'), conv.conversation.title.slice(-30));
+});
+
+test("Claude Code's synthetic lines ('<synthetic>' model) never replace the session's real model", async () => {
+  const dir = tmp(), root = path.join(dir, 'projects'), folder = path.join(root, 'C--placeholder-m');
+  fs.mkdirSync(folder, { recursive: true });
+  const usage = { input_tokens: 1, output_tokens: 1 };
+  const real = path.join(folder, 'sess-m.jsonl'), only = path.join(folder, 'sess-n.jsonl');
+  fs.writeFileSync(real,
+    userLine({ uuid: 'm1', sessionId: 'sess-m', at: '2026-10-01T10:00:00.000Z', text: 'hello' }) +
+    assistantLines({ apiId: 'msg_m1', uuids: ['m2'], sessionId: 'sess-m', at: '2026-10-01T10:01:00.000Z', blocks: [{ type: 'text', text: 'hi' }], usage, model: 'claude-placeholder' }) +
+    assistantLines({ apiId: 'msg_m2', uuids: ['m3'], sessionId: 'sess-m', at: '2026-10-01T10:02:00.000Z', blocks: [{ type: 'text', text: 'No response requested.' }], usage, model: '<synthetic>' }));
+  fs.writeFileSync(only,
+    userLine({ uuid: 'n1', sessionId: 'sess-n', at: '2026-10-01T10:00:00.000Z', text: 'hello' }) +
+    assistantLines({ apiId: 'msg_n1', uuids: ['n2'], sessionId: 'sess-n', at: '2026-10-01T10:01:00.000Z', blocks: [{ type: 'text', text: 'API Error: placeholder' }], usage, model: '<synthetic>' }));
+  const s = openStore(':memory:');
+  await ingestFile(s, root, real); await ingestFile(s, root, only);
+  assert.equal(s.getConversation({ id: 'code:sess-m' }).conversation.model, 'claude-placeholder', 'a session ending on a synthetic line keeps its model');
+  assert.equal(s.getConversation({ id: 'code:sess-n' }).conversation.model, null, 'a synthetic-only session records no model');
+  assert.equal(s.getConversation({ id: 'code:sess-m' }).messages.length, 3, 'the synthetic line itself is still indexed');
+});

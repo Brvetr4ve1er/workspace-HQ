@@ -4,6 +4,11 @@
 // Only `type`, message.role/content/usage/id/model and the line's own uuid,
 // parentUuid, timestamp, cwd, gitBranch, sessionId, isSidechain, isMeta,
 // isCompactSummary are relied on; every other field and line type is ignored.
+// Secrets are masked HERE, on the whole text, before any length cap (spec §4 "masked … before indexing"): a cap that
+// cuts through a secret first leaves a prefix too short for its rule ('sk-ant-' + 15 chars, 'AKIA' + 6, a 10-char
+// bearer token), and that prefix would reach the index unmasked.
+import { maskSecrets } from './redact.mjs';
+
 export const TOOL_RESULT_MAX = 2048;
 // ONE text-cap rule for every content shape (string or block array): system-role text (isMeta, compact
 // summary, command echoes: harness noise, skill-body injections of 20-45k chars) is cut to SYSTEM_TEXT_MAX,
@@ -12,16 +17,20 @@ export const SYSTEM_TEXT_MAX = 500;
 export const TEXT_MAX = 200000;
 const COMMAND_ECHO = /^\s*<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>/;
 const str = (v) => (typeof v === 'string' && v ? v : null);
-const clean = (s, max) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim().slice(0, max);
+// control-char strip (NUL survives in SQLite but reads back truncated at the NUL), then the mask, on the WHOLE text: a
+// control char inside a secret is stripped before the rules look, and nothing has been cut yet. Every cap comes after.
+const safe = (s) => maskSecrets(String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')).text;
 const iso = (v) => { const t = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isFinite(t) ? new Date(t).toISOString() : null; };
 const cut = (s, max) => (s.length > max ? s.slice(0, max) + '…' : s);
-// control-char strip + trim, then the role's cap with its marker. NUL survives in SQLite but reads back truncated at the NUL.
-const body = (s, role) => cut(clean(s, Infinity), role === 'system' ? SYSTEM_TEXT_MAX : TEXT_MAX);
+// strip + mask + trim, then the role's cap with its marker
+const body = (s, role) => cut(safe(s).trim(), role === 'system' ? SYSTEM_TEXT_MAX : TEXT_MAX);
+const titleText = (s) => safe(s).trim().slice(0, 200);
 
 function toolHint(input) {
   if (!input || typeof input !== 'object') return '';
   for (const k of ['command', 'file_path', 'path', 'pattern', 'url', 'query', 'description']) {
-    if (typeof input[k] === 'string' && input[k]) return ' ' + cut(input[k].replace(/\s+/g, ' '), 80);
+    // masked before the 80-char cut: `export ANTHROPIC_API_KEY=…` or `curl -H "Authorization: Bearer …` behind a long prefix straddles it
+    if (typeof input[k] === 'string' && input[k]) return ' ' + cut(safe(input[k].replace(/\s+/g, ' ')), 80);
   }
   return '';
 }
@@ -44,7 +53,7 @@ function toText(content, type, systemish) {
     if (b.type !== 'tool_result') onlyResults = false;
     if (b.type === 'text' && typeof b.text === 'string') parts.push(b.text);
     else if (b.type === 'tool_use') { toolName = toolName || str(b.name); parts.push('[tool: ' + (str(b.name) || 'tool') + toolHint(b.input) + ']'); }
-    else if (b.type === 'tool_result') parts.push(cut(resultText(b.content), TOOL_RESULT_MAX));
+    else if (b.type === 'tool_result') parts.push(cut(safe(resultText(b.content)), TOOL_RESULT_MAX));   // masked whole, then cut
     else if (b.type === 'image') parts.push('[image]');
     else if (b.type === 'document') parts.push('[document]');
     // thinking / redacted_thinking / anything else: dropped
@@ -68,8 +77,8 @@ export function parseCodeLine(line) {
   try { j = JSON.parse(s); } catch { return { kind: 'bad' }; }
   if (!j || typeof j !== 'object' || Array.isArray(j)) return { kind: 'bad' };
   const sessionId = str(j.sessionId) || str(j.session_id);
-  if (j.type === 'custom-title' && typeof j.customTitle === 'string') return { kind: 'title', sessionId, title: clean(j.customTitle, 200), source: 'custom' };
-  if (j.type === 'ai-title' && typeof j.aiTitle === 'string') return { kind: 'title', sessionId, title: clean(j.aiTitle, 200), source: 'ai' };
+  if (j.type === 'custom-title' && typeof j.customTitle === 'string') return { kind: 'title', sessionId, title: titleText(j.customTitle), source: 'custom' };
+  if (j.type === 'ai-title' && typeof j.aiTitle === 'string') return { kind: 'title', sessionId, title: titleText(j.aiTitle), source: 'ai' };
   if (j.type !== 'user' && j.type !== 'assistant') return { kind: 'meta', type: String(j.type || 'unknown') };
   const msg = j.message && typeof j.message === 'object' ? j.message : null;
   if (!msg) return { kind: 'meta', type: j.type };

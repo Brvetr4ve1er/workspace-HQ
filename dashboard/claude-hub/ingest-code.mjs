@@ -10,6 +10,12 @@ import { parseCodeLine } from './parse-code.mjs';
 import { maskSecrets } from './redact.mjs';
 
 export const HEAD_BYTES = 256;
+// What the indexed rows look like. Bump it whenever parsing or masking changes what ends up in the index: an index written
+// by older code keeps whatever that code let through (cursors skip bytes already ingested and INSERT OR IGNORE never
+// rewrites a row), so the Hub rebuilds the code index on its next start as the writer when meta.index_version is
+// missing or lower (hub.mjs). Missing = written before this key existed (H1 up to 810dd5c: cut before mask).
+//   1: secrets masked on the full text before any cut (S1); synthetic '<synthetic>' models no longer recorded
+export const INDEX_VERSION = 1;
 const BATCH = 500;
 const NL = 0x0a;
 
@@ -67,13 +73,19 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
     const p = parseCodeLine(lineBuf.toString('utf8'));
     if (!p) return;
     if (p.kind === 'bad') { bad++; return; }
+    // The parser already masked every text on its full length before cutting it (parse-code.mjs); masking again here is
+    // defence in depth (masking is idempotent: a second pass over masked text finds nothing), kept so text that reaches
+    // the store is masked even if a future parser path forgets to.
     if (p.kind === 'title') { store.setTitle(convId, maskSecrets(p.title).text, p.source); return; }   // titles reach lists and search hits too
     if (p.kind !== 'message') return;
     if (p.cwd) store.upsertProject({ id: projectId, source: 'code', key: folder, name: path.win32.basename(p.cwd) || folder, path: p.cwd });
-    store.ensureConversation({ id: convId, source: 'code', projectId, nativeId: sessionId, cwd: p.cwd, gitBranch: p.gitBranch, model: p.model });
+    // Claude Code's own lines ('API Error…', 'No response requested.') carry model '<synthetic>'; the latest non-null model
+    // wins in the store, so a session ending on one would otherwise record '<synthetic>' in place of the real model.
+    const model = p.model === '<synthetic>' ? null : p.model;
+    store.ensureConversation({ id: convId, source: 'code', projectId, nativeId: sessionId, cwd: p.cwd, gitBranch: p.gitBranch, model });
     if (p.usage && p.apiId) store.addUsage(convId, p.apiId, p.usage);
     if (!p.text) return;
-    const text = maskSecrets(p.text).text;
+    const text = maskSecrets(p.text).text;   // defence in depth, see above
     // Message ids are scoped to the conversation: a resumed/forked session copies its parent's lines with the
     // same uuids, and a global 'code:<uuid>' key + INSERT OR IGNORE would silently drop them from whichever
     // transcript is ingested second (the owner's tree: ~25% of lines). nativeId keeps the raw uuid.
