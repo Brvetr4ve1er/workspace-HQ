@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld('hq', {
   },
   claudeHub: {
     health: () => ipcRenderer.invoke('hq:claude-hub:health'),
+    projects: (opts) => ipcRenderer.invoke('hq:claude-hub:projects', opts),
+    conversations: (opts) => ipcRenderer.invoke('hq:claude-hub:conversations', opts),
+    conversation: (id, opts) => ipcRenderer.invoke('hq:claude-hub:conversation', id, opts),
+    search: (q, opts) => ipcRenderer.invoke('hq:claude-hub:search', q, opts),
+    stats: (opts) => ipcRenderer.invoke('hq:claude-hub:stats', opts),
+    link: (id, hqId, state) => ipcRenderer.invoke('hq:claude-hub:link', id, hqId, state),
+    forget: (target) => ipcRenderer.invoke('hq:claude-hub:forget', target),
+    reindex: () => ipcRenderer.invoke('hq:claude-hub:reindex'),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:claude-hub:event', handler);

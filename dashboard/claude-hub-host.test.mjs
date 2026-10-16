@@ -229,3 +229,31 @@ process.stdout.write(JSON.stringify({ event: 'error', data: { message: ${JSON.st
     assert.match((await h.health()).error, /secret transcript words/);
   } finally { h.stop(); }
 });
+
+const { registerIpc } = require('./claude-hub-host.js');
+test('registerIpc maps every channel to its Hub op and shapes false into {error}', async () => {
+  const h = {}, calls = [];
+  const host = { health: async () => ({ state: 'ready' }), request: async (op, args, o) => { calls.push([op, args, o]); return op === 'link' ? false : op === 'forget' ? true : { op }; } };
+  registerIpc({ handle: (ch, fn) => { h[ch] = fn; } }, host);
+  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-hub:conversation', 'hq:claude-hub:conversations', 'hq:claude-hub:forget', 'hq:claude-hub:health',
+    'hq:claude-hub:link', 'hq:claude-hub:projects', 'hq:claude-hub:reindex', 'hq:claude-hub:search', 'hq:claude-hub:stats']);
+  await h['hq:claude-hub:conversation']({}, 'code:s', { limit: 5, before: 'x', beforeId: 'y' });
+  assert.deepEqual(calls.at(-1).slice(0, 2), ['getConversation', { limit: 5, before: 'x', beforeId: 'y', id: 'code:s' }]);
+  await h['hq:claude-hub:search']({}, 'release', { limit: 5 });
+  assert.deepEqual(calls.at(-1).slice(0, 2), ['search', { limit: 5, q: 'release' }]);
+  assert.deepEqual(await h['hq:claude-hub:link']({}, 'code:p', 'project-a', 'confirmed'), { error: 'unknown project' });
+  assert.deepEqual(calls.at(-1).slice(0, 2), ['link', { projectId: 'code:p', hqProjectId: 'project-a', state: 'confirmed' }]);
+  assert.equal(await h['hq:claude-hub:forget']({}, { conversationId: 'code:s' }), true);
+  assert.equal(calls.at(-1)[2].timeout, 60000);
+  await h['hq:claude-hub:stats']({}, { from: '2026-10-01', to: '2026-10-02' });
+  assert.equal(calls.at(-1)[2].timeout, 15000);
+  await h['hq:claude-hub:conversations']({}, 'not-an-object');
+  assert.deepEqual(calls.at(-1).slice(0, 2), ['listConversations', {}]);   // junk args never reach the Hub
+});
+test('create passes --latest to the Hub when given', () => {
+  const seen = [];
+  const host = create({ hubScript: 'hub.mjs', dbFile: 'x.sqlite', latestFile: 'C:\placeholder\latest.json', findNodeFn: () => thisNode(),
+    spawnFn: (cmd, args) => { seen.push(args); throw new Error('stop here'); } });
+  host.start();
+  assert.deepEqual(seen[0].slice(-2), ['--latest', 'C:\placeholder\latest.json']);
+});

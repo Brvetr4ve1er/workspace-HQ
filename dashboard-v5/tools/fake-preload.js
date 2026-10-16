@@ -39,6 +39,29 @@ function createFake(opts) {
   const readPersisted = () => { try { const o = JSON.parse((storage && storage.getItem(PERSIST_KEY)) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } };
   const writePersisted = (o) => { try { if (Object.keys(o).length) storage.setItem(PERSIST_KEY, JSON.stringify(o)); else storage.removeItem(PERSIST_KEY); } catch {} };
   const chats = new Map();       // jobId → {timers, resolve}
+  const HUB_AT = '2026-10-04T09:00:00.000Z';
+  const HUB_PROJECTS = [
+    { id: 'code:C--placeholder-project-a', source: 'code', key: 'C--placeholder-project-a', name: 'project-a', path: 'C:\\placeholder\\project-a', hq_project_id: 'project-a', link_state: 'auto', conversations: 2, last_at: HUB_AT },
+    { id: 'code:C--placeholder-project-b', source: 'code', key: 'C--placeholder-project-b', name: 'project-b', path: 'C:\\placeholder\\project-b', hq_project_id: null, link_state: 'none', conversations: 1, last_at: '2026-09-30T08:00:00.000Z' },
+  ];
+  const HUB_CONVS = [
+    { id: 'code:sess-a1', source: 'code', project_id: HUB_PROJECTS[0].id, native_id: 'sess-a1', title: 'Release planning', title_source: 'ai', started_at: '2026-10-04T08:40:00.000Z', last_at: HUB_AT, message_count: 4, cwd: 'C:\\placeholder\\project-a', git_branch: 'main', model: 'claude-placeholder', tokens_in: 6, tokens_out: 40, tokens_cache_read: 100, tokens_cache_write: 10, active_ms: 120000, forgotten: 0, project_name: 'project-a', hq_project_id: 'project-a' },
+    { id: 'code:sess-a2', source: 'code', project_id: HUB_PROJECTS[0].id, native_id: 'sess-a2', title: 'Fix the caf\u00e9 bug \ud83d\ude80', title_source: 'first-prompt', started_at: '2026-10-03T10:00:00.000Z', last_at: '2026-10-03T10:05:00.000Z', message_count: 2, cwd: 'C:\\placeholder\\project-a', git_branch: null, model: null, tokens_in: null, tokens_out: null, tokens_cache_read: null, tokens_cache_write: null, active_ms: 0, forgotten: 0, project_name: 'project-a', hq_project_id: 'project-a' },
+  ];
+  const hubThread = (id) => {
+    const c = HUB_CONVS.find((x) => x.id === id);
+    if (!c) return null;
+    return { conversation: c, hasMore: false, messages: [
+      { id: id + ':u1', conversation_id: id, role: 'user', at: c.started_at, text: 'Plan the release for project-a', tool_name: null, is_sidechain: 0 },
+      { id: id + ':a1', conversation_id: id, role: 'assistant', at: c.last_at, text: '[tool: Read README.md]', tool_name: 'Read', is_sidechain: 0 },
+      { id: id + ':t1', conversation_id: id, role: 'tool', at: c.last_at, text: '# project-a\nplaceholder readme', tool_name: null, is_sidechain: 0 },
+      { id: id + ':a2', conversation_id: id, role: 'assistant', at: c.last_at, text: 'Here is a release plan.', tool_name: null, is_sidechain: 0 },
+    ] };
+  };
+  const HUB_HITS = [
+    { messageId: 'code:sess-a1:a2', conversationId: 'code:sess-a1', at: HUB_AT, role: 'assistant', title: 'Release planning', source: 'code', projectId: HUB_PROJECTS[0].id, snippet: 'Here is a \u0002release\u0003 plan.', rank: -2 },
+    { messageId: 'code:sess-a2:u1', conversationId: 'code:sess-a2', at: '2026-10-03T10:00:00.000Z', role: 'user', title: 'Fix the caf\u00e9 bug \ud83d\ude80', source: 'code', projectId: HUB_PROJECTS[0].id, snippet: '\u2026pasted \u0002<img src=x onerror=alert(1)>\u0003 <script>release()</script> and \u0002release', rank: -1 },
+  ];
   const DEFAULT_PREFS = { theme: 'dark', resolved: 'dark', reduceMotion: false };
   let prefs = { ...DEFAULT_PREFS }, casts = 0;
 
@@ -109,6 +132,13 @@ function createFake(opts) {
     ['llm.warm', () => ({ status: 'warm', model: 'fake-model' })], ['llm.chat', chat], ['llm.cancel', cancelChat], ['llm.onDelta', 'on:hq:llm:delta'],
     ['uiPrefs.get', () => prefs], ['uiPrefs.set', setPrefs], ['uiPrefs.on', 'on:hq:ui-prefs'],
     ['claudeHub.health', () => ({ state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576 })],
+    ['claudeHub.projects', () => HUB_PROJECTS], ['claudeHub.conversations', () => HUB_CONVS],
+    ['claudeHub.conversation', (id) => hubThread(id)], ['claudeHub.search', () => HUB_HITS],
+    ['claudeHub.stats', () => ({ from: '2026-09-06', to: '2026-10-05', tzOffsetMin: 0,
+      days: [{ day: '2026-10-03', chats: 1, messages: 2, active_ms: 0 }, { day: '2026-10-04', chats: 1, messages: 4, active_ms: 120000 }],
+      projects: [{ project_id: HUB_PROJECTS[0].id, name: 'project-a', chats: 2, tokens_in: 6, tokens_out: 40, tokens_cache_read: 100, tokens_cache_write: 10 }],
+      totals: { chats: 2, active_ms: 120000, tokens_in: 6, tokens_out: 40, tokens_cache_read: 100, tokens_cache_write: 10 } })],
+    ['claudeHub.link', WRITE], ['claudeHub.forget', WRITE], ['claudeHub.reindex', () => ({ started: true })],
     ['claudeHub.on', 'on:hq:claude-hub:event'],
     ['liveState', () => ({ dev: [], casts: [], scan: { state: 'idle' } })], ['onScanStatus', 'on:hq:scan-status'],
     ['openAt', WRITE], ['onNavigate', 'on:hq:navigate'],

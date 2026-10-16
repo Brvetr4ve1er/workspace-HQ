@@ -167,3 +167,12 @@ test('claudeHub.health answers the canned Hub shape; claudeHub.on gets hq:claude
   assert.deepEqual(seen, [{ event: 'changed', data: { ids: ['code:sess-a1'] } }]);
   assert.deepEqual(control.calls('claudeHub.health').map((c) => c.method), ['claudeHub.health']);
 });
+
+test('the fake Claude library answers placeholder rows, incl. a hostile snippet for the render-as-text gate', async () => {
+  const { hq } = createFake();
+  const hits = await hq.claudeHub.search('release');
+  assert.ok(hits.some((x) => x.snippet.includes('<img') && x.snippet.includes('\u0002')));
+  assert.equal((await hq.claudeHub.conversation('code:sess-a1')).messages.some((m) => m.role === 'tool'), true);
+  assert.equal(await hq.claudeHub.link('code:C--placeholder-project-a', 'project-a', 'confirmed'), true);
+  assert.deepEqual(await hq.claudeHub.reindex(), { started: true });
+});
