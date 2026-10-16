@@ -465,6 +465,7 @@ const tokSum = (r) => { const ks = ['tokens_in', 'tokens_out', 'tokens_cache_rea
 const at2ms = (s) => { const t = Date.parse(s); return Number.isFinite(t) ? t : null; };
 const whenOf = (s, now) => { const t = at2ms(s); return t === null ? '' : ago(t, now); };
 const hhmmOf = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const msgDay = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const TOOL_LINE = /^\[tool: /;
 export function hubConv(row, now = Date.now()) {
   const r = obj(row);
@@ -477,7 +478,7 @@ export function hubThread(res, now = Date.now()) {
   const c = obj(res.conversation), ms = arr(res.messages);
   const messages = ms.map((m) => { const tool = m.role === 'tool' || TOOL_LINE.test(String(m.text || ''));
     return { id: String(m.id), role: String(m.role || ''), who: m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Claude' : m.role === 'tool' ? 'Tool output' : 'System',
-      time: hhmmOf(m.at), day: String(m.at || '').slice(0, 10), text: String(m.text || ''), tool, toolName: m.tool_name ? String(m.tool_name) : null, collapsed: tool }; });
+      time: hhmmOf(m.at), day: msgDay(m.at), text: String(m.text || ''), tool, toolName: m.tool_name ? String(m.tool_name) : null, collapsed: tool }; });
   const mins = Math.round(num(c.active_ms, 0) / 60000);
   return { id: String(c.id || ''), title: c.title ? String(c.title) : 'Untitled chat', project: String(c.project_name || ''), model: c.model || null, branch: c.git_branch || null,
     tokens: fmtTokens(tokSum(c)), activeEst: '~' + mins + ' min (estimate)', messages, hasMore: !!res.hasMore,

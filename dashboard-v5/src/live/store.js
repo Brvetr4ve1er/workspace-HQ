@@ -184,10 +184,10 @@ export function createStore(DATA, hq) {
       // the Hub indexed something new (a live append, a sweep): the card's counts are from the last answer, so ask again
       else if (e.event === 'changed') {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
-          if (lib().convs) refreshClaudeLib();
-          if (lib().stats) refreshClaudeStats();
-          const t = lib().thread;
-          if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) openClaudeThread(t.conversation.id);
+        if (lib().convs) syncClaudeLib();
+        if (lib().stats) refreshClaudeStats();
+        const t = lib().thread;
+        if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) syncClaudeThread(t.conversation.id);
       }
       emit();
     }));
@@ -203,46 +203,94 @@ export function createStore(DATA, hq) {
   // One error slot for the whole library: each ENTRY function clears it before it asks (fresh action, fresh verdict);
   // a success never clears it, so two parallel calls cannot erase each other's failure. busy counts calls in flight.
   let libPending = 0;
-  const hubCall = (fn, ok) => {
+  // stale() answers "is this response still wanted?": a late answer for a closed thread, a replaced search or changed filters is dropped whole
+  const hubCall = (fn, ok, stale) => {
     if (!hq || !hq.claudeHub) return Promise.resolve();
     libPending++; lib().busy = true;
     return Promise.resolve().then(fn).then((r) => {
+      if (stale && stale()) return;
       if (r && typeof r === 'object' && !Array.isArray(r) && r.error) { lib().error = 'Claude Hub: ' + r.error; return; }
       ok(r);
-    }).catch((e) => { lib().error = 'Claude Hub: ' + ((e && e.message) || e); })
+    }).catch((e) => { if (!(stale && stale())) lib().error = 'Claude Hub: ' + ((e && e.message) || e); })
       .finally(() => { libPending--; lib().busy = libPending > 0; emit(); });
   };
   const fresh = () => { lib().error = null; };
-  const PAGE = 50;
+  const PAGE = 50, MAXPAGE = 200;
+  // per-slot sequence numbers: a request is current only while its slot's number is unchanged
+  const seq = { filters: 0, thread: 0, search: 0 };
+  const convBefore = (a, b) => a.last_at < b.last_at || (a.last_at === b.last_at && a.id < b.id); // a sorts after b in (last_at DESC, id DESC)
   function refreshClaudeLib(filters = lib().filters) {
     lib().filters = { ...filters }; fresh();
+    const my = ++seq.filters, stale = () => my !== seq.filters;
     return Promise.all([
-      hubCall(() => hq.claudeHub.projects({}), (r) => { lib().projects = Array.isArray(r) ? r : []; }),
-      hubCall(() => hq.claudeHub.conversations({ ...lib().filters, limit: PAGE }), (r) => { const rows = Array.isArray(r) ? r : []; lib().convs = rows; lib().convsMore = rows.length === PAGE; }),
+      hubCall(() => hq.claudeHub.projects({}), (r) => { lib().projects = Array.isArray(r) ? r : []; }, stale),
+      hubCall(() => hq.claudeHub.conversations({ ...lib().filters, limit: PAGE }), (r) => { const rows = Array.isArray(r) ? r : []; lib().convs = rows; lib().convsMore = rows.length === PAGE; }, stale),
+    ]);
+  }
+  // A Hub `changed` event: refetch the head (as many rows as are loaded, up to the Hub's cap) and merge by id, keeping every older page already loaded.
+  function syncClaudeLib() {
+    const have = lib().convs || [], n = Math.max(PAGE, Math.min(MAXPAGE, have.length));
+    const my = seq.filters, stale = () => my !== seq.filters;
+    fresh();
+    return Promise.all([
+      hubCall(() => hq.claudeHub.projects({}), (r) => { lib().projects = Array.isArray(r) ? r : []; }, stale),
+      hubCall(() => hq.claudeHub.conversations({ ...lib().filters, limit: n }), (r) => {
+        const rows = Array.isArray(r) ? r : [], cur = lib().convs || [], ids = new Set(rows.map((x) => x.id)), edge = rows[rows.length - 1];
+        const tail = edge ? cur.filter((x) => !ids.has(x.id) && convBefore(x, edge)) : [];
+        lib().convs = rows.concat(tail);
+        lib().convsMore = tail.length ? lib().convsMore : rows.length >= n;
+      }, stale),
     ]);
   }
   function moreClaudeConvs() {
     const rows = lib().convs || [], last = rows[rows.length - 1];
     if (!last) return Promise.resolve();
     fresh();
+    const my = seq.filters, stale = () => my !== seq.filters;
     return hubCall(() => hq.claudeHub.conversations({ ...lib().filters, limit: PAGE, before: last.last_at, beforeId: last.id }),
-      (r) => { const more = Array.isArray(r) ? r : []; lib().convs = rows.concat(more); lib().convsMore = more.length === PAGE; });
+      (r) => { const more = Array.isArray(r) ? r : [], cur = lib().convs || [], ids = new Set(cur.map((x) => x.id)); lib().convs = cur.concat(more.filter((x) => !ids.has(x.id))); lib().convsMore = more.length === PAGE; }, stale);
   }
   function searchClaude(q) {
     lib().q = String(q || '');
+    const my = ++seq.search, stale = () => my !== seq.search;
     if (!/[\p{L}\p{N}]/u.test(lib().q)) { fresh(); lib().hits = null; lib().noTerms = lib().q.trim() !== ''; emit(); return Promise.resolve(); }
     lib().noTerms = false; fresh();
-    return hubCall(() => hq.claudeHub.search(lib().q, { limit: 50 }), (r) => { lib().hits = Array.isArray(r) ? r : []; });
+    return hubCall(() => hq.claudeHub.search(lib().q, { limit: 50 }), (r) => { lib().hits = Array.isArray(r) ? r : []; }, stale);
   }
-  function openClaudeThread(id) { fresh(); return hubCall(() => hq.claudeHub.conversation(id, { limit: 200 }), (r) => { lib().thread = r && r.conversation ? r : { missing: id }; }); }
+  function openClaudeThread(id) {
+    fresh();
+    const my = ++seq.thread;
+    return hubCall(() => hq.claudeHub.conversation(id, { limit: 200 }), (r) => { lib().thread = r && r.conversation ? r : { missing: id }; }, () => my !== seq.thread);
+  }
+  // A Hub `changed` event for the open thread: fetch the newest page and merge it onto what is loaded, keeping any earlier pages.
+  function syncClaudeThread(id) {
+    const t0 = lib().thread;
+    if (!t0 || !t0.conversation || t0.conversation.id !== id) return Promise.resolve();
+    fresh();
+    const my = seq.thread;
+    return hubCall(() => hq.claudeHub.conversation(id, { limit: 200 }), (r) => {
+      const cur = lib().thread;
+      if (!cur || !cur.conversation || cur.conversation.id !== id) return;
+      if (!r || !r.conversation) { lib().thread = { missing: id }; return; }
+      const fm = r.messages || [], idx = fm.length ? cur.messages.findIndex((m) => m.id === fm[0].id) : -1;
+      // overlap found: keep the loaded older pages and their hasMore; no overlap (more than a page arrived): the fetched page stands alone
+      lib().thread = idx >= 0 ? { ...r, messages: cur.messages.slice(0, idx).concat(fm), hasMore: cur.hasMore } : r;
+    }, () => my !== seq.thread);
+  }
   function earlierClaudeThread() {
     const t = lib().thread, first = t && t.messages && t.messages[0];
     if (!first || !t.hasMore) return Promise.resolve();
     fresh();
-    return hubCall(() => hq.claudeHub.conversation(t.conversation.id, { limit: 200, before: first.at, beforeId: first.id }),
-      (r) => { if (r && r.conversation) lib().thread = { ...r, messages: r.messages.concat(t.messages) }; });
+    const my = seq.thread, id = t.conversation.id;
+    return hubCall(() => hq.claudeHub.conversation(id, { limit: 200, before: first.at, beforeId: first.id }),
+      (r) => {
+        const cur = lib().thread;
+        if (!r || !r.conversation || !cur || !cur.conversation || cur.conversation.id !== id) return;
+        const ids = new Set(cur.messages.map((m) => m.id));
+        lib().thread = { ...cur, messages: r.messages.filter((m) => !ids.has(m.id)).concat(cur.messages), hasMore: !!r.hasMore };
+      }, () => my !== seq.thread);
   }
-  function closeClaudeThread() { lib().thread = null; emit(); }
+  function closeClaudeThread() { seq.thread++; lib().thread = null; emit(); }
   const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function refreshClaudeStats(days = 30) {
     const to = new Date(), from = new Date(to.getTime() - (days - 1) * 86400000);
@@ -255,6 +303,6 @@ export function createStore(DATA, hq) {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
-    refreshClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats,
+    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats,
   };
 }

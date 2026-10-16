@@ -441,3 +441,9 @@ test('hubConv / hubThread / hubHit / hubStats map the Hub rows', () => {
   assert.deepEqual(s.days, [{ day: '2026-10-04', chats: 2, activeMin: 2 }]);
   assert.equal(s.totals.tokens, '3');
 });
+test('hubThread day is the LOCAL day of the timestamp, the same clock as time', () => {
+  const at = new Date(2026, 9, 4, 0, 30).toISOString();   // local 00:30 on Oct 4, whatever the zone
+  const t = hubThread({ conversation: { id: 'code:s' }, messages: [{ id: 'm1', role: 'user', at, text: 'hi' }, { id: 'm2', role: 'user', at: 'nope', text: 'x' }] });
+  assert.deepEqual([t.messages[0].time, t.messages[0].day], ['00:30', '2026-10-04']);
+  assert.equal(t.messages[1].day, '');
+});

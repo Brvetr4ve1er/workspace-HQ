@@ -532,3 +532,46 @@ test('claudeLib: an {error} keeps the last data and says why; a no-term search s
   assert.equal(st.live.claudeLib.hits, null); assert.equal(st.live.claudeLib.noTerms, true);
   st.stop();
 });
+const defer = () => { let res; const p = new Promise((r) => { res = r; }); return { p, res }; };
+test('claudeLib: a changed event keeps loaded pages (list and thread) and merges by id', async () => {
+  const mk = (n, at) => Array.from({ length: n }, (_, i) => ({ id: 'c' + (at - i), last_at: '2026-10-' + String(at - i).padStart(2, '0') + 'T00:00:00Z' }));
+  let head = mk(3, 30);
+  const { hq, calls, fire } = libHq({
+    conversations: (o) => Promise.resolve(o && o.beforeId ? mk(2, 20) : head.slice(0, o.limit)),
+    conversation: (id, o) => Promise.resolve(o && o.beforeId
+      ? { conversation: { id }, hasMore: false, messages: [{ id: 'm1', at: 'a' }] }
+      : { conversation: { id }, hasMore: true, messages: [{ id: 'm2', at: 'b' }, { id: 'm3', at: 'c' }, ...(head.length > 3 ? [{ id: 'm4', at: 'd' }] : [])] }),
+  });
+  const st = createStore(DATA(), hq); await st.start();
+  await st.refreshClaudeLib({}); await st.moreClaudeConvs();
+  await st.openClaudeThread('code:s'); await st.earlierClaudeThread();
+  assert.deepEqual(st.live.claudeLib.thread.messages.map((m) => m.id), ['m1', 'm2', 'm3']);
+  head = mk(1, 31).concat(head);                       // a newer conversation appears
+  fire({ event: 'changed', data: { ids: ['code:s'] } }); await settle(); await settle();
+  const L = st.live.claudeLib;
+  assert.equal(L.convs[0].id, 'c31'); assert.equal(L.convs.length, 1 + 3 + 2);
+  assert.ok(L.convs.some((c) => c.id === 'c19'), 'the older page survives');
+  assert.equal(new Set(L.convs.map((c) => c.id)).size, L.convs.length, 'no duplicates');
+  assert.deepEqual(L.thread.messages.map((m) => m.id), ['m1', 'm2', 'm3', 'm4']);
+  assert.equal(L.thread.hasMore, false);
+  st.stop();
+});
+test('claudeLib: late answers are dropped (closed thread, replaced open, replaced search)', async () => {
+  const gates = {};
+  const { hq } = libHq({
+    conversation: (id) => { const d = defer(); (gates[id] = gates[id] || []).push(d); return d.p; },
+    search: (q) => { const d = defer(); (gates['q' + q] = gates['q' + q] || []).push(d); return d.p; },
+  });
+  const st = createStore(DATA(), hq); await st.start();
+  const open = st.openClaudeThread('A'); await settle(); st.closeClaudeThread();
+  gates.A[0].res({ conversation: { id: 'A' }, hasMore: false, messages: [] }); await open;
+  assert.equal(st.live.claudeLib.thread, null, 'a closed thread stays closed');
+  const a = st.openClaudeThread('A'), b = st.openClaudeThread('B'); await settle();
+  gates.B[0].res({ conversation: { id: 'B' }, hasMore: false, messages: [] }); await b;
+  gates.A[1].res({ conversation: { id: 'A' }, hasMore: false, messages: [] }); await a;
+  assert.equal(st.live.claudeLib.thread.conversation.id, 'B');
+  const s1 = st.searchClaude('ab'); await settle(); const s2 = st.searchClaude('');
+  gates.qab[0].res([{ id: 'h' }]); await s1; await s2;
+  assert.equal(st.live.claudeLib.hits, null, 'the cleared search is not overwritten');
+  st.stop();
+});
