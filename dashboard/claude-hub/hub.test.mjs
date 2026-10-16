@@ -758,7 +758,7 @@ test('changed fires for a title-only append and within the max wait during a bur
   const R = call(h);
   const n0 = h.events.filter((e) => e.event === 'changed').length;
   fs.appendFileSync(files.b1, titleLine({ sessionId: 'sess-b1', title: 'Renamed chat' }));
-  await h.until(() => h.events.filter((e) => e.event === 'changed').length > n0, 5000);
+  assert.ok(await h.until(() => h.events.filter((e) => e.event === 'changed').length > n0, 5000), 'changed after a title-only append');
   const n1 = h.events.filter((e) => e.event === 'changed').length;
   const t0 = Date.now();
   let k = 0;
