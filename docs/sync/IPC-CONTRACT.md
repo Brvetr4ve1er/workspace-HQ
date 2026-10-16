@@ -348,14 +348,14 @@ Hub's own snake_case rows, passed through unchanged. Every handler resolves; fai
 
 | Preload | Channel | Shape |
 |---|---|---|
-| `claudeHub.projects(opts?)` | `hq:claude-hub:projects` (invoke) | `opts = {source?}` → `[{id, source, key, name, path, hq_project_id, link_state:'auto'|'confirmed'|'none'|'rejected', conversations, last_at, …}]` |
+| `claudeHub.projects(opts?)` | `hq:claude-hub:projects` (invoke) | `opts = {source?}` → `[{id, source, key, name, path, hq_project_id, link_state:'auto'\|'confirmed'\|'none'\|'rejected', conversations, last_at, …}]` |
 | `claudeHub.conversations(opts?)` | `hq:claude-hub:conversations` (invoke) | `opts = {projectId?, source?, q?, since?, hqProjectId?, before?, beforeId?, limit?≤200}`; order `last_at DESC, id DESC`; next page = the last row's `{before:last_at, beforeId:id}`; `q` = title substring (ASCII case-insensitive) → rows |
-| `claudeHub.conversation(id, opts?)` | `hq:claude-hub:conversation` (invoke) | `opts = {limit?≤500, before?, beforeId?}` → `{conversation, messages:[{id, role, at, text, tool_name, is_sidechain, …}] (oldest first), hasMore}` | `null` (unknown or forgotten); earlier page = the first message's `{before:at, beforeId:id}` |
+| `claudeHub.conversation(id, opts?)` | `hq:claude-hub:conversation` (invoke) | `opts = {limit?≤500, before?, beforeId?}` → `{conversation, messages:[{id, role, at, text, tool_name, is_sidechain, …}] (oldest first), hasMore}` \| `null` (unknown or forgotten); earlier page = the first message's `{before:at, beforeId:id}` |
 | `claudeHub.search(q, opts?)` | `hq:claude-hub:search` (invoke) | `opts = {projectId?, source?, limit?≤50}` → `[{messageId, conversationId, at, role, title, source, projectId, snippet, rank}]`; `snippet` is plain text with hits between U+0002 and U+0003 — render as text, never as HTML; `[]` when the query has no letters/digits |
 | `claudeHub.stats(opts)` | `hq:claude-hub:stats` (invoke, 15 s) | `opts = {from:'YYYY-MM-DD', to:'YYYY-MM-DD', projectId?, tzOffsetMin?}` → `{days:[{day, chats, messages, active_ms}], projects:[{project_id, name, chats, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write}], totals}`; `active_ms` is an estimate (gaps < 5 min); tokens deduplicated per API response |
-| `claudeHub.link(id, hqId, state)` | `hq:claude-hub:link` (invoke) | `state:'confirmed'|'rejected'|'none'` → `true` | `{error}`; `rejected`/`none` clear `hq_project_id`; the Hub's auto-matcher never overwrites `confirmed`/`rejected` |
-| `claudeHub.forget(target)` | `hq:claude-hub:forget` (invoke, 60 s) | `{conversationId}` | `{projectId}` → `true` | `{error}`; removes the index rows + tombstone; the transcript on disk is untouched |
-| `claudeHub.reindex()` | `hq:claude-hub:reindex` (invoke) | → `{started:true}` | `{error}` (a read-only Hub refuses); links and tombstones survive |
+| `claudeHub.link(id, hqId, state)` | `hq:claude-hub:link` (invoke) | `state:'confirmed'\|'rejected'\|'none'` → `true` \| `{error}`; `rejected`/`none` clear `hq_project_id`; the Hub's auto-matcher never overwrites `confirmed`/`rejected` |
+| `claudeHub.forget(target)` | `hq:claude-hub:forget` (invoke, 60 s) | `{conversationId}` \| `{projectId}` → `true` \| `{error}`; removes the index rows + tombstone; the transcript on disk is untouched |
+| `claudeHub.reindex()` | `hq:claude-hub:reindex` (invoke) | → `{started:true}` \| `{error}` (a read-only Hub refuses); links and tombstones survive |
 | `claudeHub.on(cb)` (H1) | push `hq:claude-hub:event` | additive: `changed` may carry `projects:[projectId]` (`'*'` = links re-matched); `health()` gains `lastErrorAt` |
 
 ## Rules
