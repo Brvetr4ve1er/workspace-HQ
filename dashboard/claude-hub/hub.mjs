@@ -189,9 +189,12 @@ function main() {
   // Open the index as its writer (at start, and when a reader takes over a freed lock). A brand-new index needs no rebuild;
   // an index written by older parsing/masking code keeps whatever that code let through (cursors skip ingested bytes,
   // INSERT OR IGNORE never rewrites a row), so it is rebuilt through the same serial reset a reindex uses.
-  function openWriter() {
+  function openWriter(upgrading) {
     try { store = openStore(dbFile, { indexVersion: INDEX_VERSION }); }
-    catch (e) { fatal('cannot open the index: ' + msg(e)); return false; }   // the host restarts a Hub that exits
+    catch (e) {
+      if (upgrading) return e;   // a running reader stays a reader: the caller gives the lock back and retries on the next tick
+      fatal('cannot open the index: ' + msg(e)); return false;   // the host restarts a Hub that exits
+    }
     const v = store.getMeta('index_version');
     rebuild = v === null || !(Number(v) >= INDEX_VERSION);
     return true;
@@ -221,10 +224,19 @@ function main() {
     upgradeTimer = setInterval(() => {
       if (stopping || writer) return;
       if (acquireLock(lockFile, { dbFile, note: diag })) {
-        clearInterval(upgradeTimer); clearTimeout(readerTimer);
+        clearTimeout(readerTimer);
         try { store && store.close(); } catch { /* reopening as writer */ }
-        store = null; writer = true; readerNote = null; lastError = null;
-        if (!openWriter()) return;
+        store = null;
+        const err = openWriter(true);
+        if (err !== true) {   // could not open as writer: release the lock so another Hub (or the next tick) can, and say why
+          releaseLock(lockFile);
+          lastError = 'read-only hub: could not take over the index: ' + msg(err);
+          emit('error', { message: lastError }); diag(lastError);
+          try { store = openStore(dbFile, { readOnly: true }); } catch { /* still unavailable: lastError says why */ }
+          return;
+        }
+        clearInterval(upgradeTimer);
+        writer = true; readerNote = null; lastError = null;
         emit('ready', { role: 'writer' });
         if (rebuild) resetNext = true;
         runIndex();
