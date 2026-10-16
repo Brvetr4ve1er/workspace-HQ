@@ -20,6 +20,7 @@ import { commitVals } from './commit.js';
 import { overlaysVals } from './overlays.js';
 import { automationsVals } from './automations.js';
 import { claudeVals } from './claude.js';
+import { claudeLibVals } from './claude-lib.js';
 import { historyVals } from './history.js';
 import { systemVals } from './system.js';
 import { lifeVals } from './life.js';
@@ -28,7 +29,7 @@ import { extrasVals } from './extras.js';
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, historyVals, systemVals, lifeVals, studioVals, extrasVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, historyVals, systemVals, lifeVals, studioVals, extrasVals,
 ];
 
 export function renderVals() {

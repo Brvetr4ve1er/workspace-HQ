@@ -16,6 +16,7 @@ import { DCLogic, createRef } from './dc/runtime.js';
 import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY, THEMES, readV3Prefs, mirrorV3Theme, setReduceFlag, planUiSeed, placeSnapId, restoreSnapOffset } from './logic/shared.js';
 import { tasksLogic } from './logic/tasks.js';
 import { claudeLogic } from './logic/claude.js';
+import { claudeLibLogic, clPrefs } from './logic/claude-lib.js';
 import { runsLogic } from './logic/runs.js';
 import { commitLogic } from './logic/commit.js';
 import { sheetLogic } from './logic/sheet.js';
@@ -53,7 +54,7 @@ export class Component extends DCLogic {
     setReduceFlag(!!P.reduceMotion);
     return {
       tab: saved.tab || this.props.startTab || 'home',
-      sub: Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'sessions', history: 'trends', system: 'machine', life: 'screen' }, saved.sub || {}),
+      sub: Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen' }, saved.sub || {}),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
@@ -79,6 +80,8 @@ export class Component extends DCLogic {
       projSearch: '', projStatus: 'all',
       // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
       canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
+      // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
+      ...clPrefs(), clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
       // Ask's offline box: Retry is probing (logic/ask.js)
       askChecking: false,
       // Ask (logic/ask.js, contract K-1): { askHistory, askInclude } from v3's localStorage keys; Ask saves them itself
@@ -105,6 +108,7 @@ export class Component extends DCLogic {
     // live data → re-render; finished runs → one toast each; main's shared UI prefs → state
     this._offStore = this.store.on(() => { this.announceRuns(); this.followUiPrefs(); this.forceUpdate(); });
     this.store.start();
+    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); }   // a cold start on Chats/Projects loads too
     this.followUiPrefs();
     if (this.hq && this.hq.studio && this.hq.studio.onOpenRealm) this._offRealm = this.hq.studio.onOpenRealm(() => this.go('studio'));   // Ctrl+Alt+L
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
@@ -143,6 +147,7 @@ export class Component extends DCLogic {
     }
     if (moved && S.tab === 'studio') this.store.refreshCaptures();
     if (moved && S.tab === 'life') this.store.refreshSocial();
+    if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
   }
 
   // ---------- helpers ----------
@@ -372,6 +377,6 @@ export class Component extends DCLogic {
     try { navigator.clipboard.writeText(String(text || '')).then(done, () => this.toast('error', 'Clipboard unavailable')); } catch { this.toast('error', 'Clipboard unavailable'); }
   }
 }
-Object.assign(Component.prototype, tasksLogic, claudeLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
+Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
   whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic);
 Component.prototype.renderVals = renderVals;

@@ -21,10 +21,12 @@ import tpl from './app.tpl.js';
 // no sound yet"), with its <!-- v5: reason --> marker;
 // re-recorded 2026-10-13 for H1 Claude Hub card (Task 7): one fragment (system), one hunk, +1289 chars /
 // +1292 bytes, no line removed — the Claude Hub section after Vitals on System > Machine, with its
-// <!-- v5: reason --> marker
-const SHA256 = '04bcee0f6e91a0cb229860ff5e25bfd3482551726d01179783032e98d860d8b4';
-const LENGTH = 202039;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 202372;    // Buffer.byteLength(tpl, 'utf8')
+// <!-- v5: reason --> marker;
+// 2026-10-16 H2 Claude › Chats (+8964 chars / +8981 bytes): one fragment (claude), one hunk, no line removed — the Chats
+// sub-tab block before Sessions (filters, search, thread view, Forget), with its <!-- v5: reason --> marker
+const SHA256 = '5123144aef92983dd780bc492e326f60e0037e215f46e05c63bc3954fe7ba9c2';
+const LENGTH = 211003;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 211353;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

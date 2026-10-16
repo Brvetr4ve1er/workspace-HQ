@@ -16,7 +16,7 @@ import { gapsOf } from './live/adapter.mjs';
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {},
+const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, studioFilter: 'all' };
@@ -121,7 +121,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub };
+    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -141,6 +141,18 @@ export async function run(W = window.WHQ) {
         ['no-node', { state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }],
         ['down', { state: 'down', error: 'Claude Hub exited (1)' }],
       ];
+      // H2 Claude › Chats: sample Hub rows go into the store (never window.hq); cl* state is patched per combo.
+      const CL_READY = { state: 'ready', role: 'writer', counts: HUB_COUNTS };
+      const CL_CONVS = [
+        { id: 'code:selftest-a', title: 'Selftest chat A', source: 'code', project_id: 'p1', project_name: 'project-a', last_at: new Date(Date.now() - 3600000).toISOString(), message_count: 4, tokens_in: 1200, tokens_out: 800 },
+        { id: 'code:selftest-b', title: 'Selftest chat B', source: 'web', project_id: 'p1', project_name: 'project-a', last_at: new Date(Date.now() - 86400000).toISOString(), message_count: 2 },
+      ];
+      const CL_THREAD = { conversation: { id: 'code:selftest-a', title: 'Selftest chat A', project_name: 'project-a', cwd: null, active_ms: 120000 }, hasMore: true, messages: [
+        { id: 'm1', role: 'user', at: new Date().toISOString(), text: 'Hello <b>not html</b>' },
+        { id: 'm2', role: 'tool', at: new Date().toISOString(), text: 'tool output' },
+        { id: 'm3', role: 'assistant', at: new Date().toISOString(), text: 'Hi' },
+      ] };
+      const clLib = (o) => () => { LV.claudeHub = CL_READY; LV.claudeLib = { projects: [{ id: 'p1', name: 'project-a', conversations: 2 }], convs: CL_CONVS, convsMore: true, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, error: null, busy: false, ...o }; };
       const STATES = [
         ['ask-empty', at('home'), { askOpen: true, askHistory: [] }],
         ['ask-streaming', at('home'), { askOpen: true, askHistory: ASK_STREAMING }],
@@ -163,6 +175,16 @@ export async function run(W = window.WHQ) {
         ['projects-none', at('projects', 'grid'), { projSearch: 'zzz-selftest-none' }],
         ['canvas-note', at('claude', 'canvas'), { canvasNoteOpen: true, canvasDraft: 'A selftest note' }, board],
         ['canvas-note-saving', at('claude', 'canvas'), { canvasNoteOpen: true, canvasDraft: 'A selftest note', canvasSaving: true }, board],
+        ['chats-list', at('claude', 'chats'), {}, clLib({})],
+        ['chats-empty-nobridge', at('claude', 'chats'), {}, () => { LV.claudeHub = null; LV.claudeLib = { ...LV.claudeLib, convs: null }; }],
+        ['chats-filtered-none', at('claude', 'chats'), { clSrc: 'web', clSince: '7' }, clLib({ convs: [], convsMore: false })],
+        ['chats-search-hits', at('claude', 'chats'), { clSearched: true, clQuery: 'img' }, clLib({ q: 'img', hits: [{ conversationId: 'code:selftest-a', messageId: 'm1', title: 'Selftest chat A', at: new Date().toISOString(), snippet: 'a <img src=x> b' }] })],
+        ['chats-search-none', at('claude', 'chats'), { clSearched: true, clQuery: 'zzz' }, clLib({ q: 'zzz', hits: [] })],
+        ['chats-thread', at('claude', 'chats'), { clOpen: true }, clLib({ thread: CL_THREAD })],
+        ['chats-thread-tool-open', at('claude', 'chats'), { clOpen: true, clExpanded: { m2: true } }, clLib({ thread: CL_THREAD })],
+        ['chats-forget-ask', at('claude', 'chats'), { clOpen: true, clForgetAsk: true }, clLib({ thread: CL_THREAD })],
+        ['chats-thread-gone', at('claude', 'chats'), { clOpen: true }, clLib({ thread: { missing: 'code:x' } })],
+        ['chats-error', at('claude', 'chats'), {}, clLib({ error: 'Claude Hub: selftest error' })],
         ['canvas-no-boards', at('claude', 'canvas'), { canvasNoteOpen: true }, () => { LV.canvasBoards = []; }],
       ].filter(Boolean);
       for (const theme of ['dark', 'light']) {
