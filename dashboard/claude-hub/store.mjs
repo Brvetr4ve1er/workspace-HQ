@@ -55,7 +55,7 @@ function migrate(db) {
   else if (Number(row.value) > SCHEMA_VERSION) throw new Error('hub.sqlite is from a newer WorkspaceHQ (schema ' + row.value + ')');
 }
 
-export function openStore(file, { readOnly = false } = {}) {
+export function openStore(file, { readOnly = false, indexVersion = null } = {}) {
   const db = new DatabaseSync(file, readOnly ? { readOnly: true } : {});
   try {
     db.exec('PRAGMA busy_timeout = 5000');
@@ -64,7 +64,10 @@ export function openStore(file, { readOnly = false } = {}) {
       if (row && Number(row.value) > SCHEMA_VERSION) throw new Error('hub.sqlite is from a newer WorkspaceHQ (schema ' + row.value + ')');
     } else {
       if (file !== ':memory:') { db.exec('PRAGMA journal_mode = WAL'); db.exec('PRAGMA synchronous = NORMAL'); }
+      db.exec('PRAGMA secure_delete = ON');   // forget/reset zero the freed pages: forgotten text does not linger in the file
+      const fresh = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'").get();
       migrate(db);
+      if (fresh && indexVersion !== null) db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES('index_version', ?)").run(String(indexVersion));
     }
     return api(db);
   } catch (e) {
@@ -245,6 +248,47 @@ function api(db) {
     },
     getMeta: (key) => { const r = st.getMeta.get(key); return r ? r.value : null; },
     setMeta: (key, value) => st.setMeta.run(key, String(value)),
+    setLink({ projectId, hqProjectId, state }) {
+      if (!['auto', 'confirmed', 'none', 'rejected'].includes(state)) throw new Error('link: bad state');
+      const keep = state === 'auto' || state === 'confirmed';
+      if (keep && !(typeof hqProjectId === 'string' && hqProjectId)) throw new Error('link: hqProjectId required');
+      const r = q('UPDATE project SET hq_project_id = ?, link_state = ?, updated_at = ? WHERE id = ?')
+        .run(keep ? hqProjectId : null, state, new Date().toISOString(), projectId);
+      return r.changes > 0;
+    },
+    linkRows: () => q("SELECT id, path, hq_project_id, link_state FROM project WHERE source = 'code' ORDER BY id").all().map((r) => ({ ...r })),
+    optimize: () => { db.exec("INSERT INTO message_fts(message_fts) VALUES('optimize')"); },
+    stats({ from, to, projectId, tzOffsetMin = 0 } = {}) {
+      const DAY = /^\d{4}-\d{2}-\d{2}$/;
+      if (!DAY.test(String(from)) || !DAY.test(String(to))) throw new Error('stats: from/to must be YYYY-MM-DD');
+      const tz = Math.max(-840, Math.min(840, Math.trunc(Number(tzOffsetMin) || 0)));
+      const t0 = Date.parse(from + 'T00:00:00Z') - tz * 60000;
+      let t1 = Date.parse(to + 'T00:00:00Z') + 86400000 - tz * 60000;
+      if (!(t1 > t0)) throw new Error('stats: from/to must be YYYY-MM-DD');
+      t1 = Math.min(t1, t0 + 400 * 86400000);
+      const lo = new Date(t0).toISOString(), hi = new Date(t1).toISOString(), mod = tz + ' minutes';
+      const pw = projectId ? 'AND c.project_id = ?' : '', pa = projectId ? [projectId] : [];
+      const days = q(`WITH m AS (
+          SELECT m.conversation_id AS cid, m.at,
+            (julianday(m.at) - julianday(LAG(m.at) OVER (PARTITION BY m.conversation_id ORDER BY m.at, m.rowid))) * 86400000.0 AS gap
+          FROM message m JOIN conversation c ON c.id = m.conversation_id
+          WHERE c.forgotten = 0 AND m.at >= ? AND m.at < ? ${pw})
+        SELECT date(at, ?) AS day, COUNT(DISTINCT cid) AS chats, COUNT(*) AS messages,
+          CAST(ROUND(SUM(CASE WHEN gap > 0 AND gap < 300000 THEN gap ELSE 0 END)) AS INTEGER) AS active_ms
+        FROM m GROUP BY day ORDER BY day`).all(lo, hi, ...pa, mod).map((r) => ({ ...r }));
+      const projects = q(`WITH act AS (SELECT DISTINCT m.conversation_id AS cid FROM message m JOIN conversation c ON c.id = m.conversation_id
+            WHERE c.forgotten = 0 AND m.at >= ? AND m.at < ? ${pw}),
+          ux AS (SELECT c.project_id AS pid, u.api_id, MAX(u.tin) tin, MAX(u.tout) tout, MAX(u.tcr) tcr, MAX(u.tcw) tcw
+            FROM usage u JOIN act ON act.cid = u.conversation_id JOIN conversation c ON c.id = u.conversation_id GROUP BY c.project_id, u.api_id),
+          ch AS (SELECT c.project_id AS pid, COUNT(*) AS chats FROM act JOIN conversation c ON c.id = act.cid GROUP BY c.project_id)
+        SELECT ch.pid AS project_id, p.name, ch.chats, COALESCE(SUM(ux.tin), 0) AS tokens_in, COALESCE(SUM(ux.tout), 0) AS tokens_out,
+          COALESCE(SUM(ux.tcr), 0) AS tokens_cache_read, COALESCE(SUM(ux.tcw), 0) AS tokens_cache_write
+        FROM ch LEFT JOIN project p ON p.id = ch.pid LEFT JOIN ux ON ux.pid = ch.pid
+        GROUP BY ch.pid ORDER BY tokens_out DESC, ch.pid`).all(lo, hi, ...pa).map((r) => ({ ...r }));
+      const sum = (k) => projects.reduce((n, x) => n + Number(x[k] || 0), 0);
+      return { from, to, tzOffsetMin: tz, days, projects,
+        totals: { chats: sum('chats'), active_ms: days.reduce((n, d) => n + d.active_ms, 0), tokens_in: sum('tokens_in'), tokens_out: sum('tokens_out'), tokens_cache_read: sum('tokens_cache_read'), tokens_cache_write: sum('tokens_cache_write') } };
+    },
     close: () => db.close(),
   };
 }

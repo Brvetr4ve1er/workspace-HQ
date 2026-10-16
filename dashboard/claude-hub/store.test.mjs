@@ -177,3 +177,62 @@ test('list filters: q (title, escaped), since, hqProjectId', () => {
   assert.equal(s.listConversations({ hqProjectId: 'project-a' }).length, 6);
   s.close();
 });
+
+// append to dashboard/claude-hub/store.test.mjs
+const seedStats = (s) => {
+  s.upsertProject({ id: 'code:p', source: 'code', key: 'p', name: 'project-a', path: 'C:\\placeholder\\project-a' });
+  s.upsertProject({ id: 'code:q', source: 'code', key: 'q', name: 'project-b', path: 'C:\\placeholder\\project-b' });
+  for (const [id, pid] of [['code:a', 'code:p'], ['code:fork', 'code:p'], ['code:b', 'code:q']]) s.ensureConversation({ id, source: 'code', projectId: pid, nativeId: id });
+  // 23:30Z on 1 Oct = 01:30 on 2 Oct at UTC+2; gaps 2 min (counted) and 10 min (not)
+  s.addMessages('code:a', [
+    { id: 'code:a:1', role: 'user', at: '2026-10-01T23:30:00.000Z', text: 'one' },
+    { id: 'code:a:2', role: 'assistant', at: '2026-10-01T23:32:00.000Z', text: 'two' },
+    { id: 'code:a:3', role: 'user', at: '2026-10-01T23:42:00.000Z', text: 'three' },
+  ]);
+  s.addMessages('code:fork', [{ id: 'code:fork:1', role: 'user', at: '2026-10-02T08:00:00.000Z', text: 'fork' }]);
+  s.addMessages('code:b', [{ id: 'code:b:1', role: 'user', at: '2026-10-02T09:00:00.000Z', text: 'bee' }]);
+  s.addUsage('code:a', 'msg_1', { in: 10, out: 100, cacheRead: 0, cacheWrite: 0 });
+  s.addUsage('code:fork', 'msg_1', { in: 10, out: 100, cacheRead: 0, cacheWrite: 0 });   // copied response
+  s.addUsage('code:fork', 'msg_2', { in: 1, out: 5, cacheRead: 0, cacheWrite: 0 });
+  s.addUsage('code:b', 'msg_3', { in: 2, out: 7, cacheRead: 0, cacheWrite: 0 });
+};
+
+test('stats buckets by local day, estimates active time, counts a copied response once', () => {
+  const s = openStore(tmpDb()); seedStats(s);
+  const r = s.stats({ from: '2026-10-01', to: '2026-10-02', tzOffsetMin: 120 });
+  assert.deepEqual(r.days, [{ day: '2026-10-02', chats: 3, messages: 5, active_ms: 120000 }]);
+  const p = Object.fromEntries(r.projects.map((x) => [x.project_id, x]));
+  assert.equal(p['code:p'].tokens_out, 105);   // msg_1 once + msg_2
+  assert.equal(p['code:q'].tokens_out, 7);
+  assert.equal(r.totals.tokens_out, r.projects.reduce((n, x) => n + x.tokens_out, 0));
+  assert.equal(r.totals.chats, 3);
+  const utc = s.stats({ from: '2026-10-01', to: '2026-10-01', tzOffsetMin: 0 });
+  assert.deepEqual(utc.days.map((d) => d.day), ['2026-10-01']);
+  assert.equal(s.stats({ from: '2026-10-01', to: '2026-10-02', projectId: 'code:q' }).totals.chats, 1);
+  assert.throws(() => s.stats({ from: 'yesterday', to: '2026-10-02' }), /YYYY-MM-DD/);
+  s.close();
+});
+
+test('setLink: states, rejected clears the hq id, unknown project is false', () => {
+  const s = openStore(tmpDb()); seedStats(s);
+  assert.equal(s.setLink({ projectId: 'code:p', hqProjectId: 'project-a', state: 'auto' }), true);
+  assert.deepEqual(s.linkRows().find((r) => r.id === 'code:p'), { id: 'code:p', path: 'C:\\placeholder\\project-a', hq_project_id: 'project-a', link_state: 'auto' });
+  s.setLink({ projectId: 'code:p', hqProjectId: 'project-a', state: 'rejected' });
+  assert.equal(s.linkRows().find((r) => r.id === 'code:p').hq_project_id, null);
+  assert.equal(s.setLink({ projectId: 'code:none', hqProjectId: 'x', state: 'confirmed' }), false);
+  assert.throws(() => s.setLink({ projectId: 'code:p', hqProjectId: 'x', state: 'bogus' }), /bad state/);
+  assert.throws(() => s.setLink({ projectId: 'code:p', hqProjectId: '', state: 'confirmed' }), /required/);
+  s.close();
+});
+
+test('a brand-new db is stamped with the index version; an existing one is not; secure_delete is on', () => {
+  const f = tmpDb();
+  const s = openStore(f, { indexVersion: 7 });
+  assert.equal(s.getMeta('index_version'), '7');
+  assert.equal(s.db.prepare('PRAGMA secure_delete').get().secure_delete, 1);
+  s.setMeta('index_version', '1'); s.close();
+  const again = openStore(f, { indexVersion: 7 });
+  assert.equal(again.getMeta('index_version'), '1');   // not fresh: the Hub's rebuild rule decides
+  again.optimize();                                    // runs on a populated or empty FTS table
+  again.close();
+});
