@@ -223,8 +223,9 @@ test('acquireLock: an owner that cannot be checked counts as live (the old rule)
     assert.equal(acquireLock(lock, { inspect: () => ({ name: 'node.exe', commandLine: null }), note }), false, 'a node whose command line is unreadable is trusted');
     assert.match(notes.pop(), /could not read the command line of pid \d+ \(node\.exe\), assumed it owns the index lock/);
     assert.equal(fs.readFileSync(lock, 'utf8'), held, 'left alone both times');
-    assert.equal(acquireLock(lock, { inspect: () => null, note }), true, 'gone by the time it is asked: an ordinary stale lock');
-    assert.deepEqual(notes, []);
+    assert.equal(acquireLock(lock, { inspect: () => null, note }), false, 'the query missed a pid that is still alive: kept');
+    assert.match(notes.pop(), /is alive but the process query did not see it/);
+    assert.equal(fs.readFileSync(lock, 'utf8'), held, 'still left alone');
   } finally { sleeper.kill('SIGKILL'); }
 });
 
@@ -768,4 +769,36 @@ test('changed fires for a title-only append and within the max wait during a bur
   assert.ok(Date.now() - t0 < 3500, 'a changed event arrived while the burst was still running');
   assert.equal((await R('health')).lastErrorAt ?? null, null);
   await h.stop();
+});
+
+test('lock owner: the Hub binary may have any name; a pid the query missed but that is alive is kept', () => {
+  const dir = tmp('hub-lock2-');
+  const db = path.join(dir, 'hub.sqlite'), lock = db + '.lock';
+  const live = otherProgram();   // a real live pid
+  fs.writeFileSync(lock, JSON.stringify({ pid: live.pid, db }));
+  const notes = [];
+  const custom = () => ({ name: 'node22.exe', commandLine: '"C:\\tools\\node22.exe" --no-warnings "C:\\x\\hub.mjs" --db "' + db + '"' });
+  assert.equal(acquireLock(lock, { dbFile: db, inspect: custom, nodeName: 'node22.exe', note: (t) => notes.push(t) }), false);
+  assert.equal(acquireLock(lock, { dbFile: db, inspect: () => null, note: (t) => notes.push(t) }), false);
+  assert.ok(notes.some((t) => /alive but the process query did not see it/.test(t)));
+  assert.equal(JSON.parse(fs.readFileSync(lock, 'utf8')).pid, live.pid);   // never reclaimed
+});
+
+test('a reader takes over as writer once the writer exits', async () => {
+  const dir = tmp('hub-up-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const env = { HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '500', HQ_HUB_READER_UPGRADE_MS: '300' };
+  const a = startHub(env, db);
+  await a.healthy(15000);
+  const b = startHub(env, db);
+  await b.healthy(15000);
+  assert.equal((await b.req('health')).result.role, 'reader');
+  await a.stop();
+  assert.ok(await b.until(() => b.events.some((e) => e.event === 'ready' && e.data.role === 'writer'), 5000), 'reader upgraded');
+  const h = await b.healthy(15000);
+  assert.equal(h.role, 'writer');
+  assert.equal(h.counts.conversations, 3);
+  assert.equal((await b.req('reindex')).ok, true);   // writer-only ops work now
+  await b.stop();
 });

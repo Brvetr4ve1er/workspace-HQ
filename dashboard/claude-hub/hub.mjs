@@ -100,12 +100,18 @@ const realLower = (p) => { const r = path.resolve(p); try { return fs.realpathSy
 
 // Is the live `pid` the writer of the index at dbFile? { owner, note } — the note says why a lock was reclaimed, or why
 // it was trusted without being verified.
-function lockOwner(pid, dbFile, inspect) {
+function lockOwner(pid, dbFile, inspect, nodeName) {
   let info;
   try { info = inspect(pid); }
   catch (e) { return { owner: true, note: 'could not check the index lock owner (pid ' + pid + ': ' + msg(e) + '), assumed live' }; }
-  if (!info) return { owner: false, note: null };   // it exited after the liveness check: an ordinary stale lock
-  if (!/^node(\.exe)?$/i.test(info.name)) return { owner: false, note: 'reclaimed a stale index lock (pid ' + pid + ' was ' + (info.name || 'another program') + ')' };
+  if (!info) {
+    // the query saw nothing: either it exited between the checks (stale) or the query missed it — ask once more
+    if (alive(pid)) return { owner: true, note: 'pid ' + pid + ' is alive but the process query did not see it, assumed it owns the index lock' };
+    return { owner: false, note: null };
+  }
+  // a Hub runs on node, node.exe or whatever the host resolved HQ_HUB_NODE to (this process's own binary name)
+  const names = new Set(['node', 'node.exe', String(nodeName || '').toLowerCase()]);
+  if (!names.has(String(info.name || '').toLowerCase())) return { owner: false, note: 'reclaimed a stale index lock (pid ' + pid + ' was ' + (info.name || 'another program') + ')' };
   if (info.commandLine === null) return { owner: true, note: 'could not read the command line of pid ' + pid + ' (' + info.name + '), assumed it owns the index lock' };
   const argv = splitCommandLine(info.commandLine);
   const at = argv.findIndex((a, k) => k > 0 && path.win32.basename(a).toLowerCase() === HUB_SCRIPT);
@@ -118,7 +124,7 @@ function lockOwner(pid, dbFile, inspect) {
 
 // true when this process now holds the lock. note(text) hears every reclaim of a lock whose pid was alive and every
 // owner that could not be verified (the query failed: then a live pid counts as the owner, as before).
-export function acquireLock(lockFile, { dbFile = lockFile.replace(/\.lock$/i, ''), inspect = inspectProcess, note = () => {} } = {}) {
+export function acquireLock(lockFile, { dbFile = lockFile.replace(/\.lock$/i, ''), inspect = inspectProcess, note = () => {}, nodeName = path.basename(process.execPath) } = {}) {
   for (let i = 0; i < 3; i++) {
     let fd = null;
     try { fd = fs.openSync(lockFile, 'wx'); }
@@ -130,7 +136,7 @@ export function acquireLock(lockFile, { dbFile = lockFile.replace(/\.lock$/i, ''
     const pid = readLockPid(lockFile);
     if (pid < 0) return false;
     if (pid > 0 && pid !== process.pid && alive(pid)) {
-      const o = lockOwner(pid, dbFile, inspect);
+      const o = lockOwner(pid, dbFile, inspect, nodeName);
       if (o.note) note(o.note);
       if (o.owner) return false;
     }
@@ -167,10 +173,11 @@ function main() {
 
   let store = null, writer = false, state = 'indexing', progress = { done: 0, total: 0 }, lastError = null;
   let stopping = false, watcher = null, sweepTimer = null, readerTimer = null, changedTimer = null;
-  let readerNote = null, rebuild = false;
+  let readerNote = null, rebuild = false, upgradeTimer = null;
+  const READER_UPGRADE_MS = Math.max(100, Number(process.env.HQ_HUB_READER_UPGRADE_MS) || 30000);
 
   process.on('exit', () => {   // every way out: stdin closed, signal, crash, process.exit()
-    clearInterval(sweepTimer); clearTimeout(readerTimer); clearTimeout(changedTimer);
+    clearInterval(sweepTimer); clearInterval(upgradeTimer); clearTimeout(readerTimer); clearTimeout(changedTimer);
     try { watcher && watcher.close(); } catch { /* closing */ }
     try { store && store.close(); } catch { /* closing */ }
     if (writer) releaseLock(lockFile);
@@ -179,16 +186,21 @@ function main() {
 
   // ---- open the index: one writer, any number of readers
   try { fs.mkdirSync(path.dirname(dbFile), { recursive: true }); } catch (e) { return fatal('cannot create ' + path.dirname(dbFile) + ': ' + msg(e)); }
+  // Open the index as its writer (at start, and when a reader takes over a freed lock). A brand-new index needs no rebuild;
+  // an index written by older parsing/masking code keeps whatever that code let through (cursors skip ingested bytes,
+  // INSERT OR IGNORE never rewrites a row), so it is rebuilt through the same serial reset a reindex uses.
+  function openWriter() {
+    try { store = openStore(dbFile, { indexVersion: INDEX_VERSION }); }
+    catch (e) { fatal('cannot open the index: ' + msg(e)); return false; }   // the host restarts a Hub that exits
+    const v = store.getMeta('index_version');
+    rebuild = v === null || !(Number(v) >= INDEX_VERSION);
+    return true;
+  }
   const lockNotes = [];
   writer = acquireLock(lockFile, { dbFile, note: (t) => { lockNotes.push(t); diag(t); } });
   if (writer) {
     lastError = lockNotes.join('; ') || null;   // a reclaimed lock is reported while the first pass runs; the pass's success clears it
-    try { store = openStore(dbFile, { indexVersion: INDEX_VERSION }); }   // a brand-new index needs no rebuild
-    catch (e) { return fatal('cannot open the index: ' + msg(e)); }   // the host restarts a Hub that exits
-    // An index written by older parsing/masking code keeps whatever that code let through (cursors skip ingested bytes,
-    // INSERT OR IGNORE never rewrites a row): rebuild the code index through the same serial reset a reindex uses.
-    const v = store.getMeta('index_version');
-    rebuild = v === null || !(Number(v) >= INDEX_VERSION);
+    if (!openWriter()) return;
   } else {
     readerNote = lockNotes.join('; ') || null;   // e.g. the owner could not be verified: it stays visible, it explains "read-only"
     // A reader cannot create the file; if the owner has not created and migrated it yet, wait a little (never crash).
@@ -205,6 +217,21 @@ function main() {
       readerTimer = setTimeout(attempt, READER_RETRY_MS);
     };
     attempt();
+    // The writer may exit or crash: take its lock when it is free; failing that, retry the read-only open if it gave up.
+    upgradeTimer = setInterval(() => {
+      if (stopping || writer) return;
+      if (acquireLock(lockFile, { dbFile, note: diag })) {
+        clearInterval(upgradeTimer); clearTimeout(readerTimer);
+        try { store && store.close(); } catch { /* reopening as writer */ }
+        store = null; writer = true; readerNote = null; lastError = null;
+        if (!openWriter()) return;
+        emit('ready', { role: 'writer' });
+        if (rebuild) resetNext = true;
+        runIndex();
+        return;
+      }
+      if (!store) { try { store = openStore(dbFile, { readOnly: true }); lastError = null; } catch { /* still unavailable: the gave-up note stays */ } }
+    }, READER_UPGRADE_MS);
   }
   function fatal(message) { emit('error', { message }); diag(message); process.exitCode = 3; }   // no handles are open yet: the process ends once the lines are flushed
 
