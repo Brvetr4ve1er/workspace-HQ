@@ -180,3 +180,11 @@ Written only by the Hub process; never read by `collector/` or committed. Shape 
 parsing/masking produced the rows; when it is missing or lower, the next writer rebuilds the code index from the
 transcripts (tombstones and projects kept). The first one: secrets masked on the full text before any cut. The lock
 file holds `{"pid","db"}` (a plain pid is still read).
+
+## 2026-10-16 · struct · quests re-raise (additive)
+A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
+`created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
+for history. A dismissed quest is never re-raised. No shape change: `reopened_from` is a new optional
+string field on quest objects. Also: `collector/enrich.mjs` now launches Claude through the real
+binary (or the npm shim via a shell) — Node ≥ 20.12 refused the `.cmd` shim, so every scan since
+August carried the 2026-08-10 enrichment forward; the default model is the CLI alias `sonnet`.

@@ -55,9 +55,21 @@ export function deriveQuests({ prevQuests, projects, prodById, emptyCount, today
     occupied.set(q.project_id, set);
   }
   const hasConcern = (pid, c) => occupied.get(pid)?.has(c);
+  // Quest ids are stable per project+concern, so once "q-<p>-commit-dirty" was done it could
+  // never be raised again even when the tree was dirty for months (the board read "0 open"
+  // while Home listed the problem). A done quest whose condition is back is re-raised as a
+  // new quest "<id>-r<N>" (created today, reopened_from = the old id); a dismissed quest
+  // stays quiet — "dismissed" means "stop asking".
+  const sameLine = (id) => quests.filter((q) => q.id === id || q.id.startsWith(id + '-r'));
   function addQuest(q, concern) {
-    if (haveQuest.has(q.id)) return;
     if (concern && hasConcern(q.project_id, concern)) return; // a carried quest already covers this
+    const prior = sameLine(q.id);
+    if (prior.length) {
+      if (prior.some((p) => p.status === 'dismissed')) return;
+      if (prior.some((p) => p.status !== 'done')) return;
+      q = { ...q, id: q.id + '-r' + (prior.length + 1), reopened_from: q.id };
+      if (haveQuest.has(q.id)) return;
+    }
     quests.push(q); haveQuest.add(q.id);
     const set = occupied.get(q.project_id) || new Set();
     if (concern) { set.add(concern); occupied.set(q.project_id, set); }

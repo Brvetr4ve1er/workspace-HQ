@@ -15,16 +15,25 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
-const MODEL = arg('--model', 'claude-sonnet-4-6');
+const MODEL = arg('--model', 'sonnet'); // a CLI alias: always the current Sonnet, never a retired id
 const REPORTS_DIR = arg('--reports-dir', 'C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Workspace Status');
 const DATA = path.join(__dirname, '..', 'data');
 
+// Node 20.12+/22+ refuse to spawn a .cmd/.bat without a shell (EINVAL), which made every
+// scan since then log "claude CLI not found" and carry the August enrichment forward.
+// Prefer the real binary behind the npm shim; fall back to the shim through a shell.
 function findClaude() {
+  const npm = process.env.HQ_CLAUDE_NPM_DIR || path.join(process.env.APPDATA || 'C:/Users/ROG STRIX/AppData/Roaming', 'npm');
   const cands = [
-    'C:/Users/ROG STRIX/AppData/Roaming/npm/claude.cmd',
-    'claude',
+    { cmd: path.join(npm, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'), shell: false },
+    { cmd: path.join(npm, 'claude.cmd'), shell: true },
+    { cmd: 'claude', shell: true },
   ];
-  for (const c of cands) { try { execFileSync(c, ['--version'], { stdio: 'ignore' }); return c; } catch { /* next */ } }
+  for (const c of cands) {
+    if (!c.shell && !fs.existsSync(c.cmd)) continue;
+    try { execFileSync(c.shell ? JSON.stringify(c.cmd) : c.cmd, ['--version'], { stdio: 'ignore', shell: c.shell, timeout: 20_000 }); return c; }
+    catch { /* next */ }
+  }
   return null;
 }
 
@@ -43,10 +52,10 @@ const prompt = fs.readFileSync(path.join(__dirname, '..', 'scan-prompt.md'), 'ut
   .replace('{{RAW_METRICS}}', raw)
   .replace('{{PREVIOUS_SCAN}}', previousScan());
 
-console.log(`[enrich] calling ${MODEL} …`);
+console.log(`[enrich] calling ${MODEL} via ${claude.cmd} …`);
 // Hard cap: an interactive auth prompt / network stall in `claude -p` must never
 // freeze the pipeline (a hung spawnSync here is exactly what left latest.json stale).
-const r = spawnSync(claude, ['-p', '--model', MODEL], { input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 480_000, killSignal: 'SIGKILL' });
+const r = spawnSync(claude.shell ? JSON.stringify(claude.cmd) : claude.cmd, ['-p', '--model', MODEL], { input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 480_000, killSignal: 'SIGKILL', shell: claude.shell });
 if (r.error && r.error.code === 'ETIMEDOUT') { console.error('[enrich] claude timed out after 8min — skipping enrichment (deterministic fields carry forward).'); process.exit(0); }
 if (r.status !== 0) { console.error('[enrich] claude failed:', (r.stderr || '').slice(0, 400)); process.exit(0); }
 

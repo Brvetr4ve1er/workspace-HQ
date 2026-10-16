@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-16 · FROM frontend (scanner fix, struct-lane files, owner-authorized) · main @ e509fcf
+DONE: the owner found the app "frozen": 0 open tasks since July while Home listed 48 dirty files. Two causes,
+  both in the collector (struct lane; the owner told this session to fix them directly):
+  (1) collector/lib/quests.mjs — a done quest could never be re-raised (stable id, haveQuest). Now a done
+  quest whose condition returns is raised as "<id>-r<N>" with reopened_from (CONTRACT.md entry); dismissed stays
+  quiet. 3 new tests, collector/lib 25/25.
+  (2) collector/enrich.mjs — Node ≥ 20.12 refuses to spawn claude.cmd (EINVAL), so every scan since August
+  logged "claude CLI not found" and carried the 2026-08-10 enrichment forward. Now uses the claude.exe behind the
+  npm shim (or the shim via a shell); default model = CLI alias "sonnet". Verified: enrichment.json refreshed
+  for 8 projects; a -NoEnrich scan then raised the re-opened tasks into latest.json.
+IN-FLIGHT: the devfleet (chat history library plan committed e509fcf; in-app chat plan being written).
+ASKS: struct lane — your uncommitted run-scan.ps1 (-NoEnrich on the nightly task) and collector.config.json are
+  untouched; please review (1)/(2) and commit or amend as you see fit.
+BREAKS: none for the renderer (reopened_from is optional). Quest ids may now carry a -rN suffix.
+
 ## 2026-10-16 · FROM frontend (archive sources + prompt library spec; Hub fleet relaunched) · main @ 55c4651
 DONE: spec docs/superpowers/specs/2026-10-15-archive-and-prompt-library-design.md — H6 new archive sources (the
   owner's ChatGPT data export, local Claude memory notes / CLAUDE.md files / ~/.claude/history.jsonl, prompt notes)
