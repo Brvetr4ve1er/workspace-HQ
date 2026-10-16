@@ -409,3 +409,35 @@ test('captures map a recording’s durationMs; anything else (a snip, absent, ju
   ], now);
   assert.deepEqual(c.map((x) => [x.id, x.durationMs]), [['r1', 3000], ['r2', 0], ['r3', null], ['r4', null], ['r5', null], ['r6', null], ['r7', null], ['r8', null], ['s1', null]]);
 });
+
+// append to dashboard-v5/src/live/adapter.test.mjs
+import { snippetParts, fmtTokens, hubConv, hubThread, hubHit, hubStats } from './adapter.mjs';
+test('snippetParts: markers stripped, unbalanced markers never swallow text, markup stays text', () => {
+  assert.deepEqual(snippetParts('a \u0002rel\u0003 b'), [{ text: 'a ', hit: false }, { text: 'rel', hit: true }, { text: ' b', hit: false }]);
+  assert.deepEqual(snippetParts('x \u0002open to the end'), [{ text: 'x ', hit: false }, { text: 'open to the end', hit: true }]);
+  assert.deepEqual(snippetParts('stray\u0003 close'), [{ text: 'stray close', hit: false }]);
+  const evil = snippetParts('\u0002<img src=x onerror=alert(1)>\u0003<script>');
+  assert.equal(evil.map((p) => p.text).join(''), '<img src=x onerror=alert(1)><script>');
+  assert.deepEqual(snippetParts(''), []); assert.deepEqual(snippetParts(null), []);
+});
+test('fmtTokens: unknown is null, not zero', () => {
+  assert.equal(fmtTokens(null), null); assert.equal(fmtTokens(0), '0'); assert.equal(fmtTokens(950), '950');
+  assert.equal(fmtTokens(12345), '12.3k'); assert.equal(fmtTokens(4100000), '4.1M');
+});
+test('hubConv / hubThread / hubHit / hubStats map the Hub rows', () => {
+  const now = Date.parse('2026-10-05T10:00:00Z');
+  const row = { id: 'code:s', source: 'code', title: null, project_name: 'project-a', project_id: 'code:p', hq_project_id: 'project-a', last_at: '2026-10-04T10:00:00.000Z', message_count: 3, tokens_in: 10, tokens_out: 20, tokens_cache_read: null, tokens_cache_write: null };
+  const c = hubConv(row, now);
+  assert.equal(c.title, 'Untitled chat'); assert.equal(c.tokens, '30'); assert.deepEqual(c.cursor, { before: row.last_at, beforeId: 'code:s' });
+  assert.equal(hubConv({ ...row, tokens_in: null, tokens_out: null }, now).tokens, null);
+  const t = hubThread({ conversation: { ...row, model: 'claude-placeholder', git_branch: 'main', active_ms: 125000 }, hasMore: true,
+    messages: [{ id: 'm1', role: 'user', at: '2026-10-04T09:58:00.000Z', text: 'hi' }, { id: 'm2', role: 'tool', at: '2026-10-04T09:59:00.000Z', text: 'out' }, { id: 'm3', role: 'assistant', at: '2026-10-04T09:59:00.000Z', text: '[tool: Read a.md]' }] }, now);
+  assert.deepEqual(t.messages.map((m) => [m.tool, m.collapsed]), [[false, false], [true, true], [true, true]]);
+  assert.deepEqual(t.cursor, { before: '2026-10-04T09:58:00.000Z', beforeId: 'm1' });
+  assert.match(t.activeEst, /estimate/);
+  assert.equal(hubThread(null, now), null);
+  assert.equal(hubHit({ conversationId: 'code:s', messageId: 'm', title: 'T', at: row.last_at, snippet: '\u0002a\u0003' }, now).parts[0].hit, true);
+  const s = hubStats({ days: [{ day: '2026-10-04', chats: 2, messages: 5, active_ms: 120000 }], projects: [{ project_id: 'code:p', name: 'project-a', chats: 2, tokens_in: 1, tokens_out: 2, tokens_cache_read: 0, tokens_cache_write: 0 }], totals: { chats: 2, active_ms: 120000, tokens_in: 1, tokens_out: 2, tokens_cache_read: 0, tokens_cache_write: 0 } });
+  assert.deepEqual(s.days, [{ day: '2026-10-04', chats: 2, activeMin: 2 }]);
+  assert.equal(s.totals.tokens, '3');
+});

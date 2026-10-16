@@ -46,6 +46,7 @@ export function createStore(DATA, hq) {
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
+    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
   };
 
@@ -181,7 +182,13 @@ export function createStore(DATA, hq) {
       // a Hub that came up after the first health() answered "starting" (a reader never backfills, so no progress follows)
       else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
       // the Hub indexed something new (a live append, a sweep): the card's counts are from the last answer, so ask again
-      else if (e.event === 'changed' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+      else if (e.event === 'changed') {
+        if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+          if (lib().convs) refreshClaudeLib();
+          if (lib().stats) refreshClaudeStats();
+          const t = lib().thread;
+          if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) openClaudeThread(t.conversation.id);
+      }
       emit();
     }));
     if (hq.studio) {
@@ -192,11 +199,62 @@ export function createStore(DATA, hq) {
     reads.push(refreshSocial(), refreshLlm(false));
     return Promise.all(reads).then(() => {});
   }
+  const lib = () => live.claudeLib;
+  // One error slot for the whole library: each ENTRY function clears it before it asks (fresh action, fresh verdict);
+  // a success never clears it, so two parallel calls cannot erase each other's failure. busy counts calls in flight.
+  let libPending = 0;
+  const hubCall = (fn, ok) => {
+    if (!hq || !hq.claudeHub) return Promise.resolve();
+    libPending++; lib().busy = true;
+    return Promise.resolve().then(fn).then((r) => {
+      if (r && typeof r === 'object' && !Array.isArray(r) && r.error) { lib().error = 'Claude Hub: ' + r.error; return; }
+      ok(r);
+    }).catch((e) => { lib().error = 'Claude Hub: ' + ((e && e.message) || e); })
+      .finally(() => { libPending--; lib().busy = libPending > 0; emit(); });
+  };
+  const fresh = () => { lib().error = null; };
+  const PAGE = 50;
+  function refreshClaudeLib(filters = lib().filters) {
+    lib().filters = { ...filters }; fresh();
+    return Promise.all([
+      hubCall(() => hq.claudeHub.projects({}), (r) => { lib().projects = Array.isArray(r) ? r : []; }),
+      hubCall(() => hq.claudeHub.conversations({ ...lib().filters, limit: PAGE }), (r) => { const rows = Array.isArray(r) ? r : []; lib().convs = rows; lib().convsMore = rows.length === PAGE; }),
+    ]);
+  }
+  function moreClaudeConvs() {
+    const rows = lib().convs || [], last = rows[rows.length - 1];
+    if (!last) return Promise.resolve();
+    fresh();
+    return hubCall(() => hq.claudeHub.conversations({ ...lib().filters, limit: PAGE, before: last.last_at, beforeId: last.id }),
+      (r) => { const more = Array.isArray(r) ? r : []; lib().convs = rows.concat(more); lib().convsMore = more.length === PAGE; });
+  }
+  function searchClaude(q) {
+    lib().q = String(q || '');
+    if (!/[\p{L}\p{N}]/u.test(lib().q)) { fresh(); lib().hits = null; lib().noTerms = lib().q.trim() !== ''; emit(); return Promise.resolve(); }
+    lib().noTerms = false; fresh();
+    return hubCall(() => hq.claudeHub.search(lib().q, { limit: 50 }), (r) => { lib().hits = Array.isArray(r) ? r : []; });
+  }
+  function openClaudeThread(id) { fresh(); return hubCall(() => hq.claudeHub.conversation(id, { limit: 200 }), (r) => { lib().thread = r && r.conversation ? r : { missing: id }; }); }
+  function earlierClaudeThread() {
+    const t = lib().thread, first = t && t.messages && t.messages[0];
+    if (!first || !t.hasMore) return Promise.resolve();
+    fresh();
+    return hubCall(() => hq.claudeHub.conversation(t.conversation.id, { limit: 200, before: first.at, beforeId: first.id }),
+      (r) => { if (r && r.conversation) lib().thread = { ...r, messages: r.messages.concat(t.messages) }; });
+  }
+  function closeClaudeThread() { lib().thread = null; emit(); }
+  const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function refreshClaudeStats(days = 30) {
+    const to = new Date(), from = new Date(to.getTime() - (days - 1) * 86400000);
+    fresh();
+    return hubCall(() => hq.claudeHub.stats({ from: localDay(from), to: localDay(to), tzOffsetMin: -new Date().getTimezoneOffset() }), (r) => { lib().stats = r; });
+  }
   function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); }
 
   return {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
+    refreshClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats,
   };
 }

@@ -443,3 +443,58 @@ export function social(payload) {
   const MENTIONS = arr(obj(p.inbox).events).filter((e) => e.kind === 'mention').slice(-12).reverse().map((e) => ({ who: String(e.author || '?'), text: String(e.text || ''), when: e.ts ? ago(Date.parse(e.ts)) : '', reply: true, url: e.url ? String(e.url) : null }));
   return { POSTS, MENTIONS, connected: accounts.length > 0 };
 }
+
+// ---- Claude Hub library (spec 2026-10-13 §9). Hub rows arrive snake_case, exactly as the Hub returns them.
+export function snippetParts(s) {
+  const out = []; let hit = false, buf = '';
+  const push = () => { if (!buf) return; const last = out[out.length - 1]; if (last && last.hit === hit) last.text += buf; else out.push({ text: buf, hit }); buf = ''; };
+  for (const ch of String(s == null ? '' : s)) {
+    if (ch === '\u0002') { if (!hit) { push(); hit = true; } }
+    else if (ch === '\u0003') { if (hit) { push(); hit = false; } }
+    else buf += ch;
+  }
+  push();
+  return out;
+}
+export function fmtTokens(n) {
+  if (n === null || n === undefined || !Number.isFinite(Number(n))) return null;
+  const v = Number(n);
+  return v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e4 ? (v / 1e3).toFixed(1) + 'k' : String(Math.round(v));
+}
+const tokSum = (r) => { const ks = ['tokens_in', 'tokens_out', 'tokens_cache_read', 'tokens_cache_write']; return ks.every((k) => r[k] == null) ? null : ks.reduce((n, k) => n + num(r[k], 0), 0); };
+const at2ms = (s) => { const t = Date.parse(s); return Number.isFinite(t) ? t : null; };
+const whenOf = (s, now) => { const t = at2ms(s); return t === null ? '' : ago(t, now); };
+const hhmmOf = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const TOOL_LINE = /^\[tool: /;
+export function hubConv(row, now = Date.now()) {
+  const r = obj(row);
+  return { id: String(r.id || ''), title: r.title ? String(r.title) : 'Untitled chat', project: String(r.project_name || ''), projectId: String(r.project_id || ''),
+    hqProjectId: r.hq_project_id ? String(r.hq_project_id) : null, source: String(r.source || 'code'), sourceLabel: r.source === 'web' ? 'claude.ai' : 'Code',
+    when: whenOf(r.last_at, now), count: num(r.message_count, 0), tokens: fmtTokens(tokSum(r)), cursor: { before: r.last_at || null, beforeId: String(r.id || '') } };
+}
+export function hubThread(res, now = Date.now()) {
+  if (!res || typeof res !== 'object' || !res.conversation) return null;
+  const c = obj(res.conversation), ms = arr(res.messages);
+  const messages = ms.map((m) => { const tool = m.role === 'tool' || TOOL_LINE.test(String(m.text || ''));
+    return { id: String(m.id), role: String(m.role || ''), who: m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Claude' : m.role === 'tool' ? 'Tool output' : 'System',
+      time: hhmmOf(m.at), day: String(m.at || '').slice(0, 10), text: String(m.text || ''), tool, toolName: m.tool_name ? String(m.tool_name) : null, collapsed: tool }; });
+  const mins = Math.round(num(c.active_ms, 0) / 60000);
+  return { id: String(c.id || ''), title: c.title ? String(c.title) : 'Untitled chat', project: String(c.project_name || ''), model: c.model || null, branch: c.git_branch || null,
+    tokens: fmtTokens(tokSum(c)), activeEst: '~' + mins + ' min (estimate)', messages, hasMore: !!res.hasMore,
+    cursor: ms.length ? { before: ms[0].at || null, beforeId: String(ms[0].id) } : null };
+}
+export function hubProject(row, now = Date.now()) {
+  const r = obj(row);
+  return { id: String(r.id || ''), name: String(r.name || r.key || ''), path: String(r.path || ''), count: num(r.conversations, 0), when: whenOf(r.last_at, now),
+    hqProjectId: r.hq_project_id ? String(r.hq_project_id) : null, linkState: ['auto', 'confirmed', 'rejected'].includes(r.link_state) ? r.link_state : 'none' };
+}
+export function hubHit(h, now = Date.now()) {
+  const r = obj(h);
+  return { conversationId: String(r.conversationId || ''), messageId: String(r.messageId || ''), title: r.title ? String(r.title) : 'Untitled chat', when: whenOf(r.at, now), parts: snippetParts(r.snippet) };
+}
+export function hubStats(res) {
+  const r = obj(res), t = obj(r.totals);
+  return { days: arr(r.days).map((d) => ({ day: String(d.day), chats: num(d.chats, 0), activeMin: Math.round(num(d.active_ms, 0) / 60000) })),
+    projects: arr(r.projects).map((p) => ({ id: String(p.project_id), name: String(p.name || p.project_id), chats: num(p.chats, 0), tokens: fmtTokens(tokSum(p)) })),
+    totals: { chats: num(t.chats, 0), activeMin: Math.round(num(t.active_ms, 0) / 60000), tokens: fmtTokens(tokSum(t)) } };
+}

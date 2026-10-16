@@ -490,3 +490,45 @@ test('claudeHub: junk and unrelated events change nothing; stop() unsubscribes; 
   assert.equal(s2.live.claudeHub, null);
   s2.stop();
 });
+
+// append to dashboard-v5/src/live/store.test.mjs
+function libHq(over = {}) {
+  const h = hubHq({ state: 'ready' }), calls = [];
+  const rec = (name, val) => (...a) => { calls.push([name, a]); return Promise.resolve(typeof val === 'function' ? val(...a) : val); };
+  Object.assign(h.hq.claudeHub, {
+    projects: rec('projects', [{ id: 'code:p', name: 'project-a', conversations: 1, last_at: '2026-10-04T10:00:00Z', hq_project_id: null, link_state: 'none' }]),
+    conversations: rec('conversations', (o) => (o && o.beforeId ? [] : [{ id: 'code:s', title: 'T', last_at: '2026-10-04T10:00:00Z', message_count: 1 }])),
+    conversation: rec('conversation', (id) => ({ conversation: { id, title: 'T' }, hasMore: false, messages: [] })),
+    search: rec('search', []), stats: rec('stats', { days: [], projects: [], totals: {} }), ...over,
+  });
+  return { ...h, calls };
+}
+test('claudeLib: loads on demand, pages with the (before, beforeId) cursor, sends the local offset', async () => {
+  const { hq, calls, fire } = libHq();
+  const st = createStore(DATA(), hq); await st.start();
+  assert.equal(st.live.claudeLib.convs, null);                       // nothing fetched until a screen asks
+  await st.refreshClaudeLib({ source: 'code' });
+  assert.equal(st.live.claudeLib.convs.length, 1);
+  await st.moreClaudeConvs();
+  assert.deepEqual(calls.at(-1), ['conversations', [{ source: 'code', limit: 50, before: '2026-10-04T10:00:00Z', beforeId: 'code:s' }]]);
+  assert.equal(st.live.claudeLib.convsMore, false);
+  await st.refreshClaudeStats(30);
+  assert.equal(calls.at(-1)[1][0].tzOffsetMin, -new Date().getTimezoneOffset());
+  await st.openClaudeThread('code:s');
+  const before = calls.length;
+  fire({ event: 'changed', data: { ids: ['code:s'] } }); await settle(); await settle();
+  assert.ok(calls.slice(before).some(([n]) => n === 'conversation'), 'open thread re-read on change');
+  assert.ok(calls.slice(before).some(([n]) => n === 'conversations'), 'list re-read on change');
+  st.stop();
+});
+test('claudeLib: an {error} keeps the last data and says why; a no-term search says so', async () => {
+  let fail = false;
+  const { hq } = libHq({ conversations: () => Promise.resolve(fail ? { error: 'timeout' } : [{ id: 'code:s', title: 'T', last_at: 'x', message_count: 1 }]) });
+  const st = createStore(DATA(), hq); await st.start();
+  await st.refreshClaudeLib({}); fail = true; await st.refreshClaudeLib({});
+  assert.equal(st.live.claudeLib.convs.length, 1);
+  assert.equal(st.live.claudeLib.error, 'Claude Hub: timeout');
+  await st.searchClaude('!!! ...');
+  assert.equal(st.live.claudeLib.hits, null); assert.equal(st.live.claudeLib.noTerms, true);
+  st.stop();
+});
