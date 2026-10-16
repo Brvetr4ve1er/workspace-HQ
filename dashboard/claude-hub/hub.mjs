@@ -12,10 +12,12 @@ import { spawnSync } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
-import { backfill, ingestFile, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
+import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
+import { readHqProjects, autoLink } from './link.mjs';
 
 export const resolveClaudeRoot = (env = process.env) => path.join(env.HQ_CLAUDE_HOME || path.join(os.homedir(), '.claude'), 'projects');
 
+const CHANGED_MAX_WAIT_MS = 2000;   // a burst of changes is reported at the latest this long after its first one
 const READER_WAIT_MS = 5000;   // a reader whose read-only open fails keeps trying this long (the owner may still be creating/migrating the file)
 const READER_RETRY_MS = 250;
 const SEPARATORS = new RegExp('[' + String.fromCharCode(0x2028, 0x2029) + ']', 'g');   // built, not spelled: some tools rewrite the escapes into raw characters
@@ -151,6 +153,7 @@ function main() {
   if (!dbFile) { process.stderr.write('hub: --db <file> is required\n'); process.exit(2); }
   const root = resolveClaudeRoot();
   const lockFile = dbFile + '.lock';
+  const latestFile = arg('--latest') || process.env.HQ_HUB_LATEST || null;   // the WorkspaceHQ scan the linker reads; absent = auto-link off
 
   // U+2028/U+2029 are legal inside a JSON string but line readers (the host's readline) split on them: escape them.
   const send = (o) => {
@@ -180,7 +183,7 @@ function main() {
   writer = acquireLock(lockFile, { dbFile, note: (t) => { lockNotes.push(t); diag(t); } });
   if (writer) {
     lastError = lockNotes.join('; ') || null;   // a reclaimed lock is reported while the first pass runs; the pass's success clears it
-    try { store = openStore(dbFile); }
+    try { store = openStore(dbFile, { indexVersion: INDEX_VERSION }); }   // a brand-new index needs no rebuild
     catch (e) { return fatal('cannot open the index: ' + msg(e)); }   // the host restarts a Hub that exits
     // An index written by older parsing/masking code keeps whatever that code let through (cursors skip ingested bytes,
     // INSERT OR IGNORE never rewrites a row): rebuild the code index through the same serial reset a reindex uses.
@@ -207,12 +210,23 @@ function main() {
 
   const fail = (e) => { lastError = msg(e); emit('error', { message: lastError }); };
 
-  // ---- changes: batched into one `changed` event per burst
-  const changedIds = new Set();
-  const markChanged = (ids) => {
+  // ---- changes: one `changed` per burst, but never later than CHANGED_MAX_WAIT_MS after the burst's first change
+  const changedIds = new Set(), changedProjects = new Set();
+  let changedFirst = 0;
+  const flushChanged = () => {
+    clearTimeout(changedTimer); changedTimer = null; changedFirst = 0;
+    const data = { ids: [...changedIds] };
+    if (changedProjects.size) data.projects = [...changedProjects];
+    changedIds.clear(); changedProjects.clear();
+    emit('changed', data);
+  };
+  const markChanged = (ids, projects = []) => {
     for (const id of ids) changedIds.add(id);
+    for (const p of projects) changedProjects.add(p);
+    const now = Date.now();
+    if (!changedFirst) changedFirst = now;
     clearTimeout(changedTimer);
-    changedTimer = setTimeout(() => { emit('changed', { ids: [...changedIds] }); changedIds.clear(); }, 300);
+    changedTimer = setTimeout(flushChanged, Math.max(0, Math.min(300, changedFirst + CHANGED_MAX_WAIT_MS - now)));
   };
   const dbBytes = () => { let n = 0; for (const f of [dbFile, dbFile + '-wal']) { try { n += fs.statSync(f).size; } catch { /* absent */ } } return n; };
 
@@ -227,18 +241,30 @@ function main() {
     if (p.done === p.total || now - lastProgressAt > 500) { lastProgressAt = now; emit('progress', p); }
   };
 
+  // ---- links: auto-match against the latest scan; only none/auto rows move (link.mjs)
+  let latestMtime = -1;
+  const relink = (force = false) => {
+    if (!latestFile || !store || !writer || stopping) return Promise.resolve();
+    let m = 0;
+    try { m = fs.statSync(latestFile).mtimeMs; } catch { m = 0; }
+    if (!force && m === latestMtime) return Promise.resolve();
+    latestMtime = m;
+    return serial(() => autoLink(store, readHqProjects(latestFile)))
+      .then((r) => { if (r.linked || r.cleared) markChanged([], ['*']); }, fail);
+  };
+
   function startWatching() {
     if (watcher || sweepTimer || stopping) return;
     watcher = watchRoot(root, (file) => {
-      serial(() => ingestFile(store, root, file))
-        .then((r) => { if (r.added || r.reset) markChanged(['code:' + path.basename(file, '.jsonl')]); }, fail);
+      serial(() => ingestTracked(store, root, file))
+        .then((r) => { if (r.added || r.reset || r.titled) markChanged(['code:' + path.basename(file, '.jsonl')]); }, fail);
     });
     sweepTimer = setInterval(() => {   // the safety net behind fs.watch (missed events, a dead watcher)
       if (sweeping) return;
       sweeping = true;
       serial(() => sweep(store, root))
         .then((ids) => { lastError = null; if (ids.length) markChanged(ids); }, fail)
-        .finally(() => { sweeping = false; });
+        .finally(() => { sweeping = false; relink(); });
     }, Math.max(100, Number(process.env.HQ_HUB_SWEEP_MS) || 60000));
   }
 
@@ -248,21 +274,32 @@ function main() {
   function runIndex() {
     if (running) return;
     running = true; state = 'indexing';
+    let didReset = false;
     serial(async () => {
       do {
         // the version is stamped only once the old rows are gone: a kill before this point rebuilds again next start
-        if (resetNext) { resetNext = false; store.resetCode(); store.setMeta('index_version', INDEX_VERSION); progress = { done: 0, total: 0 }; }
+        if (resetNext) { resetNext = false; didReset = true; store.resetCode(); store.setMeta('index_version', INDEX_VERSION); progress = { done: 0, total: 0 }; }
         await backfill(store, root, { shouldStop: () => stopping || resetNext, onProgress });
       } while (resetNext && !stopping);
+      if (didReset && !stopping) store.optimize();   // a full rebuild leaves many FTS segments: merge them once
     }).then(() => { lastError = null; }, fail)
-      .finally(() => { running = false; state = 'ready'; startWatching(); });
+      .finally(() => { running = false; state = 'ready'; startWatching(); relink(true); });
   }
 
+  const metaOrNull = (k) => { try { return (store && store.getMeta(k)) || null; } catch { return null; } };   // health must answer even when the meta table is broken (lastError says why)
   const notOwner = () => { throw new Error('read-only hub (another WorkspaceHQ owns the index)'); };
   const ops = {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
       counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0 }, dbBytes: dbBytes(),
-      lastError: lastError || readerNote || (store && store.getMeta('last_error')) || null }),
+      lastError: lastError || readerNote || (store && store.getMeta('last_error')) || null,
+      lastErrorAt: metaOrNull('last_error_at') }),   // H1's fields unchanged + lastErrorAt
+    stats: (a) => (store ? store.stats(a) : { from: a.from, to: a.to, tzOffsetMin: 0, days: [], projects: [],
+      totals: { chats: 0, active_ms: 0, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } }),
+    link: (a) => {
+      if (!writer) notOwner();
+      if (!['confirmed', 'rejected', 'none'].includes(a.state)) throw new Error('link: state must be confirmed, rejected or none');
+      return serial(() => store.setLink(a)).then((ok) => { if (ok) markChanged([], [a.projectId]); return ok; });
+    },
     listProjects: (a) => (store ? store.listProjects(a) : []),
     listConversations: (a) => (store ? store.listConversations(a) : []),
     getConversation: (a) => (store ? store.getConversation(a) : null),
@@ -272,7 +309,7 @@ function main() {
     // undone by that ingest's remaining batches (they re-create the rows it removed; the tombstone is only checked on
     // entry) while still answering "true". Queued behind the ingest, the tombstone is in place before any later one starts.
     // The answer therefore waits for the slot in progress (a live append: one file; the first backfill: the whole run).
-    forget: (a) => { if (!writer) notOwner(); return serial(() => store.forget(a)); },
+    forget: (a) => { if (!writer) notOwner(); return serial(() => store.forget(a)).then((ok) => { if (ok) markChanged(a.conversationId ? [a.conversationId] : [], a.projectId ? [a.projectId] : []); return ok; }); },
   };
 
   // ---- stdin: requests, split on '\n' only (readline also splits on U+2028/U+2029, which a search query may hold)

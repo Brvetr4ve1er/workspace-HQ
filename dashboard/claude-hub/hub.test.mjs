@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { makeClaudeHome, userLine } from './__fixtures__/make-fixture.mjs';
+import { makeClaudeHome, userLine, titleLine } from './__fixtures__/make-fixture.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
 import { acquireLock, resolveClaudeRoot, splitCommandLine } from './hub.mjs';
@@ -718,4 +718,54 @@ test('starts through a junction (the entry check compares real paths)', async (t
     if (!fs.existsSync(link)) dirs.push(dir);   // never hand a live junction to a recursive delete
     assert.ok(fs.existsSync(HUB), 'the real hub.mjs is untouched');
   }
+});
+
+// ---- H2: stats + link ops, auto-link, changed on titles with a max wait ------------------------------------------
+// R() resolves the whole response line {id, ok, result|error}: unwrap it, a refused op becomes a rejection
+const call = (h) => async (op, args) => { const r = await h.req(op, args); if (!r.ok) throw new Error(r.error); return r.result; };
+
+test('stats and link ops; auto-link from latest.json; a manual unlink survives reindex', async () => {
+  const dir = tmp('hub-h2-');
+  const { home } = makeClaudeHome(dir);
+  const latest = path.join(dir, 'latest.json');
+  fs.writeFileSync(latest, JSON.stringify({ projects: [{ id: 'project-a', path: 'project-a' }, { id: 'project-b', path: 'project-b' }] }));
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '300', HQ_HUB_LATEST: latest }, path.join(dir, 'hub.sqlite'));
+  await h.healthy(15000);
+  const R = call(h);
+  // length first: [].every() is true, and listProjects is [] until the first backfill has run
+  assert.ok(await h.until(async () => { const xs = await R('listProjects'); return xs.length === 2 && xs.every((p) => p.link_state === 'auto'); }, 8000), 'both folders auto-linked');
+  const ps = await R('listProjects');
+  assert.deepEqual(ps.map((p) => p.hq_project_id).sort(), ['project-a', 'project-b']);
+  const st = await R('stats', { from: '2026-09-01', to: '2026-12-31', tzOffsetMin: 0 });
+  assert.equal(st.totals.chats, 3);
+  assert.ok(st.projects.some((p) => p.tokens_out >= 40));
+  const a = ps.find((p) => p.hq_project_id === 'project-a').id;
+  assert.equal(await R('link', { projectId: a, hqProjectId: null, state: 'rejected' }), true);
+  await assert.rejects(R('link', { projectId: a, hqProjectId: 'project-a', state: 'auto' }), /confirmed, rejected or none/);
+  await R('reindex');
+  await h.until(async () => (await R('health')).state === 'ready' && (await R('health')).counts.conversations === 3, 15000);
+  await new Promise((r) => setTimeout(r, 700));   // two sweep ticks: auto-link ran again
+  const after = (await R('listProjects')).find((p) => p.id === a);
+  assert.deepEqual([after.link_state, after.hq_project_id], ['rejected', null]);
+  await h.stop();
+});
+
+test('changed fires for a title-only append and within the max wait during a burst', async () => {
+  const dir = tmp('hub-h2c-');
+  const { home, files } = makeClaudeHome(dir);
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '150' }, path.join(dir, 'hub.sqlite'));
+  await h.healthy(15000);
+  const R = call(h);
+  const n0 = h.events.filter((e) => e.event === 'changed').length;
+  fs.appendFileSync(files.b1, titleLine({ sessionId: 'sess-b1', title: 'Renamed chat' }));
+  await h.until(() => h.events.filter((e) => e.event === 'changed').length > n0, 5000);
+  const n1 = h.events.filter((e) => e.event === 'changed').length;
+  const t0 = Date.now();
+  let k = 0;
+  const burst = setInterval(() => fs.appendFileSync(files.b1, userLine({ uuid: 'burst-' + k++, sessionId: 'sess-b1', at: new Date().toISOString(), text: 'tick' })), 100);
+  try { await h.until(() => h.events.filter((e) => e.event === 'changed').length > n1, 3500); }
+  finally { clearInterval(burst); }
+  assert.ok(Date.now() - t0 < 3500, 'a changed event arrived while the burst was still running');
+  assert.equal((await R('health')).lastErrorAt ?? null, null);
+  await h.stop();
 });
