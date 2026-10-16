@@ -124,3 +124,56 @@ test('readOnly opens an existing db for reading and refuses writes', () => {
   r.close();
   fs.rmSync(path.dirname(f), { recursive: true, force: true });
 });
+
+const seedTies = (s) => {
+  s.upsertProject({ id: 'code:p', source: 'code', key: 'p', name: 'project-a', path: 'C:\placeholder\project-a' });
+  const at = '2026-10-01T10:00:00.000Z';
+  for (const n of ['c1', 'c2', 'c3', 'c4', 'c5']) {
+    s.ensureConversation({ id: 'code:' + n, source: 'code', projectId: 'code:p', nativeId: n });
+    s.addMessages('code:' + n, [{ id: 'code:' + n + ':m', role: 'user', at, text: 'hello ' + n }]);
+  }
+  s.ensureConversation({ id: 'code:t', source: 'code', projectId: 'code:p', nativeId: 't' });
+  // 7 lines sharing one timestamp, ids deliberately NOT in file order
+  s.addMessages('code:t', ['z', 'b', 'y', 'a', 'x', 'c', 'w'].map((u, i) => ({ id: 'code:t:' + u, role: 'assistant', at, text: 'block ' + i })));
+};
+
+test('conversation list pages by (last_at, id): no chat skipped or repeated on a tie', () => {
+  const s = openStore(tmpDb()); seedTies(s);
+  const seen = []; let cur = {};
+  for (;;) {
+    const rows = s.listConversations({ limit: 2, ...cur });
+    if (!rows.length) break;
+    seen.push(...rows.map((r) => r.id));
+    const last = rows[rows.length - 1]; cur = { before: last.last_at, beforeId: last.id };
+  }
+  assert.deepEqual(seen, ['code:t', 'code:c5', 'code:c4', 'code:c3', 'code:c2', 'code:c1']);
+  s.close();
+});
+
+test('thread pages keep file order inside one timestamp and never skip or repeat', () => {
+  const s = openStore(tmpDb()); seedTies(s);
+  let page = s.getConversation({ id: 'code:t', limit: 3 });
+  const got = [page.messages.map((m) => m.text)];
+  while (page.hasMore) {
+    const first = page.messages[0];
+    page = s.getConversation({ id: 'code:t', limit: 3, before: first.at, beforeId: first.id });
+    got.unshift(page.messages.map((m) => m.text));
+  }
+  assert.deepEqual(got.flat(), ['block 0', 'block 1', 'block 2', 'block 3', 'block 4', 'block 5', 'block 6']);
+  assert.equal('_r' in page.messages[0], false);   // rowid never leaves the store
+  s.close();
+});
+
+test('list filters: q (title, escaped), since, hqProjectId', () => {
+  const s = openStore(tmpDb()); seedTies(s);
+  s.setTitle('code:c1', 'Fix 100% of the café_bug', 'custom');
+  assert.deepEqual(s.listConversations({ q: '100%' }).map((r) => r.id), ['code:c1']);
+  assert.deepEqual(s.listConversations({ q: 'FIX 100' }).map((r) => r.id), ['code:c1']);
+  assert.equal(s.listConversations({ q: '%' }).length, 1);            // a literal %, not "everything"
+  assert.equal(s.listConversations({ q: '_' }).length, 1);            // a literal _, not "any char"
+  assert.equal(s.listConversations({ since: '2026-10-02T00:00:00Z' }).length, 0);
+  assert.equal(s.listConversations({ hqProjectId: 'project-a' }).length, 0);
+  s.db.prepare("UPDATE project SET hq_project_id = 'project-a', link_state = 'confirmed' WHERE id = 'code:p'").run();
+  assert.equal(s.listConversations({ hqProjectId: 'project-a' }).length, 6);
+  s.close();
+});

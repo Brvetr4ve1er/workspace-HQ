@@ -198,24 +198,35 @@ function api(db) {
         LEFT JOIN conversation c ON c.project_id = p.id AND c.forgotten = 0 AND c.message_count > 0
         ${where} GROUP BY p.id ORDER BY last_at DESC`).all(...(source ? [source] : []));
     },
-    listConversations({ projectId, source, before, limit = 100 } = {}) {
+    listConversations({ projectId, source, q: title, since, hqProjectId, before, beforeId, limit = 100 } = {}) {
       const w = ['c.forgotten = 0', 'c.message_count > 0'], a = [];
       if (projectId) { w.push('c.project_id = ?'); a.push(projectId); }
       if (source) { w.push('c.source = ?'); a.push(source); }
-      if (before) { w.push('c.last_at < ?'); a.push(before); }
+      if (hqProjectId) { w.push('p.hq_project_id = ?'); a.push(hqProjectId); }
+      if (since) { w.push('c.last_at >= ?'); a.push(since); }
+      if (typeof title === 'string' && title.trim()) {
+        // SQLite lower()/LIKE fold ASCII only; non-ASCII letters match in their stored case (IPC row says so)
+        w.push("lower(c.title) LIKE ? ESCAPE '\\'");
+        a.push('%' + title.trim().toLowerCase().replace(/[\\%_]/g, (ch) => '\\' + ch) + '%');
+      }
+      if (before && beforeId) { w.push('(c.last_at < ? OR (c.last_at = ? AND c.id < ?))'); a.push(before, before, beforeId); }
+      else if (before) { w.push('c.last_at < ?'); a.push(before); }
       a.push(Math.max(1, Math.min(200, Number(limit) || 100)));
       return q(`SELECT c.*, p.name AS project_name, p.hq_project_id FROM conversation c LEFT JOIN project p ON p.id = c.project_id
-        WHERE ${w.join(' AND ')} ORDER BY c.last_at DESC LIMIT ?`).all(...a);
+        WHERE ${w.join(' AND ')} ORDER BY c.last_at DESC, c.id DESC LIMIT ?`).all(...a);
     },
-    getConversation({ id, limit = 200, before } = {}) {
+    getConversation({ id, limit = 200, before, beforeId } = {}) {
       const c = st.getConv.get(id);
       if (!c || c.forgotten) return null;
       const lim = Math.max(1, Math.min(500, Number(limit) || 200));
-      const rows = before
-        ? q('SELECT * FROM message WHERE conversation_id = ? AND at < ? ORDER BY at DESC LIMIT ?').all(id, before, lim + 1)
-        : q('SELECT * FROM message WHERE conversation_id = ? ORDER BY at DESC LIMIT ?').all(id, lim + 1);
+      const cols = '*, rowid AS _r';
+      const ref = before && beforeId ? q('SELECT rowid AS r FROM message WHERE id = ? AND conversation_id = ?').get(beforeId, id) : null;
+      let rows;
+      if (ref) rows = q(`SELECT ${cols} FROM message WHERE conversation_id = ? AND (at < ? OR (at = ? AND rowid < ?)) ORDER BY at DESC, rowid DESC LIMIT ?`).all(id, before, before, ref.r, lim + 1);
+      else if (before) rows = q(`SELECT ${cols} FROM message WHERE conversation_id = ? AND at < ? ORDER BY at DESC, rowid DESC LIMIT ?`).all(id, before, lim + 1);
+      else rows = q(`SELECT ${cols} FROM message WHERE conversation_id = ? ORDER BY at DESC, rowid DESC LIMIT ?`).all(id, lim + 1);
       const hasMore = rows.length > lim;
-      return { conversation: c, messages: rows.slice(0, lim).reverse(), hasMore };
+      return { conversation: c, messages: rows.slice(0, lim).reverse().map(({ _r, ...m }) => m), hasMore };
     },
     search({ q: query, projectId, source, limit = 30 } = {}) {
       const m = ftsQuery(query);
