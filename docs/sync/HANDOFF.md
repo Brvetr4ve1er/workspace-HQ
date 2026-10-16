@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-16 · FROM frontend (archive sources + prompt library spec; Hub fleet relaunched) · main @ 55c4651
+DONE: spec docs/superpowers/specs/2026-10-15-archive-and-prompt-library-design.md — H6 new archive sources (the
+  owner's ChatGPT data export, local Claude memory notes / CLAUDE.md files / ~/.claude/history.jsonl, prompt notes)
+  and P1–P3 prompt library (vault-primary: notes under VEEMO CORTEX/40_Resources/Prompts are the source of truth,
+  the Hub keeps index + usage; harvest → promote with confirm; run via H3 chat / terminal / clipboard; packs).
+  55c4651 = 25 feature ideas for triage.
+IN-FLIGHT: ONE chained devfleet run: Claude Hub H2–H5 (plans + build, from the 2026-10-13 spec) then H6, P1–P3
+  (from this spec). The 2026-10-15 runs (wf_ae4c725c-816, wf_ce967a0d-3ee) died on the session usage limit with
+  nothing written and nothing committed. Fleet agents commit fe:/meta: with explicit pathspecs — expect many small
+  commits on main; the struct lane's 4 uncommitted files are untouched by rule.
+ASKS: none.
+BREAKS: none yet. H6 bumps the hub.sqlite schema (CONTRACT.md entry lands with it).
+
 ## 2026-10-14 · FROM frontend (Claude Hub H1 LIVE on the owner's machine) · main @ 0a259f0
 DONE: owner app restarted on the H1 build (toolsollback.ps1 v5, PID 35948); the old pre-fix index was
   deleted first so the rebuild started from a fresh file (no residue of unmasked fragments). Hub (PID 30896,
