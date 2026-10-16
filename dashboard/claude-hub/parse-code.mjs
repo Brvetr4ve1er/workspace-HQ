@@ -21,10 +21,19 @@ const str = (v) => (typeof v === 'string' && v ? v : null);
 // control char inside a secret is stripped before the rules look, and nothing has been cut yet. Every cap comes after.
 const safe = (s) => maskSecrets(String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')).text;
 const iso = (v) => { const t = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isFinite(t) ? new Date(t).toISOString() : null; };
-const cut = (s, max) => (s.length > max ? s.slice(0, max) + '…' : s);
+// a cut never splits a surrogate pair: a lone high surrogate breaks JSON consumers and encodeURIComponent
+export const cutText = (s, max) => {
+  if (s.length <= max) return s;
+  let end = max;
+  const c = s.charCodeAt(end - 1);
+  if (c >= 0xd800 && c <= 0xdbff) end--;
+  return s.slice(0, end) + '…';
+};
+const cut = cutText;
 // strip + mask + trim, then the role's cap with its marker
 const body = (s, role) => cut(safe(s).trim(), role === 'system' ? SYSTEM_TEXT_MAX : TEXT_MAX);
-const titleText = (s) => safe(s).trim().slice(0, 200);
+// safe() masks first, then the 200-unit cut (no marker: H1 contract, pinned by the straddle test); surrogate-safe like cutText
+const titleText = (s) => { const t = safe(s).trim(); if (t.length <= 200) return t; const c = t.charCodeAt(199); return t.slice(0, c >= 0xd800 && c <= 0xdbff ? 199 : 200); };
 
 function toolHint(input) {
   if (!input || typeof input !== 'object') return '';
@@ -86,7 +95,7 @@ export function parseCodeLine(line) {
   const { role, text, toolName } = toText(msg.content, j.type, systemish);
   return {
     kind: 'message', sessionId, uuid: str(j.uuid), parentUuid: str(j.parentUuid), at: iso(j.timestamp),
-    cwd: str(j.cwd), gitBranch: str(j.gitBranch), isSidechain: !!j.isSidechain, role, text, toolName,
+    cwd: str(j.cwd) && maskSecrets(str(j.cwd)).text, gitBranch: str(j.gitBranch), isSidechain: !!j.isSidechain, role, text, toolName,
     model: j.type === 'assistant' ? str(msg.model) : null, apiId: j.type === 'assistant' ? str(msg.id) : null,
     usage: j.type === 'assistant' && msg.usage && typeof msg.usage === 'object' ? normUsage(msg.usage) : null,
   };

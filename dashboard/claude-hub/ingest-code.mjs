@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { parseCodeLine } from './parse-code.mjs';
+import { parseCodeLine, cutText } from './parse-code.mjs';
 import { maskSecrets } from './redact.mjs';
 
 export const HEAD_BYTES = 256;
@@ -15,7 +15,8 @@ export const HEAD_BYTES = 256;
 // rewrites a row), so the Hub rebuilds the code index on its next start as the writer when meta.index_version is
 // missing or lower (hub.mjs). Missing = written before this key existed (H1 up to 810dd5c: cut before mask).
 //   1: secrets masked on the full text before any cut (S1); synthetic '<synthetic>' models no longer recorded
-export const INDEX_VERSION = 1;
+//   2: titles and cwd masked before storage, cuts never split a surrogate pair
+export const INDEX_VERSION = 2;
 const BATCH = 500;
 const NL = 0x0a;
 
@@ -60,7 +61,7 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
   });
 
   let offset = start, pending = [], pendingLen = 0, skipping = false;
-  let added = 0, bad = 0, skippedLong = 0, batch = [];
+  let added = 0, bad = 0, skippedLong = 0, batch = [], titled = false;
   const flush = () => {
     store.tx(() => {
       if (batch.length) added += store.addMessages(convId, batch);
@@ -76,7 +77,7 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
     // The parser already masked every text on its full length before cutting it (parse-code.mjs); masking again here is
     // defence in depth (masking is idempotent: a second pass over masked text finds nothing), kept so text that reaches
     // the store is masked even if a future parser path forgets to.
-    if (p.kind === 'title') { store.setTitle(convId, maskSecrets(p.title).text, p.source); return; }   // titles reach lists and search hits too
+    if (p.kind === 'title') { if (store.setTitle(convId, maskSecrets(p.title).text, p.source)) titled = true; return; }   // titles reach lists and search hits too
     if (p.kind !== 'message') return;
     if (p.cwd) store.upsertProject({ id: projectId, source: 'code', key: folder, name: path.win32.basename(p.cwd) || folder, path: p.cwd });
     // Claude Code's own lines ('API Error…', 'No response requested.') carry model '<synthetic>'; the latest non-null model
@@ -91,7 +92,7 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
     // transcript is ingested second (the owner's tree: ~25% of lines). nativeId keeps the raw uuid.
     const id = 'code:' + sessionId + ':' + (p.uuid || '@' + offset);
     batch.push({ id, nativeId: p.uuid, parentId: p.parentUuid, role: p.role, at: p.at, text, toolName: p.toolName, isSidechain: p.isSidechain });
-    if (p.role === 'user' && !p.isSidechain) store.setTitle(convId, firstLine(text).slice(0, 80), 'first-prompt');
+    if (p.role === 'user' && !p.isSidechain && store.setTitle(convId, cutText(firstLine(text), 80), 'first-prompt')) titled = true;
   };
 
   const stream = fs.createReadStream(file, { start, end: st.size - 1, highWaterMark: chunkSize });
@@ -119,7 +120,7 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
     }
   }
   flush();   // the offset excludes a partial last line, which is re-read next time
-  return { added, bad, skippedLong, reset };
+  return { added, bad, skippedLong, reset, titled };
 }
 
 // Listing failures are never turned into an empty result silently: onError(where, error, isRoot) hears every one of
@@ -150,7 +151,19 @@ export async function listTranscripts(root, { onError = () => {} } = {}) {
 
 // A file that fails to ingest never stops the others; its reason is kept in meta.last_error (surfaced by the
 // Hub's health) rather than vanishing. A dead store makes this setMeta throw too, which rejects the caller's run.
-const recordError = (store, rel, e) => store.setMeta('last_error', rel + ': ' + String(e && e.message || e).slice(0, 300));
+const recordError = (store, rel, e) => {
+  store.setMeta('last_error', rel + ': ' + String(e && e.message || e).slice(0, 300));
+  store.setMeta('last_error_at', new Date().toISOString());
+  store.setMeta('last_error_file', rel);
+};
+// ingestFile + error bookkeeping: a throw is recorded (and rethrown); a clean ingest of the file that failed clears it
+export async function ingestTracked(store, root, file, rel = path.relative(root, file)) {
+  let r;
+  try { r = await ingestFile(store, root, file); }
+  catch (e) { recordError(store, rel, e); throw e; }
+  if (store.getMeta('last_error_file') === rel) { store.setMeta('last_error', ''); store.setMeta('last_error_at', ''); store.setMeta('last_error_file', ''); }
+  return r;
+}
 
 // listTranscripts with its failures routed to meta.last_error. A missing root is informational (Claude Code may simply
 // not be installed yet): backfill still completes, but the Hub can say why it holds nothing, and the note clears itself
@@ -161,11 +174,11 @@ async function listReporting(store, root) {
   const files = await listTranscripts(root, {
     onError: (where, e, isRoot) => {
       if (isRoot) rootFailed = true;
-      if (isRoot && gone(e)) store.setMeta('last_error', NO_ROOT + root);
+      if (isRoot && gone(e)) { store.setMeta('last_error', NO_ROOT + root); store.setMeta('last_error_at', new Date().toISOString()); }
       else recordError(store, where, e);
     },
   });
-  if (!rootFailed) { const cur = store.getMeta('last_error'); if (cur && cur.startsWith(NO_ROOT)) store.setMeta('last_error', ''); }
+  if (!rootFailed) { const cur = store.getMeta('last_error'); if (cur && cur.startsWith(NO_ROOT)) { store.setMeta('last_error', ''); store.setMeta('last_error_at', ''); } }
   return files;
 }
 
@@ -175,8 +188,8 @@ export async function backfill(store, root, { onProgress = () => {}, shouldStop 
   onProgress({ done, total: files.length });
   for (const f of files) {
     if (shouldStop()) { stopped = true; break; }
-    try { await ingestFile(store, root, f.file); }
-    catch (e) { recordError(store, f.rel, e); }
+    try { await ingestTracked(store, root, f.file, f.rel); }
+    catch { /* recorded in meta.last_error */ }
     done++;
     onProgress({ done, total: files.length });
     await new Promise((r) => setImmediate(r));
@@ -191,9 +204,9 @@ export async function sweep(store, root) {
     const cur = store.getCursor(f.rel);
     if (cur && cur.size === f.size && Math.floor(cur.mtime_ms) === Math.floor(f.mtimeMs)) continue;
     let r;
-    try { r = await ingestFile(store, root, f.file); }
-    catch (e) { recordError(store, f.rel, e); continue; }
-    if (r.added > 0 || r.reset) changed.push('code:' + path.basename(f.file, '.jsonl'));
+    try { r = await ingestTracked(store, root, f.file, f.rel); }
+    catch { continue; }
+    if (r.added > 0 || r.reset || r.titled) changed.push('code:' + path.basename(f.file, '.jsonl'));
   }
   return changed;
 }

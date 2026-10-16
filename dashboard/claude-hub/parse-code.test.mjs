@@ -173,3 +173,28 @@ test('masking first keeps the cut honest: a long text without secrets still ends
   assert.equal(t.length, TOOL_RESULT_MAX + 1); assert.ok(t.endsWith('…'));
   assert.equal(maskSecrets(t).hits, 0);
 });
+
+import { cutText } from './parse-code.mjs';
+test('cutText never leaves a lone high surrogate', () => {
+  const s = 'ab' + '🚀'.repeat(5);                 // each rocket is 2 UTF-16 units
+  for (let max = 1; max < s.length; max++) {
+    const out = cutText(s, max);
+    const body = out.slice(0, -1);
+    assert.ok(out.endsWith('…'));
+    assert.ok(body.length <= max);
+    const last = body.charCodeAt(body.length - 1);
+    assert.ok(!(last >= 0xd800 && last <= 0xdbff), 'lone high surrogate at max=' + max);
+    assert.doesNotThrow(() => encodeURIComponent(body));   // a lone surrogate would throw URIError
+  }
+  assert.equal(cutText('short', 10), 'short');
+});
+test('titles are masked before their cut, cwd is masked', () => {
+  const key = 'sk-' + 'ant-' + 'A'.repeat(40);
+  const long = 'x'.repeat(190) + ' ' + key;        // the cut at 200 would split the key: masked first
+  const t = parseCodeLine(JSON.stringify({ type: 'custom-title', sessionId: 's', customTitle: long }));
+  assert.ok(!t.title.includes('sk-' + 'ant-'));
+  const m = parseCodeLine(JSON.stringify({ type: 'user', sessionId: 's', uuid: 'u', timestamp: '2026-10-01T00:00:00Z',
+    cwd: 'C:\\placeholder\\' + key, message: { role: 'user', content: 'hi' } }));
+  assert.ok(m.cwd.startsWith('C:\\placeholder\\'));
+  assert.ok(!m.cwd.includes('sk-' + 'ant-'));
+});

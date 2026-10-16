@@ -338,3 +338,25 @@ test("Claude Code's synthetic lines ('<synthetic>' model) never replace the sess
   assert.equal(s.getConversation({ id: 'code:sess-n' }).conversation.model, null, 'a synthetic-only session records no model');
   assert.equal(s.getConversation({ id: 'code:sess-m' }).messages.length, 3, 'the synthetic line itself is still indexed');
 });
+
+import { ingestTracked, INDEX_VERSION } from './ingest-code.mjs';
+test('INDEX_VERSION is 2', () => assert.equal(INDEX_VERSION, 2));
+test('a title-only append reports titled; last_error is timestamped and clears when that file ingests', async () => {
+  const { root, files } = makeClaudeHome(tmp());
+  const store = openStore(':memory:');
+  await backfill(store, root);
+  fs.appendFileSync(files.b1, titleLine({ sessionId: 'sess-b1', title: 'Renamed chat' }));
+  const rel = path.relative(root, files.b1);
+  const r = await ingestTracked(store, root, files.b1, rel);
+  assert.equal(r.added, 0); assert.equal(r.titled, true);
+  const boom = Object.create(store); boom.tx = () => { throw new Error('disk full'); };
+  fs.appendFileSync(files.b1, userLine({ uuid: 'u-x', sessionId: 'sess-b1', at: '2026-10-02T00:00:00Z', text: 'more' }));
+  await assert.rejects(ingestTracked(boom, root, files.b1, rel), /disk full/);
+  assert.match(store.getMeta('last_error'), /disk full/);
+  assert.ok(Date.parse(store.getMeta('last_error_at')) > 0);
+  assert.equal(store.getMeta('last_error_file'), rel);
+  await ingestTracked(store, root, files.b1, rel);
+  assert.equal(store.getMeta('last_error') || '', '');
+  assert.equal(store.getMeta('last_error_file') || '', '');
+  store.close();
+});
