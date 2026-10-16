@@ -180,6 +180,10 @@ Written only by the Hub process; never read by `collector/` or committed. Shape 
 parsing/masking produced the rows; when it is missing or lower, the next writer rebuilds the code index from the
 transcripts (tombstones and projects kept). The first one: secrets masked on the full text before any cut. The lock
 file holds `{"pid","db"}` (a plain pid is still read).
+(2026-10-16, additive, H2) `INDEX_VERSION` 2: cwd masked, surrogate-safe cuts — the next writer rebuilds once.
+`project.hq_project_id`/`link_state` are now written (auto-match from `data/latest.json`, read-only; owner choices
+`confirmed`/`rejected` are never overwritten). `meta.last_error_at` / `meta.last_error_file` timestamp the last ingest
+error and clear when that file ingests cleanly. Writer connections use `secure_delete`.
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
