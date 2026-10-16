@@ -32,3 +32,9 @@ test('thread: tool rows collapsed unless expanded; missing chat says so', () => 
   assert.match(chatsView(LIB({ thread: { missing: 'code:x' } }), { state: 'ready' }, S, true, NOW).thread.gone, /forgotten or no longer indexed/);
   assert.equal(CL_PREFS_KEY, 'hq-claude-lib');
 });
+
+test('a failed first load never reads as "Loading chats…"', () => {
+  const v = chatsView(LIB({ convs: null, error: 'Claude Hub: hub not running' }), { state: 'ready' }, S, true, NOW);
+  assert.match(v.emptyText, /Couldn’t load chats/);
+  assert.equal(chatsView(LIB(), { state: 'ready' }, S, true, NOW).emptyText, 'Loading chats…');
+});

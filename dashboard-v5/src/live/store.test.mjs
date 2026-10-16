@@ -575,3 +575,22 @@ test('claudeLib: late answers are dropped (closed thread, replaced open, replace
   assert.equal(st.live.claudeLib.hits, null, 'the cleared search is not overwritten');
   st.stop();
 });
+
+test('claudeLib: a first load that failed while the Hub was starting is retried when the Hub reports ready', async () => {
+  const { hq, fire } = hubHq((n) => Promise.resolve(n === 1 ? { state: 'starting' } : { state: 'ready', counts: {} }));
+  let up = false, convCalls = 0;
+  hq.claudeHub.projects = () => Promise.resolve(up ? [] : { error: 'hub not running' });
+  hq.claudeHub.conversations = () => { convCalls++; return Promise.resolve(up ? [{ id: 'code:s', title: 'T', last_at: '2026-10-04T10:00:00Z', message_count: 1 }] : { error: 'hub not running' }); };
+  const st = createStore(DATA(), hq);
+  await st.start();
+  await st.refreshClaudeLib();
+  assert.equal(st.live.claudeLib.convs, null);
+  assert.match(st.live.claudeLib.error, /hub not running/);
+  up = true;
+  fire({ event: 'ready', data: {} });
+  await settle(); await settle(); await settle();
+  assert.equal(convCalls, 2, 'refetched once the Hub is ready');
+  assert.equal(st.live.claudeLib.convs.length, 1);
+  assert.equal(st.live.claudeLib.error, null);
+  st.stop();
+});

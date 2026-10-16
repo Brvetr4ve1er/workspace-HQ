@@ -180,7 +180,7 @@ export function createStore(DATA, hq) {
         if (e.data.done >= e.data.total) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
       } else if (e.event === 'health' && isObj(e.data)) live.claudeHub = e.data;
       // a Hub that came up after the first health() answered "starting" (a reader never backfills, so no progress follows)
-      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; retryLibLoad(); });
       // the Hub indexed something new (a live append, a sweep): the card's counts are from the last answer, so ask again
       else if (e.event === 'changed') {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
@@ -189,6 +189,7 @@ export function createStore(DATA, hq) {
         const t = lib().thread;
         if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) syncClaudeThread(t.conversation.id);
       }
+      retryLibLoad();
       emit();
     }));
     if (hq.studio) {
@@ -200,6 +201,11 @@ export function createStore(DATA, hq) {
     return Promise.all(reads).then(() => {});
   }
   const lib = () => live.claudeLib;
+  // the first library load can land while the Hub is still starting ('hub not running'): once it reports ready/indexing, ask again
+  function retryLibLoad() {
+    const h = live.claudeHub;
+    if (lib().convs === null && lib().error && !lib().busy && h && (h.state === 'ready' || h.state === 'indexing')) refreshClaudeLib();
+  }
   // One error slot for the whole library: each ENTRY function clears it before it asks (fresh action, fresh verdict);
   // a success never clears it, so two parallel calls cannot erase each other's failure. busy counts calls in flight.
   let libPending = 0;
