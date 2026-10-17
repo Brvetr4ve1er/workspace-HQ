@@ -47,9 +47,9 @@ export function projectsView(lib, hqProjects, S) {
   const emptyText = lib && lib.projects === null ? 'Loading projects…' : rows.length ? '' : 'No Claude Code project folders indexed yet.';
   return { rows, emptyText };
 }
-export function activityView(stats, hub, hasBridge) {
+export function activityView(stats, hub, hasBridge, statsErr) {
   const why = hubWhy(hub, hasBridge);
-  if (!stats) return { show: false, bars: [], chatsText: '', activeText: '', projects: [], emptyText: why || 'Loading Claude activity…' };
+  if (!stats) return { show: false, bars: [], chatsText: '', activeText: '', projects: [], emptyText: why || (statsErr ? 'Couldn’t load Claude activity · ' + statsErr : 'Loading Claude activity…') };
   const s = hubStats(stats), max = Math.max(1, ...s.days.map((d) => d.chats));
   const empty = !s.days.length;
   return { show: !empty, bars: s.days.map((d) => ({ ...d, h: Math.max(4, Math.round((d.chats / max) * 48)) + 'px', tip: d.day + ' · ' + d.chats + ' chats · ~' + d.activeMin + ' min' })),

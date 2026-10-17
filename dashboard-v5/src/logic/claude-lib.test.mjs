@@ -67,3 +67,7 @@ test('pageChats keeps at most 5', () => {
   const rows = Array.from({ length: 7 }, (_, i) => ({ id: 'code:' + i, title: 'T' + i, last_at: '2026-10-04T10:00:00Z' }));
   assert.equal(pageChats(rows, Date.parse('2026-10-05T10:00:00Z')).length, 5);
 });
+test('activityView: a failed load says why instead of Loading forever', () => {
+  assert.match(activityView(null, { state: 'ready' }, true, 'Claude Hub: timeout').emptyText, /Couldn’t load Claude activity · Claude Hub: timeout/);
+  assert.match(activityView(null, { state: 'ready' }, true).emptyText, /Loading Claude activity/);
+});

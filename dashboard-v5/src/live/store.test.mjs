@@ -603,3 +603,24 @@ test('claudeLib: a project page asks only its linked chats', async () => {
   assert.equal(st.live.claudeLib.byHq['project-a'].length, 1);
   st.stop();
 });
+
+test('claudeLib: a failed project-page / History load keeps its own error, never the Chats banner, and retries when the Hub is ready', async () => {
+  let fail = true;
+  const { hq, fire } = libHq({
+    conversations: () => (fail ? Promise.reject(new Error('hub not running')) : Promise.resolve([{ id: 'code:s', title: 'T', last_at: '2026-10-04T10:00:00Z', message_count: 1 }])),
+    stats: () => (fail ? Promise.resolve({ error: 'hub not running' }) : Promise.resolve({ days: [], projects: [], totals: {} })),
+  });
+  const st = createStore(DATA(), hq); await st.start();
+  await st.refreshClaudeForProject('project-a'); await st.refreshClaudeStats(30);
+  assert.equal(st.live.claudeLib.byHq['project-a'], undefined);
+  assert.equal(st.live.claudeLib.pageErr['project-a'], 'Claude Hub: hub not running');
+  assert.equal(st.live.claudeLib.statsErr, 'Claude Hub: hub not running');
+  assert.equal(st.live.claudeLib.error, null, 'the Chats banner is not touched by page/stats loads');
+  fail = false; fire({ event: 'ready', data: {} });
+  await settle(); await settle(); await settle(); await settle();
+  assert.equal(st.live.claudeLib.byHq['project-a'].length, 1, 'page retried on ready');
+  assert.ok(st.live.claudeLib.stats, 'stats retried on ready');
+  assert.equal(st.live.claudeLib.pageErr['project-a'], null);
+  assert.equal(st.live.claudeLib.statsErr, null);
+  st.stop();
+});

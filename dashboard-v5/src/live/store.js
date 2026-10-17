@@ -46,7 +46,7 @@ export function createStore(DATA, hq) {
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
-    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, byHq: {}, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
+    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
   };
 
@@ -186,7 +186,7 @@ export function createStore(DATA, hq) {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
         if (lib().convs) syncClaudeLib();
         if (lib().stats) refreshClaudeStats();
-        for (const k of Object.keys(lib().byHq)) refreshClaudeForProject(k);
+        for (const k of new Set([...Object.keys(lib().byHq), ...Object.keys(lib().pageErr)])) refreshClaudeForProject(k);
         const t = lib().thread;
         if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) syncClaudeThread(t.conversation.id);
       }
@@ -205,22 +205,28 @@ export function createStore(DATA, hq) {
   // the first library load can land while the Hub is still starting ('hub not running'): once it reports ready/indexing, ask again
   function retryLibLoad() {
     const h = live.claudeHub;
-    if (lib().convs === null && lib().error && !lib().busy && h && (h.state === 'ready' || h.state === 'indexing')) refreshClaudeLib();
+    if (!h || !(h.state === 'ready' || h.state === 'indexing')) return;
+    if (lib().convs === null && lib().error && !lib().busy) refreshClaudeLib();
+    // a project page or History that failed its first load while the Hub was starting asks again now
+    for (const k of Object.keys(lib().pageErr)) if (lib().pageErr[k] && lib().byHq[k] === undefined) refreshClaudeForProject(k);
+    if (lib().statsErr && !lib().stats) refreshClaudeStats();
   }
   // One error slot for the whole library: each ENTRY function clears it before it asks (fresh action, fresh verdict);
   // a success never clears it, so two parallel calls cannot erase each other's failure. busy counts calls in flight.
   let libPending = 0;
   // stale() answers "is this response still wanted?": a late answer for a closed thread, a replaced search or changed filters is dropped whole
-  const hubCall = (fn, ok, stale) => {
+  // fail(msg) routes a failure to a slot of its own (project page, History stats) instead of the shared Chats banner
+  const hubCall = (fn, ok, stale, fail) => {
     if (!hq || !hq.claudeHub) return Promise.resolve();
     libPending++; lib().busy = true;
     return Promise.resolve().then(fn).then((r) => {
       if (stale && stale()) return;
-      if (r && typeof r === 'object' && !Array.isArray(r) && r.error) { lib().error = 'Claude Hub: ' + r.error; return; }
+      if (r && typeof r === 'object' && !Array.isArray(r) && r.error) { (fail || setLibError)('Claude Hub: ' + r.error); return; }
       ok(r);
-    }).catch((e) => { if (!(stale && stale())) lib().error = 'Claude Hub: ' + ((e && e.message) || e); })
+    }).catch((e) => { if (!(stale && stale())) (fail || setLibError)('Claude Hub: ' + ((e && e.message) || e)); })
       .finally(() => { libPending--; lib().busy = libPending > 0; emit(); });
   };
+  const setLibError = (m) => { lib().error = m; };
   const fresh = () => { lib().error = null; };
   const PAGE = 50, MAXPAGE = 200;
   // per-slot sequence numbers: a request is current only while its slot's number is unchanged
@@ -299,14 +305,18 @@ export function createStore(DATA, hq) {
   }
   function refreshClaudeForProject(hqProjectId) {
     if (!hqProjectId) return Promise.resolve();
-    return hubCall(() => hq.claudeHub.conversations({ hqProjectId, limit: 5 }), (r) => { lib().byHq = { ...lib().byHq, [hqProjectId]: Array.isArray(r) ? r : [] }; });
+    // its own error slot (a background page fetch must not put a banner on Chats); cleared here as this entry's fresh action
+    lib().pageErr = { ...lib().pageErr, [hqProjectId]: null };
+    return hubCall(() => hq.claudeHub.conversations({ hqProjectId, limit: 5 }),
+      (r) => { lib().byHq = { ...lib().byHq, [hqProjectId]: Array.isArray(r) ? r : [] }; },
+      null, (m) => { lib().pageErr = { ...lib().pageErr, [hqProjectId]: m }; });
   }
   function closeClaudeThread() { seq.thread++; lib().thread = null; emit(); }
   const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function refreshClaudeStats(days = 30) {
     const to = new Date(), from = new Date(to.getTime() - (days - 1) * 86400000);
-    fresh();
-    return hubCall(() => hq.claudeHub.stats({ from: localDay(from), to: localDay(to), tzOffsetMin: -new Date().getTimezoneOffset() }), (r) => { lib().stats = r; });
+    lib().statsErr = null;
+    return hubCall(() => hq.claudeHub.stats({ from: localDay(from), to: localDay(to), tzOffsetMin: -new Date().getTimezoneOffset() }), (r) => { lib().stats = r; }, null, (m) => { lib().statsErr = m; });
   }
   function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); }
 

@@ -7,7 +7,7 @@ export function claudeLibVals(ctx) {
   const L = LIVE.claudeLib, cv = chatsView(L, LIVE.claudeHub, S, !!this.hq);
   const projs = (L.projects || []).filter((p) => p.conversations > 0);
   const t = cv.thread;
-  const pv = projectsView(L, projects, S), byHq = L.byHq || {};
+  const pv = projectsView(L, projects, S), byHq = L.byHq || {}, pageErr = L.pageErr || {};
   const pageId = onPage && S.route ? S.route.id : '', pageProj = projects.find((p) => p.id === pageId) || null, pageRows = pageId ? pageChats(byHq[pageId]) : [];
   const hub = LIVE.claudeHub;
   return {
@@ -36,9 +36,9 @@ export function claudeLibVals(ctx) {
     clProjEmpty: pv.emptyText,
     clPageChats: pageRows.map((c) => ({ ...c, open: () => { this.go('claude', 'chats'); this.clOpenChat(c.id); } })),
     clPageHasChats: pageRows.length > 0,
-    clPageEmpty: !pageId ? '' : byHq[pageId] === undefined ? (hubWhy(hub, !!this.hq) || 'Loading Claude chats…') : pageRows.length ? '' : 'No Claude chats linked to this project yet — link its folder under Claude › Projects.',
+    clPageEmpty: !pageId ? '' : byHq[pageId] === undefined ? (hubWhy(hub, !!this.hq) || (pageErr[pageId] ? 'Couldn’t load Claude chats · ' + pageErr[pageId] : 'Loading Claude chats…')) : pageRows.length ? '' : 'No Claude chats linked to this project yet — link its folder under Claude › Projects.',
     clNewChat: () => this.clNewChat(pageProj),
-    clAct: activityView(L.stats, hub, !!this.hq),
+    clAct: activityView(L.stats, hub, !!this.hq, L.statsErr),
     clReindex: () => this.clReindex(), clCanReindex: !!(hub && hub.role === 'writer' && hub.state === 'ready'),
     clReindexTip: hub && hub.role === 'reader' ? 'Another WorkspaceHQ owns the index (read-only here)' : 'Re-read every transcript from scratch',
   };
