@@ -20,6 +20,8 @@
 // Phase 3 parity scenarios (same rules; localStorage keys they touch are put back):
 //   ask-stop-retry · ask-history-v3-compat · system-reexamine · canvas-add ·
 //   automations-filters · projects-filter · whats-new-first-launch · capture-toast-first
+// H2 Claude library scenarios (same rules; fake Hub answers):
+//   claude-library-search · claude-thread-open
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -111,6 +113,7 @@ async function fresh(t) {
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
     whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
+    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
     projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null }); return true; })()`);
   await t.sleep(80);
   t.clearErrors();
@@ -965,6 +968,57 @@ const SCENARIOS = {
       await t.evaluate(`(() => { delete window.__capToasts; hqFake.reset(true); WHQ.app.logic.setState({ toasts: [], sysSaves: {}, paletteOpen: false, route: null }); return true; })()`).catch(() => {});
     }
     return out;
+  },
+  async 'claude-library-search'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const fails = [];
+    try {
+      await t.evaluate(`WHQ.app.logic.go('claude', 'chats')`);
+      if (!await t.waitFor(`document.querySelectorAll('[data-cl="row"]').length === 2`, 5000)) fails.push('the fake chats never listed (2 rows)');
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ clQuery: 'release' }); return L.clSearch(); })()`);
+      if (!await t.waitFor(`document.querySelectorAll('[data-cl="hit"]').length === 2`, 5000)) fails.push('search hits never rendered (2)');
+      const probe = await t.evaluate(`(() => { const box = document.querySelector('[data-cl="hits"]');
+        return { img: box.querySelectorAll('img').length, script: box.querySelectorAll('script').length, marks: box.querySelectorAll('mark').length,
+          text: box.textContent.includes('<img src=x onerror=alert(1)>'), raw: /[\u0002\u0003]/.test(box.textContent),
+          called: hqFake.calls('claudeHub.search').map((c) => c.args[0]) }; })()`);
+      if (probe.img || probe.script) fails.push('hit markup was parsed as HTML (img ' + probe.img + ', script ' + probe.script + ')');
+      if (!probe.text) fails.push('the hostile snippet is not shown as literal text');
+      if (probe.raw) fails.push('a U+0002/U+0003 marker reached the page');
+      if (probe.marks < 2) fails.push('highlights missing (' + probe.marks + ' <mark>)');
+      if (probe.called[probe.called.length - 1] !== 'release') fails.push('search was not asked for "release"');
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ clQuery: '!!! ...' }); return L.clSearch(); })()`);
+      if (!await t.waitFor(`document.querySelector('[data-cl="hits"]').textContent.includes('letters or digits')`, 3000)) fails.push('a punctuation-only query does not say why it found nothing');
+    } finally { await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ clQuery: '', clSearched: false }); return true; })()`); }
+    return fails.concat(t.errors());
+  },
+  async 'claude-thread-open'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const fails = [];
+    try {
+      await t.evaluate(`hqFake.set('claudeHub.conversation', (id, o) => o && o.beforeId
+        ? { conversation: { id, title: 'Release planning' }, hasMore: false, messages: [{ id: id + ':old', role: 'user', at: '2026-10-04T08:00:00.000Z', text: 'earliest line' }] }
+        : { conversation: { id, title: 'Release planning', model: 'claude-placeholder', git_branch: 'main', active_ms: 60000 }, hasMore: true,
+            messages: [{ id: id + ':u1', role: 'user', at: '2026-10-04T09:00:00.000Z', text: 'Plan the release' }, { id: id + ':t1', role: 'tool', at: '2026-10-04T09:00:00.000Z', text: 'TOOL BODY' }] })`);
+      await t.evaluate(`WHQ.app.logic.go('claude', 'chats')`);
+      await t.waitFor(`document.querySelectorAll('[data-cl="row"]').length > 0`, 5000);
+      await t.evaluate(`document.querySelector('[data-cl="row"]').click()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cl="thread"]')`, 5000)) fails.push('the thread view never opened');
+      const s1 = await t.evaluate(`document.querySelector('[data-cl="thread"]').textContent`);
+      if (s1.includes('TOOL BODY')) fails.push('a tool row is not collapsed by default');
+      await t.evaluate(`[...document.querySelectorAll('[data-cl="thread"] button[aria-expanded]')][0].click()`);
+      if (!await t.waitFor(`document.querySelector('[data-cl="thread"]').textContent.includes('TOOL BODY')`, 3000)) fails.push('expanding the tool row did not show it');
+      await t.evaluate(`document.querySelector('[data-cl="earlier"]').click()`);
+      if (!await t.waitFor(`document.querySelector('[data-cl="thread"]').textContent.includes('earliest line')`, 3000)) fails.push('"Load earlier" did not prepend the earlier page');
+      const args = await t.evaluate(`hqFake.calls('claudeHub.conversation').map((c) => c.args[1] || {})`);
+      const last = args[args.length - 1];
+      if (!(last.before === '2026-10-04T09:00:00.000Z' && /:u1$/.test(last.beforeId))) fails.push('"Load earlier" did not send the (before, beforeId) cursor: ' + JSON.stringify(last));
+      await t.evaluate(`[...document.querySelectorAll('[data-cl="thread"] button')].find((b) => b.textContent.trim() === 'Forget').click()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cl="forget-yes"]')`, 3000)) fails.push('Forget does not ask first');
+      if (!/transcript on disk is untouched/.test(await t.evaluate(`document.querySelector('[aria-label="Forget this chat"]').textContent`))) fails.push('the Forget prompt does not say the file stays');
+      await t.evaluate(`document.querySelector('[data-cl="forget-yes"]').click()`);
+      if (!await t.waitFor(`hqFake.calls('claudeHub.forget').length === 1 && !document.querySelector('[data-cl="thread"]')`, 3000)) fails.push('Forget did not call the Hub and close the thread');
+    } finally { await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ clOpen: false, clForgetAsk: false, clExpanded: {} }); return true; })()`); }
+    return fails.concat(t.errors());
   },
 };
 

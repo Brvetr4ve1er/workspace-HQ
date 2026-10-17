@@ -370,6 +370,16 @@ add('system.hub-ready', hubAt({ state: 'ready', role: 'writer', node: 'v25.6.1',
 add('system.hub-reader', hubAt({ state: 'ready', role: 'reader', node: 'v25.6.1', counts: { projects: 0, conversations: 0, messages: 0 } }));
 add('system.hub-no-node', hubAt({ state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }));
 add('system.hub-down', hubAt({ state: 'down', node: 'v25.6.1', error: 'Claude Hub exited (1)' }));
+// H2 Claude library (Task 11): own inert bridge CL_HQ (P3_HQ itself stays untouched so no earlier scenario moves)
+const CL_AT = '2026-10-04T09:00:00.000Z';
+const CL_CONV = { id: 'code:g-1', source: 'code', project_id: 'code:g-p', title: 'Golden chat', last_at: CL_AT, message_count: 3, tokens_in: 5, tokens_out: 9, project_name: 'project-a', hq_project_id: null };
+const CL_HQ = { ...P3_HQ, claudeHub: { link() {}, forget() {}, reindex() {} } };
+const clAt = (lib, tab, sub, state = {}) => ({ hq: CL_HQ, live: (L) => { L.claudeHub = { state: 'ready', role: 'writer', counts: HUB_COUNTS }; Object.assign(L.claudeLib, lib); }, state: (c) => ({ ...tabSub(tab, sub)(c), ...state }) });
+add('claude.chats-rows', clAt({ projects: [], convs: [CL_CONV], convsMore: true }, 'claude', 'chats'));
+add('claude.chats-hits', clAt({ convs: [CL_CONV], q: 'img', hits: [{ conversationId: 'code:g-1', messageId: 'm', title: 'Golden chat', at: CL_AT, snippet: '\u0002<img src=x>\u0003 tail' }] }, 'claude', 'chats', { clSearched: true }));
+add('claude.thread', clAt({ convs: [CL_CONV], thread: { conversation: CL_CONV, hasMore: true, messages: [{ id: 'm1', role: 'tool', at: CL_AT, text: 'out' }, { id: 'm2', role: 'assistant', at: CL_AT, text: 'reply' }] } }, 'claude', 'chats', { clOpen: true }));
+add('claude.projects', clAt({ projects: [{ id: 'code:g-p', name: 'project-a', path: 'C:\\placeholder\\project-a', conversations: 1, last_at: CL_AT, hq_project_id: 'project-a', link_state: 'auto' }] }, 'claude', 'projects'));
+add('history.claude-activity', clAt({ stats: { days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [], totals: { chats: 1, active_ms: 60000 } } }, 'history', 'trends'));
 // P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
 add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });
 add('project.c.git-risk', { state: page('c', 'git') });

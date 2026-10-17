@@ -14,9 +14,9 @@ import { TRAILERS } from './logic/whats-new.js';
 import { gapsOf } from './live/adapter.mjs';
 
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
-const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include'], SESSION_KEYS = ['whq3-place'];
+const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false,
+const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, studioFilter: 'all' };
@@ -178,13 +178,22 @@ export async function run(W = window.WHQ) {
         ['chats-list', at('claude', 'chats'), {}, clLib({})],
         ['chats-empty-nobridge', at('claude', 'chats'), {}, () => { LV.claudeHub = null; LV.claudeLib = { ...LV.claudeLib, convs: null }; }],
         ['chats-filtered-none', at('claude', 'chats'), { clSrc: 'web', clSince: '7' }, clLib({ convs: [], convsMore: false })],
-        ['chats-search-hits', at('claude', 'chats'), { clSearched: true, clQuery: 'img' }, clLib({ q: 'img', hits: [{ conversationId: 'code:selftest-a', messageId: 'm1', title: 'Selftest chat A', at: new Date().toISOString(), snippet: 'a <img src=x> b' }] })],
+        ['chats-search-hits', at('claude', 'chats'), { clSearched: true, clQuery: 'img' }, clLib({ q: 'img', hits: [{ conversationId: 'code:selftest-a', messageId: 'm1', title: 'Selftest chat A', at: new Date().toISOString(), snippet: 'a \u0002<img src=x>\u0003 b' }] })],
         ['chats-search-none', at('claude', 'chats'), { clSearched: true, clQuery: 'zzz' }, clLib({ q: 'zzz', hits: [] })],
         ['chats-thread', at('claude', 'chats'), { clOpen: true }, clLib({ thread: CL_THREAD })],
         ['chats-thread-tool-open', at('claude', 'chats'), { clOpen: true, clExpanded: { m2: true } }, clLib({ thread: CL_THREAD })],
         ['chats-forget-ask', at('claude', 'chats'), { clOpen: true, clForgetAsk: true }, clLib({ thread: CL_THREAD })],
         ['chats-thread-gone', at('claude', 'chats'), { clOpen: true }, clLib({ thread: { missing: 'code:x' } })],
         ['chats-error', at('claude', 'chats'), {}, clLib({ error: 'Claude Hub: selftest error' })],
+        // Task 11: the brief's cl-* combos (hostile snippet, Projects link pick, History activity, project-page section)
+        ['cl-chats-empty', at('claude', 'chats'), {}, clLib({ convs: [], convsMore: false })],
+        ['cl-chats-rows', at('claude', 'chats'), {}, clLib({})],
+        ['cl-chats-hits-hostile', at('claude', 'chats'), { clSearched: true, clQuery: 'img' }, clLib({ q: 'img', hits: [{ conversationId: 'code:selftest-a', messageId: 'm', title: 'Selftest chat A', at: new Date().toISOString(), snippet: '\u0002<img src=x onerror=alert(1)>\u0003 tail \u0002open' }] })],
+        ['cl-thread-open', at('claude', 'chats'), { clOpen: true }, clLib({ thread: CL_THREAD })],
+        ['cl-thread-forget-ask', at('claude', 'chats'), { clOpen: true, clForgetAsk: true, clExpanded: { m2: true } }, clLib({ thread: CL_THREAD })],
+        ['cl-projects', at('claude', 'projects'), { clLinkPick: 'p1' }, clLib({ projects: [{ id: 'p1', name: 'project-a', path: 'C:\placeholder\project-a', conversations: 2, last_at: CL_CONVS[0].last_at, hq_project_id: (M.P0[0] || {}).id || null, link_state: 'auto' }] })],
+        ['cl-history-activity', at('history', 'trends'), {}, clLib({ stats: { from: '2026-09-06', to: '2026-10-05', tzOffsetMin: 0, days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [{ project_id: 'p1', name: 'project-a', chats: 1, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 }], totals: { chats: 1, active_ms: 60000, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 } } })],
+        M.P0[0] && ['cl-page-chats', at('projects', 'grid', M.P0[0].id), {}, () => { clLib({})(); LV.claudeLib.byHq = { [M.P0[0].id]: CL_CONVS }; }],
         ['canvas-no-boards', at('claude', 'canvas'), { canvasNoteOpen: true }, () => { LV.canvasBoards = []; }],
       ].filter(Boolean);
       for (const theme of ['dark', 'light']) {
