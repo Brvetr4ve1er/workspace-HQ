@@ -16,6 +16,16 @@ export default String.raw`        <sc-if value="{{ v.history }}" hint-placeholde
                     </div>
                   </sc-for>
                 </div>
+                <!-- v5: History › Claude activity (spec 2026-10-13 §9, H2) — chats per local day, active time labelled estimate, tokens per project where recorded -->
+                <section data-cl="activity" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px;margin-top:20px">
+                  <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Claude activity</div>
+                  <sc-if value="{{ clAct.emptyText }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted);margin-top:8px">{{ clAct.emptyText }}</div></sc-if>
+                  <sc-if value="{{ clAct.show }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:6px"><span>{{ clAct.chatsText }}</span><span style="color:var(--muted)">{{ clAct.activeText }}</span></div>
+                    <div style="display:flex;align-items:flex-end;gap:2px;height:52px;margin-top:10px"><sc-for list="{{ clAct.bars }}" as="b" hint-placeholder-count="10"><div title="{{ b.tip }}" style="flex:1;min-width:3px;height:{{ b.h }};background:var(--purple);border-radius:2px"></div></sc-for></div>
+                    <sc-for list="{{ clAct.projects }}" as="p" hint-placeholder-count="3"><div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--frame)"><span>{{ p.name }} · {{ p.chats }} chats</span><sc-if value="{{ p.hasTokens }}" hint-placeholder-val="{{ false }}"><span style="color:var(--faint)">{{ p.tokens }} tokens</span></sc-if></div></sc-for>
+                  </sc-if>
+                </section>
               </div>
             </sc-if>
             <sc-if value="{{ isTimeline }}" hint-placeholder-val="{{ false }}">

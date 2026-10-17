@@ -1,5 +1,5 @@
 // Claude library (spec 2026-10-13 §9 Chats/Projects; H2). Pure view helpers + the Component mixin.
-import { hubConv, hubThread, hubHit } from '../live/adapter.mjs';
+import { hubConv, hubThread, hubHit, hubProject, hubStats } from '../live/adapter.mjs';
 import { TERM_SKIPPED } from './project.js';
 
 export const CL_PREFS_KEY = 'hq-claude-lib';
@@ -35,6 +35,29 @@ export function chatsView(lib, hub, S, hasBridge, now = Date.now()) {
   }
   return { rows, hasRows: rows.length > 0, more: !!L.convsMore, emptyText: rows.length ? '' : emptyText || '', hits, hasHits: hits.length > 0, hitsText, thread, error: L.error || '', busy: !!L.busy };
 }
+
+export function projectsView(lib, hqProjects, S) {
+  const names = new Map((hqProjects || []).map((p) => [p.id, p.name]));
+  const nameOf = (id) => (names.has(id) ? names.get(id) : id + ' (not in the latest scan)');
+  const rows = ((lib && lib.projects) || []).map((r) => hubProject(r)).map((p) => {
+    const hq = p.hqProjectId, st = p.linkState;
+    const chipText = st === 'auto' ? 'Matched by path: ' + nameOf(hq) : st === 'confirmed' ? 'Linked: ' + nameOf(hq) : st === 'rejected' ? 'Unlinked' : 'Not linked';
+    return { ...p, hqName: hq ? nameOf(hq) : '', chipText, canConfirm: st === 'auto', canChange: st === 'auto' || st === 'confirmed', canUnlink: st === 'auto' || st === 'confirmed', canLink: st === 'none' || st === 'rejected', picking: (S && S.clLinkPick) === p.id };
+  });
+  const emptyText = lib && lib.projects === null ? 'Loading projects…' : rows.length ? '' : 'No Claude Code project folders indexed yet.';
+  return { rows, emptyText };
+}
+export function activityView(stats, hub, hasBridge) {
+  const why = hubWhy(hub, hasBridge);
+  if (!stats) return { show: false, bars: [], chatsText: '', activeText: '', projects: [], emptyText: why || 'Loading Claude activity…' };
+  const s = hubStats(stats), max = Math.max(1, ...s.days.map((d) => d.chats));
+  const empty = !s.days.length;
+  return { show: !empty, bars: s.days.map((d) => ({ ...d, h: Math.max(4, Math.round((d.chats / max) * 48)) + 'px', tip: d.day + ' · ' + d.chats + ' chats · ~' + d.activeMin + ' min' })),
+    chatsText: s.totals.chats + ' chat' + (s.totals.chats === 1 ? '' : 's') + ' in 30 days', activeText: '~' + s.totals.activeMin + ' min active (estimate)',
+    projects: s.projects.map((p) => ({ name: p.name, chats: p.chats, tokens: p.tokens || '', hasTokens: !!p.tokens })),
+    emptyText: empty ? why || 'No Claude chats in the last 30 days.' : '' };
+}
+export function pageChats(rows, now = Date.now()) { return (rows || []).slice(0, 5).map((r) => hubConv(r, now)); }
 
 const readPrefs = () => { try { return JSON.parse(localStorage.getItem(CL_PREFS_KEY) || '{}') || {}; } catch { return {}; } };
 const writePrefs = (p) => { try { localStorage.setItem(CL_PREFS_KEY, JSON.stringify(p)); } catch { /* storage blocked: filters just do not persist */ } };
@@ -85,4 +108,23 @@ export const claudeLibLogic = {
     const t = this.LIVE.claudeLib.thread, c = t && t.conversation;
     return this.clTermAt(c && c.cwd, 'This chat has no recorded folder');
   },
+  async clLink(projectId, hqId, state) {
+    if (!this.canWrite()) return this.denied();
+    if (!this.hq || !this.hq.claudeHub) return;
+    const ok = await this.call(() => this.hq.claudeHub.link(projectId, hqId, state));
+    if (ok === null) return;
+    this.setState({ clLinkPick: '' });
+    this.toast('success', state === 'rejected' ? 'Unlinked — automatic matching will leave it alone' : 'Linked');
+    this.clLoad();
+    const by = this.LIVE.claudeLib.byHq || {};
+    if (this.store.refreshClaudeForProject) for (const k of Object.keys(by)) this.store.refreshClaudeForProject(k);
+  },
+  clPick(projectId) { this.setState((s) => ({ clLinkPick: s.clLinkPick === projectId ? '' : projectId })); },
+  async clReindex() {
+    if (!this.canWrite()) return this.denied();
+    if (!this.hq || !this.hq.claudeHub) return;
+    const r = await this.call(() => this.hq.claudeHub.reindex());
+    if (r !== null) this.toast('info', 'Reindexing — links and forgotten chats are kept');
+  },
+  clNewChat(project) { return this.clTermAt(project && project.path, 'This project has no folder'); },
 };

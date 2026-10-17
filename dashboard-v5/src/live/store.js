@@ -46,7 +46,7 @@ export function createStore(DATA, hq) {
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
-    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
+    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, byHq: {}, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
   };
 
@@ -186,6 +186,7 @@ export function createStore(DATA, hq) {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
         if (lib().convs) syncClaudeLib();
         if (lib().stats) refreshClaudeStats();
+        for (const k of Object.keys(lib().byHq)) refreshClaudeForProject(k);
         const t = lib().thread;
         if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) syncClaudeThread(t.conversation.id);
       }
@@ -296,6 +297,10 @@ export function createStore(DATA, hq) {
         lib().thread = { ...cur, messages: r.messages.filter((m) => !ids.has(m.id)).concat(cur.messages), hasMore: !!r.hasMore };
       }, () => my !== seq.thread);
   }
+  function refreshClaudeForProject(hqProjectId) {
+    if (!hqProjectId) return Promise.resolve();
+    return hubCall(() => hq.claudeHub.conversations({ hqProjectId, limit: 5 }), (r) => { lib().byHq = { ...lib().byHq, [hqProjectId]: Array.isArray(r) ? r : [] }; });
+  }
   function closeClaudeThread() { seq.thread++; lib().thread = null; emit(); }
   const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function refreshClaudeStats(days = 30) {
@@ -309,6 +314,6 @@ export function createStore(DATA, hq) {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
-    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats,
+    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
   };
 }

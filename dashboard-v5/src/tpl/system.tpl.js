@@ -38,6 +38,8 @@ export default String.raw`        <sc-if value="{{ v.system }}" hint-placeholder
                     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:baseline"><span style="font-size:16px;color:{{ hubColor }}">{{ hubState }}</span><sc-if value="{{ hubHasSize }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;color:var(--faint)">{{ hubSize }}</span></sc-if></div>
                     <div style="font-size:13px;color:var(--muted);margin-top:4px">{{ hubDetail }}</div>
                     <sc-if value="{{ hubBar }}" hint-placeholder-val="{{ false }}"><div style="height:4px;background:var(--frame);border-radius:2px;margin-top:10px;overflow:hidden"><div style="height:100%;width:{{ hubBarW }};background:var(--blue)"></div></div></sc-if>
+                    <!-- v5: Reindex (spec 2026-10-13 §9 System, H2) — writer only; a reader says why -->
+                    <div style="margin-top:10px"><button type="button" onClick="{{ clReindex }}" disabled="{{ !clCanReindex }}" title="{{ clReindexTip }}" style="height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer">Reindex</button></div>
                   </section>
                 </sc-if>
               </div>

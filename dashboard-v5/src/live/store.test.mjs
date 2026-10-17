@@ -594,3 +594,12 @@ test('claudeLib: a first load that failed while the Hub was starting is retried 
   assert.equal(st.live.claudeLib.error, null);
   st.stop();
 });
+
+test('claudeLib: a project page asks only its linked chats', async () => {
+  const { hq, calls } = libHq();
+  const st = createStore(DATA(), hq); await st.start();
+  await st.refreshClaudeForProject('project-a');
+  assert.deepEqual(calls.at(-1), ['conversations', [{ hqProjectId: 'project-a', limit: 5 }]]);
+  assert.equal(st.live.claudeLib.byHq['project-a'].length, 1);
+  st.stop();
+});

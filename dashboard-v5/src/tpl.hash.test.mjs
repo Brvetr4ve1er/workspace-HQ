@@ -24,9 +24,10 @@ import tpl from './app.tpl.js';
 // <!-- v5: reason --> marker;
 // 2026-10-16 H2 Claude › Chats (+8964 chars / +8981 bytes): one fragment (claude), one hunk, no line removed — the Chats
 // sub-tab block before Sessions (filters, search, thread view, Forget), with its <!-- v5: reason --> marker
-const SHA256 = '5123144aef92983dd780bc492e326f60e0037e215f46e05c63bc3954fe7ba9c2';
-const LENGTH = 211003;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 211353;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-16 H2 Claude › Projects, project-page Claude, History Claude activity, System Reindex (+6749 chars / +6779 bytes): four fragments (claude, project-page, history, system), one hunk each, no line removed, each with its <!-- v5: reason --> marker
+const SHA256 = 'fb1ed3a236695dcf9a0a5b578a05024953286f04b9a7b4b8e3271005319e12d9';
+const LENGTH = 217752;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 218132;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

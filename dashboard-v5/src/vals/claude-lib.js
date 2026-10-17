@@ -1,12 +1,15 @@
 // Claude library render values (H2): Chats (+ Projects, project page, History, System in Task 10).
-import { chatsView } from '../logic/claude-lib.js';
+import { chatsView, projectsView, activityView, pageChats, hubWhy } from '../logic/claude-lib.js';
 
 export function claudeLibVals(ctx) {
-  const { S, LIVE, sub, tabStyle } = ctx;
+  const { S, LIVE, sub, tabStyle, projects, onPage } = ctx;
   const chip = (active, go, label) => ({ label, go, style: Object.assign(tabStyle(active), { height: 28, padding: '0 8px', fontSize: 12 }) });
   const L = LIVE.claudeLib, cv = chatsView(L, LIVE.claudeHub, S, !!this.hq);
   const projs = (L.projects || []).filter((p) => p.conversations > 0);
   const t = cv.thread;
+  const pv = projectsView(L, projects, S), byHq = L.byHq || {};
+  const pageId = onPage && S.route ? S.route.id : '', pageProj = projects.find((p) => p.id === pageId) || null, pageRows = pageId ? pageChats(byHq[pageId]) : [];
+  const hub = LIVE.claudeHub;
   return {
     isChats: sub === 'chats',
     clSrcChips: [['all', 'All'], ['code', 'Code'], ['web', 'claude.ai']].map(([k, l]) => chip(S.clSrc === k, () => this.clSetFilter('clSrc', k), l)),
@@ -25,5 +28,18 @@ export function claudeLibVals(ctx) {
     clForgetAsk: !!S.clForgetAsk, clForgetStart: () => this.setState({ clForgetAsk: true }), clForgetCancel: () => this.setState({ clForgetAsk: false }),
     clForget: () => this.clForget(), clTerminal: () => this.clTerminal(),
     clError: cv.error, clHasError: !!cv.error, clBusy: cv.busy,
+    // Projects (link chips), project-page Claude section, History activity, System Reindex (Task 10)
+    isClProjects: sub === 'projects',
+    clProjRows: pv.rows.map((p) => ({ ...p,
+      confirm: () => this.clLink(p.id, p.hqProjectId, 'confirmed'), unlink: () => this.clLink(p.id, null, 'rejected'), pick: () => this.clPick(p.id),
+      choices: projects.map((h) => ({ label: h.name, go: () => this.clLink(p.id, h.id, 'confirmed'), style: Object.assign(tabStyle(p.hqProjectId === h.id), { height: 26, padding: '0 8px', fontSize: 12 }) })) })),
+    clProjEmpty: pv.emptyText,
+    clPageChats: pageRows.map((c) => ({ ...c, open: () => { this.go('claude', 'chats'); this.clOpenChat(c.id); } })),
+    clPageHasChats: pageRows.length > 0,
+    clPageEmpty: !pageId ? '' : byHq[pageId] === undefined ? (hubWhy(hub, !!this.hq) || 'Loading Claude chats…') : pageRows.length ? '' : 'No Claude chats linked to this project yet — link its folder under Claude › Projects.',
+    clNewChat: () => this.clNewChat(pageProj),
+    clAct: activityView(L.stats, hub, !!this.hq),
+    clReindex: () => this.clReindex(), clCanReindex: !!(hub && hub.role === 'writer' && hub.state === 'ready'),
+    clReindexTip: hub && hub.role === 'reader' ? 'Another WorkspaceHQ owns the index (read-only here)' : 'Re-read every transcript from scratch',
   };
 }

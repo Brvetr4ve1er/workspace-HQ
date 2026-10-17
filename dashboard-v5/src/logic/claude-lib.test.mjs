@@ -38,3 +38,32 @@ test('a failed first load never reads as "Loading chats…"', () => {
   assert.match(v.emptyText, /Couldn’t load chats/);
   assert.equal(chatsView(LIB(), { state: 'ready' }, S, true, NOW).emptyText, 'Loading chats…');
 });
+
+import { projectsView, activityView, pageChats } from './claude-lib.js';
+const HQP = [{ id: 'project-a', name: 'Project A', path: 'project-a' }];
+test('projectsView: chip text and actions per link state', () => {
+  const lib = { projects: [
+    { id: 'code:a', name: 'project-a', conversations: 2, hq_project_id: 'project-a', link_state: 'auto' },
+    { id: 'code:b', name: 'project-b', conversations: 1, hq_project_id: null, link_state: 'rejected' },
+    { id: 'code:c', name: 'project-c', conversations: 1, hq_project_id: 'gone', link_state: 'confirmed' },
+  ] };
+  const v = projectsView(lib, HQP, { clLinkPick: 'code:b' });
+  const [a, b, c] = v.rows;
+  assert.deepEqual([a.chipText, a.canConfirm, a.canChange, a.canUnlink], ['Matched by path: Project A', true, true, true]);
+  assert.deepEqual([b.chipText, b.canConfirm, b.canLink, b.picking], ['Unlinked', false, true, true]);
+  assert.equal(c.chipText, 'Linked: gone (not in the latest scan)');
+  assert.match(projectsView({ projects: [] }, HQP, {}).emptyText, /No Claude Code project folders/);
+});
+test('activityView: estimate label, tokens only where recorded, empty says why', () => {
+  const st = { days: [{ day: '2026-10-04', chats: 2, messages: 5, active_ms: 120000 }], projects: [{ project_id: 'code:a', name: 'project-a', chats: 2, tokens_in: null, tokens_out: null, tokens_cache_read: null, tokens_cache_write: null }],
+    totals: { chats: 2, active_ms: 120000, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } };
+  const v = activityView(st, { state: 'ready' }, true);
+  assert.equal(v.show, true); assert.match(v.activeText, /\(estimate\)$/);
+  assert.equal(v.projects[0].hasTokens, false);
+  assert.match(activityView({ days: [], projects: [], totals: { chats: 0, active_ms: 0 } }, { state: 'ready' }, true).emptyText, /No Claude chats in the last 30 days/);
+  assert.match(activityView(null, { state: 'no-node', node: 'v20.1.0' }, true).emptyText, /Node 22\.13/);
+});
+test('pageChats keeps at most 5', () => {
+  const rows = Array.from({ length: 7 }, (_, i) => ({ id: 'code:' + i, title: 'T' + i, last_at: '2026-10-04T10:00:00Z' }));
+  assert.equal(pageChats(rows, Date.parse('2026-10-05T10:00:00Z')).length, 5);
+});

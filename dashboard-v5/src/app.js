@@ -148,6 +148,8 @@ export class Component extends DCLogic {
     if (moved && S.tab === 'studio') this.store.refreshCaptures();
     if (moved && S.tab === 'life') this.store.refreshSocial();
     if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
+    if (moved && S.route && S.route.id) this.store.refreshClaudeForProject && this.store.refreshClaudeForProject(S.route.id);
+    if (moved && S.tab === 'history' && !S.route) this.store.refreshClaudeStats && this.store.refreshClaudeStats(30);
   }
 
   // ---------- helpers ----------

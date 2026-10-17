@@ -39,6 +39,21 @@ export default String.raw`        <sc-if value="{{ v.claude }}" hint-placeholder
                 </div>
               </div>
             </sc-if>
+            <!-- v5: Claude › Projects (spec 2026-10-13 §9, H2) — Claude Code folders with link chips to WorkspaceHQ projects; auto matches offer confirm / change / unlink -->
+            <sc-if value="{{ isClProjects }}" hint-placeholder-val="{{ false }}">
+              <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:8px 12px">
+                <sc-if value="{{ clProjEmpty }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted);padding:12px 4px">{{ clProjEmpty }}</div></sc-if>
+                <sc-for list="{{ clProjRows }}" as="p" hint-placeholder-count="4"><div data-cl="proj" style="padding:10px 0;border-bottom:1px dashed var(--frame)">
+                  <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-size:14px;flex:1">{{ p.name }} <span style="font-size:11px;color:var(--faint)">{{ p.count }} chats · {{ p.when }}</span></span><span data-cl="chip" style="font-size:11px;border:1px solid var(--purple);border-radius:10px;padding:1px 8px;color:var(--text)">{{ p.chipText }}</span>
+                    <sc-if value="{{ p.canConfirm }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ p.confirm }}" style="height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--frame);background:transparent;cursor:pointer;border-color:var(--green);color:var(--green)">Confirm</button></sc-if>
+                    <sc-if value="{{ p.canChange }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ p.pick }}" style="height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--frame);background:transparent;cursor:pointer;color:var(--text)">Change</button></sc-if>
+                    <sc-if value="{{ p.canLink }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ p.pick }}" style="height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--frame);background:transparent;cursor:pointer;color:var(--text)">Link…</button></sc-if>
+                    <sc-if value="{{ p.canUnlink }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ p.unlink }}" style="height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--frame);background:transparent;cursor:pointer;color:var(--orange)">Unlink</button></sc-if></div>
+                  <div style="font-size:11px;color:var(--faint);margin-top:2px">{{ p.path }}</div>
+                  <sc-if value="{{ p.picking }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px"><sc-for list="{{ p.choices }}" as="c" hint-placeholder-count="4"><button type="button" onClick="{{ c.go }}" style="{{ c.style }}">{{ c.label }}</button></sc-for></div></sc-if>
+                </div></sc-for>
+              </section>
+            </sc-if>
             <sc-if value="{{ isSessions }}" hint-placeholder-val="{{ true }}">
               <div style="display:flex;flex-direction:column;gap:22px">
                 <section style="background:var(--card);border:1px solid var(--purple);border-radius:12px;padding:14px 16px">
