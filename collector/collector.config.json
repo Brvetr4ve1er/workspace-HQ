@@ -1,7 +1,7 @@
 {
   "_note": "Classification + scan config for the WorkspaceHQ deterministic collector. Edit this to add/retire projects without touching collector code. Paths are relative to root; a trailing/embedded * is glob-resolved.",
   "root": "C:/Users/ROG STRIX/Documents",
-  "ignore": ["My Music", "My Pictures", "My Videos", ".claude", ".workspace-scan", "workspace hq", "cursor"],
+  "ignore": ["My Music", "My Pictures", "My Videos", "My Games", ".claude", ".workspace-scan", "workspace hq", "cursor", "alliance travel.worktrees", "Assassin's Creed Black Flag Resynced", "at_hero_backup", "Codex", "Criterion Games", "docs", "ilyes", "Juggernaut-XL-v9", "Mirrors Edge Catalyst", "omnidownloader", "playground"],
   "prune_dirs": ["node_modules", ".venv", "venv", ".next", "dist", "build", ".git", "tessdata", "__pycache__", ".turbo", "coverage", "vendor", ".cache", "out", ".svelte-kit"],
   "prune_dir_patterns": ["chroma", "chromadb", ".chroma"],
   "source_ext": [".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".py", ".html", ".css", ".scss"],
@@ -14,12 +14,13 @@
     { "id": "hamma-sat", "name": "HAMMA SAT IPTV", "path": "HAMMA SAT", "stack": ["Node", "Static", "WhatsApp checkout"], "dev_cmd": "npm run dev", "canonical_branch": "main" },
     { "id": "etoile-de-lest", "name": "etoile de lest", "path": "etoile de lest", "stack": ["Next.js", "PWA", "Supabase"], "dev_cmd": "npm run dev", "canonical_branch": "main" },
     { "id": "intel-scraper", "name": "INTEL SCRAPER (A.G.E.S.)", "path": "INTEL SCRAPER", "stack": ["Python", "FastAPI", "Playwright", "React"], "dev_cmd": "npm start", "canonical_branch": "main" },
-    { "id": "product-intel-wizard", "name": "product-intel-wizard", "path": "ALLIANCE PWA PROTOTYPE/product-intel-wizard", "stack": ["React", "Vite", "tambo"], "dev_cmd": "npm run dev", "canonical_branch": "main" }
+    { "id": "product-intel-wizard", "name": "product-intel-wizard", "path": "travel agency  brain/product-intel-wizard", "stack": ["React", "Vite", "tambo"], "dev_cmd": "npm run dev", "canonical_branch": "main" }
   ],
+  "vault_layout": { "_note": "Where the primary vault keeps things; assemble.mjs reads this instead of hardcoded folder names.", "root": "C:/Users/ROG STRIX/Documents/VEEMO CORTEX", "project_note_dirs": ["20_Projects", "30_Areas/Projects", "30_Areas"], "daily_dir": "10_Daily" },
   "vaults": [
     { "name": "VEEMO CORTEX", "path": "VEEMO CORTEX", "role": "primary" },
     { "name": "HEETCH", "path": "HEETCH", "role": "brand/market-intel" },
-    { "name": "BRAIN-OS-v2", "path": "ALLIANCE PWA PROTOTYPE/BRAIN-OS-v2", "role": "PARA business" }
+    { "name": "BRAIN-OS-v2", "path": "travel agency  brain/BRAIN-OS-v2", "role": "PARA business" }
   ],
   "clones": [
     { "name": "playwright", "path": "playwright" },

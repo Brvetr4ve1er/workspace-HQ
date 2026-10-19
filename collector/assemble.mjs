@@ -22,12 +22,16 @@ import { deriveQuests } from './lib/quests.mjs';
 import { levelFor, rollup as gamificationRollup } from './lib/gamification.mjs';
 import { appendTrend } from './lib/trends.mjs';
 import { buildBrowser } from './lib/browser.mjs';
+import { findProjectNote } from './lib/discovery.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 
 const RAW = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'raw-metrics.json'), 'utf8'));
 const GCFG = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'schema', 'gamification.config.json'), 'utf8'));
+const CFG = JSON.parse(fs.readFileSync(path.join(__dirname, 'collector.config.json'), 'utf8'));
+// Where the primary vault keeps project notes / daily notes. Moves with the vault, not with the code.
+const LAYOUT = { root: 'C:/Users/ROG STRIX/Documents/VEEMO CORTEX', project_note_dirs: ['20_Projects', '30_Areas/Projects', '30_Areas'], daily_dir: '10_Daily', ...(CFG.vault_layout || {}) };
 const TODAY = arg('--date', new Date().toISOString().slice(0, 10));
 const REPORTS_DIR = arg('--reports-dir', 'C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Workspace Status');
 
@@ -56,6 +60,11 @@ const enrichProj = enrichDoc?.projects || {};
 // "estimated / pending enrichment" markers in the UI so stubbed completion/build
 // values are never presented as measured.
 const enriched = !!enrichDoc && Object.keys(enrichProj).length > 0;
+// How old the enrichment is. The nightly runs -NoEnrich, so enrichment.json is carried forward;
+// `enriched: true` alone would present days-old completion/insights as fresh.
+const enrichmentAgeDays = (enriched && /^\d{4}-\d{2}-\d{2}/.test(enrichDoc.scan_id || ''))
+  ? Math.max(0, Math.round((Date.parse(TODAY) - Date.parse(String(enrichDoc.scan_id).slice(0, 10))) / 86400000))
+  : null;
 const enricherModel = enriched ? (enrichDoc.model || enrichDoc.engine || 'llm') : null;
 
 // ---- helpers ----
@@ -132,9 +141,7 @@ const lv = levelFor(accountXp, GCFG.level_curve.tiers);
 let learnings = [];
 try { learnings = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'learnings.json'), 'utf8')); } catch {}
 const knowledgeXp = learnings.length * 15;
-const projectsWithNote = projects.filter((p) => {
-  try { return fs.existsSync(path.join('C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Projects', String(p.name).replace(/[\\/:*?"<>|]/g, '-').trim() + '.md')); } catch { return false; }
-}).length;
+const projectsWithNote = projects.filter((p) => !!findProjectNote(LAYOUT.root, LAYOUT.project_note_dirs, p.name)).length;
 
 const achievements = GCFG.achievements.map((a) => {
   const prevA = (prev?.achievements || []).find((x) => x.id === a.id);
@@ -241,13 +248,32 @@ for (const p of projects) { const r = p.metrics.git_safety.remote; if (r) (byRem
 for (const [r, names] of Object.entries(byRemote)) if (names.length > 1) duplicates.push({ type: 'shared_remote', detail: `${names.join(' = ')} share remote ${r}`, severity: 'warning' });
 
 // ---- inventory ----
+// Folder facts the collector gathered for every folder it does not score (see lib/discovery.mjs).
+const folderRow = (d) => ({ name: d.name, kind: d.kind || 'other', stack: d.stack || [], has_git: !!d.has_git, remote: d.remote || null, dirty: d.dirty || 0, unpushed: !!d.unpushed, files: d.files ?? 0, last_modified: d.last_modified || null, days_since_modified: d.days_since_modified ?? null });
+const unclassified = (RAW.discovered || []).filter((d) => d.classification !== 'empty').map(folderRow);
+const ignored = (RAW.ignored || []).map(folderRow);
+// "Trivial" = a non-empty folder with almost nothing in it and no git history.
+const trivial = [...(RAW.discovered || []), ...(RAW.ignored || [])]
+  .filter((d) => d.kind !== 'empty' && !d.has_git && (d.files ?? 99) <= 3)
+  .map((d) => ({ name: d.name, note: `${d.files} file${d.files === 1 ? '' : 's'}, no git` }));
+// Anomalies are recomputed every scan (configured paths that no longer exist, root-level vault).
+// Entries a person added by hand (no source:'collector') are carried forward untouched.
+const anomalies = [
+  ...(RAW.missing_paths || []).map((m) => ({ type: 'missing_path', source: 'collector', severity: 'warning', detail: `Configured ${m.kind} "${m.name}" not found at "${m.path}" — moved or renamed?` })),
+  ...(!fs.existsSync(path.join(LAYOUT.root, LAYOUT.daily_dir)) ? [{ type: 'daily_dir_missing', source: 'collector', severity: 'info', detail: `Daily-note injection is off: "${LAYOUT.daily_dir}" does not exist in the vault (set vault_layout.daily_dir in collector.config.json).` }] : []),
+  ...(RAW.root_vault ? [{ type: 'root_vault', source: 'collector', severity: 'info', detail: 'The Documents root is itself an Obsidian vault (it sees every project folder as notes).' }] : []),
+  ...(prev?.inventory?.anomalies || []).filter((a) => a.source !== 'collector'),
+];
 const inventory = {
-  vaults: RAW.vaults.map((v) => ({ name: v.name, notes: v.notes, role: v.role, recent7: v.recent7 ?? 0, stale90: v.stale90 ?? 0, kb: v.kb ?? 0 })),
+  vaults: RAW.vaults.map((v) => ({ name: v.name, notes: v.notes, role: v.role, recent7: v.recent7 ?? 0, stale90: v.stale90 ?? 0, kb: v.kb ?? 0, ...(v.source ? { source: v.source, path: v.path, embedded_in: v.embedded_in || null } : {}) })),
   clones: RAW.clones.map((c) => ({ name: c.name, origin: c.origin || '(none)', dirty: c.dirty, diverged: c.diverged })),
-  trivial: (prev?.inventory?.trivial || []),
+  trivial,
   empty: RAW.discovered.filter((d) => d.classification === 'empty').map((d) => d.name),
-  anomalies: (prev?.inventory?.anomalies || []),
+  anomalies,
   duplicates,
+  unclassified,
+  ignored,
+  loose_files: (RAW.loose_files || []).map((f) => ({ name: f.name, bytes: f.bytes, days_since_modified: f.days_since_modified })),
 };
 
 // ---- browser activity (Working On Now) ----
@@ -303,7 +329,7 @@ const dailyTop3 = (() => {
 // ---- final doc ----
 const doc = {
   schema_version: '1.0',
-  scan: { id: TODAY, date: new Date().toISOString(), mode: 'manual', previous_scan: prev?.scan?.id || null, enriched, engine: { collector: RAW.collector_version, enricher: enricherModel } },
+  scan: { id: TODAY, date: new Date().toISOString(), mode: 'manual', previous_scan: prev?.scan?.id || null, enriched, enrichment_scan_id: enrichDoc?.scan_id || null, enrichment_age_days: enrichmentAgeDays, engine: { collector: RAW.collector_version, enricher: enricherModel } },
   account: {
     level: lv.level, title: lv.title, xp: accountXp, xp_into_level: lv.xp_into_level, xp_to_next: lv.xp_to_next,
     health_index: healthIndex, health_delta: healthIndex - (prev?.account?.health_index ?? healthIndex),
@@ -337,8 +363,8 @@ console.log(`[assemble] -> ${outPath}`);
 
 // ---- Daily-note injection (Wave 5): write a collapsible WorkspaceHQ block into today's daily note ----
 try {
-  const VAULT = 'C:/Users/ROG STRIX/Documents/VEEMO CORTEX';
-  const dailyDir = path.join(VAULT, '10_Daily');
+  const VAULT = LAYOUT.root;
+  const dailyDir = path.join(VAULT, LAYOUT.daily_dir);
   const dailyFile = path.join(dailyDir, `${TODAY}.md`);
   const top = (doc.account.daily_top3 || []).slice(0, 3);
   const recentDone = quests.filter((q) => q.completed === TODAY).slice(0, 5);

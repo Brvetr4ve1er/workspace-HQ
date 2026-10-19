@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { describeFolder, looseFiles, detectVaultPaths, mergeVaults } from './lib/discovery.mjs';
 
 const COLLECTOR_VERSION = '1.0.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -351,17 +352,31 @@ function main() {
     discovered: [],
   };
 
-  for (const p of cfg.products) out.products.push(collectProduct(p));
+  const missing_paths = [];
+  for (const p of cfg.products) {
+    const r = collectProduct(p);
+    out.products.push(r);
+    if (r.missing) missing_paths.push({ kind: 'product', name: p.name, path: p.path });
+  }
 
-  for (const v of cfg.vaults) {
-    const abs = path.join(ROOT, v.path);
-    if (!fs.existsSync(abs)) continue;
-    out.vaults.push({ name: v.name, role: v.role, ...vaultStats(abs) });
+  // Vaults: configured ones plus every Obsidian vault Obsidian itself registered or that sits
+  // under the root. Configured entries win on name/role; the same path is never listed twice.
+  const registryFile = cfg.obsidian_registry || path.join(process.env.APPDATA || '', 'obsidian', 'obsidian.json');
+  const detected = detectVaultPaths(ROOT, { registryFile, shouldPrune });
+  const productDirs = out.products.filter((p) => !p.missing).map((p) => ({ id: p.id, abs: path.join(ROOT, p.path) }));
+  for (const v of cfg.vaults) if (!fs.existsSync(path.join(ROOT, v.path))) missing_paths.push({ kind: 'vault', name: v.name, path: v.path });
+  for (const v of mergeVaults(ROOT, cfg.vaults, detected, productDirs)) {
+    if (!fs.existsSync(v.abs)) continue;
+    if (v.role === 'root') { out.root_vault = { path: '.', note: 'The scan root itself is an Obsidian vault; its notes are not counted separately.' }; continue; }
+    const inside = path.relative(ROOT, v.abs).replace(/\\/g, '/');
+    out.vaults.push({ name: v.name, role: v.role, source: v.source, embedded_in: v.embedded_in, path: inside.startsWith('..') ? v.abs.replace(/\\/g, '/') : inside, ...vaultStats(v.abs) });
   }
 
   const cloneAbsSet = new Set();
   for (const c of cfg.clones) {
-    for (const abs of resolveGlob(c.path)) {
+    const hits = resolveGlob(c.path);
+    if (!hits.length && !c.path.includes('*')) missing_paths.push({ kind: 'clone', name: c.name, path: c.path });
+    for (const abs of hits) {
       cloneAbsSet.add(abs);
       const g = gitFacts(abs);
       out.clones.push({
@@ -374,23 +389,30 @@ function main() {
     }
   }
 
-  // discover unknown top-level dirs
-  const known = new Set([
-    ...cfg.ignore,
+  // Everything else under the root is reported, never skipped. Tracked folders (products /
+  // vaults / clones) are scored above; the rest get cheap facts so nothing is invisible:
+  //   discovered = unknown folders · ignored = folders the config says not to score (still listed)
+  const tracked = new Set([
     ...cfg.products.map((p) => p.path.split('/')[0]),
     ...cfg.vaults.map((v) => v.path.split('/')[0]),
     ...cfg.clones.map((c) => c.path.split('/')[0]),
   ]);
+  for (const v of out.vaults) tracked.add(String(v.path).split('/')[0]);   // auto-detected vaults are tracked too
+  const ignoredSet = new Set(cfg.ignore);
+  out.ignored = [];
+  out.loose_files = looseFiles(ROOT);
+  out.missing_paths = missing_paths;
   let topEntries = [];
   try { topEntries = fs.readdirSync(ROOT, { withFileTypes: true }); } catch {}
   for (const e of topEntries) {
-    if (!e.isDirectory() || known.has(e.name) || e.name.startsWith('.')) continue;
-    const abs = path.join(ROOT, e.name);
-    const empty = dirIsEmptyish(abs);
-    const hasObsidian = fs.existsSync(path.join(abs, '.obsidian'));
+    if (!e.isDirectory() || e.name.startsWith('.')) continue;
+    if (tracked.has(e.name) && !ignoredSet.has(e.name)) continue;
+    const facts = describeFolder(path.join(ROOT, e.name), { root: ROOT, gitFacts, shouldPrune });
+    if (ignoredSet.has(e.name)) { out.ignored.push(facts); continue; }
     out.discovered.push({
       name: e.name,
-      classification: empty ? 'empty' : hasObsidian ? 'vault?' : 'unclassified',
+      classification: facts.kind === 'empty' ? 'empty' : facts.has_obsidian ? 'vault?' : 'unclassified',
+      ...facts,
     });
   }
 

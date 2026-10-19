@@ -21,6 +21,8 @@
         "duration_ms": { "type": "integer", "minimum": 0 },
         "previous_scan": { "type": ["string", "null"], "description": "id of the scan this one diffs against." },
         "enriched": { "type": "boolean", "description": "True when the LLM enrichment pass contributed to this scan (gates '~est.' UI hints)." },
+        "enrichment_scan_id": { "type": ["string", "null"], "description": "Scan id the carried-forward enrichment.json was produced for (null when none)." },
+        "enrichment_age_days": { "type": ["integer", "null"], "minimum": 0, "description": "Days between that enrichment and this scan; >1 means insights/completion are carried forward, not fresh." },
         "engine": {
           "type": "object",
           "additionalProperties": false,
@@ -205,6 +207,70 @@
       "items": { "$ref": "#/$defs/change" }
     },
 
+    "browser": {
+      "type": "object",
+      "description": "Optional WorkspaceHQ Bridge rollup. It is a scan-time snapshot of local browser activity; scans from before the bridge may omit it.",
+      "required": ["captured", "updated", "current", "by_domain", "by_project", "totals"],
+      "additionalProperties": false,
+      "properties": {
+        "captured": { "type": "boolean" },
+        "updated": { "type": ["string", "null"], "format": "date-time" },
+        "current": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "domain": { "type": "string" },
+            "host": { "type": "string" },
+            "title": { "type": "string" },
+            "url": { "type": "string" },
+            "focus_ms": { "type": "number", "minimum": 0 },
+            "project_id": { "type": ["string", "null"] },
+            "live": { "type": "boolean" }
+          }
+        },
+        "by_domain": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["domain", "focus_ms", "visits", "last_ts", "title"],
+            "additionalProperties": false,
+            "properties": {
+              "domain": { "type": "string" },
+              "focus_ms": { "type": "number", "minimum": 0 },
+              "visits": { "type": "integer", "minimum": 0 },
+              "last_ts": { "type": "number", "minimum": 0 },
+              "title": { "type": "string" }
+            }
+          }
+        },
+        "by_project": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["project_id", "project_name", "focus_ms", "visits", "domains"],
+            "additionalProperties": false,
+            "properties": {
+              "project_id": { "type": "string" },
+              "project_name": { "type": "string" },
+              "focus_ms": { "type": "number", "minimum": 0 },
+              "visits": { "type": "integer", "minimum": 0 },
+              "domains": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "totals": {
+          "type": "object",
+          "required": ["focus_ms", "visits", "domains"],
+          "additionalProperties": false,
+          "properties": {
+            "focus_ms": { "type": "number", "minimum": 0 },
+            "visits": { "type": "integer", "minimum": 0 },
+            "domains": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+
     "inventory": {
       "type": "object",
       "description": "Cheap classification of everything that is NOT a tracked product.",
@@ -219,8 +285,30 @@
               "name": { "type": "string" }, "notes": { "type": "integer" }, "role": { "type": "string" },
               "recent7": { "type": "integer", "description": "Notes touched in the last 7 days." },
               "stale90": { "type": "integer", "description": "Notes untouched for 90+ days." },
-              "kb": { "type": "integer", "description": "Vault size in KB." }
+              "kb": { "type": "integer", "description": "Vault size in KB." },
+              "source": { "enum": ["config", "registry", "scan"], "description": "How the vault was found: hand-configured, Obsidian's own registry, or a .obsidian folder under the scan root." },
+              "path": { "type": "string", "description": "Path relative to the scan root (absolute when outside it)." },
+              "embedded_in": { "type": ["string", "null"], "description": "Product id whose folder contains this vault, if any." }
             }
+          }
+        },
+        "unclassified": {
+          "type": "array",
+          "description": "Folders under the scan root that are not a tracked product/vault/clone and not ignored. Facts only — the user decides what each is.",
+          "items": { "$ref": "#/$defs/folder_facts" }
+        },
+        "ignored": {
+          "type": "array",
+          "description": "Folders the collector config says not to score. Still listed so nothing is invisible.",
+          "items": { "$ref": "#/$defs/folder_facts" }
+        },
+        "loose_files": {
+          "type": "array",
+          "description": "Files sitting directly in the scan root (zips, bundles, stray notes), largest first.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "name": { "type": "string" }, "bytes": { "type": "number", "minimum": 0 }, "days_since_modified": { "type": "integer" } }
           }
         },
         "clones": {
@@ -274,6 +362,23 @@
   },
 
   "$defs": {
+    "folder_facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "enum": ["empty", "vault", "project-like", "other"] },
+        "stack": { "type": "array", "items": { "type": "string" }, "description": "Marker-file stack guess (Node, Next.js, Python, Static HTML…)." },
+        "has_git": { "type": "boolean" },
+        "remote": { "type": ["string", "null"] },
+        "dirty": { "type": "integer", "minimum": 0 },
+        "unpushed": { "type": "boolean" },
+        "files": { "type": "integer", "minimum": 0, "description": "Shallow file count (depth 3, capped at 3000)." },
+        "last_modified": { "type": ["string", "null"], "format": "date" },
+        "days_since_modified": { "type": ["integer", "null"] }
+      }
+    },
     "streak": {
       "type": "object",
       "additionalProperties": false,
@@ -388,7 +493,7 @@
                     "status": { "type": "string" }
                   }
                 },
-                "todo_fixme": { "type": "integer", "minimum": 0 },
+                "todo_fixme": { "type": ["integer", "null"], "minimum": 0 },
                 "files": { "type": ["integer", "null"] },
                 "loc": { "type": ["integer", "null"] },
                 "loc_delta": { "type": ["integer", "null"] },
@@ -511,7 +616,8 @@
         "created": { "type": "string", "format": "date" },
         "completed": { "type": ["string", "null"], "format": "date" },
         "carried_from": { "type": ["string", "null"], "format": "date", "description": "First scan this quest appeared; powers an 'age/persistence' nag." },
-        "age_days": { "type": "integer", "minimum": 0 }
+        "age_days": { "type": "integer", "minimum": 0 },
+        "reopened_from": { "type": "string", "description": "Id of the done quest whose condition returned; this quest is its re-raise (id carries a -rN suffix)." }
       }
     },
 

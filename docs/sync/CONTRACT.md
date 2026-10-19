@@ -46,6 +46,29 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 
 ## Pending changes
 
+### Workspace discovery — "see everything" (2026-10-19) — structure lane, additive
+
+`latest.json` only ever carried the hand-listed products/vaults/clones; every other folder under
+Documents was dropped in `assemble.mjs`. All changes below are **additive and optional**; the v2 rollback
+path ignores unknown keys.
+
+- `inventory.unclassified[]`, `inventory.ignored[]` — `{name, kind: empty|vault|project-like|other, stack[], has_git,
+  remote, dirty, unpushed, files, last_modified, days_since_modified}` (`$defs/folder_facts`). `ignored` = folders the
+  collector config skips; they are listed, not hidden.
+- `inventory.loose_files[]` — `{name, bytes, days_since_modified}`, files sitting directly in Documents.
+- `inventory.vaults[]` gains `source: config|registry|scan`, `path`, `embedded_in` (product id or null). Vaults are now
+  auto-detected (Obsidian's `obsidian.json` registry + `.obsidian` folders under the root), so the vault count rises.
+- `inventory.anomalies[]` / `inventory.trivial[]` are now **computed each scan** (were copied from the previous scan
+  forever). Collector anomalies carry `source: "collector"`: `missing_path`, `root_vault`, `daily_dir_missing`.
+- `scan.enrichment_scan_id`, `scan.enrichment_age_days` — `enriched: true` no longer implies fresh; the nightly runs
+  `-NoEnrich`, so enrichment.json is carried forward. Renderer should show the age when > 1.
+- `quests[].reopened_from` added to the schema (the code already emitted it; `validate-schema` failed on 7 quests).
+- `collector.config.json`: new `vault_layout {root, project_note_dirs, daily_dir}` replaces hardcoded
+  `30_Areas/Projects` / `10_Daily` paths in assemble.mjs; `product-intel-wizard` and `BRAIN-OS-v2` repointed to
+  `travel agency  brain/`. `achievements.cartographer` progress is now real (4/9, was permanently 0).
+- Golden fixtures: `inventory` output changes by design; re-baseline with this entry as the reason.
+
+
 ### Social bridge sidecars (extension ⇄ app relay ⇄ MCP) — frontend lane, additive
 
 New producer/consumer pair, parallel to the browser tendril: the **WorkspaceHQ
