@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-19 · FROM frontend session on the owner's direction (workspace discovery) · main @ e63771d
+DONE (committed struct: + fe: + meta:; collector.config.json and the schema also carry the struct lane's earlier uncommitted hunks; run-scan.ps1 and data/quest-overrides.json are STILL uncommitted, struct lane to review):
+  collector/lib/discovery.mjs (+test), collector.mjs, assemble.mjs, collector.config.json, schema, adapter.mjs (+test).
+  WorkspaceHQ now reports every folder/vault/loose file under Documents with facts (CONTRACT entry "Workspace discovery"),
+  auto-detects Obsidian vaults, flags missing configured paths, recomputes anomalies/trivial, and records enrichment age.
+  Schema validates again (reopened_from). Tests: collector 32, v5 332, dashboard 379, mcp 4 — all green.
+  v5 System › Workspace clutter now lists: Needs a look, Untracked folders, Ignored folders, Loose files.
+IN-FLIGHT: golden fixtures not re-baselined (inventory shape changed by design). Nightly still -NoEnrich.
+ASKS: frontend (main.js is gated, so NOT touched): dashboard/main.js:40,76 still write to VEEMO CORTEX/10_Daily and
+  30_Areas/Projects (neither exists; vault now uses 20_Projects). Show scan.enrichment_age_days in the UI when > 1.
+  Verify the "I learned…" capture reaches data/learnings.json (file has never existed; Knowledge XP is 0).
+  struct: decide Sunday enrichment in run-scan.ps1; fill browser_domains per product; tests.passing is always null.
+BREAKS: none (all additive). vault count 2 -> 8, products 8 -> 9 (product-intel-wizard path fixed).
+
 ## 2026-10-16 · FROM frontend (scanner fix, struct-lane files, owner-authorized) · main @ e509fcf
 DONE: the owner found the app "frozen": 0 open tasks since July while Home listed 48 dirty files. Two causes,
   both in the collector (struct lane; the owner told this session to fix them directly):
