@@ -311,6 +311,15 @@ const itemLabel = (x, ...keys) => (typeof x === 'string' ? x : String(keys.map((
 function clutterRows(group, items, keys, noteOf) {
   return items.map((x, i) => ({ id: group + ':' + i, label: itemLabel(x, ...keys), note: noteOf ? noteOf(obj(x)) : '' })).filter((r) => r.label);
 }
+// facts the collector gathered about a folder it does not score, as one short line
+function folderNote(f) {
+  const bits = [String(f.kind || 'other')];
+  if (arr(f.stack).length) bits.push(arr(f.stack).join('+'));
+  if (f.has_git) bits.push('git' + (num(f.dirty) ? ' · ' + num(f.dirty) + ' dirty' : '') + (f.unpushed ? ' · unpushed' : '') + (f.remote ? '' : ' · no remote'));
+  bits.push(num(f.files) + ' files');
+  if (f.days_since_modified != null) bits.push(f.days_since_modified + 'd ago');
+  return bits.join(' · ');
+}
 export function clutter(inventory) {
   const inv = obj(inventory), out = [];
   const dup = arr(inv.duplicates), empty = arr(inv.empty), clones = arr(inv.clones), triv = arr(inv.trivial);
@@ -318,10 +327,17 @@ export function clutter(inventory) {
   if (empty.length) out.push({ id: 'empty', title: 'Empty folders', detail: empty.length + ' empty folder' + (empty.length === 1 ? '' : 's') + ' · ' + empty.slice(0, 3).map((e) => itemLabel(e, 'name') || '?').join(', '), verb: 'Review', danger: false, items: empty, rows: clutterRows('empty', empty, ['name']) });
   if (clones.length) out.push({ id: 'clones', title: 'Reference clones', detail: clones.length + ' third-party repos · ' + clones.filter((c) => obj(c).diverged).length + ' diverged', verb: 'Review', danger: false, items: clones, rows: clutterRows('clones', clones, ['name', 'origin'], (c) => (c.diverged ? 'diverged from upstream' : '')) });
   if (triv.length) out.push({ id: 'trivial', title: 'Trivial folders', detail: triv.length + ' folder' + (triv.length === 1 ? '' : 's') + ' with almost nothing in them', verb: 'Review', danger: false, items: triv, rows: clutterRows('trivial', triv, ['name'], (t) => (typeof t.note === 'string' ? t.note : '')) });
+  // "see everything" groups (collector discovery): folders the scan does not score, plus anything
+  // that needs a human eye. Listed with facts so a fix can be aimed at the right project.
+  const anom = arr(inv.anomalies), unc = arr(inv.unclassified), ign = arr(inv.ignored), loose = arr(inv.loose_files);
+  if (anom.length) out.push({ id: 'anomalies', title: 'Needs a look', detail: anom.slice(0, 2).map((a) => String(obj(a).detail || '')).filter(Boolean).join(' · ') + (anom.length > 2 ? ' · +' + (anom.length - 2) + ' more' : ''), verb: 'Review', danger: false, items: anom, rows: clutterRows('anomalies', anom, ['detail']) });
+  if (unc.length) out.push({ id: 'unclassified', title: 'Untracked folders', detail: unc.length + ' folder' + (unc.length === 1 ? '' : 's') + ' in Documents the scan does not score · ' + unc.filter((u) => obj(u).kind === 'project-like').length + ' look like projects', verb: 'Review', danger: false, items: unc, rows: clutterRows('unclassified', unc, ['name'], folderNote) });
+  if (ign.length) out.push({ id: 'ignored', title: 'Ignored folders', detail: ign.length + ' folder' + (ign.length === 1 ? '' : 's') + ' the scan config skips · ' + ign.slice(0, 3).map((i) => itemLabel(i, 'name')).join(', '), verb: 'Review', danger: false, items: ign, rows: clutterRows('ignored', ign, ['name'], folderNote) });
+  if (loose.length) out.push({ id: 'loose', title: 'Loose files in Documents', detail: loose.length + ' file' + (loose.length === 1 ? '' : 's') + ' · ' + fmtBytes(loose.reduce((a, l) => a + num(obj(l).bytes), 0)) + ' total', verb: 'Review', danger: false, items: loose, rows: clutterRows('loose', loose, ['name'], (l) => fmtBytes(num(l.bytes)) + (l.days_since_modified != null ? ' · ' + l.days_since_modified + 'd old' : '')) });
   return out;
 }
 export function vaults(inventory) {
-  return arr(obj(inventory).vaults).map((v) => ({ name: String(v.name), active: num(v.recent7), stale: num(v.stale90), total: num(v.notes), sync: String(v.role || '') }));
+  return arr(obj(inventory).vaults).map((v) => ({ name: String(v.name), active: num(v.recent7), stale: num(v.stale90), total: num(v.notes), sync: String(v.role || '') + (v.embedded_in ? ' · inside ' + v.embedded_in : '') }));
 }
 
 // ---- Life › Screen time (browser block; absent on older scans) ---------------------------------

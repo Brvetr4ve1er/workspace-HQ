@@ -447,3 +447,19 @@ test('hubThread day is the LOCAL day of the timestamp, the same clock as time', 
   assert.deepEqual([t.messages[0].time, t.messages[0].day], ['00:30', '2026-10-04']);
   assert.equal(t.messages[1].day, '');
 });
+
+test('clutter surfaces everything the scan does not score: anomalies, untracked, ignored, loose files', () => {
+  const c = clutter({
+    anomalies: [{ type: 'missing_path', detail: 'Configured product "x" not found', severity: 'warning' }],
+    unclassified: [{ name: 'artcv', kind: 'project-like', stack: ['Node', 'Vite'], has_git: true, dirty: 3, unpushed: false, remote: null, files: 120, days_since_modified: 4 }, { name: 'ChatGPT', kind: 'other', files: 9 }],
+    ignored: [{ name: 'Codex', kind: 'other', files: 62, days_since_modified: 0 }],
+    loose_files: [{ name: 'big.zip', bytes: 80750569219, days_since_modified: 120 }],
+  });
+  const by = Object.fromEntries(c.map((g) => [g.id, g]));
+  assert.equal(by.anomalies.rows[0].label, 'Configured product "x" not found');
+  assert.match(by.unclassified.detail, /2 folders .* 1 look like projects/);
+  assert.equal(by.unclassified.rows[0].note, 'project-like · Node+Vite · git · 3 dirty · no remote · 120 files · 4d ago');
+  assert.equal(by.ignored.rows[0].label, 'Codex');
+  assert.match(by.loose.detail, /1 file · .*GB/);
+  assert.deepEqual(clutter({ unclassified: [], ignored: [] }), []);   // nothing flagged -> no empty groups
+});
