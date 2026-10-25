@@ -28,6 +28,8 @@ const ASK_CLAUDE = [
   { q: 'selftest claude', id: 'selftest-claude', a: { text: 'From chat Selftest planning, 2026-10-01: ship on Friday.', status: 'done', meta: { status: 'done', sections: ASK_SEC.concat([{ id: 'claude', label: 'Claude history', chars: 1800, clipped: false, cites: ['chat Selftest planning, 2026-10-01'] }]), ms: 1400, model: 'selftest-model' }, est: true } },
   { q: 'selftest claude down', id: 'selftest-claude-down', a: { text: 'Not in what I can see.', status: 'done', meta: { status: 'done', sections: ASK_SEC.concat([{ id: 'claude', label: 'Claude history', chars: 0, clipped: false, cites: [], note: 'Claude Hub is not running' }]), ms: 900, model: 'selftest-model' }, est: true } },
 ];
+// H5 Save to vault: one draft in each dialog phase (synthetic path and text)
+const VAULT_DRAFT = { id: 'code:selftest', path: 'C:\\selftest-vault\\30_Areas\\Claude\\selftest\\2026-10-01 Selftest chat.md', rel: '30_Areas/Claude/selftest/2026-10-01 Selftest chat.md', draft: '---\nconversation: "code:selftest"\n---\n# Selftest chat\n\n## Summary\nSynthetic.\n', model: 'selftest-model', basis: 4 };
 const ASK = [
   { q: 'selftest question', id: 'selftest-ask', a: { text: 'Synthetic answer for the selftest.', status: 'done', meta: { status: 'done', sections: ASK_SEC, ms: 1400, model: 'selftest-model' }, est: true } },
   { q: 'selftest stopped', id: 'selftest-stop', a: { text: 'A partial answer that was', status: 'cancelled', meta: { status: 'cancelled', sections: ASK_SEC, ms: 900, model: 'selftest-model' }, est: true } },
@@ -164,6 +166,10 @@ export async function run(W = window.WHQ) {
         ['ask-offline', at('home'), { askOpen: true, askHistory: [] }, () => { LV.llm = { available: false, reason: 'selftest: runtime down' }; }],
         ['ask-offline-checking', at('home'), { askOpen: true, askChecking: true, askHistory: [] }, () => { LV.llm = { available: true, runtime: 'selftest', chatModel: null }; }],
         ['ask-claude', at('home'), { askOpen: true, askHistory: ASK_CLAUDE }],   // askInclude is not a CLEAR key: leave the chips alone
+        ['vault-drafting', at('home'), { vault: { id: 'code:selftest', phase: 'drafting' } }],
+        ['vault-ready-replace', at('home'), { vault: Object.assign({}, VAULT_DRAFT, { phase: 'ready', exists: true, askReplace: true, saveError: 'A note with this name appeared after the draft was made.' }) }],
+        ['vault-error', at('home'), { vault: { id: 'code:selftest', phase: 'error', error: 'selftest: the local model isn’t running' } }],
+        ['vault-saved', at('home'), { vault: Object.assign({}, VAULT_DRAFT, { phase: 'saved', exists: false }) }],
         ['palette-capture', at('home'), { paletteOpen: true, paletteMode: 'go', paletteQuery: 'capture A selftest idea' }],
         ['system-examining', at('system', 'machine'), { sysExamining: true }],
         ['system-fixed', at('system', 'machine'), { fixed: M.ISSUES.map((i) => i.id).concat(['llm']) }],

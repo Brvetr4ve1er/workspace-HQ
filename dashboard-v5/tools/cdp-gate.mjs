@@ -23,7 +23,7 @@
 // H2 Claude library scenarios (same rules; fake Hub answers):
 //   claude-library-search · claude-thread-open
 // H5 Ask scenario (same rules; the fake chat answers a cited Claude history section):
-//   ask-claude-chip
+//   ask-claude-chip · vault-preview-confirm
 // H3 in-app chat scenarios (same rules; claudeChat.send/cancel overridden to emit events by hand):
 //   claude-chat-stream-stop · claude-chat-mode-readonly
 // H4 claude.ai import scenario (same rules; claudeHub.importExport answered by the fake, progress events emitted by hand):
@@ -120,7 +120,7 @@ async function fresh(t) {
     L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null,
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
-    whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
+    vault: null, whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
     clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
     ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
     projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null }); return true; })()`);
@@ -1169,6 +1169,71 @@ const SCENARIOS = {
       if (off !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}') out.push('chip off stored ' + off + ', want v3’s six keys');
     } finally {
       await t.evaluate(`(() => { localStorage.removeItem('hq-oracle-include'); localStorage.removeItem('hq-oracle-chat'); WHQ.app.logic.setState({ askOpen: false, askHistory: [], askInclude: null }); return true; })()`).catch(() => {});
+    }
+    return out.concat(t.errors());
+  },
+
+  // H5 (spec §9 Vault, §11 vault-preview-confirm): the thread view's "Save to vault" drafts (nothing written), the
+  // owner's edit is what Save sends, a note that is there is replaced only through the Replace question, a save that
+  // answers "exists" returns to that question without a second write, and Escape closes the dialog.
+  async 'vault-preview-confirm'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const DIALOG = `document.querySelector('[role="dialog"][aria-label="Save to vault"]')`;
+    const saves = () => t.evaluate(`hqFake.calls('claudeVault.save').map((c) => c.args[0])`);
+    const click = (sel) => t.evaluate(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b || b.disabled) return false; b.click(); return true; })()`);
+    const exists = (id) => ({ path: 'C:\\fake-vault\\30_Areas\\Claude\\project-a\\2026-10-01 Fake release planning.md', rel: '30_Areas/Claude/project-a/2026-10-01 Fake release planning.md', exists: true, model: 'fake-model', basis: 4,
+      markdown: '---\nsource: claude-code\nconversation: "' + id + '"\n---\n# Fake release planning\n' });
+    try {
+      // a chat open in the thread view (H2), through the live store as the Chats tab leaves it
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.store.live.claudeLib = Object.assign({}, L.store.live.claudeLib, { thread: { conversation: { id: 'code:fake-1', title: 'Fake release planning', source: 'code' }, messages: [], hasMore: false } });
+        L.go('claude', 'chats'); L.setState({ clOpen: true }); return true; })()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cl="vault"]')`, 5000)) return ['the thread view has no "Save to vault" button'];
+      if (!await click('[data-cl="vault"]')) return ['"Save to vault" was disabled for an open chat'];
+      if (!await t.waitFor(`!!${DIALOG} && !!${DIALOG}.querySelector('textarea')`, 5000)) return ['the draft never showed'];
+      const d = await t.evaluate(`(() => { const d = ${DIALOG}; return { text: d.textContent, draft: d.querySelector('textarea').value }; })()`);
+      if (!d.draft.startsWith('---\nsource: claude-code\nconversation: "code:fake-1"')) out.push('the draft is not the preview’s markdown: ' + JSON.stringify(d.draft.slice(0, 80)));
+      if (!d.text.includes('Drafted by the local model (fake-model) from 4 chat messages')) out.push('no "Drafted by the local model (fake-model) from 4 chat messages" note');
+      if (!d.text.includes('VEEMO CORTEX / 30_Areas/Claude/project-a/2026-10-01 Fake release planning.md')) out.push('the destination path is not shown');
+      if ((await saves()).length) out.push('something was saved before Save was pressed');
+      // the owner's edit is what lands
+      await t.evaluate(`(() => { const a = ${DIALOG}.querySelector('textarea'); a.focus(); a.setSelectionRange(a.value.length, a.value.length); return true; })()`);
+      await t.type('my edit');
+      await t.evaluate(`(() => { document.activeElement && document.activeElement.blur(); return true; })()`);
+      await t.sleep(100);
+      if (!await click('[data-vault="save"]')) out.push('Save was disabled');
+      if (!await t.waitFor(`!!${DIALOG} && ${DIALOG}.textContent.includes('Saved to VEEMO CORTEX')`, 5000)) out.push('no "Saved to" confirmation');
+      let s = await saves();
+      if (s.length !== 1 || !String(s[0].markdown).endsWith('my edit') || 'replace' in s[0]) out.push('save sent ' + JSON.stringify(s).slice(0, 300) + ', want one save of the edited text without replace');
+      // a note that is already there: Save asks; Keep it writes nothing; Replace sends replace:true
+      await t.evaluate(`(() => { hqFake.set('claudeVault.preview', ${exists.toString()}); WHQ.app.logic.closeVault(); WHQ.app.logic.openVaultPreview('code:fake-1'); return true; })()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-vault="save"]')`, 5000)) out.push('the second draft never showed');
+      await click('[data-vault="save"]');
+      if (!await t.waitFor(`!!document.querySelector('[role="alertdialog"][aria-label="Replace the note"]')`, 3000)) out.push('Save on an existing note did not ask to replace it');
+      if ((await saves()).length !== 1) out.push('asking to replace wrote something');
+      await t.evaluate(`(() => { [...document.querySelectorAll('[role="alertdialog"][aria-label="Replace the note"] button')].find((b) => b.textContent.trim() === 'Keep it').click(); return true; })()`);
+      await t.sleep(100);
+      if (await t.evaluate(`!!document.querySelector('[role="alertdialog"][aria-label="Replace the note"]')`)) out.push('Keep it did not close the question');
+      if ((await saves()).length !== 1) out.push('Keep it wrote something');
+      await click('[data-vault="save"]');
+      await t.waitFor(`!!document.querySelector('[data-vault="replace"]')`, 3000);
+      await click('[data-vault="replace"]');
+      await t.waitFor(`${DIALOG} && ${DIALOG}.textContent.includes('Saved to VEEMO CORTEX')`, 5000);
+      s = await saves();
+      if (s.length !== 2 || s[1].replace !== true) out.push('Replace sent ' + JSON.stringify(s[1] || null).slice(0, 200) + ', want replace:true');
+      // a save that answers "exists" goes back to the question, no second write
+      await t.evaluate(`(() => { hqFake.set('claudeVault.preview', undefined); hqFake.set('claudeVault.save', { error: 'a note with this name is already there', exists: true }); WHQ.app.logic.closeVault(); WHQ.app.logic.openVaultPreview('code:fake-1'); return true; })()`);
+      await t.waitFor(`!!document.querySelector('[data-vault="save"]')`, 5000);
+      await click('[data-vault="save"]');
+      if (!await t.waitFor(`!!document.querySelector('[role="alertdialog"][aria-label="Replace the note"]')`, 3000)) out.push('a save answering "exists" did not return to the Replace question');
+      await t.sleep(300);
+      if ((await saves()).length !== 3) out.push('a save answering "exists" was retried on its own (' + (await saves()).length + ' saves)');
+      // Escape closes the dialog
+      await t.press('Escape');
+      await t.sleep(100);
+      if (await t.evaluate(`!!${DIALOG}`)) out.push('Escape did not close the dialog');
+    } finally {
+      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.closeVault(); L.setState({ clOpen: false }); if (L.store.live.claudeLib) L.store.live.claudeLib.thread = null; return true; })()`).catch(() => {});
     }
     return out.concat(t.errors());
   },

@@ -303,6 +303,14 @@ const ASK_CLAUDE = [
   { q: 'And the menu?', id: 'c2', a: { text: 'Not in what I can see.', status: 'done', meta: { status: 'done', sections: [{ id: 'claude', label: 'Claude history', chars: 0, clipped: false, cites: [], note: 'Claude Hub is not running' }], ms: 700, model: 'placeholder-model' }, est: true } },
 ];
 add('overlay.ask-claude', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: 'placeholder-model' }; }, state: { askOpen: true, askHistory: ASK_CLAUDE, askInclude: { scan: true, tasks: true, projects: true, health: false, browser: false, vault: false, claude: true } } });
+// Claude Hub H5: the Save to vault dialog in each phase (an inert claudeVault bridge, so the button and actions are "wired")
+const VAULT_HQ = { claudeVault: { preview() {}, save() {} } };
+const VAULT_DRAFT = { id: 'code:s-1', path: 'C:\\placeholder-vault\\30_Areas\\Claude\\project-a\\2026-10-01 Release planning.md', rel: '30_Areas/Claude/project-a/2026-10-01 Release planning.md', draft: '---\nconversation: "code:s-1"\n---\n# Release planning\n\n## Summary\nPlaceholder.\n', model: 'placeholder-model', basis: 12 };
+add('overlay.vault-drafting', { hq: VAULT_HQ, state: { vault: { id: 'code:s-1', phase: 'drafting' } } });
+add('overlay.vault-ready', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, phase: 'ready', exists: false, askReplace: false, saveError: null } } });
+add('overlay.vault-replace', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, phase: 'ready', exists: true, askReplace: true, saveError: 'A note with this name appeared after the draft was made.' } } });
+add('overlay.vault-error', { hq: VAULT_HQ, state: { vault: { id: 'code:s-1', phase: 'error', error: 'the local model isn’t running — start Ollama or LM Studio and try again (no runtime)' } } });
+add('overlay.vault-saved', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, phase: 'saved', exists: false } } });
 // Phase 2 C2: the scan row comes from main's live scan state (hq:live-state / hq:scan-status), not a localRuns entry
 add('overlay.runs', { live: (L) => { L.scan = { state: 'running', startedAt: Date.parse('2026-10-05T10:00:00Z'), endedAt: null, code: null }; }, state: { runsOpen: true, expandedRun: 'c2', localRuns: [
   { id: 't1', name: 'Review', status: 'opened', meta: 'Terminal opened · claude /review', started: '09:50', out: ['Opened in an external terminal; output stays there.'] },
