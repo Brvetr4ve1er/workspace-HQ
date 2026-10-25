@@ -77,6 +77,35 @@ export default String.raw`        <sc-if value="{{ v.claude }}" hint-placeholder
             <!-- v5: Claude › Projects (spec 2026-10-13 §9, H2) — Claude Code folders with link chips to WorkspaceHQ projects; auto matches offer confirm / change / unlink -->
             <!-- v5: Claude › Prompts (spec 2026-10-15 §6.3, P1) — Library of the vault's prompt notes (40_Resources/Prompts): title, tags, variables, real usage from prompt_use, search; Open in Obsidian (contained obsidian://open link, §2) or Open file; Run lands with the run step and is labelled with the quota -->
             <sc-if value="{{ isPrompts }}" hint-placeholder-val="{{ false }}">
+              <!-- v5: Prompt library P2 (spec 2026-10-15 §6.3) — Library | Candidates. Candidates = the owner's own prompts harvested from every indexed source; each score is shown as its terms (counts, never a judgment); Promote (one confirm, single or several) writes NEW vault notes; Hide is a permanent tombstone -->
+              <div data-hc="tabs" role="tablist" style="display:flex;gap:8px;margin-bottom:12px"><button type="button" role="tab" data-hc="lib-tab" onClick="{{ hcTabLib }}" style="{{ hcLibStyle }}">Library</button><button type="button" role="tab" data-hc="cand-tab" onClick="{{ hcTabCand }}" style="{{ hcCandStyle }}">Candidates</button></div>
+              <sc-if value="{{ isPrCand }}" hint-placeholder-val="{{ false }}">
+                <div data-hc="list" style="display:flex;flex-direction:column;gap:16px">
+                  <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                    <span style="flex:1;font-size:12px;color:var(--muted)">{{ hcSelText }}</span>
+                    <button type="button" data-hc="promote-sel" onClick="{{ hcPromoteSel }}" disabled="{{ hcCant }}" title="{{ hcCantTip }}" style="height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--gold);background:transparent;color:var(--text);cursor:pointer;font-size:12px">Promote ticked…</button>
+                    <button type="button" onClick="{{ hcRefresh }}" disabled="{{ hcBusy }}" style="height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer;font-size:12px">Score again</button>
+                  </section>
+                  <sc-if value="{{ hcHasText }}" hint-placeholder-val="{{ false }}"><div data-hc="empty" role="status" style="{{ hcTextStyle }}">{{ hcText }}</div></sc-if>
+                  <sc-if value="{{ hcHasRows }}" hint-placeholder-val="{{ true }}">
+                    <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:8px 12px">
+                      <sc-for list="{{ hcRows }}" as="r" hint-placeholder-count="3"><div data-hc="row" style="padding:10px 0;border-bottom:1px dashed var(--frame);display:flex;gap:10px;align-items:flex-start">
+                        <button type="button" data-hc="check" onClick="{{ r.toggle }}" aria-pressed="{{ r.selected }}" aria-label="Tick this candidate" style="height:24px;width:24px;border:0;background:transparent;color:var(--purple);cursor:pointer;font-size:16px;line-height:1">{{ r.checkMark }}</button>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:14px">{{ r.title }}</div>
+                          <div style="font-family:var(--term);font-size:12px;color:var(--muted);margin-top:4px;white-space:pre-wrap;max-height:4.5em;overflow:hidden">{{ r.text }}</div>
+                          <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;margin-top:6px"><span style="color:var(--gold)">{{ r.scoreText }}</span><span style="color:var(--muted)">{{ r.why }}</span></div>
+                          <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;margin-top:2px;color:var(--faint)"><span>{{ r.origin }}</span><span>{{ r.more }}</span></div>
+                        </div>
+                        <button type="button" data-hc="promote" onClick="{{ r.promote }}" disabled="{{ hcCant }}" title="Asks first, then writes a new note in 40_Resources/Prompts" style="height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--gold);background:transparent;cursor:pointer;color:var(--text)">Promote…</button>
+                        <button type="button" data-hc="hide" onClick="{{ r.hide }}" disabled="{{ hcCant }}" title="Never offer this prompt again" style="height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--frame);background:transparent;cursor:pointer;color:var(--muted)">Hide</button>
+                      </div></sc-for>
+                    </section>
+                  </sc-if>
+                  <sc-if value="{{ hcHasPool }}" hint-placeholder-val="{{ false }}"><div data-hc="pool" style="font-size:11px;color:var(--faint)">{{ hcPoolNote }}</div></sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ isPrLib }}" hint-placeholder-val="{{ true }}">
               <div data-pr="lib" style="display:flex;flex-direction:column;gap:16px">
                 <sc-if value="{{ prHasFor }}" hint-placeholder-val="{{ false }}"><div data-pr="for" role="status" style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text);border:1px solid var(--purple);border-radius:10px;padding:6px 10px"><span style="flex:1">{{ prForText }}</span><button type="button" onClick="{{ prClearFor }}" aria-label="Clear the project context" style="height:24px;padding:0 8px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer">✕</button></div></sc-if>
                 <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
@@ -96,6 +125,7 @@ export default String.raw`        <sc-if value="{{ v.claude }}" hint-placeholder
                   </section>
                 </sc-if>
               </div>
+              </sc-if>
             </sc-if>
             <sc-if value="{{ isClProjects }}" hint-placeholder-val="{{ false }}">
               <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:8px 12px">

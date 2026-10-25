@@ -83,6 +83,34 @@ export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P
       </div>
     </div>
   </sc-if>
+  <!-- v5: Prompt library P2 — the ONE confirm before Promote writes (spec §6.3), and the clash step (§6.1: a clash becomes <slug>-2.md only after a confirm). Shows the text exactly as it will be written (masked) -->
+  <sc-if value="{{ hcOpen }}" hint-placeholder-val="{{ false }}">
+    <!-- v5: Promote dialog layout (P2) -->
+    <div onClick="{{ hcCancel }}" style="position:fixed;inset:0;z-index:1100;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px">
+      <!-- v5: Promote dialog layout (P2) -->
+      <div data-hc="dialog" onClick="{{ hcStop }}" role="dialog" aria-label="Promote to vault" style="width:min(620px,100%);max-height:92vh;overflow:auto;background:var(--card);border:1px solid var(--gold);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px">
+        <!-- v5: Promote dialog layout (P2) -->
+        <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Before this writes</div>
+        <!-- v5: Promote dialog layout (P2) -->
+        <div style="font-size:19px;margin-top:8px">{{ hcHead }}</div>
+        <!-- v5: Promote dialog layout (P2) -->
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">{{ hcWhere }}</div>
+        <sc-if value="{{ hcSingle }}" hint-placeholder-val="{{ false }}"><label style="display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:11px;color:var(--faint)">Title (the file name comes from it)<input data-hc="title" value="{{ hcTitleVal }}" onChange="{{ hcOnTitle }}" disabled="{{ hcClashPhase }}" style="height:32px;padding:0 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--text);font-size:13px"></label></sc-if>
+        <!-- v5: Promote dialog layout (P2) -->
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px"><sc-for list="{{ hcItems }}" as="i" hint-placeholder-count="2"><div style="border:1px dashed var(--frame);border-radius:8px;padding:8px 10px"><div style="font-size:13px">{{ i.title }}</div><div style="font-family:var(--term);font-size:12px;color:var(--muted);white-space:pre-wrap;margin-top:4px;max-height:9em;overflow:auto">{{ i.text }}</div></div></sc-for></div>
+        <sc-if value="{{ hcClashPhase }}" hint-placeholder-val="{{ false }}"><div data-hc="clash" role="status" style="margin-top:12px;font-size:13px;color:var(--gold)">{{ hcClashText }}</div></sc-if>
+        <sc-if value="{{ hcDonePhase }}" hint-placeholder-val="{{ false }}"><div data-hc="results" role="status" style="margin-top:12px;display:flex;flex-direction:column;gap:4px"><sc-for list="{{ hcResults }}" as="x" hint-placeholder-count="2"><div style="font-size:12px;color:{{ x.color }}">{{ x.text }}</div></sc-for></div></sc-if>
+        <!-- v5: Promote dialog layout (P2) -->
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">
+          <!-- v5: Promote dialog button (P2) -->
+          <button type="button" data-hc="cancel" onClick="{{ hcCancel }}" style="height:34px;padding:0 14px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);cursor:pointer">Close · Esc</button>
+          <sc-if value="{{ hcAskPhase }}" hint-placeholder-val="{{ true }}"><button type="button" data-hc="go" onClick="{{ hcGo }}" style="height:34px;padding:0 14px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);cursor:pointer">{{ hcGoText }}</button></sc-if>
+          <sc-if value="{{ hcSaving }}" hint-placeholder-val="{{ false }}"><span style="align-self:center;font-size:12px;color:var(--muted)">Writing…</span></sc-if>
+          <sc-if value="{{ hcCanSaveAs }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ hcClashPhase }}" hint-placeholder-val="{{ false }}"><button type="button" data-hc="save-as" onClick="{{ hcSaveAs }}" style="height:34px;padding:0 14px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);cursor:pointer">Save as the new name</button></sc-if></sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
   <!-- v5: AI archive H6 (spec §2/§6.3) — a ZIP dropped in Documents\WorkspaceHQ Imports is offered ONCE; nothing runs until Import -->
   <sc-if value="{{ diShow }}" hint-placeholder-val="{{ false }}"><div data-di="card" role="dialog" aria-label="Import a dropped export" style="position:fixed;right:16px;bottom:16px;z-index:1050;max-width:min(420px,calc(100vw - 32px));background:var(--card);border:1px solid var(--purple);border-radius:12px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:var(--term)"><div style="font-size:14px;color:var(--text)">{{ diCard.text }}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">{{ diCard.sub }}</div><div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><button type="button" data-di="confirm" onClick="{{ diConfirm }}" disabled="{{ diCant }}" title="{{ diCantTip }}" style="height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--purple);background:var(--purple);color:var(--bg);cursor:pointer;font-family:var(--term)">Import</button><button type="button" data-di="dismiss" onClick="{{ diDismiss }}" style="height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)" style-hover="background:var(--frame)">Not now</button><span style="font-size:11px;color:var(--faint)">{{ diMore }}</span></div></div></sc-if>
 

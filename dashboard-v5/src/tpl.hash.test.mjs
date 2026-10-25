@@ -35,9 +35,10 @@ import tpl from './app.tpl.js';
 // 2026-10-25 H6 final review: claude fragment, one line — the open-in-place document line <span> gains
 // style="min-height:1.2em" so a blank line keeps its height in the flex column (+25 chars / +25 bytes, no line removed)
 // 2026-10-25 P1 prompt library: Claude › Prompts Library block (claude.tpl.js) + project-page "Run a prompt" (+5622 chars / +5639 bytes)
-const SHA256 = '1b00179e29bf8d773c7d228bb719d8e3c914948cb4c2d258fa38c704c95e59ae';
-const LENGTH = 243763;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 244220;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-25 P2 prompt harvest: Library|Candidates toggle + Candidates list (claude.tpl.js) + Promote dialog (extras.tpl.js) (+8724 chars / +8738 bytes)
+const SHA256 = '634a56dbf29ec68b9546b29bc59460866303869f45268319f9cd06fcef78eed9';
+const LENGTH = 252487;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 252958;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

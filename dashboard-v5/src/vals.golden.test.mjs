@@ -457,6 +457,31 @@ add('claude.prompts-error', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, error: 'C
 add('claude.prompts-nobridge', { live: prLive({}), state: PR_AT });   // no `hq` → render() passes null (vals.golden.test.mjs render: `sc.hq === undefined ? null`)
 add('claude.prompts-nohits', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS(), q: 'zzz', hits: [] }), state: (c) => ({ ...PR_AT(c), prQuery: 'zzz', prSearched: true }) });
 add('claude.prompts-for-project', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }), state: (c) => ({ ...PR_AT(c), prFor: 'a' }) });   // 'a' = the base DATA project the `project.a.*` scenarios open
+// P2 harvest candidates + Promote dialog (placeholder text)
+const HC_HQ = { ...PR_HQ, claudeHub: { ...PR_HQ.claudeHub, promptCandidates() {}, hideCandidate() {} }, claudePrompts: { ...PR_HQ.claudePrompts, promote() {} } };
+const HC_AT = (o) => (c) => ({ ...PR_AT(c), ...o });
+const HC1 = 'cand:' + '1'.repeat(40), HC2 = 'cand:' + '2'.repeat(40);
+const HC_ROWS = () => [
+  { key: HC1, text: 'Placeholder prompt one: review the placeholder module and list what to change, file by file.', score: 11, sessions: 3, lastAt: '2026-10-01T10:00:00Z',
+    reasons: [{ key: 'reuse', points: 9, text: 'used in 3 sessions' }, { key: 'turns', points: 2, text: 'followed by 8 assistant messages' }],
+    sources: [{ kind: 'code', conversationId: 'code:sess-a1', at: '2026-10-01T10:00:00Z', project: 'project-a' }, { kind: 'history', documentId: 'history:sess-a1:0', at: '2026-09-20T09:00:00Z', project: 'project-a' }] },
+  { key: HC2, text: 'Placeholder prompt two: draft a placeholder plan with steps, owners and checks for each step.', score: -4, sessions: 1, lastAt: '2026-09-01T10:00:00Z',
+    reasons: [{ key: 'reuse', points: 0, text: 'seen in 1 session' }, { key: 'turns', points: 0, text: 'no assistant message followed it' }, { key: 'length', points: 1, text: '300+ characters' }, { key: 'library', points: -5, text: 'already a prompt note' }],
+    sources: [{ kind: 'chatgpt', conversationId: 'chatgpt:placeholder-1', at: '2026-09-01T10:00:00Z', project: null }] },
+];
+const HC_LIVE = (o = {}) => (L) => { L.candidates = { rows: HC_ROWS(), pooled: { messages: 42, history: 17 }, capped: { messages: false, history: false }, hidden: 0, error: null, busy: false, loaded: true, ...o }; };
+const HC_ITEM = (t) => ({ key: HC1, title: t, text: 'Placeholder prompt one: review the placeholder module.', source: { kind: 'code', conversation: 'code:sess-a1', at: '2026-10-01T10:00:00Z' } });
+add('claude.candidates-list', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', hcSel: [HC1] }) });
+add('claude.candidates-capped', { hq: HC_HQ, live: HC_LIVE({ capped: { messages: true, history: true }, hidden: 3 }), state: HC_AT({ prView: 'candidates' }) });
+add('claude.candidates-loading', { hq: HC_HQ, live: HC_LIVE({ rows: null, busy: true }), state: HC_AT({ prView: 'candidates' }) });
+add('claude.candidates-empty', { hq: HC_HQ, live: HC_LIVE({ rows: [], pooled: { messages: 12, history: 3 } }), state: HC_AT({ prView: 'candidates' }) });
+add('claude.candidates-error', { hq: HC_HQ, live: HC_LIVE({ error: 'Claude Hub: timeout' }), state: HC_AT({ prView: 'candidates' }) });
+add('claude.candidates-nobridge', { live: HC_LIVE(), state: HC_AT({ prView: 'candidates' }) });
+add('claude.promote-ask-single', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', promote: { seq: 1, keys: [HC1], items: [HC_ITEM('Placeholder prompt one')], phase: 'ask', clash: null, results: [], error: null } }) });
+add('claude.promote-ask-multi', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', hcSel: [HC1, HC2], promote: { seq: 1, keys: [HC1, HC2], items: [HC_ITEM('Placeholder prompt one'), { ...HC_ITEM('Placeholder prompt two'), key: HC2 }], phase: 'ask', clash: null, results: [], error: null } }) });
+add('claude.promote-clash', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', promote: { seq: 1, keys: [HC1], items: [HC_ITEM('Placeholder prompt one')], phase: 'clash', clash: { next: 'placeholder-prompt-one-2.md' }, results: [], error: null } }) });
+add('claude.promote-done', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', promote: { seq: 1, keys: [HC1, HC2], items: [HC_ITEM('Placeholder prompt one'), { ...HC_ITEM('Placeholder prompt two'), key: HC2 }], phase: 'done', clash: null,
+  results: [{ title: 'Placeholder prompt one', ok: true, name: 'placeholder-prompt-one.md' }, { title: 'Placeholder prompt two', ok: false, error: 'not written — a note with that name is there; promote it alone to save it as placeholder-prompt-two-2.md' }], error: null } }) });
 // P6 Automations: kind / source / category chips, nothing matching, Show more, Rescan running, an interactive confirm
 add('auto.interactive', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libKind: 'interactive' }) });
 add('auto.source-skill', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libSource: 'skill' }) });

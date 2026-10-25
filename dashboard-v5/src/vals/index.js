@@ -30,11 +30,12 @@ import { studioVals } from './studio.js';
 import { extrasVals } from './extras.js';
 import { claudeVaultVals } from './claude-vault.js';
 import { promptsVals } from './prompts.js';
+import { candidatesVals } from './prompt-candidates.js';
 import { claudeImportsVals } from './claude-imports.js';
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, claudeImportVals, historyVals, systemVals, lifeVals, studioVals, extrasVals, claudeVaultVals, claudeImportsVals, promptsVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, claudeImportVals, historyVals, systemVals, lifeVals, studioVals, extrasVals, claudeVaultVals, claudeImportsVals, promptsVals, candidatesVals,
 ];
 
 export function renderVals() {
