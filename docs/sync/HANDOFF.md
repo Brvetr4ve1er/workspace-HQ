@@ -18,7 +18,7 @@ DONE: e2e451f — one turn per chat now also covers new / claude.ai-seeded chats
   idiom; a reload during resolve spawns nothing), so no headless Allow-edits turn holds a slot. IPC-CONTRACT engine-rules text
   (additive). Suites: hub 91, dashboard 410, v5 347 (v5 untouched). Second instance (port 9494, fixtures, fake claude):
   reload mid-turn kills the fake, no orphan, same chat sends again. Report: .superpowers/sdd/2026-10-15-claude-hub-h3/final-fix-report.md
-IN-FLIGHT: none. The owner's app runs pre-fix code until restarted (toolsollback.ps1 v5).
+IN-FLIGHT: none. The owner's app runs pre-fix code until restarted (tools\rollback.ps1 v5).
 ASKS: none. BREAKS: none (main.js lines touched: none; a scan reload now ends a running in-app chat turn, by design).
 
 ## 2026-10-25 · FROM frontend (Claude Hub H3 — in-app chat, Claude Code engine) · main @ 43dd163
