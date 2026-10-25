@@ -264,6 +264,26 @@ function init({ ipcMain, app, shell, vaultDir, env = process.env, log = console.
   ipcMain.handle('hq:claude-prompts:open', (_e, id, how) => p.open(typeof id === 'string' && id.length <= 300 ? id : '', how));
   ipcMain.handle('hq:claude-prompts:promote', (_e, req) => p.promote(req && typeof req === 'object' && !Array.isArray(req) ? req : {}));
   ipcMain.handle('hq:claude-prompts:run', (e, req) => p.run(req && typeof req === 'object' && !Array.isArray(req) ? req : {}, { sender: e && e.sender }));   // P3
+  // P3 packs (spec 6.3/6.4; deviation 1): main picks the path itself - the renderer never sends one.
+  const win = () => { try { return getWin ? getWin() : null; } catch { return null; } };
+  const ask = (fn, opts) => { const w = win(); return w ? dialog[fn](w, opts) : dialog[fn](opts); };
+  const packs = require('./claude-prompt-pack').createPacks({ vaultDir: env.HQ_VAULT_DIR || vaultDir, env, log,
+    pick: async (from) => {
+      if (env.HQ_PACK_IMPORT) return env.HQ_PACK_IMPORT;   // gates / second instances only
+      if (!dialog) return null;
+      const r = await ask('showOpenDialog', from === 'folder'
+        ? { title: 'Import a folder of prompt notes', properties: ['openDirectory'] }
+        : { title: 'Import a prompt pack', properties: ['openFile'], filters: [{ name: 'Prompt pack', extensions: ['zip'] }] });
+      return r && !r.canceled && Array.isArray(r.filePaths) && r.filePaths[0] ? r.filePaths[0] : null;
+    },
+    save: async (name) => {
+      if (env.HQ_PACK_EXPORT) return env.HQ_PACK_EXPORT;
+      if (!dialog) return null;
+      const r = await ask('showSaveDialog', { title: 'Export the prompt pack', defaultPath: name, filters: [{ name: 'Prompt pack', extensions: ['zip'] }] });
+      return r && !r.canceled && r.filePath ? r.filePath : null;
+    } });
+  ipcMain.handle('hq:claude-prompts:import-pack', (_e, req) => packs.importPack(req && typeof req === 'object' && !Array.isArray(req) ? { from: req.from, planId: req.planId } : {}));
+  ipcMain.handle('hq:claude-prompts:export-pack', () => packs.exportPack());
   return p;
 }
 

@@ -172,7 +172,7 @@ test('init: HQ_VAULT_DIR wins; handlers answer, ids are capped', async () => {
   const h = {};
   init({ ipcMain: { handle: (ch, fn) => { h[ch] = fn; } }, app: { getApplicationNameForProtocol: () => '' }, shell: { openExternal: async () => {}, openPath: async () => '' },
     vaultDir: path.join(os.tmpdir(), 'never-the-owner-vault'), env: { HQ_VAULT_DIR: fx.vault, HQ_DRY_LAUNCH: '1' }, log: () => {} });
-  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:open', 'hq:claude-prompts:promote', 'hq:claude-prompts:run', 'hq:claude-prompts:status']);
+  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:export-pack', 'hq:claude-prompts:import-pack', 'hq:claude-prompts:open', 'hq:claude-prompts:promote', 'hq:claude-prompts:run', 'hq:claude-prompts:status']);
   assert.equal((await h['hq:claude-prompts:status']({})).folder.exists, true);
   assert.ok((await h['hq:claude-prompts:open']({}, 'prompt:' + 'a'.repeat(400), 'file')).error);
 });
@@ -398,4 +398,31 @@ test('init registers hq:claude-prompts:run with the asking window as sender', as
   const r = await handlers.get('hq:claude-prompts:run')({ sender: null }, { promptId: fx.id, target: 'claude.ai', vars: { file: 'a' }, projectId: 'project-a' });
   assert.equal(r.ok, true); assert.equal(r.dry, true); assert.equal(r.usage, 'recorded');
   assert.match((await handlers.get('hq:claude-prompts:run')({}, 'junk')).error, /runs only in Chat/);
+});
+
+test('init: pack handlers use main-side dialogs (window-parented), env overrides for gates, never a renderer path', async () => {
+  const fx = p3Vault();
+  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hq-p3-out-')), 'pack.zip');
+  const dialogs = [];
+  const dialog = {
+    showOpenDialog: async (...a) => { dialogs.push(['open', a.length, a.at(-1).properties]); return { canceled: true, filePaths: [] }; },
+    showSaveDialog: async (...a) => { dialogs.push(['save', a.length, a.at(-1).defaultPath]); return { canceled: false, filePath: out }; },
+  };
+  const reg = (env) => { const hs = new Map(); prompts.init({ ipcMain: { handle: (ch, fn) => hs.set(ch, fn) }, app: null, shell: {}, vaultDir: fx.v, env, log: () => {}, dialog, getWin: () => ({ id: 1 }) }); return hs; };
+  const hs = reg({});
+  assert.deepEqual(await hs.get('hq:claude-prompts:import-pack')({}, { from: 'folder', path: 'C:\Windows' }), { canceled: true });
+  assert.deepEqual(dialogs[0], ['open', 2, ['openDirectory']], 'a folder dialog parented to the window; the renderer path is ignored');
+  await hs.get('hq:claude-prompts:import-pack')({}, 'junk');
+  assert.deepEqual(dialogs[1], ['open', 2, ['openFile']]);
+  const ex = await hs.get('hq:claude-prompts:export-pack')({}, 'C:\evil.zip');
+  assert.deepEqual(ex, { file: 'pack.zip', notes: 1 });
+  assert.match(dialogs[2][2], /^prompts-pack-\d{4}-\d{2}-\d{2}\.zip$/);
+  // gates: env replaces the dialogs
+  const src = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-p3-src-')); fs.writeFileSync(path.join(src, 'Gate note.md'), 'Placeholder gate note');
+  const gate = reg({ HQ_PACK_IMPORT: src, HQ_PACK_EXPORT: out + '.again.zip' });
+  const plan = await gate.get('hq:claude-prompts:import-pack')({}, { from: 'folder' });
+  assert.deepEqual(plan.notes, [{ name: 'gate-note.md', title: 'gate-note', exists: false }]);
+  assert.equal((await gate.get('hq:claude-prompts:import-pack')({}, { planId: plan.planId })).imported, 1);
+  assert.deepEqual(await gate.get('hq:claude-prompts:export-pack')({}), { file: 'pack.zip.again.zip', notes: 2 });
+  assert.equal(dialogs.length, 3, 'no dialog when the env names the path');
 });

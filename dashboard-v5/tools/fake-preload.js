@@ -226,6 +226,11 @@ function createFake(opts) {
     ['claudeHub.promptStats', () => [{ prompt_id: 'prompt:' + 'a'.repeat(40), uses: 3, last_at: '2026-10-20T09:00:00.000Z' }]],
     ['claudePrompts.status', () => ({ vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true })],
     ['claudePrompts.run', promptRun],
+    ['claudePrompts.importPack', (req) => (req && req.planId
+      ? { imported: 2, masked: 0, skipped: { exists: 1, failed: 0 } }
+      : { planId: 'pack-' + '0'.repeat(16), source: 'placeholder-pack.zip', total: 3, skipped: { notMd: 1, tooBig: 0, tooMany: 0, duplicate: 0, unreadable: 0 },
+          notes: [{ name: 'review-a-pr.md', title: 'Review a PR like a staff engineer', exists: true }, { name: 'standup-notes.md', title: 'Standup notes', exists: false }, { name: 'bug-triage.md', title: 'Bug triage', exists: false }] })],
+    ['claudePrompts.exportPack', () => ({ file: 'prompts-pack-2026-10-25.zip', notes: 2 })],
     ['claudePrompts.open', (id, how) => (how === 'obsidian' || how === 'file' ? { ok: true, how } : { error: 'a prompt note opens only in Obsidian or as a file' })],
     ['claudeHub.document', (id) => { const d = HUB_DOCS.find((x) => x.id === id); return d ? { ...d, text: 'Offer fake tea first.\nFake second line.', meta: null } : null; }],
     ['claudeHub.on', 'on:hq:claude-hub:event'],

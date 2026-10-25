@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld('hq', {
     open: (id, how) => ipcRenderer.invoke('hq:claude-prompts:open', id, how),
     promote: (p) => ipcRenderer.invoke('hq:claude-prompts:promote', p),
     run: (req) => ipcRenderer.invoke('hq:claude-prompts:run', req),   // P3: main reads + fills the note; chat streams on hq:claude-chat:event
+    importPack: (req) => ipcRenderer.invoke('hq:claude-prompts:import-pack', req),   // P3: {from} -> plan (writes nothing); {planId} -> writes new notes only
+    exportPack: () => ipcRenderer.invoke('hq:claude-prompts:export-pack'),
   },
   // AI archive H6: the imports drop folder — announced once, imported only after the owner confirms
   claudeImports: {
