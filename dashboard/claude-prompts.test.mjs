@@ -47,6 +47,23 @@ test('never overwrites: clash and a file appearing mid-write both refuse', async
   assert.deepEqual(leftovers(dir), []);
 });
 
+test('a slug at the 60-character cap clashes and the offered -2 name is accepted', async () => {
+  const vault = tmp();
+  const dir = path.join(vault, '40_Resources', 'Prompts');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [src, len] of [['abcdefghi '.repeat(7), 59], ['abcdefghij '.repeat(7), 60]]) {
+    const slug = note.slugify(src);
+    assert.equal(slug.length, len);
+    fs.writeFileSync(path.join(dir, `${slug}.md`), 'OWNER NOTE');
+    const a = await writePromptNote(vault, { name: `${slug}.md`, text: TEXT });
+    assert.equal(a.exists, true); assert.equal(a.next, `${slug}-2.md`);
+    const b = await writePromptNote(vault, { name: a.next, text: TEXT });
+    assert.equal(b.name, a.next, JSON.stringify(b));
+    assert.equal(fs.readFileSync(path.join(dir, `${slug}.md`), 'utf8'), 'OWNER NOTE');
+    fs.rmSync(path.join(dir, `${slug}.md`)); fs.rmSync(path.join(dir, a.next));
+  }
+});
+
 test('refuses names, texts and folders it does not make', async () => {
   const vault = tmp();
   for (const name of ['../x.md', 'a/b.md', 'a\\b.md', 'X.md', 'con.md', 'x.txt', '', '.md', 'a'.repeat(70) + '.md', null]) {

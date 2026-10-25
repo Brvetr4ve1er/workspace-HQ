@@ -27,7 +27,9 @@ async function resolvePromptsDir(vaultDir, { create = false } = {}) {
 function validName(name) {
   if (typeof name !== 'string' || !/\.md$/.test(name)) return false;
   const stem = name.slice(0, -3);
-  if (!stem || slugify(stem) !== stem) return false;
+  // the -N clash suffix is added after the slug's own 60-char cut, so check the slug without it
+  const base = stem.replace(/-[2-9]$/, '');
+  if (!base || slugify(base) !== base) return false;
   return true;
 }
 
