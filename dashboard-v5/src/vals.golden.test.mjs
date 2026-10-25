@@ -439,6 +439,24 @@ add('claude.canvas-note', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'can
 add('claude.canvas-note-saving', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasSaving: true }) });
 add('claude.canvas-note-nobridge', { state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
 add('claude.canvas-pushed-boards', { hq: P3_HQ, live: (L) => { L.canvasBoards = A.canvasBoards({ boards: [{ name: 'Board Two', nodes: [] }, { name: 'bad/name', nodes: [] }] }); }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
+// Prompt library P1 — Claude › Prompts › Library (spec 2026-10-15 §6.3)
+const PR_HQ = { claudeHub: { documents() {}, promptStats() {} }, claudePrompts: { status() {}, open() {} } };
+const PR_ROWS = [
+  { id: 'prompt:g1', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\review-a-pr.md', title: 'Golden review prompt', mtime_ms: 1, meta: { tags: ['review', 'code'] }, variables: ['project', 'file'] },
+  { id: 'prompt:g2', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\weekly.md', title: 'Golden weekly digest', mtime_ms: 2, meta: { tags: 'notes' }, variables: [] },
+];
+const PR_STATUS = (o = {}) => ({ vault: 'VEEMO CORTEX', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true, ...o });
+const prLive = (P) => (L) => { L.prompts = { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false, ...P }; };
+const PR_AT = tabSub('claude', 'prompts');   // tabSub returns a (c) => patch function: pass it as `state` itself, or call it with c
+add('claude.prompts-list', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [{ prompt_id: 'prompt:g1', uses: 2, last_at: '2026-10-01T10:00:00Z' }], status: PR_STATUS() }), state: PR_AT });
+add('claude.prompts-not-run', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }), state: PR_AT });
+add('claude.prompts-no-obsidian', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS({ obsidian: false }) }), state: PR_AT });
+add('claude.prompts-nofolder', { hq: PR_HQ, live: prLive({ rows: [], stats: [], status: PR_STATUS({ folder: { exists: false } }) }), state: PR_AT });
+add('claude.prompts-empty', { hq: PR_HQ, live: prLive({ rows: [], stats: [], status: PR_STATUS() }), state: PR_AT });
+add('claude.prompts-error', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, error: 'Claude Hub: hub not running', status: PR_STATUS() }), state: PR_AT });
+add('claude.prompts-nobridge', { live: prLive({}), state: PR_AT });   // no `hq` → render() passes null (vals.golden.test.mjs render: `sc.hq === undefined ? null`)
+add('claude.prompts-nohits', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS(), q: 'zzz', hits: [] }), state: (c) => ({ ...PR_AT(c), prQuery: 'zzz', prSearched: true }) });
+add('claude.prompts-for-project', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }), state: (c) => ({ ...PR_AT(c), prFor: 'a' }) });   // 'a' = the base DATA project the `project.a.*` scenarios open
 // P6 Automations: kind / source / category chips, nothing matching, Show more, Rescan running, an interactive confirm
 add('auto.interactive', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libKind: 'interactive' }) });
 add('auto.source-skill', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libSource: 'skill' }) });
