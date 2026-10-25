@@ -994,3 +994,62 @@ test('P1: prompt rows from HQ_VAULT_DIR carry tags/variables; promptStats is rea
     assert.deepEqual((await h.req('promptStats')).result, []);
   } finally { await h.stop(); }
 });
+
+// ---- P2 prompt harvest ops. A chatgpt chat is seeded straight into the db: the Hub's code-index rebuild (resetCode) never touches it.
+function seedHarvest(db) {
+  const s = openStore(db);
+  s.ensureConversation({ id: 'chatgpt:g1', source: 'chatgpt', projectId: null, nativeId: 'g1' });
+  let text = 'Placeholder harvested prompt for the hub test'; while (text.length < 130) text += ' placeholder words';
+  s.addMessages('chatgpt:g1', [{ id: 'chatgpt:g1:u1', nativeId: 'u1', parentId: null, role: 'user', at: '2026-09-03T10:00:00Z', text, toolName: null, isSidechain: false },
+    { id: 'chatgpt:g1:a1', nativeId: 'a1', parentId: 'u1', role: 'assistant', at: '2026-09-03T10:00:05Z', text: 'ok', toolName: null, isSidechain: false }]);
+  s.close();
+  return text;
+}
+
+test('promptCandidates scores the pool with reasons; hideCandidate tombstones it for good', async () => {
+  const dir = tmp('hub-harvest-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const text = seedHarvest(db);
+  const a = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    assert.ok(await a.until(() => a.events.some((e) => e.event === 'ready')));
+    const r = (await a.req('promptCandidates', {})).result;
+    const c = r.candidates.find((x) => x.text === text);
+    assert.ok(c, 'the seeded chatgpt prompt is a candidate');
+    assert.match(c.key, /^cand:[0-9a-f]{40}$/);
+    assert.deepEqual(c.reasons.map((x) => x.key), ['reuse', 'turns']);
+    assert.equal(c.reasons[1].text, 'followed by 1 assistant message');
+    assert.equal(c.sources[0].conversationId, 'chatgpt:g1');
+    assert.equal(r.capped.messages, false);
+    assert.equal(typeof r.pooled.messages, 'number');
+    const bad = await a.req('hideCandidate', { key: 'nope' });
+    assert.equal(bad.ok, false); assert.match(bad.error, /not a candidate key/);
+    assert.equal((await a.req('hideCandidate', { key: c.key })).result, true);
+    const after = (await a.req('promptCandidates', {})).result;
+    assert.equal(after.candidates.some((x) => x.key === c.key), false);
+    assert.equal(after.hidden, 1);
+    await a.req('reindex');
+    assert.equal((await a.req('promptCandidates', {})).result.candidates.some((x) => x.key === c.key), false);
+  } finally { await a.stop(); }
+});
+
+test('hideCandidate on a reader is refused with the reason; promptCandidates still answers', async () => {
+  const dir = tmp('hub-harvest-two-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  seedHarvest(db);
+  const a = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    assert.ok(await a.until(() => a.events.some((e) => e.event === 'ready')));
+    const b = startHub({ HQ_CLAUDE_HOME: home }, db);
+    try {
+      assert.ok(await b.until(() => b.events.some((e) => e.event === 'ready')));
+      assert.equal((await b.req('health')).result.role, 'reader');
+      const r = await b.req('promptCandidates', { limit: 5 });
+      assert.equal(r.ok, true); assert.ok(r.result.candidates.length >= 1);
+      const hide = await b.req('hideCandidate', { key: r.result.candidates[0].key });
+      assert.equal(hide.ok, false); assert.match(hide.error, /read-only hub \(another WorkspaceHQ owns the index\)/);
+    } finally { await b.stop(); }
+  } finally { await a.stop(); }
+});

@@ -147,6 +147,9 @@ function registerIpc(ipcMain, host) {
   h('stats', (_e, o) => host.request('stats', { ...obj(o) }, { timeout: 15000 }));
   h('link', async (_e, id, hqId, state) => bool(await host.request('link', { projectId: String(id || ''), hqProjectId: hqId == null ? null : String(hqId), state: String(state || '') }), 'unknown project'));
   h('forget', async (_e, t) => bool(await host.request('forget', { ...obj(t) }, { timeout: 60000 }), 'nothing to forget'));
+  // P2 prompt harvest: the whole pool is scored per ask (<= 2 x 20 000 rows), hence the longer timeout
+  h('prompt-candidates', (_e, o) => host.request('promptCandidates', { limit: obj(o).limit }, { timeout: 15000 }));
+  h('hide-candidate', async (_e, key) => bool(await host.request('hideCandidate', { key: String(key || '').slice(0, 60) }), 'nothing to hide'));
   h('documents', (_e, o) => host.request('listDocuments', { ...obj(o) }));
   h('document', (_e, id) => host.request('getDocument', { id: String(id || '').slice(0, 300) }));
   h('prompt-stats', () => host.request('promptStats', {}));   // P1: usage per prompt id (prompt_use, written from P3)
