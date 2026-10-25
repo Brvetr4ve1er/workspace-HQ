@@ -208,6 +208,19 @@ file holds `{"pid","db"}` (a plain pid is still read).
 `confirmed`/`rejected` are never overwritten). `meta.last_error_at` / `meta.last_error_file` timestamp the last ingest
 error and clear when that file ingests cleanly. Writer connections use `secure_delete`.
 
+#### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`)
+
+Same server as `/ingest/*` and `/social/*` (`127.0.0.1:47821`), same auth: header `X-HQ-Bridge: 1` plus
+`X-HQ-Token` when `data/.bridge-token` exists (403 otherwise). Only client: the WorkspaceHQ Bridge extension ≥ 0.4.0.
+
+| Route | Body / answer |
+|---|---|
+| `GET /claude/sync-state` | → `{ok:true, conversations:{<claude.ai chat uuid>: updated_at\|null}, projects:{<project uuid>: updated_at\|null}, forgotten:[<chat uuid>]}` — the extension fetches only chats whose claude.ai `updated_at` is newer, and never a forgotten one |
+| `POST /claude/sync` | `{v:1, items:[{kind:'conversation'\|'project', data:<claude.ai JSON as fetched>}]}`, 1–50 items, ≤ 4 MB per request (413), `data.uuid` = `[A-Za-z0-9-]{1,80}`, a conversation's `data.chat_messages` an array (400 with the reason otherwise) → `{ok:true, report}` (counts only: `conversations/projects {seen, imported, unchanged, forgotten, skipped}`, `messages {imported, skipped, empty}`, `unknownFields {name: count}`); 409 when this app's Hub is a read-only reader, 503 when the Hub is not running |
+
+Stored as Hub rows `web:<uuid>` (`source='web'`), de-duplicated through `web_sync(kind, native_id=<uuid>, updated_at)`
+— the same table the export import writes. A forgotten chat/project (tombstone) is never re-created.
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
