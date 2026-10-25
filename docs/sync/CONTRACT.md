@@ -220,6 +220,9 @@ path>`, `history:<sessionId>:<byte offset>`. `ingest_cursor` row `file='history.
 `~/.claude/history.jsonl` (never rewritten). `conversation.source` gains `'chatgpt'` (ids `chatgpt:<id>`, project
 `chatgpt:chats`); `web_sync` kind `'chatgpt'` de-dups re-imports; tombstone kind `'document'`. `index_version` unchanged.
 `data/claude/imports-seen.json` = which dropped ZIPs were answered (main-written).
+(2026-10-25, P2, additive) `tombstone` gains kind `candidate` (`native_id` = `cand:<sha1 of the normalized prompt text>`,
+written by the Hide button through the Hub op `hideCandidate`): that text is never offered as a prompt candidate again.
+No schema or index-version change (`SCHEMA_VERSION` stays 2).
 
 #### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`)
 
@@ -249,6 +252,9 @@ JSON-quoted): `title`, `tags: [a, b]`, `variables: [a, b]`, `version: 1`, `creat
 (harvested only), `hq: { id: "prompt:<sha1 of the lowercased absolute path>" }` (harmless if removed). Body = the prompt;
 variables are `{{name}}` tokens (`{{project}}` / `{{cwd}}` filled from the chosen project at run time). Bodies written by
 WorkspaceHQ are masked (`maskSecrets`). The structure lane never writes here.
+(2026-10-25, P2) The writer is Promote (`claudePrompts.promote`, Claude › Prompts › Candidates), one note per owner-confirmed
+candidate; `source.kind` ∈ `code` | `web` | `chatgpt` | `history`, `source.conversation` = the Hub id the text came from
+(`code:<sessionId>`, `web:<uuid>`, `chatgpt:<id>` or `history:<sessionId>:<offset>`), `tags: [harvested]` by default.
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
