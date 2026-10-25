@@ -28,8 +28,9 @@ export const claudeImportsLogic = {
     const imp = this.LIVE.claudeImports, first = imp && imp.found && imp.found[0];
     if (!first || !this.hq || !this.hq.claudeImports) return;
     imp.found = imp.found.filter((f) => f.dropId !== first.dropId);
-    await this.call(() => this.hq.claudeImports.dismiss(first.dropId), 'Could not dismiss');
-    this.toast('info', 'Not imported — ' + first.file + ' will not be offered again. Import it any time with the buttons on Claude › Chats.');
+    const r = await this.call(() => this.hq.claudeImports.dismiss(first.dropId), 'Could not dismiss');
+    // null: the call failed and its error toast already showed; false: unknown/expired dropId, nothing was recorded
+    if (r === true) this.toast('info', 'Not imported — ' + first.file + ' will not be offered again. Import it any time with the buttons on Claude › Chats.');
     this.forceUpdate();
   },
   cdOpenDoc(id) { if (this.store && this.store.openClaudeDocument) this.store.openClaudeDocument(id); },
