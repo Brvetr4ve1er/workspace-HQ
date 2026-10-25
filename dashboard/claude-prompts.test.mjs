@@ -86,3 +86,93 @@ test('a Prompts junction that leads out of the vault is refused', { skip: !WIN &
   assert.deepEqual(fs.readdirSync(outside), []);
   await assert.rejects(resolvePromptsDir(vault), /outside the vault/);
 });
+
+import { makeDocsHome } from './claude-hub/__fixtures__/make-docs.mjs';
+
+const { createPrompts, obsidianUrl, init } = prompts;
+function rig(o = {}) {
+  const fx = makeDocsHome(tmp());
+  const ext = [], opened = [], logs = [];
+  const p = createPrompts({ vaultDir: fx.vault, openExternal: async (u) => { ext.push(u); }, openPath: async (f) => { opened.push(f); return ''; },
+    protocolName: () => (o.noObsidian ? '' : 'Obsidian'), env: o.env || {}, log: (l) => logs.push(l), ...o.over });
+  const idOf = (...rel) => note.promptDocId(path.join(path.resolve(fx.vault), '40_Resources', 'Prompts', ...rel));
+  return { fx, p, ext, opened, logs, idOf };
+}
+
+test('status says folder/obsidian and the vault basename; never a path', async () => {
+  const { p } = rig();
+  const s = await p.status();
+  assert.deepEqual(s, { vault: 'vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true });
+  const none = createPrompts({ vaultDir: tmp(), openExternal: async () => {}, openPath: async () => '', protocolName: () => '', env: {}, log: () => {} });
+  assert.deepEqual((await none.status()).folder, { exists: false });
+  assert.equal((await none.status()).obsidian, false);
+});
+
+test('open refuses everything but a contained prompt note; only the two allowed targets are opened', async () => {
+  const { fx, p, ext, opened, idOf } = rig();
+  const good = idOf('review-a-pr.md');
+  assert.deepEqual(await p.open(good, 'obsidian'), { ok: true, how: 'obsidian' });
+  assert.deepEqual(ext, ['obsidian://open?vault=vault&file=40_Resources%2FPrompts%2Freview-a-pr']);
+  assert.deepEqual(await p.open(good, 'file'), { ok: true, how: 'file' });
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0].toLowerCase(), path.join(fs.realpathSync.native(fx.prompts), 'review-a-pr.md').toLowerCase());   // .native: see Task 3 (8.3 TEMP names)
+  const refused = [
+    [idOf('drafts', 'nested.md'), 'obsidian'],          // a subfolder note is not a Library note
+    [idOf('notes.txt'), 'file'],                          // not a .md note
+    ['memory:' + 'a'.repeat(40), 'file'],                 // another document kind
+    ['prompt:' + 'f'.repeat(40), 'obsidian'],             // no such note
+    ['prompt:../../x', 'file'], ['C:\Windows\notepad.exe', 'file'], ['https://example.invalid/', 'obsidian'], [null, 'file'], [{}, 'file'],
+    [good, 'url'], [good, undefined],                    // only 'obsidian' | 'file'
+  ];
+  for (const [id, how] of refused) assert.ok((await p.open(id, how)).error, JSON.stringify([id, how]));
+  fs.unlinkSync(path.join(fx.prompts, 'review-a-pr.md'));   // deleted in Obsidian since the last sweep
+  assert.match((await p.open(good, 'obsidian')).error, /not in the Prompts folder/);
+  assert.equal(ext.length, 1, 'nothing else was ever opened externally');
+  assert.equal(opened.length, 1, 'nothing else was ever opened as a file');
+});
+
+test('the obsidian link encodes the vault basename (HQ_VAULT_DIR override) and the note name', () => {
+  assert.equal(obsidianUrl('My Vault #1', 'a & b.md'), 'obsidian://open?vault=My%20Vault%20%231&file=40_Resources%2FPrompts%2Fa%20%26%20b');
+  assert.throws(() => obsidianUrl('v', '../x.md'));
+  assert.throws(() => obsidianUrl('v', 'a/b.md'));
+});
+
+test('no obsidian handler → status says so and open(how:obsidian) is refused with fallback file', async () => {
+  const { p, ext, idOf } = rig({ noObsidian: true });
+  assert.equal((await p.status()).obsidian, false);
+  assert.deepEqual(await p.open(idOf('review-a-pr.md'), 'obsidian'), { error: 'Obsidian is not installed — use Open file', fallback: 'file' });
+  assert.deepEqual(ext, []);
+  assert.deepEqual(await p.open(idOf('review-a-pr.md'), 'file'), { ok: true, how: 'file' });
+});
+
+test('HQ_DRY_LAUNCH=1 opens nothing and logs only the file name', async () => {
+  const { p, ext, opened, logs, idOf } = rig({ env: { HQ_DRY_LAUNCH: '1' } });
+  assert.deepEqual(await p.open(idOf('review-a-pr.md'), 'obsidian'), { ok: true, how: 'obsidian', dry: true });
+  assert.deepEqual(await p.open(idOf('review-a-pr.md'), 'file'), { ok: true, how: 'file', dry: true });
+  assert.deepEqual([ext, opened], [[], []]);
+  assert.deepEqual(logs, ['[dry-open] obsidian review-a-pr.md', '[dry-open] file review-a-pr.md']);
+});
+
+test('a Prompts junction out of the vault: status explains, open refuses', { skip: !WIN && 'junctions are Windows-only' }, async () => {
+  const vault = tmp(), outside = tmp();
+  fs.mkdirSync(path.join(vault, '40_Resources'), { recursive: true });
+  fs.writeFileSync(path.join(outside, 'x.md'), '---\ntitle: x\n---\n');
+  fs.symlinkSync(outside, path.join(vault, '40_Resources', 'Prompts'), 'junction');
+  const ext = [];
+  const p = createPrompts({ vaultDir: vault, openExternal: async (u) => { ext.push(u); }, openPath: async () => '', protocolName: () => 'Obsidian', env: {}, log: () => {} });
+  const s = await p.status();
+  assert.equal(s.folder.exists, false); assert.match(s.folder.error, /outside the vault/);
+  const id = note.promptDocId(path.join(path.resolve(vault), '40_Resources', 'Prompts', 'x.md'));
+  assert.match((await p.open(id, 'obsidian')).error, /outside the vault/);
+  assert.deepEqual(ext, []);
+});
+
+test('init: HQ_VAULT_DIR wins; handlers answer, ids are capped', async () => {
+  const fx = makeDocsHome(tmp());
+  const h = {};
+  init({ ipcMain: { handle: (ch, fn) => { h[ch] = fn; } }, app: { getApplicationNameForProtocol: () => '' }, shell: { openExternal: async () => {}, openPath: async () => '' },
+    vaultDir: path.join(os.tmpdir(), 'never-the-owner-vault'), env: { HQ_VAULT_DIR: fx.vault, HQ_DRY_LAUNCH: '1' }, log: () => {} });
+  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:open', 'hq:claude-prompts:status']);
+  assert.equal((await h['hq:claude-prompts:status']({})).folder.exists, true);
+  assert.ok((await h['hq:claude-prompts:open']({}, 'prompt:' + 'a'.repeat(400), 'file')).error);
+});

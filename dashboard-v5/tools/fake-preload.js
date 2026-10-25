@@ -58,6 +58,12 @@ function createFake(opts) {
       { id: id + ':a2', conversation_id: id, role: 'assistant', at: c.last_at, text: 'Here is a release plan.', tool_name: null, is_sidechain: 0 },
     ] };
   };
+  const FAKE_PROMPTS = [
+    { id: 'prompt:' + 'a'.repeat(40), source: 'prompt', path: 'C:\\fake-vault\\40_Resources\\Prompts\\review-a-pr.md', title: 'Review a PR like a staff engineer', project_id: null, project_path: null,
+      mtime_ms: Date.parse('2026-10-15T10:00:00Z'), size: 220, origin: null, meta: { title: 'Review a PR like a staff engineer', tags: ['review', 'code'], variables: ['project', 'file'] }, variables: ['project', 'file'] },
+    { id: 'prompt:' + 'b'.repeat(40), source: 'prompt', path: 'C:\\fake-vault\\40_Resources\\Prompts\\weekly-notes.md', title: 'Weekly notes digest', project_id: null, project_path: null,
+      mtime_ms: Date.parse('2026-10-10T08:00:00Z'), size: 140, origin: null, meta: { title: 'Weekly notes digest', tags: ['notes'] }, variables: [] },
+  ];
   const HUB_DOCS = [{ id: 'memory:fake1', source: 'memory', path: 'C:\\fake\\.claude\\projects\\p\\memory\\tea.md', title: 'Fake tea rule', project_id: 'code:p', project_path: 'C:\\fake\\p', mtime_ms: 1759320000000, size: 40, origin: null, snippet: 'offer fake \u0002tea\u0003 first', rank: -1 }, { id: 'claude-md:fake2', source: 'claude-md', path: 'C:\\fake\\p\\CLAUDE.md', title: 'CLAUDE.md — p', project_id: 'code:p', project_path: 'C:\\fake\\p', mtime_ms: 1759320000000, size: 30, origin: null, snippet: 'fake \u0002tea\u0003 rules', rank: -0.5 }];
   const HUB_HITS = [
     { messageId: 'code:sess-a1:a2', conversationId: 'code:sess-a1', at: HUB_AT, role: 'assistant', title: 'Release planning', source: 'code', projectId: HUB_PROJECTS[0].id, snippet: 'Here is a \u0002release\u0003 plan.', rank: -2 },
@@ -173,7 +179,15 @@ function createFake(opts) {
       totals: { chats: 2, active_ms: 120000, tokens_in: 6, tokens_out: 40, tokens_cache_read: 100, tokens_cache_write: 10 } })],
     ['claudeHub.link', WRITE], ['claudeHub.forget', WRITE], ['claudeHub.reindex', () => ({ started: true })],
     ['claudeHub.importExport', (kind) => ({ started: true, file: kind === 'chatgpt' ? 'chatgpt-export.zip' : 'claude-export.zip', kind: kind === 'chatgpt' ? 'chatgpt' : 'claude' })],
-    ['claudeHub.documents', () => HUB_DOCS],
+    ['claudeHub.documents', (opts) => {
+      if (!(opts && opts.source === 'prompt')) return HUB_DOCS;
+      const q = opts.q ? String(opts.q).toLowerCase() : '';
+      return q ? FAKE_PROMPTS.filter((d) => d.title.toLowerCase().includes(q)) : FAKE_PROMPTS;
+    }],
+    // Prompt library P1: harness fixture only — the real Hub answers [] until P3 writes prompt_use rows
+    ['claudeHub.promptStats', () => [{ prompt_id: 'prompt:' + 'a'.repeat(40), uses: 3, last_at: '2026-10-20T09:00:00.000Z' }]],
+    ['claudePrompts.status', () => ({ vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true })],
+    ['claudePrompts.open', (id, how) => (how === 'obsidian' || how === 'file' ? { ok: true, how } : { error: 'a prompt note opens only in Obsidian or as a file' })],
     ['claudeHub.document', (id) => { const d = HUB_DOCS.find((x) => x.id === id); return d ? { ...d, text: 'Offer fake tea first.\nFake second line.', meta: null } : null; }],
     ['claudeHub.on', 'on:hq:claude-hub:event'],
     // Claude Hub H5: Save to vault (canned draft; save resolves true and is recorded)

@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('hq', {
     importExport: (kind, opts) => ipcRenderer.invoke('hq:claude-hub:import', kind, opts),
     documents: (opts) => ipcRenderer.invoke('hq:claude-hub:documents', opts),
     document: (id) => ipcRenderer.invoke('hq:claude-hub:document', id),
+    promptStats: () => ipcRenderer.invoke('hq:claude-hub:prompt-stats'),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:claude-hub:event', handler);
@@ -60,6 +61,11 @@ contextBridge.exposeInMainWorld('hq', {
   claudeVault: {
     preview: (conversationId) => ipcRenderer.invoke('hq:claude-vault:preview', conversationId),
     save: (req) => ipcRenderer.invoke('hq:claude-vault:save', req),
+  },
+  // Prompt library P1: status (folder there? Obsidian installed?) + open a prompt note (main finds the file itself)
+  claudePrompts: {
+    status: () => ipcRenderer.invoke('hq:claude-prompts:status'),
+    open: (id, how) => ipcRenderer.invoke('hq:claude-prompts:open', id, how),
   },
   // AI archive H6: the imports drop folder — announced once, imported only after the owner confirms
   claudeImports: {

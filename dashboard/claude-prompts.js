@@ -5,7 +5,7 @@
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { PROMPTS_REL, slugify, noteName } = require('./claude-prompt-note');
+const { PROMPTS_REL, slugify, noteName, promptDocId } = require('./claude-prompt-note');
 const { writeNoteAtomic } = require('./claude-vault');
 
 const NOTE_TEXT_MAX = 200000;
@@ -57,4 +57,64 @@ async function writePromptNote(vaultDir, { name, text } = {}, { ops } = {}) {
   }
 }
 
-module.exports = { NOTE_TEXT_MAX, resolvePromptsDir, writePromptNote };
+// spec §2: the only obsidian:// link ever opened — vault = basename of the configured vault root, file = a note directly
+// inside 40_Resources/Prompts that findPromptFile just found on disk. Never a URL or path from the renderer, index or note text.
+function obsidianUrl(vaultName, fileName) {
+  if (typeof fileName !== 'string' || path.basename(fileName) !== fileName || /[\\/]/.test(fileName) || !/\.md$/i.test(fileName)) throw new Error('not a prompt note name');
+  return 'obsidian://open?vault=' + encodeURIComponent(String(vaultName)) + '&file=' + encodeURIComponent([...PROMPTS_REL, fileName.replace(/\.md$/i, '')].join('/'));
+}
+
+function findPromptFile(vaultDir, realDir, id) {
+  if (typeof id !== 'string' || !/^prompt:[0-9a-f]{40}$/.test(id)) return null;
+  let names = [];
+  try { names = fs.readdirSync(realDir, { withFileTypes: true }).filter((d) => d.isFile() && /\.md$/i.test(d.name)).map((d) => d.name); } catch { return null; }
+  const base = path.join(path.resolve(vaultDir), ...PROMPTS_REL);   // the Hub ids the file by this path (H6 docId)
+  for (const name of names) if (promptDocId(path.join(base, name)) === id) return { name, file: path.join(realDir, name) };
+  return null;
+}
+
+function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {}, log = () => {} }) {
+  const vaultName = vaultDir ? path.basename(path.resolve(vaultDir)) : null;
+  const dry = () => env.HQ_DRY_LAUNCH === '1';
+  const hasObsidian = () => { try { return !!protocolName('obsidian://'); } catch { return false; } };
+  const why = (e) => String((e && e.message) || e).slice(0, 300);
+  return {
+    async status() {
+      const folder = { exists: false };
+      try { folder.exists = !!(await resolvePromptsDir(vaultDir)); } catch (e) { folder.error = why(e); }
+      return { vault: vaultName, rel: PROMPTS_REL.join('/'), folder, obsidian: hasObsidian() };
+    },
+    async open(id, how) {
+      try {
+        if (how !== 'obsidian' && how !== 'file') return { error: 'a prompt note opens only in Obsidian or as a file' };
+        const realDir = await resolvePromptsDir(vaultDir);
+        if (!realDir) return { error: `No prompts folder yet — create ${vaultName}/${PROMPTS_REL.join('/')}` };
+        const hit = findPromptFile(vaultDir, realDir, id);
+        if (!hit) return { error: 'that prompt note is not in the Prompts folder (moved, renamed or deleted?)' };
+        const real = await fsp.realpath(hit.file);
+        if (!same(path.dirname(real), realDir)) return { error: 'that note leads outside the Prompts folder — refusing' };
+        if (how === 'obsidian') {
+          if (!hasObsidian()) return { error: 'Obsidian is not installed — use Open file', fallback: 'file' };
+          const url = obsidianUrl(vaultName, hit.name);
+          if (dry()) { log('[dry-open] obsidian ' + hit.name); return { ok: true, how, dry: true }; }
+          await openExternal(url);
+          return { ok: true, how };
+        }
+        if (dry()) { log('[dry-open] file ' + hit.name); return { ok: true, how, dry: true }; }
+        const err = await openPath(real);
+        return err ? { error: 'Windows could not open the note: ' + String(err).slice(0, 200) } : { ok: true, how };
+      } catch (e) { return { error: why(e) }; }
+    },
+  };
+}
+
+function init({ ipcMain, app, shell, vaultDir, env = process.env, log = console.log }) {
+  const p = createPrompts({ vaultDir: env.HQ_VAULT_DIR || vaultDir, env, log,
+    openExternal: (u) => shell.openExternal(u), openPath: (f) => shell.openPath(f),
+    protocolName: (u) => (app && app.getApplicationNameForProtocol ? app.getApplicationNameForProtocol(u) : '') });
+  ipcMain.handle('hq:claude-prompts:status', () => p.status());
+  ipcMain.handle('hq:claude-prompts:open', (_e, id, how) => p.open(typeof id === 'string' && id.length <= 300 ? id : '', how));
+  return p;
+}
+
+module.exports = { NOTE_TEXT_MAX, resolvePromptsDir, writePromptNote, obsidianUrl, findPromptFile, createPrompts, init };
