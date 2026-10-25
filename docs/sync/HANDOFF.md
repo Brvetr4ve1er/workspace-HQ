@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 12:50 · FROM frontend · main @ fd8e885
+DONE: Claude Hub H5 (plan docs/superpowers/plans/2026-10-15-claude-hub-h5.md), commits H5.1–H5.7 + this meta commit: Hub op contextFor
+  (context.mjs; OR-of-keywords FTS, cited "chat <title>, <date>", inside a budget); llm-context.js 'claude' section
+  (3 000-char reserve, Hub-down notes; unticked = byte-identical); Ask's 7th chip "Claude history"; Save to vault
+  (claude-vault.js: local-model draft → editable v5 dialog → atomic write under VEEMO CORTEX/30_Areas/Claude/, Replace
+  only for the chat's own note); golden-diff.mjs; CDP ask-claude-chip, vault-preview-confirm. Real-instance gate on
+  fixtures: PASS (local model: none → offline branch: save / refuse-without-replace / replace / outside-path refusal all ok; Hub-down note seen: "Claude Hub is not running", Hub back to ready within 6 s, scan section present). Suites: hub 125, dashboard 461, v5 373, selftest 2280 combos 0 failures, CDP 24/24. Owner's vault and data/claude untouched; no chat text in logs.
+IN-FLIGHT: none. The owner's app was NOT restarted (controller's step); the extension is unchanged.
+ASKS: none.
+BREAKS: main.js +2 lines (claudeHub passed to llmContext.assemble in hq:llm:chat; require('./claude-vault').init after
+  the Hub host init). New IPC hq:claude-vault:preview|save + preload hq.claudeVault; hq:llm:chat include.claude +
+  sections[].cites (IPC-CONTRACT rows). hq-oracle-include gains "claude" only while on (v3 rollback drops it — spec).
+  New env HQ_VAULT_DIR (gates). CONTRACT.md: the vault-note shape.
+
 ## 2026-10-25 · FROM frontend (Claude Hub H4 — final review fixes) · main @ ff432af
 DONE: 1408c6e — extension claude.ai sync: one run and one 2 s pacer per service-worker life (alarm + click + back-to-back
   runs share them); switching sync off bumps a run generation, so off→on mid-run stops the old run instead of doubling the
