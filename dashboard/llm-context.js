@@ -11,7 +11,9 @@
 // fields (insights / suggestions / roadmap) are omitted entirely.
 //
 // Budgets keep the whole prompt inside the 8k-token window llm-local asks for:
-// 4 KB per section, 12 KB total (~3k tokens) + persona + chat history.
+// 4 KB per section, 12 KB total (~3k tokens) + persona + chat history. When
+// "Claude history" is ticked (Claude Hub H5) it is assembled last with
+// CLAUDE_RESERVE chars held back for it, so the other sections share 9 KB.
 'use strict';
 
 const fs = require('node:fs');
@@ -21,8 +23,10 @@ const { BROWSER_WINDOW_DAYS } = require('./browser-bridge');
 
 const SECTION_MAX = 4000;
 const TOTAL_MAX = 12000;
-const SECTION_IDS = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault'];
-const LABEL = { scan: 'scan', tasks: 'tasks', projects: 'projects', health: 'PC health', browser: 'browser', vault: 'vault' };
+const CLAUDE_RESERVE = 3000;
+const CLAUDE_TIMEOUT_MS = 4000;
+const SECTION_IDS = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude'];
+const LABEL = { scan: 'scan', tasks: 'tasks', projects: 'projects', health: 'PC health', browser: 'browser', vault: 'vault', claude: 'Claude history' };
 
 const TIER = { red: 'critical', orange: 'important', yellow: 'housekeeping' };
 const ORGAN_STATUS = { grace: 'healthy', ember: 'warning', blood: 'critical' };
@@ -240,29 +244,57 @@ async function vaultSection(vaultDir, query) {
   return out.join('\n');
 }
 
+// Claude history (Claude Hub H5): cited snippets of past chats from the Hub's contextFor op. The Hub runs on system
+// Node with node:sqlite; this main process only asks it through claude-hub-host's request(), which never rejects.
+// A missing, stopped or slow Hub is a NOTE (shown in Ask's meta line), never an exception and never an empty success.
+const HUB_NOTE = {
+  'hub not running': 'Claude Hub is not running',
+  'hub stopped': 'Claude Hub stopped while answering',
+  timeout: 'Claude Hub did not answer within 4 s',
+};
+async function claudeSection(claudeHub, query, budgetChars) {
+  if (!claudeHub || typeof claudeHub.request !== 'function') return { text: '', cites: [], note: HUB_NOTE['hub not running'] };
+  let r;
+  try { r = await claudeHub.request('contextFor', { query: String(query || ''), budgetChars }, { timeout: CLAUDE_TIMEOUT_MS }); }
+  catch (e) { return { text: '', cites: [], note: line(e?.message || e, 80) }; }
+  if (r && typeof r.error === 'string') return { text: '', cites: [], note: HUB_NOTE[r.error] || line(r.error, 80) };
+  if (!r || typeof r !== 'object' || typeof r.text !== 'string' || !Array.isArray(r.cites)) return { text: '', cites: [], note: 'the Claude Hub answered in an unknown shape' };
+  const out = { text: r.text.slice(0, Math.max(0, budgetChars)), cites: r.cites.filter((c) => typeof c === 'string').map((c) => line(c, 120)) };
+  if (typeof r.note === 'string' && r.note) out.note = r.note;
+  return out;
+}
+
 // ---------------------------------------------------------------- assemble
 // -> { text, sections: [{id, label, chars, clipped, note?}], chars }
-async function assemble({ dataDir, vaultDir, include = {}, query = '', activity = null, now = new Date() } = {}) {
+async function assemble({ dataDir, vaultDir, include = {}, query = '', activity = null, now = new Date(), claudeHub = null } = {}) {
   const S = readJson(path.join(dataDir, 'latest.json'));
   const header = `TODAY: ${localDay(now)} (${now.toLocaleDateString('en-US', { weekday: 'long' })}), local time ${now.toTimeString().slice(0, 5)}.`;
   const parts = [header];
   const sections = [];
   let used = header.length;
 
-  const add = (id, body) => {
+  // Ticking Claude history holds CLAUDE_RESERVE back from every other section (claude is assembled last).
+  const reserve = include.claude === true ? CLAUDE_RESERVE : 0;
+  const add = (id, body, extra) => {
     let text = body, clipped = false;
     if (text.length > SECTION_MAX) { text = text.slice(0, SECTION_MAX - 16) + '\n…[trimmed]'; clipped = true; }
-    const room = TOTAL_MAX - used;
-    if (room < 200) { sections.push({ id, label: LABEL[id], chars: 0, clipped: true, note: 'dropped — context budget full' }); return; }
+    const room = TOTAL_MAX - used - (id === 'claude' ? 0 : reserve);
+    if (room < 200) { sections.push({ id, label: LABEL[id], chars: 0, clipped: true, note: 'dropped — context budget full', ...(extra ? { cites: [] } : {}) }); return; }
     if (text.length > room) { text = text.slice(0, room - 16) + '\n…[trimmed]'; clipped = true; }
     parts.push(text);
     used += text.length + 2;
-    sections.push({ id, label: LABEL[id], chars: text.length, clipped });
+    sections.push({ id, label: LABEL[id], chars: text.length, clipped, ...(extra || {}) });
   };
 
   for (const id of SECTION_IDS) {
     if (include[id] !== true) continue;
     try {
+      if (id === 'claude') {
+        const c = await claudeSection(claudeHub, query, Math.min(CLAUDE_RESERVE, TOTAL_MAX - used - 2));
+        if (!c.text) sections.push({ id, label: LABEL[id], chars: 0, clipped: false, cites: [], ...(c.note ? { note: c.note } : {}) });
+        else add(id, c.text, { cites: c.cites, ...(c.note ? { note: c.note } : {}) });
+        continue;
+      }
       if (id === 'vault') { add(id, await vaultSection(vaultDir, query)); continue; }
       if (id === 'health') { add(id, healthSection(readJson(path.join(dataDir, 'pc-health.json')))); continue; }
       if (!S) { sections.push({ id, label: LABEL[id], chars: 0, clipped: false, note: 'no scan data yet' }); continue; }
@@ -279,4 +311,4 @@ async function assemble({ dataDir, vaultDir, include = {}, query = '', activity 
   return { text, sections, chars: text.length };
 }
 
-module.exports = { assemble, SECTION_IDS };
+module.exports = { assemble, claudeSection, SECTION_IDS, CLAUDE_RESERVE };

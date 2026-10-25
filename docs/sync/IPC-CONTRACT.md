@@ -389,6 +389,21 @@ the last two are reached only through the local bridge routes (CONTRACT.md "Loca
 claude.ai chats appear in every existing list/search/thread channel with `source:'web'`, ids `web:<uuid>`, `title_source:'web'`,
 no `cwd`/`git_branch`/tokens (null — unknown, not zero).
 
+## 2026-10-16 — Claude Hub, phase H5 (rows written before the handler lands)
+
+Additive only. Main-side code lives in NEW files (`dashboard/claude-vault.js`) with one-line hooks in `main.js` (rule 2).
+
+### Changed channels (H5)
+
+| Channel | Addition |
+|---|---|
+| `hq:llm:chat` | (Claude Hub H5) `req.include` gains the 7th key `claude` (boolean, default off). When it is `true`, main asks the Claude Hub op `contextFor({query, budgetChars ≤ 3000})` (4 s timeout) and the answer's `sections` gains `{id:'claude', label:'Claude history', chars, clipped, cites:['chat <title>, <date>', …], note?}`; the other sections then share 9 000 of the 12 000-char budget. A Hub that is missing, down or slow only adds a `note` ("Claude Hub is not running" …); the answer still runs. Unticked = byte-identical context to before |
+
+### Claude Hub — Save to vault (spec 2026-10-13-claude-hub-design.md §7/§9, phase H5)
+
+| Preload | Channel | Shape |
+|---|---|---|
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

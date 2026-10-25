@@ -839,6 +839,7 @@ ipcMain.handle('hq:llm:chat', async (e, req) => {
     const ctx = await llmContext.assemble({
       dataDir: DATA, vaultDir: VAULT, include: c.include, query: c.messages[c.messages.length - 1].content,
       activity: bridge ? bridge.readActivity() : null,
+      claudeHub,   // Claude Hub H5: the 'claude' section asks the Hub's contextFor (null-safe)
     });
     if (ac.signal.aborted) return { status: 'cancelled', output: '', sections: ctx.sections, contextChars: ctx.chars, ms: Date.now() - t0 };
     // The persona file is split at <!-- after-context -->: the answer rules go
