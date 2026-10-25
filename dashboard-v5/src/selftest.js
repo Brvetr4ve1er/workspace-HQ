@@ -128,7 +128,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport };
+    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -237,6 +237,14 @@ export async function run(W = window.WHQ) {
             ['ci-running', at('claude', 'chats'), {}, () => { LV.claudeImport = { kind: 'import', phase: 'conversations', done: 12, total: 0 }; }],
             ['ci-done', at('claude', 'chats'), {}, () => { LV.claudeImport = { kind: 'import', phase: 'done', done: 5, total: 5, report: { conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 }, messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 }, unknownFields: { mystery_field: 1 }, truncated: false } }; }],
             ['ci-failed', at('claude', 'chats'), {}, () => { LV.claudeImport = { kind: 'import', phase: 'failed', done: 0, total: 0, error: 'not a zip file' }; }],
+            ['h6-doc-hits', at('claude', 'chats'), {}, clLib({ q: 'tea', hits: [], docHits: [{ id: 'memory:1', source: 'memory', title: 'Tea rule', snippet: 'offer \u0002tea\u0003', mtime_ms: 1759320000000 }, { id: 'claude-md:2', source: 'claude-md', title: 'CLAUDE.md — p', snippet: '\u0002tea\u0003', mtime_ms: 1759320000000 }] })],
+            ['h6-doc-open', at('claude', 'chats'), {}, clLib({ doc: { id: 'memory:1', source: 'memory', title: 'Tea rule', text: 'line one\nline two', project_path: 'C:\\fake\\p', mtime_ms: 1759320000000 } })],
+            ['h6-doc-loading', at('claude', 'chats'), {}, clLib({ doc: { id: 'memory:1', loading: true } })],
+            ['h6-doc-error', at('claude', 'chats'), {}, clLib({ doc: { id: 'memory:1', error: 'That document is no longer in the index (its file was removed or it was forgotten).' } })],
+            ['h6-drop-card', at('claude', 'chats'), {}, () => { LV.claudeImports = { folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 39845888, kind: 'chatgpt' }, { dropId: 'd2', file: 'claude.zip', bytes: 1000, kind: 'claude' }], refused: [], error: null }; }],
+            ['h6-drop-card-reader', at('home'), {}, () => { LV.claudeHub = { ...(LV.claudeHub || {}), state: 'ready', role: 'reader' }; LV.claudeImports = { folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 1, kind: 'chatgpt' }], refused: [], error: null }; }],
+            ['h6-system-report', at('system', 'machine'), {}, () => { LV.claudeHub = { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 4, messages: 10, documents: 5 }, lastImport: { at: '2026-10-25T10:00:00Z', ok: true, source: 'chatgpt', report: { source: 'chatgpt', conversations: { imported: 4, unchanged: 0, forgotten: 0, skipped: 3 }, messages: { imported: 10, skipped: 0, empty: 1 }, branches: { skipped: 2 }, files: { other: ['chat.html'] }, memory: { found: false, imported: 0 } } } }; LV.claudeImports = { folder: { exists: false, name: 'WorkspaceHQ Imports' }, found: [], refused: [{ file: 'photos.zip', error: 'Not a ChatGPT or claude.ai export (looked for conversations.json)' }], error: null }; }],
+            ['h6-chatgpt-filter', at('claude', 'chats'), { clSrc: 'chatgpt' }, clLib({ convs: [] })],
             ['cc-web', at('claude', 'chats'), { ccOpen: true, ccConv: 'web:st-web' }, () => { LV.claudeLib = { ...LV.claudeLib, thread: { conversation: { id: 'web:st-web', source: 'web', title: 'Selftest web chat', project_id: 'web:chats' }, messages: [], hasMore: false }, projects: [{ id: 'web:chats', source: 'web', hq_project_id: null }] }; }],
           ];
         })(),

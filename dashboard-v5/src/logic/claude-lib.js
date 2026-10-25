@@ -22,6 +22,7 @@ export function chatsView(lib, hub, S, hasBridge, now = Date.now()) {
     if (L.convs === null) emptyText = L.error ? 'Couldn’t load chats — the Hub answered with an error (shown below). It retries when the Hub reports ready; changing a filter retries too.' : 'Loading chats…';
     else if (!rows.length && hub && hub.state === 'indexing') emptyText = 'The Hub is still reading your transcripts (' + ((hub.backfill && hub.backfill.done) || 0) + ' of ' + ((hub.backfill && hub.backfill.total) || '?') + ' files).';
     else if (!rows.length && S.clSrc === 'web' && !S.clProj && S.clSince === 'all') emptyText = 'No claude.ai chats yet — import your claude.ai data export (button above) or turn on "Sync claude.ai" in the WorkspaceHQ Bridge extension.';
+    else if (!rows.length && S.clSrc === 'chatgpt' && !S.clProj && S.clSince === 'all') emptyText = 'No ChatGPT chats yet — import your ChatGPT data export (button above) or drop it in Documents\\WorkspaceHQ Imports.';
     else if (!rows.length && filtered) emptyText = 'No chats match these filters.';
     else if (!rows.length) emptyText = 'No Claude Code sessions indexed yet — the Hub reads ~/.claude/projects.';
   }
@@ -64,7 +65,7 @@ export function pageChats(rows, now = Date.now()) { return (rows || []).slice(0,
 
 const readPrefs = () => { try { return JSON.parse(localStorage.getItem(CL_PREFS_KEY) || '{}') || {}; } catch { return {}; } };
 const writePrefs = (p) => { try { localStorage.setItem(CL_PREFS_KEY, JSON.stringify(p)); } catch { /* storage blocked: filters just do not persist */ } };
-export const clPrefs = () => { const p = readPrefs(); return { clSrc: ['all', 'code', 'web'].includes(p.clSrc) ? p.clSrc : 'all', clProj: typeof p.clProj === 'string' ? p.clProj : '', clSince: ['all', '7', '30'].includes(p.clSince) ? p.clSince : 'all' }; };
+export const clPrefs = () => { const p = readPrefs(); return { clSrc: ['all', 'code', 'web', 'chatgpt'].includes(p.clSrc) ? p.clSrc : 'all', clProj: typeof p.clProj === 'string' ? p.clProj : '', clSince: ['all', '7', '30'].includes(p.clSince) ? p.clSince : 'all' }; };
 
 export const claudeLibLogic = {
   clFilters(S = this.state) {

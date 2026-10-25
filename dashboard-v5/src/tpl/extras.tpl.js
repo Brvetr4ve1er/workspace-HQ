@@ -83,5 +83,7 @@ export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P
       </div>
     </div>
   </sc-if>
+  <!-- v5: AI archive H6 (spec §2/§6.3) — a ZIP dropped in Documents\WorkspaceHQ Imports is offered ONCE; nothing runs until Import -->
+  <sc-if value="{{ diShow }}" hint-placeholder-val="{{ false }}"><div data-di="card" role="dialog" aria-label="Import a dropped export" style="position:fixed;right:16px;bottom:16px;z-index:1050;max-width:min(420px,calc(100vw - 32px));background:var(--card);border:1px solid var(--purple);border-radius:12px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:var(--term)"><div style="font-size:14px;color:var(--text)">{{ diCard.text }}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">{{ diCard.sub }}</div><div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><button type="button" data-di="confirm" onClick="{{ diConfirm }}" disabled="{{ diCant }}" title="{{ diCantTip }}" style="height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--purple);background:var(--purple);color:var(--bg);cursor:pointer;font-family:var(--term)">Import</button><button type="button" data-di="dismiss" onClick="{{ diDismiss }}" style="height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)" style-hover="background:var(--frame)">Not now</button><span style="font-size:11px;color:var(--faint)">{{ diMore }}</span></div></div></sc-if>
 
 `;

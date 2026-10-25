@@ -35,7 +35,7 @@ export function composerView(S, LIVE, { hasBridge, canWrite, writeReason, hqProj
   const turns = raw.map(chatTurnView);
   const run = turns.find((t) => t.running);
   const conv = thread && thread.conversation;
-  const isWeb = !!(conv && conv.source === 'web');   // H4: a claude.ai chat continues as a NEW Claude Code chat (spec §8)
+  const isWeb = !!(conv && (conv.source === 'web' || conv.source === 'chatgpt'));   // H4/H6: a claude.ai or ChatGPT chat continues as a NEW Claude Code chat
   const hubProj = isWeb ? (lib.projects || []).find((p) => p.id === conv.project_id) : null;
   const webLinked = !!(hubProj && hubProj.hq_project_id);
   const opts = pickerOptions(hqProjects, lib.projects);

@@ -22,7 +22,7 @@ export function claudeChatVals(ctx) {
     ccStop: () => this.ccStop(), ccRunning: cv.running, ccQuota: cv.quota, ccClose: () => this.ccClose(),
     ccContinue: () => this.ccContinue(), ccCanContinue: !!(thread && thread.conversation && thread.conversation.id),
     ccShowPicks: cv.showPicks, ccIsWeb: cv.isWeb, ccWebNote: cv.webNote,
-    ccContinueLabel: thread && thread.conversation && thread.conversation.source === 'web' ? 'Continue in Claude Code' : 'Continue',
+    ccContinueLabel: thread && thread.conversation && (thread.conversation.source === 'web' || thread.conversation.source === 'chatgpt') ? 'Continue in Claude Code' : 'Continue',
     ccOpenThread: () => this.ccOpenThread(), ccHasConv: !!cv.convId, ccSending: cv.sending,
   };
 }

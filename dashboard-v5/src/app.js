@@ -19,6 +19,7 @@ import { claudeLogic } from './logic/claude.js';
 import { claudeLibLogic, clPrefs } from './logic/claude-lib.js';
 import { claudeChatLogic } from './logic/claude-chat.js';
 import { claudeImportLogic } from './logic/claude-import.js';
+import { claudeImportsLogic } from './logic/claude-imports.js';
 import { runsLogic } from './logic/runs.js';
 import { commitLogic } from './logic/commit.js';
 import { sheetLogic } from './logic/sheet.js';
@@ -386,5 +387,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic);
 Component.prototype.renderVals = renderVals;

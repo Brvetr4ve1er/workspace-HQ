@@ -416,6 +416,13 @@ add('claude.import-done', ciAt({ kind: 'import', phase: 'done', done: 5, total: 
 add('claude.import-failed', ciAt({ kind: 'import', phase: 'failed', done: 0, total: 0, error: 'not a zip file' }));
 add('claude.import-reader', ciAt(null, { ...CI_HUB, role: 'reader' }));
 add('claude.import-last', ciAt(null, { ...CI_HUB, lastImport: { at: '2026-10-04T08:00:00.000Z', ok: true, report: CI_REP } }));
+// ---- AI archive H6: document hits + in-place view, drop confirm card, System ChatGPT report, ChatGPT source filter
+const H6_DOCS = [{ id: 'memory:1', source: 'memory', title: 'Tea rule', snippet: 'offer \u0002tea\u0003', mtime_ms: 1759320000000 }];
+add('claude.h6-doc-hits', { hq: CI_HQ, live: (L) => { L.claudeLib = { ...L.claudeLib, q: 'tea', hits: [], docHits: H6_DOCS }; }, state: tabSub('claude', 'chats') });
+add('claude.h6-doc-open', { hq: CI_HQ, live: (L) => { L.claudeLib = { ...L.claudeLib, doc: { id: 'memory:1', source: 'memory', title: 'Tea rule', text: 'a\nb', mtime_ms: 1759320000000 } }; }, state: tabSub('claude', 'chats') });
+add('claude.h6-drop-card', { hq: CI_HQ, live: (L) => { L.claudeImports = { folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 39845888, kind: 'chatgpt' }], refused: [], error: null }; }, state: tabSub('claude', 'chats') });
+add('system.h6-chatgpt-report', { hq: CI_HQ, live: (L) => { L.claudeHub = { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 4, messages: 10, documents: 5 }, lastImport: { at: '2026-10-25T10:00:00Z', ok: true, source: 'chatgpt', report: { source: 'chatgpt', conversations: { imported: 4 }, messages: { imported: 10 }, branches: { skipped: 2 }, files: { other: [] }, memory: { found: false, imported: 0 } } } }; }, state: tabSub('system', 'machine') });
+add('claude.h6-chatgpt-filter', { hq: CI_HQ, live: (L) => { L.claudeLib = { ...L.claudeLib, convs: [] }; }, state: (c) => ({ ...tabSub('claude', 'chats')(c), clSrc: 'chatgpt' }) });
 add('claude.web-continue', { hq: CC_HQ, live: (L) => {
   L.claudeLib.thread = { conversation: { id: 'web:g-web', source: 'web', title: 'Golden web chat', project_id: 'web:chats' }, messages: [], hasMore: false };
   L.claudeLib.projects = [{ id: 'web:chats', source: 'web', key: 'chats', name: 'claude.ai chats', hq_project_id: null, link_state: 'none', conversations: 1, last_at: CL_AT }];

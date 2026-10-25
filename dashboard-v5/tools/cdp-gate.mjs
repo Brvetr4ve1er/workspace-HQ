@@ -28,6 +28,8 @@
 //   claude-chat-stream-stop · claude-chat-mode-readonly
 // H4 claude.ai import scenario (same rules; claudeHub.importExport answered by the fake, progress events emitted by hand):
 //   claude-import-progress
+// H6 archive scenarios (same rules; the fake watcher events are emitted by hand, the fake Hub answers documents):
+//   imports-drop-confirm · search-documents
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -1139,6 +1141,58 @@ const SCENARIOS = {
 
   // H5 (spec §9 Ask, §11 ask-claude-chip): the 7th chip is off by default, is sent as include.claude, persists as the
   // extra key "claude" only while on, and the answer's meta line names the chat it drew from.
+  // H6 (spec §2/§6.3, §9): a ZIP the watcher found is offered ONCE as a non-modal card — Import sends kind auto + the dropId
+  // (no file path from the page), the card goes at once, "Not now" dismisses by dropId; the card never guesses a chat count.
+  async 'imports-drop-confirm'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const fails = [];
+    const found = (id, file, kind) => `hqFake.emit('hq:claude-imports:event', { event: 'found', data: { dropId: '${id}', file: '${file}', bytes: 39845888, kind: '${kind}' } })`;
+    try {
+      await t.evaluate(`WHQ.app.logic.go('home')`);
+      await t.evaluate(found('d1', 'chatgpt-export.zip', 'chatgpt'));
+      if (!(await t.waitFor(`!!document.querySelector('[data-di="card"]')`, 3000))) return ['the drop card never rendered'];
+      const text = await t.evaluate(`document.querySelector('[data-di="card"]').textContent`);
+      if (!/Import ChatGPT export \(chatgpt-export\.zip, /.test(text)) fails.push('card text: ' + text);
+      if (/chats\)/.test(text)) fails.push('the card guessed a chat count');
+      await t.evaluate(`document.querySelector('[data-di="confirm"]').click()`);
+      if (!(await t.waitFor(`hqFake.calls('claudeHub.importExport').length === 1`, 3000))) fails.push('importExport was not called');
+      const c = await t.evaluate(`JSON.stringify(hqFake.calls('claudeHub.importExport'))`);
+      if (!c.includes('"auto"') || !c.includes('"dropId":"d1"')) fails.push('wrong importExport args: ' + c);
+      if (!(await t.waitFor(`!document.querySelector('[data-di="card"]')`, 3000))) fails.push('the card stayed after Import');
+      await t.evaluate(found('d2', 'claude.zip', 'claude'));
+      if (!(await t.waitFor(`!!document.querySelector('[data-di="dismiss"]')`, 3000))) fails.push('second card missing');
+      await t.evaluate(`document.querySelector('[data-di="dismiss"]').click()`);
+      if (!(await t.waitFor(`hqFake.calls('claudeImports.dismiss').length === 1`, 3000))) fails.push('dismiss was not called');
+      if (!(await t.waitFor(`!document.querySelector('[data-di="card"]')`, 3000))) fails.push('the card stayed after Not now');
+    } finally {
+      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; if (L.store && L.store.live) { L.store.live.claudeImport = null; L.store.live.claudeImports = { folder: null, found: [], refused: [], error: null }; } L.setState({}); })()`);
+    }
+    return fails.concat(t.errors());
+  },
+
+  // H6 (spec §6.3 Search): memory notes / CLAUDE.md files that match show with a source badge, the snippet markers never
+  // leak into the text, a hit opens the document in place (read-only, one document() call), Close closes it.
+  async 'search-documents'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const fails = [];
+    try {
+      await t.evaluate(`WHQ.app.logic.go('claude', 'chats')`);
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ clQuery: 'tea' }); L.clSearch(); return true; })()`);
+      if (!(await t.waitFor(`!!document.querySelector('[data-cd="hit"]')`, 4000))) return ['no document hits rendered'];
+      const badges = await t.evaluate(`[...document.querySelectorAll('[data-cd="badge"]')].map((b) => b.textContent)`);
+      if (badges.join('|') !== 'memory|CLAUDE.md') fails.push('badges: ' + badges.join('|'));
+      if (await t.evaluate(`/[\u0002\u0003]/.test(document.querySelector('[data-cd="hit"]').textContent)`)) fails.push('snippet markers leaked into the text');
+      await t.evaluate(`document.querySelector('[data-cd="hit"]').click()`);
+      if (!(await t.waitFor(`!!document.querySelector('[data-cd="doc"]') && document.querySelector('[data-cd="doc"]').textContent.includes('Offer fake tea first.')`, 3000))) fails.push('the document did not open in place');
+      if ((await t.evaluate(`hqFake.calls('claudeHub.document').length`)) !== 1) fails.push('document() not called once');
+      await t.evaluate(`document.querySelector('[data-cd="close"]').click()`);
+      if (!(await t.waitFor(`!document.querySelector('[data-cd="doc"]')`, 3000))) fails.push('Close did not close');
+    } finally {
+      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.clClearSearch(); L.store.closeClaudeDocument(); L.setState({}); })()`);
+    }
+    return fails.concat(t.errors());
+  },
+
   async 'ask-claude-chip'(t) {
     const pre = await fresh(t); if (pre) return pre;
     const out = [];
