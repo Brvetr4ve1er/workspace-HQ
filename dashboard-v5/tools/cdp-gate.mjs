@@ -34,6 +34,9 @@
 //   prompts-library-open — Library lists the fake notes; Open in Obsidian -> claudePrompts.open(id,'obsidian'); Obsidian missing -> one Open-file fallback; Run sends nothing
 //   prompts-empty-states — no folder / empty folder / Hub error each say why
 //   prompts-project-shortcut — project page "Run a prompt" opens Claude > Prompts with the project chip; x clears it
+// P2 harvest scenarios (same rules; fake FAKE_CANDIDATES / claudePrompts.promote / claudeHub.hideCandidate):
+//   prompts-promote-confirm — one confirm before any write; a clash asks once more; a batch clash is reported, never renamed
+//   prompts-candidates-hide — Hide is permanent and said so; a reader refusal shows and keeps the row; a Hub error is an error
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -127,9 +130,11 @@ async function fresh(t) {
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
     vault: null, whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null,
+    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, prView: 'library', hcSel: [], promote: null,
     ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
-    projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null }); return true; })()`);
+    projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null });
+    if (L.store && L.store.live) L.store.live.candidates = { rows: null, pooled: null, capped: null, hidden: 0, error: null, busy: false, loaded: false };
+    return true; })()`);
   await t.sleep(80);
   t.clearErrors();
   return null;
@@ -1355,6 +1360,65 @@ const SCENARIOS = {
     if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 2 && document.querySelector('[data-pr="row"]').textContent.includes('uses this project')`)) out.push('the {{project}} prompt is not first / not marked');
     await t.evaluate(`(() => { document.querySelector('[data-pr="for"] button').click(); return true; })()`);
     if (!await t.waitFor(`!document.querySelector('[data-pr="for"]')`)) out.push('✕ did not clear the project context');
+    return out.concat(t.errors());
+  },
+  async 'prompts-promote-confirm'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const out = [];
+    const calls = async () => JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.promote').map((c) => c.args[0]))`));
+    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
+    await t.evaluate(`document.querySelector('[data-hc="cand-tab"]').click()`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-hc="row"]').length === 3`)) out.push('the 3 fake candidates are not listed');
+    const why = await t.evaluate(`document.querySelector('[data-hc="row"]').textContent`);
+    if (!/used in 3 sessions \+9/.test(why) || !/Claude Code · project-a/.test(why)) out.push('row lacks its reasons/origin: ' + why.slice(0, 200));
+    // single: the confirm comes first; nothing is written before it
+    await t.evaluate(`document.querySelector('[data-hc="promote"]').click()`);
+    if (!await t.waitFor(`!!document.querySelector('[data-hc="dialog"]')`)) out.push('no confirm dialog');
+    if ((await calls()).length !== 0) out.push('promote ran before the confirm');
+    // a clash asks once more; only "Save as the new name" sends the offered name
+    await t.evaluate(`hqFake.set('claudePrompts.promote', (p) => p && p.name ? { path: '40_Resources/Prompts/' + p.name, name: p.name, id: 'prompt:' + 'c'.repeat(40), masked: 0 }
+      : { error: 'a prompt note with this name is already there', exists: true, next: 'placeholder-clash-2.md' })`);
+    await t.evaluate(`document.querySelector('[data-hc="go"]').click()`);
+    if (!await t.waitFor(`!!document.querySelector('[data-hc="clash"]')`)) out.push('no clash step');
+    if ((await calls()).length !== 1) out.push('clash: expected exactly one promote call so far');
+    await t.evaluate(`document.querySelector('[data-hc="save-as"]').click()`);
+    if (!await t.waitFor(`(document.querySelector('[data-hc="results"]') || {}).textContent?.includes('placeholder-clash-2.md')`)) out.push('no result after Save as');
+    const c2 = await calls();
+    if (c2.length !== 2 || c2[1].name !== 'placeholder-clash-2.md' || c2[0].name !== undefined) out.push('calls: ' + JSON.stringify(c2).slice(0, 300));
+    if (!c2[0] || c2[0].source?.kind !== 'code' || c2[0].tags?.[0] !== 'harvested') out.push('promote lacks provenance/tags');
+    await t.press('Escape');
+    if (!await t.waitFor(`!document.querySelector('[data-hc="dialog"]')`)) out.push('Escape did not close the dialog');
+    // multi: tick two, ONE confirm, a batch clash is reported and never sent with a name
+    await t.evaluate(`hqFake.set('claudePrompts.promote', (p) => /two/i.test(p.title) ? { error: 'a prompt note with this name is already there', exists: true, next: 'two-2.md' }
+      : { path: '40_Resources/Prompts/one.md', name: 'one.md', id: 'prompt:' + 'd'.repeat(40), masked: 0 })`);
+    await t.evaluate(`[...document.querySelectorAll('[data-hc="check"]')].slice(0, 2).forEach((b) => b.click())`);
+    await t.evaluate(`document.querySelector('[data-hc="promote-sel"]').click()`);
+    if (!await t.waitFor(`!!document.querySelector('[data-hc="dialog"]')`)) out.push('multi: no confirm dialog');
+    await t.evaluate(`document.querySelector('[data-hc="go"]').click()`);
+    if (!await t.waitFor(`(document.querySelector('[data-hc="results"]') || {}).textContent?.includes('not written')`)) out.push('multi: clash not reported');
+    const c3 = (await calls()).slice(2);
+    if (c3.length !== 2 || c3.some((p) => p.name !== undefined)) out.push('multi calls: ' + JSON.stringify(c3).slice(0, 300));
+    await t.evaluate(`document.querySelector('[data-hc="cancel"]').click()`);
+    return out.concat(t.errors());
+  },
+  async 'prompts-candidates-hide'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const out = [];
+    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
+    await t.evaluate(`document.querySelector('[data-hc="cand-tab"]').click()`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-hc="row"]').length === 3`)) out.push('candidates not listed');
+    await t.evaluate(`document.querySelector('[data-hc="hide"]').click()`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-hc="row"]').length === 2`)) out.push('hidden row still listed');
+    const k = await t.evaluate(`hqFake.calls('claudeHub.hideCandidate').map((c) => c.args[0]).join(',')`);
+    if (k !== 'cand:' + '1'.repeat(40)) out.push('hideCandidate args: ' + k);
+    if (!await t.waitFor(`document.body.textContent.includes('will not be offered again')`)) out.push('no permanent-hide toast');
+    await t.evaluate(`hqFake.set('claudeHub.hideCandidate', { error: 'read-only hub (another WorkspaceHQ owns the index)' })`);
+    await t.evaluate(`document.querySelector('[data-hc="hide"]').click()`);
+    if (!await t.waitFor(`document.body.textContent.includes('read-only hub')`)) out.push('reader refusal not shown');
+    if (await t.evaluate(`document.querySelectorAll('[data-hc="row"]').length`) !== 2) out.push('a refused hide removed the row');
+    // a Hub error is an error, never "no candidates"
+    await t.evaluate(`hqFake.set('claudeHub.promptCandidates', { error: 'timeout' }); WHQ.app.logic.hcLoad()`);
+    if (!await t.waitFor(`(document.querySelector('[data-hc="empty"]') || {}).textContent?.startsWith('Claude Hub: timeout — ')`)) out.push('Hub error not shown as an error');
     return out.concat(t.errors());
   },
 };

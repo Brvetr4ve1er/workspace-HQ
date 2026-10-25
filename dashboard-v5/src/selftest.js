@@ -16,7 +16,7 @@ import { gapsOf } from './live/adapter.mjs';
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
+const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false, prView: 'library', hcSel: [], promote: null,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, studioFilter: 'all' };
@@ -128,7 +128,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports, prompts: LV.prompts };
+    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports, prompts: LV.prompts, candidates: LV.candidates };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -167,6 +167,19 @@ export async function run(W = window.WHQ) {
       ];
       const PR_ST = (o = {}) => ({ vault: 'VEEMO CORTEX', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true, ...o });
       const prLib = (P) => () => { LV.prompts = { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false, ...P }; };
+      // P2 harvest candidates (placeholder text)
+      const HC1 = 'cand:' + '1'.repeat(40), HC2 = 'cand:' + '2'.repeat(40);
+      const HC_ROWS = [
+        { key: HC1, text: 'Placeholder prompt one: review the placeholder module and list what to change, file by file.', score: 11, sessions: 3, lastAt: '2026-10-01T10:00:00Z',
+          reasons: [{ key: 'reuse', points: 9, text: 'used in 3 sessions' }, { key: 'turns', points: 2, text: 'followed by 8 assistant messages' }],
+          sources: [{ kind: 'code', conversationId: 'code:sess-a1', at: '2026-10-01T10:00:00Z', project: 'project-a' }] },
+        { key: HC2, text: 'Placeholder prompt two: draft a placeholder plan with steps, owners and checks for each step.', score: -4, sessions: 1, lastAt: '2026-09-01T10:00:00Z',
+          reasons: [{ key: 'reuse', points: 0, text: 'seen in 1 session' }, { key: 'library', points: -5, text: 'already a prompt note' }],
+          sources: [{ kind: 'chatgpt', conversationId: 'chatgpt:placeholder-1', at: '2026-09-01T10:00:00Z', project: null }] },
+      ];
+      const hcLive = (o = {}) => () => { LV.candidates = { rows: HC_ROWS.slice(), pooled: { messages: 42, history: 17 }, capped: { messages: false, history: false }, hidden: 0, error: null, busy: false, loaded: true, ...o }; };
+      const HC_ITEM = (key, title) => ({ key, title, text: 'Placeholder prompt text.', source: { kind: 'code', conversation: 'code:sess-a1', at: '2026-10-01T10:00:00Z' } });
+      const hcDlg = (phase, o = {}) => ({ prView: 'candidates', promote: { seq: 1, keys: [HC1], items: [HC_ITEM(HC1, 'Placeholder prompt one')], phase, clash: null, results: [], error: null, ...o } });
       const STATES = [
         ['ask-empty', at('home'), { askOpen: true, askHistory: [] }],
         ['ask-streaming', at('home'), { askOpen: true, askHistory: ASK_STREAMING }],
@@ -234,6 +247,16 @@ export async function run(W = window.WHQ) {
         ['prompts-nohits', at('claude', 'prompts'), { prQuery: 'zzz', prSearched: true }, prLib({ rows: PR_ROWS, stats: [], status: PR_ST(), q: 'zzz', hits: [] })],
         ['prompts-for-project', at('claude', 'prompts'), { prFor: (M.P0[0] || {}).id || null }, prLib({ rows: PR_ROWS, stats: [], status: PR_ST() })],
         ['project-run-a-prompt', at('projects', 'grid', (M.P0[0] || {}).id), {}, prLib({ rows: PR_ROWS, stats: [], status: PR_ST() })],
+        ['cand-list', at('claude', 'prompts'), { prView: 'candidates', hcSel: [HC1] }, hcLive()],
+        ['cand-loading', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ rows: null, busy: true })],
+        ['cand-empty', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ rows: [], pooled: { messages: 12, history: 3 } })],
+        ['cand-error', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ error: 'Claude Hub: timeout' })],
+        ['cand-capped', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ capped: { messages: true, history: true }, hidden: 3 })],
+        ['promote-ask-single', at('claude', 'prompts'), hcDlg('ask'), hcLive()],
+        ['promote-ask-multi', at('claude', 'prompts'), hcDlg('ask', { keys: [HC1, HC2], items: [HC_ITEM(HC1, 'Placeholder prompt one'), HC_ITEM(HC2, 'Placeholder prompt two')] }), hcLive()],
+        ['promote-saving', at('claude', 'prompts'), hcDlg('saving'), hcLive()],
+        ['promote-clash', at('claude', 'prompts'), hcDlg('clash', { clash: { next: 'placeholder-prompt-one-2.md' } }), hcLive()],
+        ['promote-done', at('claude', 'prompts'), hcDlg('done', { results: [{ title: 'Placeholder prompt one', ok: true, name: 'placeholder-prompt-one.md' }, { title: 'Placeholder prompt two', ok: false, error: 'not written — a note with that name is there; promote it alone to save it as placeholder-prompt-two-2.md' }] }), hcLive()],
         // Claude Hub H3 — composer (logic/claude-chat.js): every visible state, both themes, both snapshot ends
         ...(() => {
           const SID = '00000000-0000-4000-8000-000000000001';
