@@ -349,3 +349,60 @@ test('init: two handlers, renderer cannot inject a session id, before-quit stops
     assert.deepEqual(killed, [sp.kids[0].pid]);
   } finally { fsm.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('init: a window reload mid-turn stops that turn (Allow edits included); listeners are removed when it ends; the chat is free again', async () => {
+  const { watchSender } = require('./claude-chat.js');
+  const dir = fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'hq-chat-reload-'));
+  try {
+    const bin = pathm.join(dir, 'claude.exe'); fsm.writeFileSync(bin, '');
+    const proj = pathm.join(dir, 'project-a'); fsm.mkdirSync(proj);
+    const handlers = {}, sp = fakeSpawn(), killed = [], pushed = [];
+    const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; } };
+    let hold = null;   // lets the test reload the window while the target is still resolving
+    const hub = { request: async (op, args) => {
+      if (hold) await hold;
+      return op === 'getConversation' && args.id === 'code:' + SID2
+        ? { conversation: { id: 'code:' + SID2, source: 'code', native_id: SID2, cwd: proj }, messages: [], hasMore: false } : null;
+    } };
+    init({ ipcMain, send: (ch, d) => pushed.push(d), hub,
+      env: { HQ_CLAUDE_BIN: bin, USERPROFILE: 'C:\Users\placeholder', SystemRoot: 'C:\Windows' }, spawnFn: sp.spawnFn, kill: (pid) => killed.push(pid) });
+    const mkSender = () => Object.assign(new EventEmitter(), { isDestroyed: () => false });
+    const req = { conversationId: 'code:' + SID2, text: 'edit the readme', mode: 'edits' };
+    const ends = (id) => pushed.filter((d) => d.turnId === id && (d.kind === 'done' || d.kind === 'error'));
+
+    const w = mkSender();
+    const { turnId } = await handlers['hq:claude-chat:send']({ sender: w }, req);
+    assert.ok(turnId);
+    assert.equal(w.listenerCount('did-start-navigation'), 1);
+    w.emit('did-start-navigation', { isMainFrame: false });
+    w.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true });
+    assert.deepEqual(killed, [], 'a subframe or in-page navigation is not a reload');
+    w.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false });   // main.js mainWindow.reload()
+    assert.deepEqual(killed, [sp.kids[0].pid], 'the reload stopped the turn');
+    w.emit('destroyed');
+    assert.deepEqual(killed, [sp.kids[0].pid], 'stopped once');
+    sp.kids[0].emit('close', 1);
+    assert.equal(ends(turnId).length, 1); assert.equal(ends(turnId)[0].kind, 'done'); assert.equal(ends(turnId)[0].stopped, true);
+    for (const ev of ['did-start-navigation', 'destroyed', 'render-process-gone']) assert.equal(w.listenerCount(ev), 0, 'no listener left: ' + ev);
+
+    const w2 = mkSender();
+    const second = await handlers['hq:claude-chat:send']({ sender: w2 }, req);
+    assert.ok(second.turnId, 'slot and chat are free again');
+    w2.emit('render-process-gone', {});
+    assert.equal(killed.length, 2, 'a crashed renderer stops its turn too');
+    sp.kids[1].emit('close', 1);
+
+    const w3 = mkSender();
+    let release; hold = new Promise((r) => { release = r; });
+    const pending = handlers['hq:claude-chat:send']({ sender: w3 }, req);
+    w3.emit('did-start-navigation', { isMainFrame: true });
+    release(); hold = null;
+    assert.deepEqual(await pending, { error: 'the window that asked was reloaded — nothing was sent' });
+    assert.equal(sp.kids.length, 2, 'nothing spawned for a window that reloaded while the target resolved');
+    assert.equal(w3.listenerCount('did-start-navigation'), 0);
+
+    const gone = Object.assign(new EventEmitter(), { isDestroyed: () => true });
+    assert.deepEqual(await handlers['hq:claude-chat:send']({ sender: gone }, req), { error: 'the window that asked was reloaded — nothing was sent' });
+    let hit = 0; const d = watchSender(null, () => hit++); d(); assert.equal(hit, 0, 'no sender: no watch (unit callers)');
+  } finally { fsm.rmSync(dir, { recursive: true, force: true }); }
+});

@@ -165,6 +165,7 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
   let seq = 0;
   const FULL = `${maxTurns} Claude turns are already running — wait for one or press Stop`;
   const BUSY = 'this chat already has a turn running — wait for it or press Stop';
+  const GONE = 'the window that asked was reloaded — nothing was sent';
   const push = (d) => { try { send(EVENT, d); } catch { /* window gone */ } };
   // t.codeKey: a new (or claude.ai-seeded) chat becomes 'code:<sid>' once the CLI's init line names its session;
   // a Continue on that id must be refused while this turn still writes the transcript (spec §8: one turn per chat).
@@ -209,7 +210,7 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
     }
   }
 
-  async function sendTurn(req) {
+  async function sendTurn(req, { alive = null } = {}) {
     if (turns.size >= maxTurns) return { error: FULL };
     const target = await resolve(req);
     if (!target || target.error) return { error: (target && target.error) || 'no target' };
@@ -217,6 +218,7 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
     if (!b || b.error) return { error: (b && b.error) || NOT_FOUND };
     if (keyBusy(target.key)) return { error: BUSY };
     if (turns.size >= maxTurns) return { error: FULL };
+    if (alive && !alive()) return { error: GONE };   // the asking window reloaded while the target resolved: spawn nothing
     const args = buildArgs({ mode: req.mode, sessionId: target.sessionId });
     const opts = { cwd: target.cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] };
     const id = 'ct-' + Date.now().toString(36) + '-' + (++seq);
@@ -256,6 +258,27 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
     },
     stopAll() { for (const t of [...turns.values()]) { t.stopped = true; stop(t); } },
     running: () => turns.size,
+    has: (turnId) => turns.has(turnId),
+  };
+}
+
+// The window that asked can reload mid-turn (main reloads it after scans, captures, commits and relearn):
+// its turn rows and its Stop button are gone, so the turn is stopped instead of running on headless
+// (an Allow-edits turn would keep editing and spending quota). Same idiom as main.js hq:llm:chat.
+function watchSender(sender, onGone) {
+  if (!sender || typeof sender.on !== 'function') return () => {};
+  if (typeof sender.isDestroyed === 'function' && sender.isDestroyed()) { onGone(); return () => {}; }
+  const onNav = (ev) => { if (ev && (ev.isMainFrame === false || ev.isSameDocument === true)) return; onGone(); };
+  sender.on('did-start-navigation', onNav);
+  sender.once('destroyed', onGone);
+  sender.once('render-process-gone', onGone);
+  return () => {
+    if (typeof sender.removeListener !== 'function') return;
+    try {
+      sender.removeListener('did-start-navigation', onNav);
+      sender.removeListener('destroyed', onGone);
+      sender.removeListener('render-process-gone', onGone);
+    } catch { /* a destroyed webContents */ }
   };
 }
 
@@ -263,19 +286,28 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
 function init({ ipcMain, send, app = null, hub = null, getProjects = () => [], appLog = null, env = process.env, spawnFn, kill } = {}) {
   const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
   const hubReq = (op, args) => (hub && typeof hub.request === 'function' ? hub.request(op, args) : Promise.resolve({ error: 'hub not running' }));
+  const watches = new Map();   // turnId -> detach (the asking window's listeners)
+  const unwatch = (id) => { const d = watches.get(id); if (d) { watches.delete(id); d(); } };
   const chat = createChat({
     resolve: (req) => resolveTarget(req, { hub: hubReq, getProjects, isDir, env }),
-    bin: () => resolveClaudeBin(env), send, log: appLog, env,
+    bin: () => resolveClaudeBin(env), log: appLog, env,
+    send: (ch, d) => { try { send(ch, d); } finally { if (d && (d.kind === 'done' || d.kind === 'error')) unwatch(d.turnId); } },
     ...(spawnFn ? { spawnFn } : {}), ...(kill ? { kill } : {}),
   });
-  ipcMain.handle('hq:claude-chat:send', async (_e, req) => {
+  ipcMain.handle('hq:claude-chat:send', async (e, req) => {
     const r = req && typeof req === 'object' ? req : {};
-    try { return await chat.send({ conversationId: r.conversationId, projectId: r.projectId, text: r.text, mode: r.mode }); }
-    catch (e) { return { error: String((e && e.message) || e) }; }
+    let gone = false, turnId = null;
+    const detach = watchSender(e && e.sender, () => { gone = true; if (turnId) chat.cancel(turnId); });
+    try {
+      const out = await chat.send({ conversationId: r.conversationId, projectId: r.projectId, text: r.text, mode: r.mode }, { alive: () => !gone });
+      if (out && out.turnId && chat.has(out.turnId)) { turnId = out.turnId; watches.set(turnId, detach); if (gone) chat.cancel(turnId); }
+      else detach();
+      return out;
+    } catch (err) { detach(); return { error: String((err && err.message) || err) }; }
   });
   ipcMain.handle('hq:claude-chat:cancel', (_e, turnId) => chat.cancel(turnId));
   if (app && typeof app.on === 'function') app.on('before-quit', () => { try { chat.stopAll(); } catch { /* quitting */ } });
   return chat;
 }
 
-module.exports = { init, EVENT, resolveClaudeBin, killTree, createChat, MODES, FORBIDDEN_ARGS, PROMPT_MAX, SEED_MAX, TURN_MS, MAX_TURNS, isSessionId, buildArgs, cwdRefusal, seedPrompt, resolveTarget };
+module.exports = { init, watchSender, EVENT, resolveClaudeBin, killTree, createChat, MODES, FORBIDDEN_ARGS, PROMPT_MAX, SEED_MAX, TURN_MS, MAX_TURNS, isSessionId, buildArgs, cwdRefusal, seedPrompt, resolveTarget };
