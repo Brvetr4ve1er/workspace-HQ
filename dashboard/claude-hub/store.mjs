@@ -3,6 +3,10 @@
 // on system Node ≥ 22.5. The Electron main process never opens it.
 // node:sqlite binds numbers/strings/null only — booleans become 0/1, undefined → null.
 import { DatabaseSync } from 'node:sqlite';
+import crypto from 'node:crypto';
+
+// Stable identity of a history.jsonl line (session + timestamp + indexed text): survives rotation/truncation, unlike the byte-offset id.
+export const historyLineKey = (sessionId, at, text) => crypto.createHash('sha1').update([String(sessionId), String(at ?? ''), String(text)].join('|')).digest('hex');
 
 export const SCHEMA_VERSION = 2;
 export const SNIP_START = '\u0002';
@@ -209,14 +213,20 @@ function api(db) {
       const forgotten = q("SELECT native_id FROM tombstone WHERE kind = 'conversation' AND native_id LIKE 'web:%' ORDER BY native_id").all().map((r) => r.native_id.slice(4));
       return { conversations: map('conversation'), projects: map('project'), forgotten };
     },
+    dropTombstones: (kind, prefix) => q('DELETE FROM tombstone WHERE kind = ? AND substr(native_id, 1, length(?)) = ?').run(kind, prefix, prefix).changes,
     isTombstoned: (kind, nativeId) => !!st.isTomb.get(kind, nativeId),
     forget(target) {
       return tx(() => {
         const now = new Date().toISOString();
         if (target && typeof target.documentId === 'string' && target.documentId) {
+          const prev = q('SELECT source, text, meta FROM document WHERE id = ?').get(target.documentId);
           const r = q('DELETE FROM document WHERE id = ?').run(target.documentId);
           if (!r.changes) return false;
           st.tomb.run('document', target.documentId, now);
+          if (prev && prev.source === 'history') {   // offset ids go stale on rotation: also remember the line by content
+            let m = null; try { m = JSON.parse(prev.meta); } catch { /* no meta */ }
+            if (m && m.sessionId) st.tomb.run('history-line', historyLineKey(m.sessionId, m.at, prev.text), now);
+          }
           return true;
         }
         if (target && target.conversationId) {

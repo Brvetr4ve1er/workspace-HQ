@@ -179,3 +179,40 @@ test('syncDocs = notes + history; watchDocs fires once per burst and stops on cl
   await new Promise((res) => setTimeout(res, 600));
   assert.equal(calls, n, 'closed watchers stay quiet');
 });
+
+test('syncDocs passes through unreadable roots and history counters', async () => {
+  const { s, opts, file } = histSetup();
+  fs.writeFileSync(file, historyLine({ display: 'placeholder one' }) + 'not json\n');
+  const r = await syncDocs(s, opts);
+  assert.deepEqual(r.unreadable, []);
+  assert.equal(typeof r.skipped, 'number');
+  assert.deepEqual(r.history, { added: 1, bad: 1, reset: false, missing: false });
+  const m = mock.method(fs, 'readdirSync', () => { const e = new Error('denied'); e.code = 'EPERM'; throw e; });
+  try { assert.ok((await syncDocs(s, opts)).unreadable.length >= 1); } finally { m.mock.restore(); }
+});
+
+test('history stat failures other than ENOENT surface instead of reading as missing', async () => {
+  const { s, fx, file } = histSetup();
+  fs.writeFileSync(file, historyLine({ display: 'placeholder x' }));
+  const m = mock.method(fs.promises, 'stat', async () => { const e = new Error('busy'); e.code = 'EBUSY'; throw e; });
+  try { await assert.rejects(ingestHistory(s, fx.home), /busy/); } finally { m.mock.restore(); }
+});
+
+test('a forgotten history line stays forgotten across rotation and does not hide an unrelated line at its old offset', async () => {
+  const { s, fx, file } = histSetup();
+  const a = historyLine({ display: 'placeholder keep a', timestamp: 1759320000000 }), b = historyLine({ display: 'placeholder forget me', timestamp: 1759320001000 });
+  fs.writeFileSync(file, a + b);
+  await ingestHistory(s, fx.home);
+  const bid = 'history:sess-1:' + Buffer.byteLength(a);
+  assert.equal(s.forget({ documentId: bid }), true);
+  // rotation: forgotten line now first, an unrelated same-session line lands on the old offset
+  const c = historyLine({ display: 'placeholder unrelated c', timestamp: 1759320002000 });
+  const d = historyLine({ display: 'placeholder swap a', timestamp: 1759320000000 });
+  assert.equal(Buffer.byteLength(d), Buffer.byteLength(a));
+  fs.writeFileSync(file, d + c + b);
+  const r = await ingestHistory(s, fx.home);
+  assert.equal(r.reset, true);
+  const texts = s.listDocuments({ source: 'history' }).map((d) => s.getDocument({ id: d.id }).text);
+  assert.ok(!texts.some((t) => /forget me/.test(t)), 'forgotten line does not come back');
+  assert.ok(texts.some((t) => /unrelated c/.test(t)), 'unrelated line is not hidden');
+});

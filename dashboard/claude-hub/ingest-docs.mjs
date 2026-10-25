@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { historyLineKey } from './store.mjs';
 import { maskSecrets } from './redact.mjs';
 import { cutText, TEXT_MAX } from './parse-code.mjs';
 
@@ -130,14 +131,17 @@ async function headOf(file, size) {
 // Byte-cursor ingest of ~/.claude/history.jsonl (spec §5.2). Read-only: the file is opened 'r' and never written.
 export async function ingestHistory(store, home, { chunkSize = 1 << 20, maxLine = 8 << 20 } = {}) {
   const file = path.join(home, 'history.jsonl');
-  const st = await fs.promises.stat(file).catch(() => null);
+  let st;
+  try { st = await fs.promises.stat(file); } catch (e) { if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) st = null; else throw e; }   // only 'no file' is missing; EPERM/EBUSY/EACCES surface
   if (!st || !st.isFile()) return { added: 0, bad: 0, reset: false, ids: [], missing: true };
   let cur = store.getCursor(HISTORY_CURSOR), reset = false;
   if (cur) {
     const prevLen = cur.head ? Number(String(cur.head).split(':')[0]) || 0 : 0;
     const headNow = prevLen && st.size >= prevLen ? await headOf(file, prevLen) : null;
     if (st.size < cur.offset || (cur.head && headNow !== cur.head)) {
-      store.tx(() => { store.removeDocuments({ source: 'history', idPrefix: 'history:' }); store.deleteCursor(HISTORY_CURSOR); });
+      store.tx(() => { store.removeDocuments({ source: 'history', idPrefix: 'history:' }); store.deleteCursor(HISTORY_CURSOR);
+        store.dropTombstones('document', 'history:');   // offset ids are stale now; forgotten lines stay hidden by their content key
+      });
       cur = null; reset = true;
     }
   }
@@ -155,7 +159,9 @@ export async function ingestHistory(store, home, { chunkSize = 1 << 20, maxLine 
     const at2 = typeof o.timestamp === 'number' && Number.isFinite(o.timestamp) ? new Date(o.timestamp).toISOString() : null;
     const pasted = !!(o.pastedContents && typeof o.pastedContents === 'object' && Object.keys(o.pastedContents).length);
     const id = 'history:' + sessionId + ':' + at;
-    const res = store.upsertDocument({ id, source: 'history', path: null, title: null, text: cutText(safe(display), TEXT_MAX),
+    const text = cutText(safe(display), TEXT_MAX);
+    if (store.isTombstoned('history-line', historyLineKey(sessionId, at2, text))) return;   // forgotten line, wherever it now sits
+    const res = store.upsertDocument({ id, source: 'history', path: null, title: null, text,
       projectId: null, projectPath: project, mtimeMs: null, size: buf.length, meta: { sessionId, project, pasted, at: at2 } });
     if (res === 'added' || res === 'updated') { added++; ids.push(id); }
   };
@@ -190,7 +196,8 @@ export async function ingestHistory(store, home, { chunkSize = 1 << 20, maxLine 
 export async function syncDocs(store, { home, vaultDir }) {
   const n = await syncNotes(store, { home, vaultDir });
   const h = home ? await ingestHistory(store, home) : { ids: [] };
-  return { changed: [...n.changed, ...h.ids], removed: n.removed };
+  return { changed: [...n.changed, ...h.ids], removed: n.removed, unreadable: n.unreadable, skipped: n.skipped,
+    history: { added: h.added || 0, bad: h.bad || 0, reset: !!h.reset, missing: !!h.missing } };
 }
 
 export function watchDocs({ home, vaultDir }, onChange, { debounceMs = 1000 } = {}) {
