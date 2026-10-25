@@ -276,6 +276,8 @@ function api(db) {
         SELECT date(at, ?) AS day, COUNT(DISTINCT cid) AS chats, COUNT(*) AS messages,
           CAST(ROUND(SUM(CASE WHEN gap > 0 AND gap < 300000 THEN gap ELSE 0 END)) AS INTEGER) AS active_ms
         FROM m GROUP BY day ORDER BY day`).all(lo, hi, ...pa, mod).map((r) => ({ ...r }));
+      // Token scope: usage rows carry no timestamp, so tokens_* are the WHOLE totals of the chats active in
+      // [from, to), not only tokens spent inside it (IPC-CONTRACT stats row; History labels them "whole chat").
       const projects = q(`WITH act AS (SELECT DISTINCT m.conversation_id AS cid FROM message m JOIN conversation c ON c.id = m.conversation_id
             WHERE c.forgotten = 0 AND m.at >= ? AND m.at < ? ${pw}),
           ux AS (SELECT c.project_id AS pid, u.api_id, MAX(u.tin) tin, MAX(u.tout) tout, MAX(u.tcr) tcr, MAX(u.tcw) tcw

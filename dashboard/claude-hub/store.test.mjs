@@ -236,3 +236,20 @@ test('a brand-new db is stamped with the index version; an existing one is not; 
   again.optimize();                                    // runs on a populated or empty FTS table
   again.close();
 });
+
+test('stats token scope: a chat active in the window brings its whole token total (documented, final review)', () => {
+  const s = openStore(tmpDb());
+  s.upsertProject({ id: 'code:p', source: 'code', key: 'p', name: 'project-a', path: null });
+  s.ensureConversation({ id: 'code:long', source: 'code', projectId: 'code:p', nativeId: 'long' });
+  s.addMessages('code:long', [
+    { id: 'code:long:1', role: 'user', at: '2026-08-01T10:00:00.000Z', text: 'old turn' },
+    { id: 'code:long:2', role: 'user', at: '2026-10-02T10:00:00.000Z', text: 'recent turn' },
+  ]);
+  s.addUsage('code:long', 'msg_old', { in: 1, out: 1000, cacheRead: 0, cacheWrite: 0 });
+  s.addUsage('code:long', 'msg_new', { in: 1, out: 10, cacheRead: 0, cacheWrite: 0 });
+  const r = s.stats({ from: '2026-10-01', to: '2026-10-30' });
+  assert.equal(r.totals.chats, 1);
+  assert.equal(r.totals.tokens_out, 1010);   // whole-chat total (usage has no timestamp) — IPC-CONTRACT stats row says so
+  assert.equal(s.stats({ from: '2026-09-01', to: '2026-09-30' }).projects.length, 0);   // a chat not active in the window adds nothing
+  s.close();
+});

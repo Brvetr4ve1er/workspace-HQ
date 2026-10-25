@@ -71,3 +71,11 @@ test('activityView: a failed load says why instead of Loading forever', () => {
   assert.match(activityView(null, { state: 'ready' }, true, 'Claude Hub: timeout').emptyText, /Couldn’t load Claude activity · Claude Hub: timeout/);
   assert.match(activityView(null, { state: 'ready' }, true).emptyText, /Loading Claude activity/);
 });
+test('activityView: recorded tokens are labelled whole-chat totals, not window-only (final review)', () => {
+  const st = { days: [{ day: '2026-10-04', chats: 1, messages: 2, active_ms: 0 }], projects: [{ project_id: 'code:a', name: 'project-a', chats: 1, tokens_in: 10, tokens_out: 1200, tokens_cache_read: 0, tokens_cache_write: 0 }],
+    totals: { chats: 1, active_ms: 0, tokens_in: 10, tokens_out: 1200, tokens_cache_read: 0, tokens_cache_write: 0 } };
+  const v = activityView(st, { state: 'ready' }, true);
+  assert.equal(v.projects[0].hasTokens, true);
+  assert.match(v.projects[0].tokensText, /tokens \(whole chat\)$/);
+  assert.match(v.tokensTip, /including turns before/);
+});

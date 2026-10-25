@@ -54,7 +54,9 @@ export function activityView(stats, hub, hasBridge, statsErr) {
   const empty = !s.days.length;
   return { show: !empty, bars: s.days.map((d) => ({ ...d, h: Math.max(4, Math.round((d.chats / max) * 48)) + 'px', tip: d.day + ' · ' + d.chats + ' chats · ~' + d.activeMin + ' min' })),
     chatsText: s.totals.chats + ' chat' + (s.totals.chats === 1 ? '' : 's') + ' in 30 days', activeText: '~' + s.totals.activeMin + ' min active (estimate)',
-    projects: s.projects.map((p) => ({ name: p.name, chats: p.chats, tokens: p.tokens || '', hasTokens: !!p.tokens })),
+    // usage has no per-turn time: a chat active in the window brings its whole token total, so the label says so
+    projects: s.projects.map((p) => ({ name: p.name, chats: p.chats, tokens: p.tokens || '', hasTokens: !!p.tokens, tokensText: p.tokens ? p.tokens + ' tokens (whole chat)' : '' })),
+    tokensTip: 'All tokens of each chat active in these 30 days, including turns before them (per-turn times are not recorded)',
     emptyText: empty ? why || 'No Claude chats in the last 30 days.' : '' };
 }
 export function pageChats(rows, now = Date.now()) { return (rows || []).slice(0, 5).map((r) => hubConv(r, now)); }
