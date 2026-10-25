@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { openStore, ftsQuery, SNIP_START, SNIP_END, SCHEMA_VERSION, HARVEST_POOL_MAX } from './store.mjs';
+import { openStore, ftsQuery, SNIP_START, SNIP_END, SCHEMA_VERSION, HARVEST_POOL_MAX, PROMPT_TARGETS } from './store.mjs';
 import { makeV1Db } from './__fixtures__/make-v1-db.mjs';
 
 const tmpDb = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hub-store-')), 'hub.sqlite');
@@ -470,4 +470,31 @@ test('hidden candidates survive resetCode and new rows; only cand:<sha1> keys ar
   assert.deepEqual([...s.hiddenCandidates()], [key]);
   assert.equal(s.isTombstoned('candidate', key), true);
   s.close();
+});
+
+test('P3: addPromptUse validates and writes one row per call; promptStats counts them', () => {
+  const s = openStore(':memory:');
+  const A = 'prompt:' + 'a'.repeat(40), B = 'prompt:' + 'b'.repeat(40);
+  assert.deepEqual(PROMPT_TARGETS, ['chat', 'terminal', 'claude.ai', 'chatgpt']);
+  assert.equal(s.addPromptUse({ promptId: A, at: '2026-10-25T09:00:00.000Z', target: 'chat', projectId: 'project-a' }), true);
+  s.addPromptUse({ promptId: A, at: '2026-10-25T10:00:00.000Z', target: 'claude.ai' });
+  s.addPromptUse({ promptId: B, at: '2026-10-24T08:00:00.000Z', target: 'terminal', projectId: 'project-b', conversationId: null });
+  assert.deepEqual(s.promptStats(), [
+    { prompt_id: A, uses: 2, last_at: '2026-10-25T10:00:00.000Z' },
+    { prompt_id: B, uses: 1, last_at: '2026-10-24T08:00:00.000Z' },
+  ]);
+  const row = s.db.prepare("SELECT * FROM prompt_use WHERE target = 'chat'").get();
+  assert.equal(row.project_id, 'project-a'); assert.equal(row.conversation_id, null);
+  const bad = [
+    { promptId: 'memory:' + 'a'.repeat(40), at: '2026-10-25T09:00:00Z', target: 'chat' },
+    { promptId: 'prompt:' + 'A'.repeat(40), at: '2026-10-25T09:00:00Z', target: 'chat' },
+    { promptId: A, at: '2026-10-25T09:00:00Z', target: 'https://evil.example' },
+    { promptId: A, at: '2026-10-25T09:00:00Z', target: 'CHAT' },
+    { promptId: A, at: 'yesterday', target: 'chat' },
+    { promptId: A, at: '2026-10-25T09:00:00Z', target: 'chat', projectId: 'x'.repeat(201) },
+    { promptId: A, at: '2026-10-25T09:00:00Z', target: 'chat', conversationId: 42 },
+  ];
+  for (const b of bad) assert.throws(() => s.addPromptUse(b), /^Error: promptUse: /, JSON.stringify(b));
+  assert.throws(() => s.addPromptUse(null), /promptUse: /);
+  assert.equal(s.db.prepare('SELECT COUNT(*) AS c FROM prompt_use').get().c, 3, 'a refused row writes nothing');
 });

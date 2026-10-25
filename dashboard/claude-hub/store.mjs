@@ -11,6 +11,11 @@ const { variablesOf } = promptNote;
 export const historyLineKey = (sessionId, at, text) => crypto.createHash('sha1').update([String(sessionId), String(at ?? ''), String(text)].join('|')).digest('hex');
 
 export const SCHEMA_VERSION = 2;
+// P3 (spec 2026-10-15 §4, §6.4): prompt_use targets — the only four ways a prompt is run.
+export const PROMPT_TARGETS = ['chat', 'terminal', 'claude.ai', 'chatgpt'];
+const PROMPT_ID_RE = /^prompt:[0-9a-f]{40}$/;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+const optId = (v) => v === undefined || v === null || (typeof v === 'string' && v.length <= 200);
 export const HARVEST_POOL_MAX = 20000;   // P2: newest user messages / history lines the harvest looks at (each)
 export const SNIP_START = '\u0002';
 export const SNIP_END = '\u0003';
@@ -393,6 +398,17 @@ function api(db) {
           FROM document_fts JOIN document d ON d.rowid = document_fts.rowid WHERE document_fts MATCH ? AND ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(m, ...a, lim).map(docRow);
       }
       return q(`SELECT ${cols} FROM document d WHERE ${w.join(' AND ')} ORDER BY d.mtime_ms DESC, d.id DESC LIMIT ?`).all(...a, lim).map(docRow);
+    },
+    addPromptUse(row) {
+      const r = row && typeof row === 'object' ? row : {};
+      const bad = (why) => { throw new Error('promptUse: ' + why); };
+      if (typeof r.promptId !== 'string' || !PROMPT_ID_RE.test(r.promptId)) bad('not a prompt id');
+      if (!PROMPT_TARGETS.includes(r.target)) bad('unknown target');
+      if (typeof r.at !== 'string' || !ISO_RE.test(r.at) || Number.isNaN(Date.parse(r.at))) bad('at must be an ISO time');
+      if (!optId(r.projectId) || !optId(r.conversationId)) bad('project/conversation ids must be short strings');
+      db.prepare('INSERT INTO prompt_use(prompt_id, at, target, project_id, conversation_id) VALUES (?, ?, ?, ?, ?)')
+        .run(r.promptId, r.at, r.target, n(r.projectId), n(r.conversationId));
+      return true;
     },
     promptStats: () => q(`SELECT prompt_id, COUNT(*) AS uses, MAX(at) AS last_at FROM prompt_use
       GROUP BY prompt_id ORDER BY last_at DESC, prompt_id`).all().map((r) => ({ prompt_id: r.prompt_id, uses: Number(r.uses), last_at: r.last_at })),

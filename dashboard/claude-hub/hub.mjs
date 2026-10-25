@@ -436,6 +436,14 @@ function main() {
     },
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
+    // P3: one usage row per successful prompt run (main only). Writer + queue, like forget.
+    promptUse: (a) => {
+      if (!writer) notOwner();
+      if (!store) throw new Error('the index is not open yet');
+      const r = a && typeof a === 'object' ? a : {};
+      const row = { promptId: r.promptId, target: r.target, projectId: r.projectId, conversationId: r.conversationId, at: new Date().toISOString() };
+      return serial(() => store.addPromptUse(row));
+    },
     promptStats: () => { if (!store) throw new Error('the index is not open yet'); return store.promptStats(); },
     getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
     syncState: () => (store ? store.syncState() : { conversations: {}, projects: {}, forgotten: [] }),

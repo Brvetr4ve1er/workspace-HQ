@@ -1053,3 +1053,32 @@ test('hideCandidate on a reader is refused with the reason; promptCandidates sti
     } finally { await b.stop(); }
   } finally { await a.stop(); }
 });
+
+test('P3: promptUse writes one row (writer, Hub clock); readers refuse; promptStats moves', async () => {
+  const dir = tmp('hub-p3-');
+  const { home } = makeClaudeHome(dir);
+  const env = { HQ_CLAUDE_HOME: home, HQ_VAULT_DIR: path.join(dir, 'vault') };
+  const db = path.join(dir, 'hub.sqlite');
+  const A = 'prompt:' + 'c'.repeat(40);
+  const a = startHub(env, db);
+  try {
+    await a.healthy();
+    const t0 = Date.now();
+    const w = await a.req('promptUse', { promptId: A, target: 'terminal', projectId: 'project-a' });
+    assert.equal(w.ok, true, w.error); assert.equal(w.result, true);
+    const st = (await a.req('promptStats')).result;
+    assert.equal(st.length, 1); assert.equal(st[0].prompt_id, A); assert.equal(st[0].uses, 1);
+    assert.ok(Date.parse(st[0].last_at) >= t0 - 1000, 'at is the Hub clock, not a caller value');
+    const junk = await a.req('promptUse', { promptId: A, target: 'https://evil.example' });
+    assert.equal(junk.ok, false); assert.match(junk.error, /promptUse: /);
+    assert.equal((await a.req('promptStats')).result[0].uses, 1);
+    assert.equal(a.events.filter((e) => e.event === 'changed' && JSON.stringify(e.data).includes(A)).length, 0, 'usage is not a changed event');
+    const b = startHub(env, db);
+    try {
+      assert.ok(await b.until(() => b.events.some((e) => e.event === 'ready')));
+      const r = await b.req('promptUse', { promptId: A, target: 'chat' });
+      assert.equal(r.ok, false); assert.match(r.error, /read-only hub/);
+      assert.equal((await b.req('promptStats')).result[0].uses, 1, 'readers may read the count');
+    } finally { await b.stop(); }
+  } finally { await a.stop(); }
+});
