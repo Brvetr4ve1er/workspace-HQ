@@ -150,7 +150,7 @@ function noteText({ conversation: c, plan, draft, model, basis, created }) {
   const body = String(draft || '').replace(/^\uFEFF/, '').replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/, '').trim();
   return [
     '---',
-    'source: ' + (c.source === 'web' ? 'claude.ai' : 'claude-code'),
+    'source: ' + (c.source === 'web' ? 'claude.ai' : c.source === 'chatgpt' ? 'chatgpt' : 'claude-code'),
     'conversation: ' + JSON.stringify(String(c.id)),
     'project: ' + JSON.stringify('[[' + plan.link + ']]'),
     'created: ' + created,

@@ -52,7 +52,7 @@ function cwdRefusal(dir, env = process.env) {
   return null;
 }
 
-function seedPrompt({ title, text, message } = {}) {
+function seedPrompt({ title, text, message, source } = {}) {
   let body = String(text == null ? '' : text);
   const trimmed = body.length > SEED_MAX;
   if (trimmed) {
@@ -60,7 +60,7 @@ function seedPrompt({ title, text, message } = {}) {
     if (/^[\uDC00-\uDFFF]/.test(body)) body = body.slice(1);   // never start on half a surrogate pair
   }
   const name = String(title || '').trim() || 'Untitled chat';
-  const head = `Context: a claude.ai conversation titled "${name}", copied into Claude Code by WorkspaceHQ`
+  const head = `Context: a ${source === 'chatgpt' ? 'ChatGPT' : 'claude.ai'} conversation titled "${name}", copied into Claude Code by WorkspaceHQ`
     + (trimmed ? ` (trimmed to its last ${SEED_MAX} characters)` : '');
   return { prompt: `${head}\n\n${body}\n\n---\n\n${String(message == null ? '' : message)}`, chars: body.length, trimmed };
 }
@@ -121,7 +121,7 @@ async function resolveTarget(req, { hub, getProjects, isDir, env = process.env }
     const body = (full && Array.isArray(full.messages) ? full.messages : [])
       .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text)
       .map((m) => `${SEED_SPEAKER[m.role]}: ${m.text}`).join('\n\n');
-    const s = seedPrompt({ title: c.title, text: body, message: text });
+    const s = seedPrompt({ title: c.title, text: body, message: text, source: c.source });
     return place(dest.path, { sessionId: null, key: c.id, prompt: s.prompt, seeded: { chars: s.chars, trimmed: s.trimmed } });
   }
   const dest = await projectCwd(projId);

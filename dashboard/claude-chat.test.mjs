@@ -53,6 +53,7 @@ test('seedPrompt: header, last 30 000 chars, surrogate-safe, message last', () =
   const s = seedPrompt({ title: 'Release planning', text: 'short chat', message: 'Go on' });
   assert.equal(s.trimmed, false); assert.equal(s.chars, 10);
   assert.equal(s.prompt, 'Context: a claude.ai conversation titled "Release planning", copied into Claude Code by WorkspaceHQ\n\nshort chat\n\n---\n\nGo on');
+  assert.match(seedPrompt({ title: 'Plan', text: 'x', message: 'm', source: 'chatgpt' }).prompt, /^Context: a ChatGPT conversation titled "Plan", copied into Claude Code by WorkspaceHQ/);
   const t = seedPrompt({ title: '', text: 'A'.repeat(SEED_MAX) + 'B'.repeat(10), message: 'm' });
   assert.equal(t.trimmed, true); assert.equal(t.chars, SEED_MAX);
   assert.match(t.prompt, /^Context: a claude\.ai conversation titled "Untitled chat", copied into Claude Code by WorkspaceHQ \(trimmed to its last 30000 characters\)\n\n/);

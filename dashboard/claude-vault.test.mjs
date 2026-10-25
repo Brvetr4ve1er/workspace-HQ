@@ -186,6 +186,7 @@ test('noteText: frontmatter (source, conversation, project wikilink, created) + 
   ].join('\n'));
   assert.equal(V.frontConversation(md), 'code:s-1');
   assert.match(V.noteText({ conversation: conv({ source: 'web', id: 'web:w-1' }), plan, draft: 'x', model: null, basis: 1, created: '2026-10-16' }), /^---\nsource: claude\.ai\nconversation: "web:w-1"\n/);
+  assert.match(V.noteText({ conversation: conv({ source: 'chatgpt', id: 'chatgpt:c-1' }), plan, draft: 'x', model: null, basis: 1, created: '2026-10-16' }), /^---\nsource: chatgpt\nconversation: "chatgpt:c-1"\n/);
 });
 
 const MSGS = [
