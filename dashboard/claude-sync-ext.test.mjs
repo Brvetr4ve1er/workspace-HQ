@@ -174,6 +174,20 @@ test('claudeSetOn: alarm on/off', async () => {
   assert.equal(off.status, 'off'); assert.equal(fake.alarms.has('claude-sync'), false);
 });
 
+test('tick: unticking "on" mid-run stops the reads and the status stays off', async () => {
+  const list = ['a', 'b', 'c', 'd'].map((id, i) => chat(id, '2026-10-0' + (i + 1) + 'T00:00:00Z')), calls = [], fake = chromeFake();
+  const base = fakeFetch(calls, { list });
+  const ctx = loadTick(fake, async (url, o) => {
+    const r = await base(url, o);
+    if (url.includes('/chat_conversations/d?')) fake.store.hq_claude = { ...fake.store.hq_claude, on: false, status: 'off', message: 'Off — nothing is read from claude.ai.', running: 0 };
+    return r;
+  });
+  const s = await ctx.claudeSyncTick({ sleep: fastSleep });
+  assert.equal(s.status, 'off'); assert.equal(s.on, false); assert.match(s.message, /^Off/);
+  assert.equal(calls.filter((u) => /chat_conversations\/[a-d]\?/.test(u)).length, 1, 'no GET after the switch went off');
+  assert.equal(fake.store.hq_claude.status, 'off');
+});
+
 test('manifest 0.4.0, background wiring, popup controls and the risk note', () => {
   const read = (f) => fs.readFileSync(new URL('../browser-bridge/' + f, import.meta.url), 'utf8');
   const m = JSON.parse(read('manifest.json'));

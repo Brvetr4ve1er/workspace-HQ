@@ -153,9 +153,16 @@ async function claudeSyncTick({ manual = false, sleep = claudeSleep, now = Date.
   await claudeSetState({ status: 'syncing', running: now(), message: 'Reading claude.ai…' });
   try {
     const cfg = await getCfg();
-    const r = await claudeSyncRun({ fetch: (u, o) => fetch(u, o), sleep, pace: claudeCreatePacer({ now, sleep }), app: claudeAppClient(cfg, (u, o) => fetch(u, o)), skip: s.skip || {} });
-    return claudeSetState({ status: 'ok', running: 0, nextAt: 0, lastSyncAt: now(), last: r, skip: { ...(s.skip || {}), ...r.tooBigIds }, message: claudeSummary(r) });
+    // Off-switch: re-read the stored flag around EVERY paced GET, so unticking "on" stops the run at the next request.
+    const pacer = claudeCreatePacer({ now, sleep });
+    const pace = async () => { if (!(await claudeGetState()).on) throw claudeSyncErr('off', CLAUDE_OFF_MSG); await pacer(); if (!(await claudeGetState()).on) throw claudeSyncErr('off', CLAUDE_OFF_MSG); };
+    const r = await claudeSyncRun({ fetch: (u, o) => fetch(u, o), sleep, pace, app: claudeAppClient(cfg, (u, o) => fetch(u, o)), skip: s.skip || {} });
+    // The owner may have switched sync off while the run was reading: never overwrite the off status.
+    const done = { running: 0, nextAt: 0, lastSyncAt: now(), last: r, skip: { ...(s.skip || {}), ...r.tooBigIds } };
+    if (!(await claudeGetState()).on) return claudeSetState({ ...done, status: 'off', message: CLAUDE_OFF_MSG });
+    return claudeSetState({ ...done, status: 'ok', message: claudeSummary(r) });
   } catch (e) {
+    if ((e && e.kind === 'off') || !(await claudeGetState()).on) return claudeSetState({ running: 0, nextAt: 0, status: 'off', message: CLAUDE_OFF_MSG });
     const kind = (e && e.kind) || 'app';
     return claudeSetState({ status: kind, running: 0, message: String((e && e.message) || e).slice(0, 200), nextAt: e && e.retryIn ? now() + e.retryIn : 0 });
   }
