@@ -11,6 +11,7 @@ const { variablesOf } = promptNote;
 export const historyLineKey = (sessionId, at, text) => crypto.createHash('sha1').update([String(sessionId), String(at ?? ''), String(text)].join('|')).digest('hex');
 
 export const SCHEMA_VERSION = 2;
+export const HARVEST_POOL_MAX = 20000;   // P2: newest user messages / history lines the harvest looks at (each)
 export const SNIP_START = '\u0002';
 export const SNIP_END = '\u0003';
 const ACTIVE_GAP_MS = 5 * 60 * 1000;
@@ -146,6 +147,24 @@ function api(db) {
       ON CONFLICT(file) DO UPDATE SET size = excluded.size, mtime_ms = excluded.mtime_ms, offset = excluded.offset,
       head = excluded.head, session_id = excluded.session_id`),
     delCursor: q('DELETE FROM ingest_cursor WHERE file = ?'),
+    // P2 harvest pool. turns = assistant messages after the prompt in the same chat by (at, id), counted up to 21 ("more than 20").
+    poolMsgs: q(`SELECT m.id, m.conversation_id AS cid, m.at, m.text, c.source, p.name AS project,
+        (SELECT COUNT(*) FROM (SELECT 1 FROM message a WHERE a.conversation_id = m.conversation_id AND a.role = 'assistant'
+          AND (a.at > m.at OR (a.at = m.at AND a.id > m.id)) LIMIT 21)) AS turns
+      FROM message m JOIN conversation c ON c.id = m.conversation_id LEFT JOIN project p ON p.id = c.project_id
+      WHERE m.role = 'user' AND m.is_sidechain = 0 AND m.tool_name IS NULL AND c.forgotten = 0
+        AND c.source IN ('code', 'web', 'chatgpt') AND length(m.text) >= 120
+      ORDER BY m.at DESC, m.id DESC LIMIT ?`),
+    poolHist: q(`SELECT d.id, d.text, d.project_path, json_extract(d.meta, '$.sessionId') AS sid, json_extract(d.meta, '$.at') AS at,
+        json_extract(d.meta, '$.pasted') AS pasted, json_extract(d.meta, '$.project') AS proj,
+        (SELECT COUNT(*) FROM (SELECT 1 FROM message a WHERE a.conversation_id = 'code:' || json_extract(d.meta, '$.sessionId')
+          AND a.role = 'assistant' AND a.at > json_extract(d.meta, '$.at') LIMIT 21)) AS turns
+      FROM document d
+      WHERE d.source = 'history' AND length(d.text) >= 120 AND json_valid(d.meta)
+        AND NOT EXISTS (SELECT 1 FROM tombstone t WHERE t.kind = 'conversation' AND t.native_id = 'code:' || json_extract(d.meta, '$.sessionId'))
+      ORDER BY at DESC, d.id DESC LIMIT ?`),
+    promptBodies: q("SELECT text FROM document WHERE source = 'prompt' ORDER BY id"),
+    hiddenCands: q("SELECT native_id FROM tombstone WHERE kind = 'candidate' ORDER BY native_id"),
     tomb: q('INSERT OR IGNORE INTO tombstone(kind, native_id, at) VALUES (?, ?, ?)'),
     isTomb: q('SELECT 1 AS x FROM tombstone WHERE kind = ? AND native_id = ?'),
     getMeta: q('SELECT value FROM meta WHERE key = ?'),
@@ -227,6 +246,25 @@ function api(db) {
     },
     dropTombstones: (kind, prefix) => q('DELETE FROM tombstone WHERE kind = ? AND substr(native_id, 1, length(?)) = ?').run(kind, prefix, prefix).changes,
     isTombstoned: (kind, nativeId) => !!st.isTomb.get(kind, nativeId),
+    harvestPool({ limit = HARVEST_POOL_MAX } = {}) {
+      const n = Math.max(1, Math.min(Math.floor(Number(limit)) || HARVEST_POOL_MAX, HARVEST_POOL_MAX));
+      const base = (p) => (p ? String(p).split(/[\\/]/).filter(Boolean).pop() || null : null);
+      const msgs = st.poolMsgs.all(n + 1), hist = st.poolHist.all(n + 1);
+      const rows = msgs.slice(0, n).map((r) => ({ kind: r.source, role: 'user', text: r.text, at: r.at || null, sessionKey: r.cid,
+        conversationId: r.cid, documentId: null, project: r.project || null, turnsAfter: Number(r.turns) || 0, pasted: false }))
+        .concat(hist.slice(0, n).map((r) => ({ kind: 'history', role: null, text: r.text, at: r.at || null,
+          sessionKey: r.sid ? 'code:' + r.sid : r.id, conversationId: null, documentId: r.id,
+          project: base(r.proj || r.project_path), turnsAfter: Number(r.turns) || 0, pasted: !!r.pasted })));
+      return { rows, pooled: { messages: Math.min(msgs.length, n), history: Math.min(hist.length, n) },
+        capped: { messages: msgs.length > n, history: hist.length > n } };
+    },
+    promptBodies: () => st.promptBodies.all().map((r) => r.text),
+    hiddenCandidates: () => new Set(st.hiddenCands.all().map((r) => r.native_id)),
+    hideCandidate(key) {
+      if (typeof key !== 'string' || !/^cand:[0-9a-f]{40}$/.test(key)) throw new Error('not a candidate key');
+      st.tomb.run('candidate', key, new Date().toISOString());
+      return true;
+    },
     forget(target) {
       return tx(() => {
         const now = new Date().toISOString();

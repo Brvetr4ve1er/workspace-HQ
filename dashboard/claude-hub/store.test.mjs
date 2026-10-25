@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { openStore, ftsQuery, SNIP_START, SNIP_END, SCHEMA_VERSION } from './store.mjs';
+import { openStore, ftsQuery, SNIP_START, SNIP_END, SCHEMA_VERSION, HARVEST_POOL_MAX } from './store.mjs';
 import { makeV1Db } from './__fixtures__/make-v1-db.mjs';
 
 const tmpDb = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hub-store-')), 'hub.sqlite');
@@ -363,4 +363,101 @@ test('P1: promptStats counts prompt_use rows per prompt (real counts; empty befo
     { prompt_id: 'prompt:a', uses: 2, last_at: '2026-10-22T10:00:00.000Z' },
     { prompt_id: 'prompt:b', uses: 1, last_at: '2026-10-21T10:00:00.000Z' },
   ]);
+});
+
+// ---- P2 prompt harvest pool (spec 2026-10-15 §6.2); placeholder text only
+const P2_LONG = (s) => { let t = s; while (t.length < 130) t += ' placeholder words'; return t; };
+function p2Store() {
+  const s = openStore(':memory:');
+  s.upsertProject({ id: 'code:C--placeholder-project-a', source: 'code', key: 'C--placeholder-project-a', name: 'project-a', path: 'C:\\placeholder\\project-a' });
+  const conv = (id, source, projectId) => s.ensureConversation({ id, source, projectId, nativeId: id.split(':')[1] });
+  conv('code:s1', 'code', 'code:C--placeholder-project-a');
+  conv('code:s2', 'code', 'code:C--placeholder-project-a');
+  conv('chatgpt:g1', 'chatgpt', null);
+  const m = (cid, id, role, at, text, o = {}) => ({ id: `${cid}:${id}`, nativeId: id, parentId: null, role, at, text, toolName: null, isSidechain: false, ...o });
+  s.addMessages('code:s1', [
+    m('code:s1', 'u1', 'user', '2026-09-01T10:00:00Z', P2_LONG('Placeholder prompt alpha')),
+    m('code:s1', 'a1', 'assistant', '2026-09-01T10:00:01Z', 'ok'),
+    m('code:s1', 'a2', 'assistant', '2026-09-01T10:00:02Z', 'ok'),
+    m('code:s1', 'u2', 'user', '2026-09-01T10:01:00Z', 'short'),
+    m('code:s1', 'u3', 'user', '2026-09-01T10:02:00Z', P2_LONG('Placeholder tool result'), { toolName: 'Read' }),
+    m('code:s1', 'u4', 'user', '2026-09-01T10:03:00Z', P2_LONG('Placeholder sidechain'), { isSidechain: true }),
+  ]);
+  s.addMessages('code:s2', [m('code:s2', 'u1', 'user', '2026-09-02T10:00:00Z', P2_LONG('Placeholder prompt in a chat to forget'))]);
+  s.addMessages('chatgpt:g1', [m('chatgpt:g1', 'u1', 'user', '2026-09-03T10:00:00Z', P2_LONG('Placeholder prompt alpha'))]);
+  const hist = (sid, off, text, pasted, at) => s.upsertDocument({ id: `history:${sid}:${off}`, source: 'history', path: null, title: null, text,
+    projectId: null, projectPath: 'C:\\placeholder\\project-a', mtimeMs: null, size: null, meta: { sessionId: sid, project: 'C:\\placeholder\\project-a', pasted, at } });
+  hist('s1', 0, P2_LONG('Placeholder prompt alpha'), false, '2026-09-01T09:59:59Z');
+  hist('s1', 400, P2_LONG('Placeholder pasted log'), true, '2026-09-01T10:05:00Z');
+  hist('s2', 0, P2_LONG('Placeholder prompt in a chat to forget'), false, '2026-09-02T09:59:59Z');
+  s.upsertDocument({ id: 'prompt:p1', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\a.md', title: 'A', text: 'Placeholder body', projectId: null, projectPath: null, mtimeMs: 1, size: 1, meta: { title: 'A' } });
+  return s;
+}
+
+test('harvestPool: user messages only (no tool, no sidechain, ≥ 120 chars), turns after by (at, id), project name', () => {
+  const s = p2Store();
+  const { rows, pooled, capped } = s.harvestPool();
+  const msgs = rows.filter((r) => r.kind !== 'history');
+  assert.deepEqual(msgs.map((r) => r.conversationId).sort(), ['chatgpt:g1', 'code:s1', 'code:s2']);
+  const a = msgs.find((r) => r.conversationId === 'code:s1');
+  assert.equal(a.role, 'user');
+  assert.equal(a.turnsAfter, 2);
+  assert.equal(a.project, 'project-a');
+  assert.equal(a.sessionKey, 'code:s1');
+  assert.equal(a.documentId, null);
+  assert.equal(a.pasted, false);
+  assert.deepEqual(pooled, { messages: 3, history: 3 });
+  assert.deepEqual(capped, { messages: false, history: false });
+  assert.equal(HARVEST_POOL_MAX, 20000);
+  s.close();
+});
+
+test('harvestPool: history rows carry sessionKey code:<sessionId> and pasted', () => {
+  const s = p2Store();
+  const h = s.harvestPool().rows.filter((r) => r.kind === 'history');
+  const first = h.find((r) => r.documentId === 'history:s1:0');
+  assert.equal(first.sessionKey, 'code:s1');
+  assert.equal(first.conversationId, null);
+  assert.equal(first.turnsAfter, 2);         // the two assistant messages after 09:59:59 in code:s1
+  assert.equal(first.at, '2026-09-01T09:59:59Z');
+  assert.equal(first.project, 'project-a');  // basename of the typed-in project path
+  assert.equal(h.find((r) => r.documentId === 'history:s1:400').pasted, true);
+  s.close();
+});
+
+test('harvestPool: a forgotten chat and its history lines leave the pool', () => {
+  const s = p2Store();
+  assert.equal(s.forget({ conversationId: 'code:s2' }), true);
+  const rows = s.harvestPool().rows;
+  assert.equal(rows.some((r) => r.conversationId === 'code:s2' || r.sessionKey === 'code:s2'), false);
+  s.close();
+});
+
+test('harvestPool: the bound is applied newest-first and reported', () => {
+  const s = p2Store();
+  const r = s.harvestPool({ limit: 2 });
+  assert.deepEqual(r.rows.filter((x) => x.kind !== 'history').map((x) => x.conversationId), ['chatgpt:g1', 'code:s2']);
+  assert.deepEqual(r.capped, { messages: true, history: true });
+  assert.deepEqual(r.pooled, { messages: 2, history: 2 });
+  s.close();
+});
+
+test('promptBodies lists prompt-note bodies only', () => {
+  const s = p2Store();
+  assert.deepEqual(s.promptBodies(), ['Placeholder body']);
+  s.close();
+});
+
+test('hidden candidates survive resetCode and new rows; only cand:<sha1> keys are accepted', () => {
+  const s = p2Store();
+  const key = 'cand:' + 'a'.repeat(40);
+  assert.equal(s.hideCandidate(key), true);
+  assert.equal(s.hideCandidate(key), true);   // idempotent
+  for (const bad of ['', 'cand:xyz', 'conversation:code:s1', 'cand:' + 'A'.repeat(40), null]) assert.throws(() => s.hideCandidate(bad), /not a candidate key/);
+  s.resetCode();   // drops every code conversation (code:s1 included); tombstones stay
+  s.ensureConversation({ id: 'code:s1', source: 'code', projectId: null, nativeId: 's1' });
+  s.addMessages('code:s1', [{ id: 'code:s1:u9', nativeId: 'u9', parentId: null, role: 'user', at: '2026-09-09T10:00:00Z', text: P2_LONG('Placeholder new row'), toolName: null, isSidechain: false }]);
+  assert.deepEqual([...s.hiddenCandidates()], [key]);
+  assert.equal(s.isTombstoned('candidate', key), true);
+  s.close();
 });
