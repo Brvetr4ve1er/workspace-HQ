@@ -457,6 +457,21 @@ add('claude.prompts-error', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, error: 'C
 add('claude.prompts-nobridge', { live: prLive({}), state: PR_AT });   // no `hq` → render() passes null (vals.golden.test.mjs render: `sc.hq === undefined ? null`)
 add('claude.prompts-nohits', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS(), q: 'zzz', hits: [] }), state: (c) => ({ ...PR_AT(c), prQuery: 'zzz', prSearched: true }) });
 add('claude.prompts-for-project', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }), state: (c) => ({ ...PR_AT(c), prFor: 'a' }) });   // 'a' = the base DATA project the `project.a.*` scenarios open
+// Prompt library P3 — run modal + pack dialog (spec 2026-10-15 §6.3). Run states patch the Library scenario with state.run / state.pack.
+const RN_ID = 'prompt:g1';
+const rnRun = (o) => (c) => ({ ...PR_AT(c), run: { id: RN_ID, projectId: null, vars: {}, target: 'chat', mode: 'read-only', phase: 'edit', error: null, missing: [], result: null, ...o } });
+const rnPack = (o) => (c) => ({ ...PR_AT(c), pack: { phase: 'plan', plan: RN_PLAN, result: null, error: null, ...o } });
+const RN_PLAN = { planId: 'pack-' + '0'.repeat(16), source: 'placeholder-pack.zip', total: 3, skipped: { notMd: 1, tooBig: 0, tooMany: 0, duplicate: 0, unreadable: 0 },
+  notes: [{ name: 'review-a-pr.md', title: 'Review a PR like a staff engineer', exists: true }, { name: 'standup-notes.md', title: 'Standup notes', exists: false }, { name: 'bug-triage.md', title: 'Bug triage', exists: false }] };
+const RN_BASE = { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }) };
+add('claude.run-chat-edit', { ...RN_BASE, state: rnRun({}) });
+add('claude.run-chat-ready', { ...RN_BASE, state: rnRun({ projectId: 'a', vars: { file: 'a.js' } }) });
+add('claude.run-missing', { ...RN_BASE, state: rnRun({ projectId: 'a', phase: 'error', error: 'fill in {{file}}', missing: ['file'] }) });
+add('claude.run-copy-done', { ...RN_BASE, state: rnRun({ target: 'claude.ai', phase: 'done', result: { ok: true, target: 'claude.ai', title: 'x', usage: 'recorded' } }) });
+add('claude.run-not-counted', { ...RN_BASE, state: rnRun({ target: 'chatgpt', phase: 'done', result: { ok: true, target: 'chatgpt', title: 'x', usage: 'not recorded: read-only hub (another WorkspaceHQ owns the index)' } }) });
+add('claude.pack-plan', { ...RN_BASE, state: rnPack({}) });
+add('claude.pack-done', { ...RN_BASE, state: rnPack({ phase: 'done', result: { imported: 2, masked: 0, skipped: { exists: 1, failed: 0 } } }) });
+add('claude.pack-error', { ...RN_BASE, state: rnPack({ phase: 'error', plan: null, error: 'that ZIP is over 50 MB' }) });
 // P2 harvest candidates + Promote dialog (placeholder text)
 const HC_HQ = { ...PR_HQ, claudeHub: { ...PR_HQ.claudeHub, promptCandidates() {}, hideCandidate() {} }, claudePrompts: { ...PR_HQ.claudePrompts, promote() {} } };
 const HC_AT = (o) => (c) => ({ ...PR_AT(c), ...o });

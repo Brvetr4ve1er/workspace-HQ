@@ -36,9 +36,10 @@ import tpl from './app.tpl.js';
 // style="min-height:1.2em" so a blank line keeps its height in the flex column (+25 chars / +25 bytes, no line removed)
 // 2026-10-25 P1 prompt library: Claude › Prompts Library block (claude.tpl.js) + project-page "Run a prompt" (+5622 chars / +5639 bytes)
 // 2026-10-25 P2 prompt harvest: Library|Candidates toggle + Candidates list (claude.tpl.js) + Promote dialog (extras.tpl.js) (+8724 chars / +8738 bytes)
-const SHA256 = '634a56dbf29ec68b9546b29bc59460866303869f45268319f9cd06fcef78eed9';
-const LENGTH = 252487;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 252958;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-25 P3 prompt runs + packs: run modal + pack dialog (extras.tpl.js), pack buttons (claude.tpl.js) (+9193 chars / +9219 bytes)
+const SHA256 = 'c01af011c72e4ff0ce7effed91e007df1e9705b699b562818768c6d733808407';
+const LENGTH = 261680;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 262177;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
