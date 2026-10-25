@@ -1,0 +1,120 @@
+// CLAUDE SYNC (extension 0.4.0) — importScripts'd by background.js (classic SW); also require()d by node tests.
+// Reads the owner's OWN claude.ai session with read-only GETs (claude.ai's page requests: observed, undocumented — they
+// can change without notice), at most one request per 2 s, exponential backoff on 429/5xx, and a pause with a visible
+// status when a response does not look as expected. Never writes to claude.ai. Results go to the local WorkspaceHQ
+// bridge (POST /claude/sync). Every top-level name is claude-prefixed: this file shares one global scope with
+// background.js and social.js.
+const CLAUDE_ORIGIN = 'https://claude.ai';
+const CLAUDE_SYNC_ALARM = 'claude-sync';
+const CLAUDE_SYNC_PERIOD_MIN = 5;
+const CLAUDE_MIN_GAP_MS = 2000;
+const CLAUDE_BATCH = 20;
+const CLAUDE_MAX_PUSH_BYTES = 4 * 1024 * 1024;
+const CLAUDE_RETRIES = 4;
+const CLAUDE_MAX_INLINE_WAIT_MS = 30000;
+const CLAUDE_BACKOFF_MAX_MS = 600000;
+const CLAUDE_UUID_RE = /^[A-Za-z0-9-]{1,80}$/;
+const claudeIsId = (x) => typeof x === 'string' && CLAUDE_UUID_RE.test(x);
+const CLAUDE_SHAPES = {
+  orgs: (j) => Array.isArray(j) && j.length > 0 && j.every((o) => o && claudeIsId(o.uuid)),
+  projects: (j) => Array.isArray(j) && j.every((p) => p && claudeIsId(p.uuid)),
+  list: (j) => Array.isArray(j) && j.every((c) => c && claudeIsId(c.uuid) && typeof c.updated_at === 'string'),
+  conv: (j) => !!j && typeof j === 'object' && claudeIsId(j.uuid) && Array.isArray(j.chat_messages),
+};
+
+function claudeSyncErr(kind, message, retryIn = 0) { const e = new Error(message); e.kind = kind; e.retryIn = retryIn; return e; }
+
+function claudeBackoffMs(attempt, retryAfter) {
+  const ra = Number(retryAfter);
+  if (retryAfter != null && Number.isFinite(ra) && ra > 0) return Math.min(ra * 1000, CLAUDE_BACKOFF_MAX_MS);
+  return Math.min(CLAUDE_MIN_GAP_MS * 2 ** (attempt + 1), CLAUDE_BACKOFF_MAX_MS);
+}
+
+function claudeCreatePacer({ now, sleep, gapMs = CLAUDE_MIN_GAP_MS }) {
+  let last = -Infinity;
+  return async function claudePace() { const wait = last + gapMs - now(); if (wait > 0) await sleep(wait); last = now(); };
+}
+
+async function claudeGet(d, path, shape) {
+  for (let attempt = 0; ; attempt++) {
+    await d.pace();
+    let r;
+    try { r = await d.fetch(CLAUDE_ORIGIN + path, { method: 'GET', credentials: 'include', headers: { Accept: 'application/json' } }); }
+    catch (e) { throw claudeSyncErr('offline', 'claude.ai did not answer (' + String((e && e.message) || e).slice(0, 80) + ')', claudeBackoffMs(attempt)); }
+    if (r.status === 401 || r.status === 403) throw claudeSyncErr('signed-out', 'Log in to claude.ai in this browser, then press Sync claude.ai.');
+    if (r.status === 429 || r.status >= 500) {
+      const wait = claudeBackoffMs(attempt, r.headers.get('retry-after'));
+      if (attempt >= CLAUDE_RETRIES - 1 || wait > CLAUDE_MAX_INLINE_WAIT_MS) {
+        throw claudeSyncErr('backoff', 'claude.ai is limiting requests (HTTP ' + r.status + ') — trying again later.', wait);
+      }
+      await d.sleep(wait);
+      continue;
+    }
+    if (r.status === 404 && shape === 'conv') return null;
+    if (!r.ok) throw claudeSyncErr('paused', 'claude.ai changed, sync paused (HTTP ' + r.status + ' for ' + shape + ')');
+    let j;
+    try { j = await r.json(); } catch { throw claudeSyncErr('paused', 'claude.ai changed, sync paused (' + shape + ' is not JSON)'); }
+    if (!CLAUDE_SHAPES[shape](j)) throw claudeSyncErr('paused', 'claude.ai changed, sync paused (' + shape + ' looks different)');
+    return j;
+  }
+}
+
+function claudeIsNewer(remote, local, known) {
+  if (!known || local == null) return true;
+  const a = Date.parse(remote), b = Date.parse(local);
+  return Number.isNaN(a) || Number.isNaN(b) || a > b;
+}
+
+const claudeBytes = (s) => (typeof TextEncoder === 'function' ? new TextEncoder().encode(s).length : Buffer.byteLength(s, 'utf8'));
+
+async function claudeSyncRun(d) {
+  const batch = d.batch ?? CLAUDE_BATCH, maxPush = d.maxPushBytes ?? CLAUDE_MAX_PUSH_BYTES, skip = d.skip || {};
+  const st = await d.app.state();
+  const known = { c: st.conversations || {}, p: st.projects || {} };
+  const forgotten = new Set(st.forgotten || []);
+  const org = (await claudeGet(d, '/api/organizations', 'orgs'))[0].uuid;
+  const base = '/api/organizations/' + org;
+  const projects = (await claudeGet(d, base + '/projects', 'projects')).filter((p) => claudeIsNewer(p.updated_at, known.p[p.uuid], p.uuid in known.p));
+  for (let i = 0; i < projects.length; i += 25) await d.app.push(JSON.stringify({ v: 1, items: projects.slice(i, i + 25).map((p) => ({ kind: 'project', data: p })) }));
+  const list = await claudeGet(d, base + '/chat_conversations', 'list');
+  const todo = list.filter((c) => !forgotten.has(c.uuid) && skip[c.uuid] !== c.updated_at && claudeIsNewer(c.updated_at, known.c[c.uuid], c.uuid in known.c))
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+  const run = todo.slice(0, batch);
+  const out = { pushed: 0, projects: projects.length, left: todo.length - run.length, tooBig: 0, tooBigIds: {} };
+  for (const c of run) {
+    const conv = await claudeGet(d, base + '/chat_conversations/' + c.uuid + '?tree=True&rendering_mode=messages&render_all_tools=true', 'conv');
+    if (!conv) continue;
+    const body = JSON.stringify({ v: 1, items: [{ kind: 'conversation', data: conv }] });
+    if (claudeBytes(body) > maxPush) { out.tooBig++; out.tooBigIds[c.uuid] = c.updated_at; continue; }
+    await d.app.push(body);
+    out.pushed++;
+  }
+  return out;
+}
+
+function claudeAppClient(cfg, fetchFn) {
+  const headers = { 'Content-Type': 'application/json', 'X-HQ-Bridge': '1', ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}) };
+  const call = async (path, opts) => {
+    let r;
+    try { r = await fetchFn(cfg.endpoint + path, { ...opts, headers }); }
+    catch (e) { throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (' + String((e && e.message) || e).slice(0, 60) + ') — open the app.'); }
+    if (r.status === 409) throw claudeSyncErr('app', 'Another WorkspaceHQ window owns the Claude index — sync from that one.');
+    if (!r.ok) throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (HTTP ' + r.status + ') — open the app.');
+    return r.json();
+  };
+  return { state: () => call('/claude/sync-state', { method: 'GET' }), push: (body) => call('/claude/sync', { method: 'POST', body }) };
+}
+
+function claudeSummary(r) {
+  const parts = [];
+  if (r.pushed) parts.push('Synced ' + r.pushed + ' chat' + (r.pushed === 1 ? '' : 's'));
+  if (r.projects) parts.push(r.projects + ' project' + (r.projects === 1 ? '' : 's') + ' updated');
+  if (r.left) parts.push(r.left + ' left — next batch in ' + CLAUDE_SYNC_PERIOD_MIN + ' min');
+  if (r.tooBig) parts.push(r.tooBig + ' too large for live sync — use the export');
+  return parts.length ? parts.join(' · ') : 'Up to date';
+}
+
+if (typeof module === 'object' && module && module.exports) {
+  module.exports = { CLAUDE_ORIGIN, CLAUDE_SYNC_ALARM, CLAUDE_SYNC_PERIOD_MIN, CLAUDE_MIN_GAP_MS, CLAUDE_BATCH, CLAUDE_MAX_PUSH_BYTES, CLAUDE_RETRIES,
+    CLAUDE_SHAPES, claudeSyncErr, claudeBackoffMs, claudeCreatePacer, claudeGet, claudeIsNewer, claudeSyncRun, claudeAppClient, claudeSummary };
+}
