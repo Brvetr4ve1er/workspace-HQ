@@ -14,7 +14,7 @@ import { makeDocsHome, historyLine } from './__fixtures__/make-docs.mjs';
 import { writeChatGPTZip } from './__fixtures__/make-chatgpt-export.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
-import { acquireLock, resolveClaudeRoot, splitCommandLine } from './hub.mjs';
+import { acquireLock, resolveClaudeRoot, splitCommandLine, docsProblem } from './hub.mjs';
 
 const HUB = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hub.mjs');
 const dirs = [], procs = new Set();
@@ -971,4 +971,12 @@ test('H6 importChatGPT: progress carries source chatgpt, lastImport records it, 
     assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'failed' && /claude\.ai export/.test(e.data.error))));
     assert.equal((await h.req('health')).result.lastImport.ok, false);
   } finally { await h.stop(); }
+});
+
+test('docsProblem: an unreadable notes root surfaces as a counts-and-paths line; a clean pass clears it (final review: errors surface)', () => {
+  const p = path.join('placeholder-vault', '40_Resources', 'Prompts'), m = path.join('placeholder-home', 'projects');
+  assert.equal(docsProblem({ changed: [], removed: [], skipped: 0, unreadable: [] }), null, 'clean pass: nothing to show');
+  assert.equal(docsProblem(null), null);
+  assert.equal(docsProblem({ changed: [], removed: [], unreadable: [{ source: 'prompt', path: p, code: 'EPERM' }, { source: 'memory', path: m, code: 'EBUSY' }] }),
+    'notes unreadable (2): prompt (EPERM) ' + p + '; memory (EBUSY) ' + m);
 });

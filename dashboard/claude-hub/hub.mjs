@@ -20,6 +20,14 @@ import { readHqProjects, autoLink } from './link.mjs';
 import { importChatGPTFile } from './ingest-chatgpt.mjs';
 import { syncDocs, watchDocs } from './ingest-docs.mjs';
 
+// A docs pass that could not read a notes root (EPERM/EACCES/EBUSY on the vault Prompts folder, the memory root, a CLAUDE.md)
+// must surface (standing ruling: Hub errors are never an empty result). Counts and paths only; null on a clean pass.
+export function docsProblem(r) {
+  const u = (r && Array.isArray(r.unreadable)) ? r.unreadable : [];
+  if (!u.length) return null;
+  return 'notes unreadable (' + u.length + '): ' + u.map((x) => x.source + ' (' + x.code + ') ' + x.path).join('; ');
+}
+
 export const resolveClaudeRoot = (env = process.env) => path.join(env.HQ_CLAUDE_HOME || path.join(os.homedir(), '.claude'), 'projects');
 
 const CHANGED_MAX_WAIT_MS = 2000;   // a burst of changes is reported at the latest this long after its first one
@@ -180,7 +188,7 @@ function main() {
 
   let store = null, writer = false, state = 'indexing', progress = { done: 0, total: 0 }, lastError = null;
   let stopping = false, watcher = null, docWatcher = null, docsRunning = false, sweepTimer = null, readerTimer = null, changedTimer = null;
-  let readerNote = null, rebuild = false, upgradeTimer = null;
+  let readerNote = null, docsNote = null, rebuild = false, upgradeTimer = null;
   const READER_UPGRADE_MS = Math.max(100, Number(process.env.HQ_HUB_READER_UPGRADE_MS) || 30000);
 
   process.on('exit', () => {   // every way out: stdin closed, signal, crash, process.exit()
@@ -358,7 +366,11 @@ function main() {
     if (!writer || !store || docsRunning || stopping) return;
     docsRunning = true;
     serial(() => syncDocs(store, { home: claudeHome, vaultDir }))
-      .then((r) => { const d = [...r.changed, ...r.removed]; if (d.length) markChanged([], [], d); }, fail)
+      .then((r) => {
+        const note = docsProblem(r);   // its own field: the sweep/backfill successes clear lastError, never this
+        if (note !== docsNote) { docsNote = note; if (note) { emit('error', { message: note }); diag(note); } }
+        const d = [...r.changed, ...r.removed]; if (d.length) markChanged([], [], d);
+      }, fail)
       .finally(() => { docsRunning = false; });
   }
 
@@ -401,7 +413,7 @@ function main() {
   const ops = {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
       counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0, documents: 0 }, dbBytes: dbBytes(),
-      lastError: lastError || readerNote || (store && store.getMeta('last_error')) || null,
+      lastError: lastError || docsNote || readerNote || (store && store.getMeta('last_error')) || null,
       lastErrorAt: metaOrNull('last_error_at'), lastImport: lastImport(), importing }),   // H1's fields unchanged + lastErrorAt
     importExport: (a) => {
       if (!writer) notOwner();
