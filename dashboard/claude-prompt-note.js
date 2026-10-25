@@ -59,4 +59,41 @@ function promptNoteText({ title, tags = [], variables = [], created, source = nu
 
 const promptDocId = (file) => 'prompt:' + crypto.createHash('sha1').update(path.resolve(file).toLowerCase()).digest('hex');
 
-module.exports = { PROMPTS_REL, SLUG_MAX, VARS_MAX, VAR_RE, slugify, noteName, variablesOf, promptNoteText, promptDocId };
+// ---- P3 run fill (spec 2026-10-15 §6.1, §6.4). {{project}} and {{cwd}} come only from the project main resolved.
+const RESERVED_VARS = ['project', 'cwd'];
+const VALUE_MAX = 4000;
+const FILLED_MAX = 100000;   // = the H3 chat engine's PROMPT_MAX
+const FM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;   // the H6 parseFrontmatter block rule
+
+function bodyOf(src) {
+  const s = String(src == null ? '' : src).replace(/^\uFEFF/, '');
+  const m = FM_RE.exec(s);
+  return m ? s.slice(m[0].length) : s;
+}
+
+function fillVariables(body, vars, ctx) {
+  const b = String(body == null ? '' : body);
+  const v = vars && typeof vars === 'object' && !Array.isArray(vars) ? vars : {};
+  const c = ctx && typeof ctx === 'object' ? ctx : {};
+  const own = (k) => Object.prototype.hasOwnProperty.call(v, k);
+  const valueOf = (name) => {
+    if (RESERVED_VARS.includes(name)) return typeof c[name] === 'string' && c[name].trim() ? c[name] : null;
+    return own(name) && typeof v[name] === 'string' && v[name].trim() ? v[name] : null;
+  };
+  const used = [], missing = [];
+  for (const m of b.matchAll(VAR_RE)) {
+    const name = m[1];
+    if (used.includes(name)) continue;
+    used.push(name);
+    const val = valueOf(name);
+    if (val == null) missing.push(name);
+    else if (val.length > VALUE_MAX) return { error: `the value for {{${name}}} is over 4 000 characters` };
+  }
+  const unknown = Object.keys(v).filter((k) => RESERVED_VARS.includes(k) || !used.includes(k));
+  if (missing.length) return { text: '', missing, unknown };
+  const text = b.replace(VAR_RE, (_all, name) => valueOf(name));   // one pass: replacement text is never re-scanned
+  if (text.length > FILLED_MAX) return { error: 'the filled prompt is over 100 000 characters' };
+  return { text, missing: [], unknown };
+}
+
+module.exports = { PROMPTS_REL, SLUG_MAX, VARS_MAX, VAR_RE, slugify, noteName, variablesOf, promptNoteText, promptDocId, RESERVED_VARS, VALUE_MAX, FILLED_MAX, bodyOf, fillVariables };

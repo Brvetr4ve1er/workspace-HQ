@@ -70,3 +70,38 @@ test('promptDocId equals the H6 document id of the same file (any case)', () => 
   assert.equal(promptDocId(file.toUpperCase()), docId('prompt', file));
   assert.match(promptDocId(file), /^prompt:[0-9a-f]{40}$/);
 });
+
+// ---- P3 run fill (spec 2026-10-15 §6.1 variables, §6.4 run). Placeholder text only.
+const { bodyOf, fillVariables, RESERVED_VARS, VALUE_MAX, FILLED_MAX } = note;
+
+test('bodyOf strips exactly the frontmatter block H6 parseFrontmatter strips', () => {
+  const cases = [
+    '---\ntitle: "A"\nvariables: [file]\n---\nReview {{file}}.\n',
+    '---\r\ntitle: A\r\n---\r\nBody {{x}}\r\n',
+    '# no frontmatter\n',
+    '---\ntitle: never closed\n',
+    '---\n---\nEmpty block body',
+  ];
+  for (const c of cases) assert.equal(bodyOf(c), parseFrontmatter(c).body, JSON.stringify(c));
+  assert.equal(bodyOf('\uFEFF---\ntitle: A\n---\nBOM body'), 'BOM body');
+  assert.equal(bodyOf(null), '');
+});
+
+test('fillVariables: one pass, reserved names, missing and unknown listed, caps', () => {
+  assert.deepEqual(RESERVED_VARS, ['project', 'cwd']);
+  const ctx = { project: 'Placeholder project', cwd: 'C:\placeholder\proj' };
+  assert.deepEqual(fillVariables('Review {{ file }} in {{project}} at {{cwd}}; again {{file}}.', { file: 'a.js' }, ctx),
+    { text: 'Review a.js in Placeholder project at C:\placeholder\proj; again a.js.', missing: [], unknown: [] });
+  assert.equal(fillVariables('X={{a}} Y={{b}}', { a: '{{b}}', b: '{{cwd}}' }, ctx).text, 'X={{b}} Y={{cwd}}');
+  const r = fillVariables('In {{project}}', { project: 'evil', extra: 'x' }, ctx);
+  assert.equal(r.text, 'In Placeholder project'); assert.deepEqual(r.unknown, ['project', 'extra']);
+  const m = fillVariables('{{file}} {{line}} {{project}} {{cwd}}', { file: '  ' }, {});
+  assert.deepEqual(m, { text: '', missing: ['file', 'line', 'project', 'cwd'], unknown: [] });
+  assert.deepEqual(fillVariables('{{a}}', null, ctx).missing, ['a']);
+  assert.deepEqual(fillVariables('{{a}}', { a: 7 }, ctx).missing, ['a']);
+  assert.deepEqual(fillVariables('{{a}}', Object.create({ a: 'inherited' }), ctx).missing, ['a']);
+  assert.match(fillVariables('{{a}}', { a: 'x'.repeat(VALUE_MAX + 1) }, ctx).error, /over 4 000 characters/);
+  assert.equal(fillVariables('{{a}}{{a}}', { a: 'x'.repeat(VALUE_MAX) }, ctx).text.length, 2 * VALUE_MAX, 'a value at the cap is fine');
+  assert.match(fillVariables('y'.repeat(FILLED_MAX) + '{{a}}', { a: 'z' }, ctx).error, /over 100 000 characters/);
+  assert.deepEqual(fillVariables('Plain placeholder prompt', {}, {}), { text: 'Plain placeholder prompt', missing: [], unknown: [] });
+});
