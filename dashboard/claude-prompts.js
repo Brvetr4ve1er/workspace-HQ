@@ -9,6 +9,7 @@ const { pathToFileURL } = require('node:url');
 const { PROMPTS_REL, slugify, noteName, variablesOf, promptNoteText, promptDocId, bodyOf, fillVariables } = require('./claude-prompt-note');
 const { PROMPT_MAX: LAUNCH_MAX } = require('./claude-launch');
 const { writeNoteAtomic } = require('./claude-vault');
+const { watchSender } = require('./claude-chat');
 
 const NOTE_TEXT_MAX = 200000;
 const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
@@ -128,9 +129,26 @@ function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {
     const src = await fsp.readFile(real, 'utf8');
     return { name: hit.name, src, title: titleOf(src, hit.name) };
   }
-  async function sendChat(req, sender) {   // Task 5 binds the turn to the asking window
+  // Same binding as the H3 hq:claude-chat:send handler (claude-chat.js init): the turn belongs to the window that asked;
+  // a reload/crash/close of that window stops it. The engine itself is untouched (read-only default, no bypass flag).
+  async function sendChat(req, sender) {
     if (!chat || typeof chat.send !== 'function') return { error: 'the chat engine is not running' };
-    return { error: 'chat runs land in the next step' };
+    let gone = false, turnId = null;
+    const detach = watch(sender, () => { gone = true; if (turnId) chat.cancel(turnId); });
+    let out;
+    try { out = await chat.send({ projectId: req.projectId, text: req.text, mode: req.mode }, { alive: () => !gone }); }
+    catch (e) { detach(); return { error: why(e) }; }
+    if (!out || typeof out !== 'object' || out.error || typeof out.turnId !== 'string') { detach(); return { error: String((out && out.error) || 'the chat engine did not start a turn') }; }
+    if (chat.has(out.turnId)) {
+      turnId = out.turnId;
+      if (gone) chat.cancel(turnId);
+      const t = setInterval(() => { if (!chat.has(turnId)) { clearInterval(t); detach(); } }, turnPollMs);
+      if (t.unref) t.unref();
+    } else detach();
+    const res = { turnId: out.turnId };
+    if (out.sessionId) res.sessionId = out.sessionId;
+    if (out.seeded) res.seeded = out.seeded;
+    return res;
   }
   return {
     async status() {
@@ -236,13 +254,16 @@ function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {
   };
 }
 
-function init({ ipcMain, app, shell, vaultDir, env = process.env, log = console.log }) {
+function init({ ipcMain, app, shell, vaultDir, env = process.env, log = console.log, hub = null, chat = null, getProjects = () => [],
+  launch = () => false, clipboard = null, dialog = null, getWin = () => null }) {
   const p = createPrompts({ vaultDir: env.HQ_VAULT_DIR || vaultDir, env, log,
     openExternal: (u) => shell.openExternal(u), openPath: (f) => shell.openPath(f),
-    protocolName: (u) => (app && app.getApplicationNameForProtocol ? app.getApplicationNameForProtocol(u) : '') });
+    protocolName: (u) => (app && app.getApplicationNameForProtocol ? app.getApplicationNameForProtocol(u) : ''),
+    hub, chat, getProjects, launch, clipboard, watch: watchSender });
   ipcMain.handle('hq:claude-prompts:status', () => p.status());
   ipcMain.handle('hq:claude-prompts:open', (_e, id, how) => p.open(typeof id === 'string' && id.length <= 300 ? id : '', how));
   ipcMain.handle('hq:claude-prompts:promote', (_e, req) => p.promote(req && typeof req === 'object' && !Array.isArray(req) ? req : {}));
+  ipcMain.handle('hq:claude-prompts:run', (e, req) => p.run(req && typeof req === 'object' && !Array.isArray(req) ? req : {}, { sender: e && e.sender }));   // P3
   return p;
 }
 

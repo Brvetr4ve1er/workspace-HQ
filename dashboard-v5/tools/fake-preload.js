@@ -159,6 +159,22 @@ function createFake(opts) {
     }, 150 * (i + 1))));
     return resumed ? { turnId, sessionId } : { turnId };
   };
+  // Prompt library P3 — like main's claudePrompts.run: whitelist, missing fields, chat streams through the same fake turn.
+  const promptRun = (req) => {
+    const r = req && typeof req === 'object' ? req : {};
+    if (!['chat', 'terminal', 'claude.ai', 'chatgpt'].includes(r.target)) return { error: 'a prompt runs only in Chat, a Terminal, or as a copy for claude.ai / ChatGPT' };
+    const row = FAKE_PROMPTS.find((p) => p.id === r.promptId);
+    if (!row) return { error: 'that prompt note is not in the Prompts folder (moved, renamed or deleted?)' };
+    const own = row.variables.filter((v) => v !== 'project' && v !== 'cwd');
+    const missing = [...own.filter((v) => !(r.vars && typeof r.vars[v] === 'string' && r.vars[v].trim())),
+      ...(r.projectId ? [] : row.variables.filter((v) => v === 'project' || v === 'cwd'))];
+    if (missing.length) return { error: 'fill in ' + missing.map((n) => '{{' + n + '}}').join(', '), missing };
+    if ((r.target === 'chat' || r.target === 'terminal') && !r.projectId) return { error: 'pick a project — a Chat or Terminal run starts in its folder' };
+    const base = { ok: true, target: r.target, title: row.title, usage: 'recorded' };
+    if (r.target !== 'chat') return base;
+    const t = chatTurn({ text: 'Prompt · ' + row.title, mode: r.mode });
+    return t.error ? t : { ...base, ...t };
+  };
   const cancelTurn = (turnId) => {
     const t = turns.get(turnId);
     if (!t) return false;
@@ -209,6 +225,7 @@ function createFake(opts) {
     // Prompt library P1: harness fixture only — the real Hub answers [] until P3 writes prompt_use rows
     ['claudeHub.promptStats', () => [{ prompt_id: 'prompt:' + 'a'.repeat(40), uses: 3, last_at: '2026-10-20T09:00:00.000Z' }]],
     ['claudePrompts.status', () => ({ vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true })],
+    ['claudePrompts.run', promptRun],
     ['claudePrompts.open', (id, how) => (how === 'obsidian' || how === 'file' ? { ok: true, how } : { error: 'a prompt note opens only in Obsidian or as a file' })],
     ['claudeHub.document', (id) => { const d = HUB_DOCS.find((x) => x.id === id); return d ? { ...d, text: 'Offer fake tea first.\nFake second line.', meta: null } : null; }],
     ['claudeHub.on', 'on:hq:claude-hub:event'],

@@ -172,7 +172,7 @@ test('init: HQ_VAULT_DIR wins; handlers answer, ids are capped', async () => {
   const h = {};
   init({ ipcMain: { handle: (ch, fn) => { h[ch] = fn; } }, app: { getApplicationNameForProtocol: () => '' }, shell: { openExternal: async () => {}, openPath: async () => '' },
     vaultDir: path.join(os.tmpdir(), 'never-the-owner-vault'), env: { HQ_VAULT_DIR: fx.vault, HQ_DRY_LAUNCH: '1' }, log: () => {} });
-  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:open', 'hq:claude-prompts:promote', 'hq:claude-prompts:status']);
+  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:open', 'hq:claude-prompts:promote', 'hq:claude-prompts:run', 'hq:claude-prompts:status']);
   assert.equal((await h['hq:claude-prompts:status']({})).folder.exists, true);
   assert.ok((await h['hq:claude-prompts:open']({}, 'prompt:' + 'a'.repeat(400), 'file')).error);
 });
@@ -353,4 +353,49 @@ test('run refuses unknown notes, missing fields and missing projects before anyt
   // the title falls back to the file name
   assert.equal(prompts.titleOf('no frontmatter', 'weekly-notes.md'), 'weekly-notes');
   assert.equal(prompts.titleOf("---\ntitle: 'Quoted'\n---\nx", 'a.md'), 'Quoted');
+});
+
+test('chat runs go through the H3 engine bound to the asking window; modes are read-only or edits only', async () => {
+  const { EventEmitter } = await import('node:events');
+  const { watchSender } = (await import('./claude-chat.js')).default;
+  const fx = p3Vault();
+  const sent = [], live = new Set(), cancelled = [];
+  let next = 0, answer = null;
+  const chat = {
+    send: async (req, { alive }) => { sent.push([req, alive()]); if (answer) return answer; const id = 't' + (++next); live.add(id); return { turnId: id }; },
+    has: (id) => live.has(id), cancel: (id) => { cancelled.push(id); return live.delete(id); },
+  };
+  const sender = new EventEmitter(); sender.isDestroyed = () => false;
+  const m = p3Make(fx.v, { extra: { chat, watch: watchSender, turnPollMs: 20 } });
+  const run = (o) => m.p.run({ promptId: fx.id, target: 'chat', vars: { file: 'a.js' }, projectId: 'project-a', ...o }, { sender });
+  const r = await run({ conversationId: 'code:forged', cwd: 'C:\Windows' });
+  assert.deepEqual(r, { ok: true, target: 'chat', title: 'Review a PR: placeholder', turnId: 't1', usage: 'recorded' });
+  assert.deepEqual(sent[0], [{ projectId: 'project-a', text: `Review a.js in Placeholder project at ${fx.v}.`, mode: 'read-only' }, true],
+    'only projectId/text/mode reach the engine — no conversation, cwd or argument from the renderer');
+  assert.equal(sender.listenerCount('did-start-navigation'), 1);
+  sender.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false });   // the window reloads mid-turn
+  assert.deepEqual(cancelled, ['t1'], 'the turn dies with the window, exactly like hq:claude-chat:send');
+  await new Promise((res) => setTimeout(res, 80));
+  assert.equal(sender.listenerCount('did-start-navigation'), 0, 'listeners detach once the turn ended');
+  assert.equal((await run({ mode: 'edits' })).ok, true); assert.equal(sent[1][0].mode, 'edits');
+  for (const mode of ['bypassPermissions', 'plan', 'acceptEdits', 'EDITS'])
+    assert.match((await run({ mode })).error, /unknown chat mode/);
+  assert.match((await run({ projectId: undefined })).error, /pick a project/);
+  answer = { error: '3 turns in total' };
+  const busy = await run({});
+  assert.deepEqual(busy, { error: '3 turns in total' }, 'engine refusals surface verbatim');
+  assert.equal(m.uses.length, 2, 'usage only for the two turns that started');
+  assert.match((await p3Make(fx.v).p.run({ promptId: fx.id, target: 'chat', vars: { file: 'a' }, projectId: 'project-a' })).error, /chat engine is not running/);
+});
+
+test('init registers hq:claude-prompts:run with the asking window as sender', async () => {
+  const fx = p3Vault();
+  const handlers = new Map();
+  prompts.init({ ipcMain: { handle: (ch, fn) => handlers.set(ch, fn) }, app: { getApplicationNameForProtocol: () => '' },
+    shell: { openExternal: async () => {}, openPath: async () => '' }, vaultDir: fx.v, env: { HQ_DRY_LAUNCH: '1' }, log: () => {},
+    hub: { request: async () => true }, getProjects: () => P3_PROJ(fx.v), clipboard: { writeText: () => { throw new Error('dry mode must not copy'); } } });
+  assert.ok(handlers.has('hq:claude-prompts:run'));
+  const r = await handlers.get('hq:claude-prompts:run')({ sender: null }, { promptId: fx.id, target: 'claude.ai', vars: { file: 'a' }, projectId: 'project-a' });
+  assert.equal(r.ok, true); assert.equal(r.dry, true); assert.equal(r.usage, 'recorded');
+  assert.match((await handlers.get('hq:claude-prompts:run')({}, 'junk')).error, /runs only in Chat/);
 });
