@@ -144,3 +144,154 @@ test('resolveTarget: a claude.ai chat starts a NEW Code chat in the linked proje
   const picked = await resolveTarget({ conversationId: 'web:w1', projectId: 'project-a', text: 'x', mode: 'read-only' }, deps(unlinked));
   assert.equal(picked.cwd, DOCS_A, 'a project picked in the composer wins over a missing link');
 });
+
+// append to dashboard/claude-chat.test.mjs
+import { EventEmitter } from 'node:events';
+const { createChat, resolveClaudeBin, EVENT } = require('./claude-chat.js');
+
+function fakeSpawn() {
+  const kids = [];
+  let pid = 1000;
+  const spawnFn = (cmd, args, opts) => {
+    const k = new EventEmitter();
+    k.pid = ++pid; k.cmd = cmd; k.args = args; k.opts = opts; k.stdinText = ''; k.stdinEnded = false;
+    k.stdin = Object.assign(new EventEmitter(), { write: (s) => { k.stdinText += s; return true; }, end: () => { k.stdinEnded = true; } });
+    k.stdout = new EventEmitter(); k.stderr = new EventEmitter();
+    k.out = (...lines) => k.stdout.emit('data', Buffer.from(lines.map((l) => JSON.stringify(l)).join('\r\n') + '\r\n'));
+    kids.push(k);
+    return k;
+  };
+  return { kids, spawnFn };
+}
+function rig(o = {}) {
+  const sp = fakeSpawn(), pushed = [], killed = [], logs = [];
+  const target = o.target || ((req) => ({ cwd: DOCS_A, sessionId: req.conversationId ? SID2 : null, key: req.conversationId || null, prompt: req.text, seeded: null }));
+  const c = createChat({ resolve: async (req) => target(req), bin: () => (o.bin === undefined ? { cmd: 'C:\\fake\\claude.cmd', viaCmd: true } : o.bin),
+    spawnFn: sp.spawnFn, kill: (pid) => killed.push(pid), send: (ch, d) => pushed.push([ch, d]), log: { error: (n, m) => logs.push([n, m]) },
+    env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' }, turnMs: o.turnMs || 60000, maxTurns: 3, graceMs: o.graceMs || 5000 });
+  const ev = (turnId) => pushed.filter(([ch, d]) => ch === EVENT && d.turnId === turnId).map(([, d]) => d);
+  return { c, ...sp, pushed, killed, logs, ev };
+}
+const tick = () => new Promise((r) => setImmediate(r));
+const SESSION = { type: 'system', subtype: 'init', session_id: SID2 };
+const D = (text) => ({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } });
+const RESULT = { type: 'result', subtype: 'success', is_error: false, session_id: SID2, result: 'Hi there', usage: { input_tokens: 1, output_tokens: 2 } };
+
+test('runner: argv through cmd.exe, prompt on stdin, events in order, one done', async () => {
+  const r = rig();
+  const res = await r.c.send({ projectId: 'project-a', text: 'Say hi', mode: 'read-only' });
+  assert.match(res.turnId, /^ct-/); assert.equal(res.sessionId, undefined);
+  const k = r.kids[0];
+  assert.equal(k.cmd, 'C:\\Windows\\System32\\cmd.exe');
+  assert.deepEqual(k.args, ['/d', '/v:off', '/s', '/c', '""C:\\fake\\claude.cmd" ' + buildArgs({ mode: 'read-only' }).join(' ') + '"']);
+  assert.equal(k.opts.windowsVerbatimArguments, true); assert.equal(k.opts.cwd, DOCS_A); assert.equal(k.opts.windowsHide, true);
+  assert.equal(k.stdinText, 'Say hi'); assert.equal(k.stdinEnded, true);
+  k.out(SESSION, D('Hi'), D(' there'), { type: 'assistant', message: { content: [{ type: 'text', text: 'Hi there' }] } }, RESULT);
+  k.emit('close', 0); k.emit('close', 0);
+  k.out(D('late'));
+  assert.deepEqual(r.ev(res.turnId).map((e) => e.kind), ['session', 'delta', 'delta', 'done']);
+  assert.deepEqual(r.ev(res.turnId)[3], { turnId: res.turnId, kind: 'done', sessionId: SID2, mode: 'read-only', usage: { in: 1, out: 2, cacheRead: 0, cacheWrite: 0 }, isError: false, subtype: 'success', result: '', stopped: false });
+  assert.equal(r.c.running(), 0);
+});
+
+test('runner: a direct .exe is spawned without a shell; a resumed turn reports its session at once', async () => {
+  const r = rig({ bin: { cmd: 'C:\\fake\\claude.exe', viaCmd: false } });
+  const res = await r.c.send({ conversationId: 'code:' + SID2, text: 'more', mode: 'edits' });
+  assert.equal(res.sessionId, SID2);
+  assert.equal(r.kids[0].cmd, 'C:\\fake\\claude.exe');
+  assert.deepEqual(r.kids[0].args, buildArgs({ mode: 'edits', sessionId: SID2 }));
+  assert.equal(r.kids[0].opts.windowsVerbatimArguments, undefined);
+});
+
+test('runner: Stop mid-tool kills the tree once and ends with done{stopped}; cancel twice is false', async () => {
+  const r = rig();
+  const { turnId } = await r.c.send({ projectId: 'project-a', text: 'Read the readme', mode: 'read-only' });
+  const k = r.kids[0];
+  k.out(SESSION, D('Reading'), { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'README.md' } }] } });
+  assert.equal(r.c.cancel(turnId), true);
+  assert.deepEqual(r.killed, [k.pid]);
+  assert.equal(r.c.cancel(turnId), true, 'still running until close: a second Stop is harmless');
+  assert.deepEqual(r.killed, [k.pid], 'but kills only once');
+  k.emit('close', 1);
+  assert.equal(r.c.cancel(turnId), false);
+  const kinds = r.ev(turnId).map((e) => e.kind);
+  assert.deepEqual(kinds, ['session', 'delta', 'tool', 'done']);
+  assert.equal(r.ev(turnId)[3].stopped, true); assert.equal(r.ev(turnId)[3].sessionId, SID2);
+  assert.equal(r.c.cancel('ct-unknown'), false);
+});
+
+test('runner: limits — per chat and 3 in total; nothing spawned when refused; a freed slot is reusable', async () => {
+  const r = rig();
+  const a = await r.c.send({ conversationId: 'code:' + SID2, text: 'one', mode: 'read-only' });
+  assert.deepEqual(await r.c.send({ conversationId: 'code:' + SID2, text: 'two', mode: 'read-only' }), { error: 'this chat already has a turn running — wait for it or press Stop' });
+  await r.c.send({ projectId: 'project-a', text: 'n1', mode: 'read-only' });
+  await r.c.send({ projectId: 'project-a', text: 'n2', mode: 'read-only' });
+  assert.deepEqual(await r.c.send({ projectId: 'project-a', text: 'n3', mode: 'read-only' }), { error: '3 Claude turns are already running — wait for one or press Stop' });
+  assert.equal(r.kids.length, 3);
+  r.kids[0].out(RESULT); r.kids[0].emit('close', 0);
+  assert.equal(r.c.running(), 2);
+  assert.ok((await r.c.send({ conversationId: 'code:' + SID2, text: 'again', mode: 'read-only' })).turnId);
+  assert.equal(r.kids.length, 4);
+  assert.ok(a.turnId);
+});
+
+test('runner: the 10-min cap tree-stops the turn and ends it as an error', async () => {
+  const r = rig({ turnMs: 30 });
+  const { turnId } = await r.c.send({ projectId: 'project-a', text: 'slow', mode: 'read-only' });
+  await new Promise((res) => setTimeout(res, 60));
+  assert.deepEqual(r.killed, [r.kids[0].pid]);
+  r.kids[0].emit('close', 1);
+  const end = r.ev(turnId).pop();
+  assert.equal(end.kind, 'error'); assert.match(end.error, /^stopped after \d+ min$/);
+  assert.equal(r.logs.length, 1); assert.equal(r.logs[0][0], 'claude-chat');
+});
+
+test('runner: a turn that never closes after a kill still ends (grace)', async () => {
+  const r = rig({ graceMs: 20 });
+  const { turnId } = await r.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' });
+  r.c.cancel(turnId);
+  await new Promise((res) => setTimeout(res, 50));
+  assert.equal(r.ev(turnId).pop().kind, 'done'); assert.equal(r.c.running(), 0);
+});
+
+test('runner: failures say why — exit without result, spawn error, missing binary, resolve error, raw lines kept', async () => {
+  const r = rig();
+  const t1 = (await r.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' })).turnId;
+  r.kids[0].stdout.emit('data', Buffer.from('Some banner\r\n'));
+  r.kids[0].stderr.emit('data', Buffer.from('first\nAuthentication required\n'));
+  r.kids[0].emit('close', 1);
+  assert.deepEqual(r.ev(t1).map((e) => [e.kind, e.text || e.error]), [['delta', 'Some banner\n'], ['error', 'Claude Code exited with code 1: Authentication required']]);
+  const t2 = (await r.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' })).turnId;
+  r.kids[1].emit('error', new Error('spawn ENOENT'));
+  r.kids[1].emit('close', -1);
+  assert.deepEqual(r.ev(t2).map((e) => e.kind), ['error']);
+  assert.equal(r.ev(t2)[0].error, 'could not start Claude Code: spawn ENOENT');
+  const nob = rig({ bin: { error: 'Claude Code CLI not found (install it, or set HQ_CLAUDE_BIN)' } });
+  assert.deepEqual(await nob.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' }), { error: 'Claude Code CLI not found (install it, or set HQ_CLAUDE_BIN)' });
+  const bad = rig({ target: () => ({ error: 'refused folder (a drive root)' }) });
+  assert.deepEqual(await bad.c.send({ projectId: 'x', text: 'x', mode: 'read-only' }), { error: 'refused folder (a drive root)' });
+  assert.equal(nob.kids.length + bad.kids.length, 0);
+});
+
+test('runner: a successful run with no deltas still shows its text; an is_error result carries its reason', async () => {
+  const r = rig();
+  const t = (await r.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' })).turnId;
+  r.kids[0].out(SESSION, RESULT); r.kids[0].emit('close', 0);
+  assert.deepEqual(r.ev(t).map((e) => e.kind), ['session', 'delta', 'done']);
+  assert.equal(r.ev(t)[1].text, 'Hi there');
+  const t2 = (await r.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' })).turnId;
+  r.kids[1].out({ type: 'result', subtype: 'error_max_turns', is_error: true, result: 'Reached max turns' }); r.kids[1].emit('close', 1);
+  const d = r.ev(t2).pop();
+  assert.equal(d.kind, 'done'); assert.equal(d.isError, true); assert.equal(d.result, 'Reached max turns'); assert.equal(d.usage, null);
+});
+
+test('resolveClaudeBin: HQ_CLAUDE_BIN first, then claude.exe / claude.cmd on PATH; unsafe paths refused', () => {
+  const have = new Set(['C:\\bin2\\claude.cmd', 'C:\\bin3\\claude.exe', 'C:\\fake\\claude.cmd', 'C:\\R&D\\claude.cmd']);
+  const exists = (p) => have.has(p);
+  assert.deepEqual(resolveClaudeBin({ HQ_CLAUDE_BIN: 'C:\\fake\\claude.cmd', PATH: 'C:\\bin3' }, { exists }), { cmd: 'C:\\fake\\claude.cmd', viaCmd: true });
+  assert.deepEqual(resolveClaudeBin({ PATH: 'C:\\bin1;C:\\bin2;C:\\bin3' }, { exists }), { cmd: 'C:\\bin2\\claude.cmd', viaCmd: true });
+  assert.deepEqual(resolveClaudeBin({ Path: 'C:\\bin3' }, { exists }), { cmd: 'C:\\bin3\\claude.exe', viaCmd: false });
+  assert.deepEqual(resolveClaudeBin({ PATH: 'C:\\R&D' }, { exists }), { error: 'unsafe Claude Code path' });
+  assert.deepEqual(resolveClaudeBin({ HQ_CLAUDE_BIN: 'relative\\claude.cmd' }, { exists }), { error: 'Claude Code CLI not found (install it, or set HQ_CLAUDE_BIN)' });
+  assert.deepEqual(resolveClaudeBin({ PATH: '' }, { exists }), { error: 'Claude Code CLI not found (install it, or set HQ_CLAUDE_BIN)' });
+});
