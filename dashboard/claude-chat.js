@@ -166,7 +166,9 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
   const FULL = `${maxTurns} Claude turns are already running — wait for one or press Stop`;
   const BUSY = 'this chat already has a turn running — wait for it or press Stop';
   const push = (d) => { try { send(EVENT, d); } catch { /* window gone */ } };
-  const keyBusy = (key) => key != null && [...turns.values()].some((t) => t.key === key);
+  // t.codeKey: a new (or claude.ai-seeded) chat becomes 'code:<sid>' once the CLI's init line names its session;
+  // a Continue on that id must be refused while this turn still writes the transcript (spec §8: one turn per chat).
+  const keyBusy = (key) => key != null && [...turns.values()].some((t) => t.key === key || t.codeKey === key);
 
   function end(t, payload) {
     if (t.ended) return;
@@ -199,7 +201,7 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
   function onEvents(t, events) {
     for (const e of events) {
       if (t.ended) return;
-      if (e.kind === 'session') { t.sessionId = e.sessionId; push({ turnId: t.id, kind: 'session', sessionId: e.sessionId, mode: t.mode }); }
+      if (e.kind === 'session') { t.sessionId = e.sessionId; if (typeof e.sessionId === 'string' && e.sessionId) t.codeKey = 'code:' + e.sessionId; push({ turnId: t.id, kind: 'session', sessionId: e.sessionId, mode: t.mode }); }
       else if (e.kind === 'delta') { t.sawDelta = true; push({ turnId: t.id, kind: 'delta', text: e.text }); }
       else if (e.kind === 'raw') push({ turnId: t.id, kind: 'delta', text: e.text + '\n' });
       else if (e.kind === 'tool') push({ turnId: t.id, kind: 'tool', name: e.name, hint: e.hint });
@@ -218,7 +220,7 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
     const args = buildArgs({ mode: req.mode, sessionId: target.sessionId });
     const opts = { cwd: target.cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] };
     const id = 'ct-' + Date.now().toString(36) + '-' + (++seq);
-    const t = { id, key: target.key, mode: req.mode, sessionId: target.sessionId || null, proc: null, buf: '', err: '',
+    const t = { id, key: target.key, mode: req.mode, sessionId: target.sessionId || null, codeKey: target.sessionId ? 'code:' + target.sessionId : null, proc: null, buf: '', err: '',
       dec: new StringDecoder('utf8'), decErr: new StringDecoder('utf8'), sawDelta: false, result: null, stopped: false, killed: false, timedOut: false, spawnError: null, ended: false, timer: null, grace: null };
     try {
       t.proc = b.viaCmd

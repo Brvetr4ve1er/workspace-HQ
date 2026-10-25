@@ -235,6 +235,32 @@ test('runner: limits — per chat and 3 in total; nothing spawned when refused; 
   assert.ok(a.turnId);
 });
 
+test('runner: a new chat counts as its code:<session> once the CLI names it — a Continue on it is BUSY until the turn ends', async () => {
+  const BUSY = { error: 'this chat already has a turn running — wait for it or press Stop' };
+  const r = rig({ target: (req) => (req.conversationId === 'code:' + SID2
+    ? { cwd: DOCS_A, sessionId: SID2, key: 'code:' + SID2, prompt: req.text, seeded: null }
+    : { cwd: DOCS_A, sessionId: null, key: null, prompt: req.text, seeded: null }) });
+  const a = await r.c.send({ projectId: 'project-a', text: 'new chat', mode: 'edits' });
+  r.kids[0].out(SESSION, D('Working'));
+  assert.deepEqual(await r.c.send({ conversationId: 'code:' + SID2, text: 'second writer', mode: 'read-only' }), BUSY);
+  assert.equal(r.kids.length, 1, 'no second claude --resume on the same session');
+  r.kids[0].out(RESULT); r.kids[0].emit('close', 0);
+  assert.equal(r.ev(a.turnId).pop().kind, 'done');
+  assert.ok((await r.c.send({ conversationId: 'code:' + SID2, text: 'after', mode: 'read-only' })).turnId, 'free again once the turn ended');
+});
+
+test('runner: a claude.ai-seeded turn is BUSY under both its claude.ai id and its new code:<session>', async () => {
+  const BUSY = { error: 'this chat already has a turn running — wait for it or press Stop' };
+  const r = rig({ target: (req) => (req.conversationId === 'ai:chat-a'
+    ? { cwd: DOCS_A, sessionId: null, key: 'ai:chat-a', prompt: 'seed: ' + req.text, seeded: { chars: 4, trimmed: false } }
+    : { cwd: DOCS_A, sessionId: SID2, key: req.conversationId, prompt: req.text, seeded: null }) });
+  await r.c.send({ conversationId: 'ai:chat-a', text: 'go on', mode: 'read-only' });
+  r.kids[0].out(SESSION);
+  assert.deepEqual(await r.c.send({ conversationId: 'ai:chat-a', text: 'again', mode: 'read-only' }), BUSY);
+  assert.deepEqual(await r.c.send({ conversationId: 'code:' + SID2, text: 'resume it', mode: 'read-only' }), BUSY);
+  assert.equal(r.kids.length, 1);
+});
+
 test('runner: the 10-min cap tree-stops the turn and ends it as an error', async () => {
   const r = rig({ turnMs: 30 });
   const { turnId } = await r.c.send({ projectId: 'project-a', text: 'slow', mode: 'read-only' });
