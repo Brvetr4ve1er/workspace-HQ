@@ -522,11 +522,17 @@ export function chatTurnNew({ turnId, convId = null, projectId = null, prompt = 
   return { turnId, convId, projectId, prompt: String(prompt), mode, status: 'starting', items: [], sessionId, usage: null, error: null, seeded: seeded || null, startedAt: now, endedAt: null };
 }
 const ENDED = new Set(['done', 'stopped', 'error']);
+// A turn seeded from a claude.ai chat starts a NEW Code chat: the real conversation is 'code:<new session>';
+// the claude.ai id is kept as originConvId. Unseeded turns keep a given convId (resumed Code chat).
+function refile(t, sid) {
+  if (t.seeded && !t.originConvId && t.convId && t.convId !== 'code:' + sid) t.originConvId = t.convId;
+  if (t.seeded || !t.convId) t.convId = 'code:' + sid;
+}
 export function chatReduce(turn, ev, now = Date.now()) {
   if (!turn || !ev || ENDED.has(turn.status)) return turn;
   const t = { ...turn, items: turn.items.slice() };
   if (ev.kind === 'session' && typeof ev.sessionId === 'string') {
-    t.sessionId = ev.sessionId; t.convId = t.convId || 'code:' + ev.sessionId; t.status = 'running';
+    t.sessionId = ev.sessionId; refile(t, ev.sessionId); t.status = 'running';
   } else if (ev.kind === 'delta' && typeof ev.text === 'string') {
     const last = t.items[t.items.length - 1];
     const text = ((last && last.type === 'text' ? last.text : '') + ev.text).slice(-CHAT_TEXT_MAX);
@@ -540,7 +546,7 @@ export function chatReduce(turn, ev, now = Date.now()) {
     t.status = ev.stopped ? 'stopped' : ev.isError ? 'error' : 'done';
     if (ev.isError && !ev.stopped) t.error = ev.result || ev.subtype || 'Claude Code reported an error';
     t.usage = ev.usage && typeof ev.usage === 'object' ? ev.usage : null;
-    if (typeof ev.sessionId === 'string' && ev.sessionId) { t.sessionId = ev.sessionId; t.convId = t.convId || 'code:' + ev.sessionId; }
+    if (typeof ev.sessionId === 'string' && ev.sessionId) { t.sessionId = ev.sessionId; refile(t, ev.sessionId); }
     t.endedAt = now;
   } else if (ev.kind === 'error') {
     t.status = 'error'; t.error = String(ev.error || 'Claude Code failed'); t.endedAt = now;
@@ -566,6 +572,12 @@ export function liveTurns(turns, convId, thread) {
   return (Array.isArray(turns) ? turns : []).filter((t) => t && t.convId === convId).filter((t) => {
     if (!ENDED.has(t.status)) return true;
     const head = squash(t.prompt).slice(0, 40);
-    return !msgs.some((m) => m && m.role === 'user' && squash(m.text).startsWith(head) && Date.parse(m.at) >= t.startedAt - 60000);
+    // a seeded turn's indexed user message is "Context: ... --- <prompt>": match the prompt as the suffix too
+    return !msgs.some((m) => {
+      if (!m || m.role !== 'user' || !(Date.parse(m.at) >= t.startedAt - 60000)) return false;
+      const full = String(m.text || '');
+      const cut = full.lastIndexOf('\n---\n\n');
+      return squash(full).startsWith(head) || (t.seeded && cut >= 0 && squash(full.slice(cut + 6)).startsWith(head));
+    });
   });
 }

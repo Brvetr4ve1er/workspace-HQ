@@ -506,3 +506,18 @@ test('liveTurns: a finished turn disappears once the thread shows its prompt; ru
   const old = { messages: [{ role: 'user', at: '2026-09-01T00:00:00Z', text: 'Explain the release plan please' }] };
   assert.deepEqual(liveTurns([a], 'code:' + SIDX, old).map((t) => t.turnId), ['a'], 'an older identical prompt is not this turn');
 });
+
+test('seeded turn is refiled under the new Code chat and deduped by the prompt suffix', () => {
+  let t = chatTurnNew({ turnId: 's1', convId: 'claude-ai-1', prompt: 'Summarise the plan please', mode: 'read-only', seeded: { chars: 10, trimmed: false }, now: 1000 });
+  t = chatReduce(t, { kind: 'session', sessionId: 'sess-new' }, 1001);
+  assert.equal(t.convId, 'code:sess-new');
+  assert.equal(t.originConvId, 'claude-ai-1');
+  t = chatReduce(t, { kind: 'done', sessionId: 'sess-new', usage: null }, 2000);
+  assert.equal(t.convId, 'code:sess-new');
+  assert.deepEqual(liveTurns([t], 'claude-ai-1', null), []);
+  assert.deepEqual(liveTurns([t], 'code:sess-new', null).map((x) => x.turnId), ['s1']);
+  const thread = { messages: [{ role: 'user', at: new Date(1500).toISOString(), text: 'Context: a claude.ai conversation titled "X"\n\nbody\n\n---\n\nSummarise the plan please' }] };
+  assert.deepEqual(liveTurns([t], 'code:sess-new', thread), []);
+  const plain = chatReduce(chatTurnNew({ turnId: 'p', convId: 'code:abc', prompt: 'x', now: 0 }), { kind: 'session', sessionId: 'zzz' }, 1);
+  assert.equal(plain.convId, 'code:abc');
+});
