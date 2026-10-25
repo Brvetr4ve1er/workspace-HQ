@@ -17,6 +17,7 @@ import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY, THEMES, readV3Prefs, mirro
 import { tasksLogic } from './logic/tasks.js';
 import { claudeLogic } from './logic/claude.js';
 import { claudeLibLogic, clPrefs } from './logic/claude-lib.js';
+import { claudeChatLogic } from './logic/claude-chat.js';
 import { runsLogic } from './logic/runs.js';
 import { commitLogic } from './logic/commit.js';
 import { sheetLogic } from './logic/sheet.js';
@@ -82,6 +83,8 @@ export class Component extends DCLogic {
       canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
       // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
       ...clPrefs(), clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
+      // Claude chat composer (H3, logic/claude-chat.js) — not persisted: every composer opens Read-only
+      ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
       // Ask's offline box: Retry is probing (logic/ask.js)
       askChecking: false,
       // Ask (logic/ask.js, contract K-1): { askHistory, askInclude } from v3's localStorage keys; Ask saves them itself
@@ -379,6 +382,6 @@ export class Component extends DCLogic {
     try { navigator.clipboard.writeText(String(text || '')).then(done, () => this.toast('error', 'Clipboard unavailable')); } catch { this.toast('error', 'Clipboard unavailable'); }
   }
 }
-Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
+Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
   whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic);
 Component.prototype.renderVals = renderVals;

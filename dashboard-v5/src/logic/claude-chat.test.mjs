@@ -107,3 +107,19 @@ test('ccSetMode / ccContinue / ccStop / ccNew', async () => {
   p.self.ccNew('project-a');
   assert.deepEqual(went, [['claude', 'chats']]);
 });
+
+import { claudeChatVals } from '../vals/claude-chat.js';
+test('claudeChatVals: composer only on Claude › Chats when open; quota label always; Send carries its reason', () => {
+  const self = { hq: { claudeChat: {} }, ...claudeChatLogic, setState() {}, ccNew() {}, ccContinue() {} };
+  const ctx = (S, o = {}) => ({ S: { ...S0, ...S }, LIVE: LIVE0(o.live), v: { claude: true }, sub: 'chats', projects: HQP, cantWrite: false, writeReason: '', tabStyle: (on) => ({ color: on ? 'on' : 'off' }), ...o.ctx });
+  const closed = claudeChatVals.call(self, ctx({ ccOpen: false }));
+  assert.equal(closed.ccShow, false); assert.equal(closed.ccBarShow, true); assert.equal(closed.ccQuota, 'Uses your Claude quota');
+  const open = claudeChatVals.call(self, ctx({ ccOpen: true, ccProj: 'project-a', ccText: 'Hi' }));
+  assert.equal(open.ccShow, true); assert.equal(open.ccIsNew, true); assert.equal(open.ccCantSend, false);
+  assert.equal(open.ccReadOnlyOn, true); assert.equal(open.ccEditsOn, false);
+  assert.deepEqual(open.ccPicks.map((p) => [p.label, p.on]), [['Project A', true], ['project-b · Claude Code folder', false]]);
+  assert.equal(claudeChatVals.call(self, ctx({ ccOpen: true }, { ctx: { sub: 'sessions' } })).ccShow, false);
+  assert.equal(claudeChatVals.call(self, ctx({ ccOpen: true }, { ctx: { v: { claude: false } } })).ccBarShow, false);
+  const nob = claudeChatVals.call({ ...self, hq: null }, ctx({ ccOpen: true, ccProj: 'project-a', ccText: 'Hi' }));
+  assert.equal(nob.ccCantSend, true); assert.equal(nob.ccSendTip, 'This window has no app bridge');
+});

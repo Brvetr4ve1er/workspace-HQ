@@ -128,5 +128,5 @@ export const claudeLibLogic = {
     const r = await this.call(() => this.hq.claudeHub.reindex());
     if (r !== null) this.toast('info', 'Reindexing — links and forgotten chats are kept');
   },
-  clNewChat(project) { return this.clTermAt(project && project.path, 'This project has no folder'); },
+  clNewChat(project) { return this.ccNew(project && project.id ? project.id : ''); },   // H3: the in-app composer (was a terminal until H3)
 };

@@ -27,9 +27,10 @@ import tpl from './app.tpl.js';
 // 2026-10-16 H2 Claude › Projects, project-page Claude, History Claude activity, System Reindex (+6749 chars / +6779 bytes): four fragments (claude, project-page, history, system), one hunk each, no line removed, each with its <!-- v5: reason --> marker
 // 2026-10-25 H2 final review (token scope honesty, +100 chars / +100 bytes): one fragment (history), two lines, none removed —
 // the per-project token span shows "N tokens (whole chat)" with a tooltip, and the strip's <!-- v5: reason --> marker gains the scope clause
-const SHA256 = '3e09b9867aef9be42bf5bd3324af25bd7e958203c272b7fb766ca510c2c2dc37';
-const LENGTH = 217852;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 218232;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-16 H3 Claude chat composer (claude.tpl.js: Continue, New chat bar, composer; project-page title) +2814 chars / +2829 bytes
+const SHA256 = '41275a185095481f958c33f2dbc9383d5cc763915acd61ece2f9a7944028de9a';
+const LENGTH = 220666;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 221061;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
