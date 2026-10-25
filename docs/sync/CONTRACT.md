@@ -238,6 +238,18 @@ Stored as Hub rows `web:<uuid>` (`source='web'`), de-duplicated through `web_syn
 
 Written only by `dashboard/claude-vault.js`, one note per owner-confirmed Save. Names: `safeSegment` (no `/:*?"<>|[]#^`, no control chars, no leading dot / trailing dot or space, DOS device names prefixed `_`, ≤ 60 code points); a name used by another chat takes ` (2)`…` (9)`. Frontmatter (YAML; strings JSON-quoted): `source` (`claude-code` | `claude.ai` | `chatgpt` — H6, additive), `conversation` (Hub id — how a later Save recognises "this chat's own note"), `project` (`"[[<WorkspaceHQ project note or Claude project name>]]"`), `created` (YYYY-MM-DD), `chat_date`, `title`, `drafted_by` ("local model <id>, from N chat messages"), `tags: [claude]`. Body: `# <title>`, a `Project: [[…]]` line, then the owner-edited Summary / Decisions / To-dos / Links. The structure lane's pipeline never writes here; Ask's Vault source reads these notes like any other (they carry no `generated_by: workspacehq-pipeline`).
 
+### `VEEMO CORTEX/40_Resources/Prompts/<slug>.md` — prompt notes (frontend lane, owner's vault; prompt library P1 format, P2 writes)
+
+The owner's prompt library; the vault is the source of truth (spec 2026-10-15 §6.1). The Hub only reads the folder (top level,
+`*.md`, H6 `ingest-docs.mjs`). WorkspaceHQ writes only NEW notes the owner confirmed (Promote, from phase P2), through
+`writePromptNote` in `dashboard/claude-prompts.js`: atomic (temp + hard link), never an overwrite — a clash is refused and
+offers `<slug>-2.md`…`<slug>-9.md`. File name = `slugify(title)` (`dashboard/claude-prompt-note.js`: NFKD, ASCII letters/digits,
+`-` separators, ≤ 60 chars, Windows device names prefixed `prompt-`, empty → `prompt`). Frontmatter (YAML; strings
+JSON-quoted): `title`, `tags: [a, b]`, `variables: [a, b]`, `version: 1`, `created` (ISO), `source: { kind, conversation, at }`
+(harvested only), `hq: { id: "prompt:<sha1 of the lowercased absolute path>" }` (harmless if removed). Body = the prompt;
+variables are `{{name}}` tokens (`{{project}}` / `{{cwd}}` filled from the chosen project at run time). Bodies written by
+WorkspaceHQ are masked (`maskSecrets`). The structure lane never writes here.
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
