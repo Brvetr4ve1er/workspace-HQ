@@ -46,7 +46,8 @@ export function createStore(DATA, hq) {
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
-    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
+    claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, docHits: null, doc: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
+    claudeImports: { folder: null, found: [], refused: [], error: null },   // AI archive H6: drop-folder offers (main's watcher), raw
     claudeChat: { turns: [] },   // Claude Hub H3: in-app chat turns, newest last (chatReduce)
     claudeImport: null,  // Claude Hub H4: latest claude.ai import progress event
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
@@ -204,6 +205,8 @@ export function createStore(DATA, hq) {
     if (hq.uiPrefs && hq.uiPrefs.get) reads.push(pull(() => hq.uiPrefs.get(), (p) => { if (isObj(p) && !prefsPushed) live.uiPrefs = p; }));
     if (hq.claudeChat && hq.claudeChat.on) sub(() => hq.claudeChat.on((e) => { if (applyChat(e)) { if (e.kind === 'delta' || e.kind === 'tool') emitSoon(); else emit(); } }));
     if (hq.claudeHub && hq.claudeHub.health) reads.push(pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : null; }));
+    if (hq.claudeImports && hq.claudeImports.on) sub(() => hq.claudeImports.on(applyImports));
+    if (hq.claudeImports && hq.claudeImports.pending) reads.push(refreshClaudeImports());
     if (hq.claudeHub && hq.claudeHub.on) sub(() => hq.claudeHub.on((e) => {
       if (!isObj(e)) return;
       if (e.event === 'progress' && isObj(e.data) && e.data.kind === 'import') {   // H4: import progress is not backfill progress
@@ -224,6 +227,9 @@ export function createStore(DATA, hq) {
         if (lib().convs) syncClaudeLib();
         if (lib().stats) refreshClaudeStats();
         for (const k of new Set([...Object.keys(lib().byHq), ...Object.keys(lib().pageErr)])) refreshClaudeForProject(k);
+        const docIds = Array.isArray(e.data && e.data.documents) ? e.data.documents : [];
+        if (docIds.length && lib().q && /[\p{L}\p{N}]/u.test(lib().q)) searchClaude(lib().q);
+        if (docIds.length && lib().doc && lib().doc.id && docIds.includes(lib().doc.id)) openClaudeDocument(lib().doc.id);
         const t = lib().thread;
         if (t && t.conversation && Array.isArray(e.data && e.data.ids) && e.data.ids.includes(t.conversation.id)) syncClaudeThread(t.conversation.id);
       }
@@ -267,7 +273,7 @@ export function createStore(DATA, hq) {
   const fresh = () => { lib().error = null; };
   const PAGE = 50, MAXPAGE = 200;
   // per-slot sequence numbers: a request is current only while its slot's number is unchanged
-  const seq = { filters: 0, thread: 0, search: 0 };
+  const seq = { filters: 0, thread: 0, search: 0, doc: 0 };
   const convBefore = (a, b) => a.last_at < b.last_at || (a.last_at === b.last_at && a.id < b.id); // a sorts after b in (last_at DESC, id DESC)
   function refreshClaudeLib(filters = lib().filters) {
     lib().filters = { ...filters }; fresh();
@@ -303,9 +309,36 @@ export function createStore(DATA, hq) {
   function searchClaude(q) {
     lib().q = String(q || '');
     const my = ++seq.search, stale = () => my !== seq.search;
-    if (!/[\p{L}\p{N}]/u.test(lib().q)) { fresh(); lib().hits = null; lib().noTerms = lib().q.trim() !== ''; emit(); return Promise.resolve(); }
+    if (!/[\p{L}\p{N}]/u.test(lib().q)) { fresh(); lib().hits = null; lib().docHits = null; lib().noTerms = lib().q.trim() !== ''; emit(); return Promise.resolve(); }
     lib().noTerms = false; fresh();
-    return hubCall(() => hq.claudeHub.search(lib().q, { limit: 50 }), (r) => { lib().hits = Array.isArray(r) ? r : []; }, stale);
+    const docs = hq.claudeHub.documents
+      ? hubCall(() => hq.claudeHub.documents({ q: lib().q, limit: 20 }), (r) => { lib().docHits = Array.isArray(r) ? r : []; }, stale)
+      : Promise.resolve();
+    return Promise.all([hubCall(() => hq.claudeHub.search(lib().q, { limit: 50 }), (r) => { lib().hits = Array.isArray(r) ? r : []; }, stale), docs]);
+  }
+  const DOC_GONE = 'That document is no longer in the index (its file was removed or it was forgotten).';
+  function openClaudeDocument(id) {
+    if (!hq || !hq.claudeHub || !hq.claudeHub.document) return Promise.resolve();
+    const my = ++seq.doc, stale = () => my !== seq.doc;
+    lib().doc = { id: String(id), loading: true }; emit();
+    return hubCall(() => hq.claudeHub.document(String(id)), (r) => { lib().doc = r && r.id ? r : { id: String(id), error: DOC_GONE }; }, stale,
+      (m) => { lib().doc = { id: String(id), error: m }; });
+  }
+  function closeClaudeDocument() { ++seq.doc; lib().doc = null; emit(); }
+  const imp = () => live.claudeImports;
+  function refreshClaudeImports() {
+    if (!hq || !hq.claudeImports || !hq.claudeImports.pending) return Promise.resolve();
+    return Promise.resolve().then(() => hq.claudeImports.pending()).then((p) => {
+      if (isObj(p)) { imp().folder = isObj(p.folder) ? p.folder : null; imp().found = Array.isArray(p.found) ? p.found : []; imp().refused = Array.isArray(p.refused) ? p.refused : []; imp().error = null; }
+    }, (e) => { imp().error = 'Imports folder: ' + ((e && e.message) || e); }).finally(emit);
+  }
+  function applyImports(e) {
+    if (!isObj(e) || !isObj(e.data)) return;
+    const d = e.data;
+    if (e.event === 'found' && d.dropId && !imp().found.some((f) => f.dropId === d.dropId)) imp().found = [...imp().found, d];
+    else if (e.event === 'gone') imp().found = imp().found.filter((f) => f.dropId !== d.dropId);
+    else if (e.event === 'error' && d.file) imp().refused = [...imp().refused.filter((x) => x.file !== d.file), d].slice(-10);
+    emit();
   }
   function openClaudeThread(id) {
     fresh();
@@ -361,7 +394,7 @@ export function createStore(DATA, hq) {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
-    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
+    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat,
   };
 }

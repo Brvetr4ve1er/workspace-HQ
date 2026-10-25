@@ -560,3 +560,45 @@ test('importView: why, running phases, done/failed, last import from health', ()
   assert.equal(fromHealth.text, 'Imported 3 chats (2026-10-04)');
   assert.equal(importView(null, { ...HUBW, importing: true }, OPT).running, true);
 });
+
+import { hubDocHit, hubDocument, dropCards } from './adapter.mjs';
+
+test('H6: ChatGPT rows are labelled ChatGPT; document hits carry a badge and text parts', () => {
+  assert.equal(hubConv({ id: 'chatgpt:x', source: 'chatgpt', title: 't' }).sourceLabel, 'ChatGPT');
+  assert.equal(hubConv({ id: 'web:x', source: 'web' }).sourceLabel, 'claude.ai');
+  const h = hubDocHit({ id: 'claude-md:1', source: 'claude-md', title: 'CLAUDE.md — p', mtime_ms: Date.parse('2026-10-01T00:00:00Z'), snippet: 'fake \u0002tea\u0003 rules', origin: null }, Date.parse('2026-10-02T00:00:00Z'));
+  assert.equal(h.badge, 'CLAUDE.md'); assert.equal(h.title, 'CLAUDE.md — p');
+  assert.deepEqual(h.parts.map((p) => [p.text, !!p.hit]), [['fake ', false], ['tea', true], [' rules', false]]);
+  assert.equal(hubDocHit({ id: 'memory:chatgpt:1', source: 'memory', origin: 'chatgpt', title: null }).badge, 'memory (ChatGPT)');
+  assert.equal(hubDocHit({ id: 'x', source: 'other' }).badge, 'document');
+});
+
+test('H6: hubDocument shows masked text as plain lines; null and junk are null', () => {
+  const d = hubDocument({ id: 'memory:1', source: 'memory', title: 'Tea', text: 'line one\nline two', project_path: 'C:\fake\p', mtime_ms: 1 }, 2);
+  assert.equal(d.badge, 'memory'); assert.equal(d.project, 'C:\fake\p');
+  assert.deepEqual(d.lines.map((l) => l.text), ['line one', 'line two']);
+  assert.equal(hubDocument(null), null); assert.equal(hubDocument({ error: 'x' }), null);
+});
+
+test('H6: dropCards say what and how big, never a guessed chat count', () => {
+  const cards = dropCards({ found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 38 * 1000 * 1000, kind: 'chatgpt' }, { dropId: 'd2', file: 'c.zip', bytes: 1000, kind: 'claude' }] });
+  assert.equal(cards[0].text, 'Import ChatGPT export (chatgpt-export.zip, 38 MB)?');
+  assert.equal(cards[1].text.startsWith('Import claude.ai export (c.zip, '), true);
+  assert.ok(cards.every((c) => !/chats\)/.test(c.text)));
+  assert.match(cards[0].sub, /read on this PC only/);
+  assert.deepEqual(dropCards(null), []);
+});
+
+test('H6: a ChatGPT import report is counts only and names branches and other files', () => {
+  const lines = importReportLines({ source: 'chatgpt', conversations: { imported: 4, unchanged: 1, forgotten: 0, skipped: 2 }, messages: { imported: 10, skipped: 1, empty: 0 },
+    branches: { skipped: 2 }, files: { other: ['chat.html', 'message_feedback.json'] }, memory: { found: true, imported: 2 }, unknownFields: {}, truncated: false });
+  assert.deepEqual(lines, [
+    'Chats: 4 imported · 1 unchanged · 0 forgotten · 2 skipped',
+    'Messages: 10 imported · 1 skipped · 0 empty',
+    'Other branches of edited chats: 2 (not imported — the version you last saw is)',
+    'Memory: 2 saved as memory documents',
+    'Not imported (counted): chat.html, message_feedback.json',
+  ]);
+  const v = importView({ kind: 'import', source: 'chatgpt', phase: 'done', report: { source: 'chatgpt', conversations: { imported: 4 } } }, { state: 'ready', role: 'writer' }, { hasBridge: true, canWrite: true });
+  assert.equal(v.text, 'Imported 4 ChatGPT chats');
+});

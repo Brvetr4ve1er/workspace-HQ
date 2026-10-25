@@ -680,3 +680,59 @@ test('claude.ai import events land in live.claudeImport and never touch the back
   assert.ok(healthCalls() > before, 'health re-asked after the import ended');
   st.stop();
 });
+
+function h6Hq() {
+  let pushImports = null;
+  const calls = [];
+  const hq = {
+    claudeHub: {
+      health: async () => ({ state: 'ready', role: 'writer' }), on: () => () => {},
+      search: async (q) => { calls.push(['search', q]); return [{ messageId: 'm', conversationId: 'code:s', title: 't', snippet: 'a \u0002tea\u0003', at: '2026-10-01T00:00:00Z' }]; },
+      documents: async (o) => { calls.push(['documents', o]); return [{ id: 'memory:1', source: 'memory', title: 'Tea', snippet: '\u0002tea\u0003', mtime_ms: 1 }]; },
+      document: async (id) => { calls.push(['document', id]); return id === 'memory:1' ? { id, source: 'memory', title: 'Tea', text: 'masked text' } : null; },
+    },
+    claudeImports: {
+      pending: async () => ({ folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd0', file: 'old.zip', bytes: 1, kind: 'claude' }], refused: [] }),
+      on: (cb) => { pushImports = cb; return () => { pushImports = null; }; }, dismiss: async () => true,
+    },
+  };
+  return { hq, calls, push: (e) => pushImports && pushImports(e) };
+}
+
+test('H6: search asks messages and documents together under one staleness token; documents exclude nothing client-side', async () => {
+  const { hq, calls } = h6Hq();
+  const st = createStore(DATA(), hq);
+  await st.searchClaude('tea');
+  assert.deepEqual(calls.filter((c) => c[0] !== 'document').map((c) => c[0]).sort(), ['documents', 'search']);
+  assert.deepEqual(calls.find((c) => c[0] === 'documents')[1], { q: 'tea', limit: 20 });
+  assert.equal(st.live.claudeLib.hits.length, 1); assert.equal(st.live.claudeLib.docHits.length, 1);
+  await st.searchClaude('   ');
+  assert.equal(st.live.claudeLib.docHits, null);
+});
+
+test('H6: openClaudeDocument loads in place; an unknown id says so; close clears', async () => {
+  const { hq } = h6Hq();
+  const st = createStore(DATA(), hq);
+  await st.openClaudeDocument('memory:1');
+  assert.equal(st.live.claudeLib.doc.text, 'masked text');
+  await st.openClaudeDocument('memory:gone');
+  assert.deepEqual(st.live.claudeLib.doc, { id: 'memory:gone', error: 'That document is no longer in the index (its file was removed or it was forgotten).' });
+  st.closeClaudeDocument();
+  assert.equal(st.live.claudeLib.doc, null);
+});
+
+test('H6: claudeImports — pending on start, found/gone/error pushes', async () => {
+  const { hq, push } = h6Hq();
+  const st = createStore(DATA(), hq);
+  st.start();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(st.live.claudeImports.found.map((f) => f.dropId), ['d0']);
+  push({ event: 'found', data: { dropId: 'd1', file: 'cg.zip', bytes: 5, kind: 'chatgpt' } });
+  push({ event: 'found', data: { dropId: 'd1', file: 'cg.zip', bytes: 5, kind: 'chatgpt' } });   // a replay never doubles
+  assert.deepEqual(st.live.claudeImports.found.map((f) => f.dropId), ['d0', 'd1']);
+  push({ event: 'gone', data: { dropId: 'd0' } });
+  push({ event: 'error', data: { file: 'x.zip', error: 'Not a ChatGPT or claude.ai export (looked for conversations.json)' } });
+  assert.deepEqual(st.live.claudeImports.found.map((f) => f.dropId), ['d1']);
+  assert.equal(st.live.claudeImports.refused[0].file, 'x.zip');
+  st.stop();
+});

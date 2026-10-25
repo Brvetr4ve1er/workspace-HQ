@@ -483,10 +483,11 @@ const whenOf = (s, now) => { const t = at2ms(s); return t === null ? '' : ago(t,
 const hhmmOf = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const msgDay = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const TOOL_LINE = /^\[tool: /;
+export const SOURCE_LABEL = { code: 'Code', web: 'claude.ai', chatgpt: 'ChatGPT' };
 export function hubConv(row, now = Date.now()) {
   const r = obj(row);
   return { id: String(r.id || ''), title: r.title ? String(r.title) : 'Untitled chat', project: String(r.project_name || ''), projectId: String(r.project_id || ''),
-    hqProjectId: r.hq_project_id ? String(r.hq_project_id) : null, source: String(r.source || 'code'), sourceLabel: r.source === 'web' ? 'claude.ai' : 'Code',
+    hqProjectId: r.hq_project_id ? String(r.hq_project_id) : null, source: String(r.source || 'code'), sourceLabel: SOURCE_LABEL[r.source] || 'Code',
     when: whenOf(r.last_at, now), count: num(r.message_count, 0), tokens: fmtTokens(tokSum(r)), cursor: { before: r.last_at || null, beforeId: String(r.id || '') } };
 }
 export function hubThread(res, now = Date.now()) {
@@ -508,6 +509,26 @@ export function hubProject(row, now = Date.now()) {
 export function hubHit(h, now = Date.now()) {
   const r = obj(h);
   return { conversationId: String(r.conversationId || ''), messageId: String(r.messageId || ''), title: r.title ? String(r.title) : 'Untitled chat', when: whenOf(r.at, now), parts: snippetParts(r.snippet) };
+}
+// ---- Archive H6: document hits (memory notes, CLAUDE.md, vault prompts, history) and the in-place document view
+export const DOC_BADGE = { memory: 'memory', 'claude-md': 'CLAUDE.md', prompt: 'prompt', history: 'history' };
+const docBadge = (r) => (DOC_BADGE[r.source] || 'document') + (r.origin === 'chatgpt' ? ' (ChatGPT)' : '');
+const docWhen = (ms, now) => (Number.isFinite(Number(ms)) && Number(ms) > 0 ? whenOf(new Date(Number(ms)).toISOString(), now) : '');
+export function hubDocHit(h, now = Date.now()) {
+  const r = obj(h);
+  return { id: String(r.id || ''), badge: docBadge(r), title: r.title ? String(r.title) : 'Untitled document', when: docWhen(r.mtime_ms, now), parts: snippetParts(r.snippet), origin: r.origin || null };
+}
+export function hubDocument(res, now = Date.now()) {
+  if (!res || typeof res !== 'object' || res.error || !res.id) return null;
+  const r = obj(res), text = String(r.text || '');
+  return { id: String(r.id), badge: docBadge(r), title: r.title ? String(r.title) : 'Untitled document', project: String(r.project_path || ''),
+    when: docWhen(r.mtime_ms, now), text, lines: text.split('\n').map((t, i) => ({ key: 'l' + i, text: t })) };
+}
+const KIND_LABEL = { chatgpt: 'ChatGPT', claude: 'claude.ai' };
+export function dropCards(imp) {
+  return arr(obj(imp).found).map((f) => ({ dropId: String(f.dropId || ''), kind: f.kind === 'chatgpt' ? 'chatgpt' : 'claude',
+    text: `Import ${KIND_LABEL[f.kind] || 'claude.ai'} export (${String(f.file || 'export.zip')}, ${fmtBytes(num(f.bytes, 0))})?`,
+    sub: 'Found in your WorkspaceHQ Imports folder. It is read on this PC only; nothing is uploaded, and the file is left where it is.' }));
 }
 export function hubStats(res) {
   const r = obj(res), t = obj(r.totals);
@@ -589,8 +610,14 @@ export function importReportLines(r) {
   const lines = [
     `Chats: ${num(c.imported, 0)} imported · ${num(c.unchanged, 0)} unchanged · ${num(c.forgotten, 0)} forgotten · ${num(c.skipped, 0)} skipped`,
     `Messages: ${num(m.imported, 0)} imported · ${num(m.skipped, 0)} skipped · ${num(m.empty, 0)} empty`,
-    `Projects: ${num(p.imported, 0)} imported · ${num(p.unchanged, 0)} unchanged · ${num(p.skipped, 0)} skipped`,
   ];
+  if (r.source === 'chatgpt') {
+    const br = obj(r.branches), mem = obj(r.memory), other = arr(obj(r.files).other).map(String);
+    if (num(br.skipped, 0) > 0) lines.push(`Other branches of edited chats: ${num(br.skipped, 0)} (not imported — the version you last saw is)`);
+    if (num(mem.imported, 0) > 0) lines.push(`Memory: ${num(mem.imported, 0)} saved as memory documents`);
+    else if (mem.found) lines.push('Memory file found but not recognized — nothing imported');
+    if (other.length) lines.push('Not imported (counted): ' + other.join(', '));
+  } else lines.push(`Projects: ${num(p.imported, 0)} imported · ${num(p.unchanged, 0)} unchanged · ${num(p.skipped, 0)} skipped`);
   const u = Object.entries(obj(r.unknownFields)).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
   if (u.length) lines.push('Not understood (counted, not imported): ' + u.slice(0, 5).map(([k, n]) => `${k} ×${n}`).join(', ') + (u.length > 5 ? `, +${u.length - 5} more` : ''));
   if (r.truncated) lines.push('The export file ended early — what came before the cut was imported.');
@@ -616,8 +643,8 @@ export function importView(imp, hub, { hasBridge, canWrite, writeReason } = {}) 
     const last = cur && cur.phase === 'done' ? { ok: true, report: cur.report, at: null } : hub && hub.lastImport ? hub.lastImport : null;
     if (last && last.ok) {
       const c = obj(obj(last.report).conversations), day = last.at ? ` (${String(last.at).slice(0, 10)})` : '';
-      const n = num(c.imported, 0), u = num(c.unchanged, 0);
-      text = n ? `Imported ${n} chat${n === 1 ? '' : 's'}${day}` : u ? `Nothing new — ${u} chat${u === 1 ? ' was' : 's were'} already imported${day}` : 'No chats found in that export';
+      const n = num(c.imported, 0), u = num(c.unchanged, 0), gpt = obj(last.report).source === 'chatgpt' ? 'ChatGPT ' : '';
+      text = n ? `Imported ${n} ${gpt}chat${n === 1 ? '' : 's'}${day}` : u ? `Nothing new — ${u} ${gpt}chat${u === 1 ? ' was' : 's were'} already imported${day}` : `No ${gpt}chats found in that export`;
       tone = 'ok'; report = importReportLines(last.report);
     } else if (last) { text = 'Last import failed: ' + String(last.error || 'unknown error'); tone = 'error'; }
   }
