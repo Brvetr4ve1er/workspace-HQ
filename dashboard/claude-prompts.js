@@ -132,7 +132,7 @@ function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {
         if (!vaultDir) return { error: 'no vault folder is configured' };
         const body = await maskText(o.text.replace(/\r\n/g, '\n').trim());
         const first = o.text.split('\n').find((l) => l.trim()) || '';
-        const title = await maskText((typeof o.title === 'string' && o.title.trim() ? o.title : first).slice(0, 400));
+        const title = await maskText((typeof o.title === 'string' && o.title.trim() ? o.title : first)); // mask the whole string before any cut (H1 ruling)
         const t = title.text.replace(/\s+/g, ' ').trim().slice(0, 200) || 'Untitled prompt';
         const slug = slugify(t);
         let name = noteName(slug);

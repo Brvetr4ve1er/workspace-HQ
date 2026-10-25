@@ -207,6 +207,20 @@ test('promote masks the body and the title before writing; creates the folder; �
   assert.equal(logs.some((l) => l.includes('placeholder token')), false);   // logs carry the file name only
 });
 
+test('promote masks the whole title before any cut (token straddling the old 400-char cut, explicit and default title)', async () => {
+  const tok = SECRET();
+  for (const mode of ['title', 'first']) {
+    const v = p2Vault(); const { p } = p2Make(v);
+    const long = 'a' + ' '.repeat(370) + tok;
+    const r = await p.promote(mode === 'title' ? { text: 'Placeholder body.', title: long } : { text: long + '\nmore' });
+    assert.equal(r.error, undefined, JSON.stringify(r));
+    const src = fs.readFileSync(path.join(PDIR(v), r.name), 'utf8');
+    assert.equal(src.includes(tok.slice(0, 20)), false, mode + ': no token fragment in the note');
+    assert.equal(r.name.includes('ghp'), false, mode + ': none in the file name');
+    assert.match(src, /••• secret \(github-token\)/);
+  }
+});
+
 test("promote: name must be the title's slug or slug-2…-9; never overwrites; creates the folder", async () => {
   const v = p2Vault(); const { p } = p2Make(v);
   const base = { text: 'Placeholder prompt body for the clash test.', title: 'Review a PR' };
