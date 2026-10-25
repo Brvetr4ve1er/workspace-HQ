@@ -30,6 +30,10 @@
 //   claude-import-progress
 // H6 archive scenarios (same rules; the fake watcher events are emitted by hand, the fake Hub answers documents):
 //   imports-drop-confirm · search-documents
+// P1 prompt library scenarios (same rules; the fake FAKE_PROMPTS / claudePrompts answer):
+//   prompts-library-open — Library lists the fake notes; Open in Obsidian -> claudePrompts.open(id,'obsidian'); Obsidian missing -> one Open-file fallback; Run sends nothing
+//   prompts-empty-states — no folder / empty folder / Hub error each say why
+//   prompts-project-shortcut — project page "Run a prompt" opens Claude > Prompts with the project chip; x clears it
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -123,7 +127,7 @@ async function fresh(t) {
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
     vault: null, whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
+    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null,
     ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
     projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null }); return true; })()`);
   await t.sleep(80);
@@ -1289,6 +1293,68 @@ const SCENARIOS = {
     } finally {
       await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.closeVault(); L.setState({ clOpen: false }); if (L.store.live.claudeLib) L.store.live.claudeLib.thread = null; return true; })()`).catch(() => {});
     }
+    return out.concat(t.errors());
+  },
+
+  async 'prompts-library-open'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const opens = () => t.evaluate(`hqFake.calls('claudePrompts.open').map((c) => c.args)`);
+    const click = (sel) => t.evaluate(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return false; b.click(); return true; })()`);
+    await t.evaluate(`(() => { WHQ.app.logic.go('claude', 'prompts'); return true; })()`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 2`, 8000)) return ['the Library did not list the 2 fake prompt notes'];
+    const text = await t.evaluate(`document.querySelector('[data-pr="lib"]').textContent`);
+    for (const want of ['Review a PR like a staff engineer', 'review-a-pr.md', '#review #code', '{{project}} {{file}}', 'used 3×', 'not run yet', 'uses your Claude quota', '2 prompt notes · fake-vault/40_Resources/Prompts'])
+      if (!text.includes(want)) out.push('Library text lacks: ' + want);
+    if (!await click('[data-pr="obsidian"]')) out.push('no Open in Obsidian button');
+    else if (!await t.waitFor(`hqFake.calls('claudePrompts.open').length === 1`)) out.push('Open in Obsidian did not reach main');
+    else if (JSON.stringify((await opens())[0]) !== JSON.stringify(['prompt:' + 'a'.repeat(40), 'obsidian'])) out.push('open args: ' + JSON.stringify(await opens()));
+    // Obsidian missing: main answers with fallback 'file' → exactly one Open-file retry
+    await t.evaluate(`(() => { hqFake.set('claudePrompts.open', (id, how) => (how === 'obsidian' ? { error: 'Obsidian is not installed — use Open file', fallback: 'file' } : { ok: true, how })); return true; })()`);
+    await click('[data-pr="obsidian"]');
+    if (!await t.waitFor(`hqFake.calls('claudePrompts.open').length === 3`)) out.push('no Open-file fallback after "Obsidian is not installed"');
+    else if ((await opens())[2][1] !== 'file') out.push('the fallback was not Open file: ' + JSON.stringify(await opens()));
+    // main says Obsidian is absent → no Obsidian buttons, the note says why, Open file stays
+    await t.evaluate(`(() => { hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: false }); WHQ.app.logic.prLoad(); return true; })()`);
+    if (!await t.waitFor(`!document.querySelector('[data-pr="obsidian"]') && !!document.querySelector('[data-pr="no-obsidian"]') && !!document.querySelector('[data-pr="file"]')`)) out.push('Obsidian-absent state not shown');
+    // Run is a labelled placeholder: nothing is sent, launched or copied
+    await click('[data-pr="run"]');
+    await t.sleep(300);
+    for (const m of ['claudeChat.send', 'claudeQuest']) if ((await t.evaluate(`hqFake.calls(${JSON.stringify(m)}).length`)) !== 0) out.push('Run called ' + m);
+    if (!await t.waitFor(`document.body.textContent.includes('Run arrives with the run step')`)) out.push('Run did not explain itself');
+    // search: FTS hits ∪ tag/title matches
+    await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ prQuery: 'weekly' }); L.prSearch(); return true; })()`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 1 && document.querySelector('[data-pr="row"]').textContent.includes('Weekly notes digest')`)) out.push('search did not narrow to the weekly note');
+    return out.concat(t.errors());
+  },
+
+  async 'prompts-empty-states'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const empty = () => t.evaluate(`(() => { const e = document.querySelector('[data-pr="empty"]'); return e ? e.textContent : ''; })()`);
+    await t.evaluate(`(() => { hqFake.set('claudeHub.documents', []); hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: false }, obsidian: true }); WHQ.app.logic.go('claude', 'prompts'); WHQ.app.logic.prLoad(); return true; })()`);
+    if (!await t.waitFor(`(document.querySelector('[data-pr="empty"]') || {}).textContent?.startsWith('No prompts folder yet — create fake-vault/40_Resources/Prompts')`)) out.push('no-folder text: ' + await empty());
+    await t.evaluate(`(() => { hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true }); WHQ.app.logic.prLoad(); return true; })()`);
+    if (!await t.waitFor(`(document.querySelector('[data-pr="empty"]') || {}).textContent?.includes('has no prompt notes yet')`)) out.push('empty-folder text: ' + await empty());
+    await t.evaluate(`(() => { hqFake.set('claudeHub.documents', { error: 'hub not running' }); WHQ.app.logic.prLoad(); return true; })()`);
+    if (!await t.waitFor(`(document.querySelector('[data-pr="empty"]') || {}).textContent?.startsWith('Claude Hub: hub not running')`)) out.push('Hub-error text: ' + await empty());
+    if (await t.evaluate(`document.querySelectorAll('[data-pr="row"]').length`) !== 0) out.push('rows shown under a Hub error');
+    return out.concat(t.errors());
+  },
+
+  async 'prompts-project-shortcut'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const p = await t.evaluate(`(() => { const L = WHQ.app.logic; const p = L.M.P0[0]; L.go('projects', 'grid'); L.openProject(p.id); return { id: p.id, name: p.name }; })()`);   // same route as the gaps scenario (cdp-gate.mjs: M.P0 + go + openProject)
+    if (!await t.waitFor(`!!document.querySelector('[data-pr="page-run"]')`)) return ['the project page has no "Run a prompt" button'];
+    await t.evaluate(`(() => { document.querySelector('[data-pr="page-run"]').click(); return true; })()`);
+    if (!await t.waitFor(`WHQ.app.logic.state.tab === 'claude' && WHQ.app.logic.state.sub.claude === 'prompts' && !!document.querySelector('[data-pr="for"]')`)) return out.concat(['Run a prompt did not open Claude › Prompts with the project chip']);
+    const chip = await t.evaluate(`document.querySelector('[data-pr="for"]').textContent`);
+    if (!chip.includes('For ' + p.name)) out.push('chip text: ' + chip);
+    if (await t.evaluate(`WHQ.app.logic.state.prFor`) !== p.id) out.push('prFor is not the project id');
+    if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 2 && document.querySelector('[data-pr="row"]').textContent.includes('uses this project')`)) out.push('the {{project}} prompt is not first / not marked');
+    await t.evaluate(`(() => { document.querySelector('[data-pr="for"] button').click(); return true; })()`);
+    if (!await t.waitFor(`!document.querySelector('[data-pr="for"]')`)) out.push('✕ did not clear the project context');
     return out.concat(t.errors());
   },
 };

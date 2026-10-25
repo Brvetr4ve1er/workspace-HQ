@@ -16,7 +16,7 @@ import { gapsOf } from './live/adapter.mjs';
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
+const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, studioFilter: 'all' };
@@ -128,7 +128,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports };
+    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports, prompts: LV.prompts };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -160,6 +160,13 @@ export async function run(W = window.WHQ) {
         { id: 'm3', role: 'assistant', at: new Date().toISOString(), text: 'Hi' },
       ] };
       const clLib = (o) => () => { LV.claudeHub = CL_READY; LV.claudeLib = { projects: [{ id: 'p1', name: 'project-a', conversations: 2 }], convs: CL_CONVS, convsMore: true, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, error: null, busy: false, ...o }; };
+      // Prompt library P1 — Library states (live.prompts as the store leaves it)
+      const PR_ROWS = [
+        { id: 'prompt:st1', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\review-a-pr.md', title: 'Selftest review prompt', mtime_ms: 1, meta: { tags: ['review'] }, variables: ['project', 'file'] },
+        { id: 'prompt:st2', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\weekly.md', title: 'Selftest weekly digest', mtime_ms: 2, meta: {}, variables: [] },
+      ];
+      const PR_ST = (o = {}) => ({ vault: 'VEEMO CORTEX', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true, ...o });
+      const prLib = (P) => () => { LV.prompts = { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false, ...P }; };
       const STATES = [
         ['ask-empty', at('home'), { askOpen: true, askHistory: [] }],
         ['ask-streaming', at('home'), { askOpen: true, askHistory: ASK_STREAMING }],
@@ -218,6 +225,15 @@ export async function run(W = window.WHQ) {
         ['cl-projects', at('claude', 'projects'), { clLinkPick: 'p1' }, clLib({ projects: [{ id: 'p1', name: 'project-a', path: 'C:\placeholder\project-a', conversations: 2, last_at: CL_CONVS[0].last_at, hq_project_id: (M.P0[0] || {}).id || null, link_state: 'auto' }] })],
         ['cl-history-activity', at('history', 'trends'), {}, clLib({ stats: { from: '2026-09-06', to: '2026-10-05', tzOffsetMin: 0, days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [{ project_id: 'p1', name: 'project-a', chats: 1, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 }], totals: { chats: 1, active_ms: 60000, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 } } })],
         M.P0[0] && ['cl-page-chats', at('projects', 'grid', M.P0[0].id), {}, () => { clLib({})(); LV.claudeLib.byHq = { [M.P0[0].id]: CL_CONVS }; }],
+        ['prompts-list', at('claude', 'prompts'), {}, prLib({ rows: PR_ROWS, stats: [{ prompt_id: 'prompt:st1', uses: 2, last_at: '2026-10-01T10:00:00Z' }], status: PR_ST() })],
+        ['prompts-no-obsidian', at('claude', 'prompts'), {}, prLib({ rows: PR_ROWS, stats: [], status: PR_ST({ obsidian: false }) })],
+        ['prompts-nofolder', at('claude', 'prompts'), {}, prLib({ rows: [], stats: [], status: PR_ST({ folder: { exists: false } }) })],
+        ['prompts-folder-error', at('claude', 'prompts'), {}, prLib({ rows: [], stats: [], status: PR_ST({ folder: { exists: false, error: '40_Resources/Prompts leads outside the vault — refusing' } }) })],
+        ['prompts-empty', at('claude', 'prompts'), {}, prLib({ rows: [], stats: [], status: PR_ST() })],
+        ['prompts-error', at('claude', 'prompts'), {}, prLib({ rows: PR_ROWS, error: 'Claude Hub: hub not running', status: PR_ST() })],
+        ['prompts-nohits', at('claude', 'prompts'), { prQuery: 'zzz', prSearched: true }, prLib({ rows: PR_ROWS, stats: [], status: PR_ST(), q: 'zzz', hits: [] })],
+        ['prompts-for-project', at('claude', 'prompts'), { prFor: (M.P0[0] || {}).id || null }, prLib({ rows: PR_ROWS, stats: [], status: PR_ST() })],
+        ['project-run-a-prompt', at('projects', 'grid', (M.P0[0] || {}).id), {}, prLib({ rows: PR_ROWS, stats: [], status: PR_ST() })],
         // Claude Hub H3 — composer (logic/claude-chat.js): every visible state, both themes, both snapshot ends
         ...(() => {
           const SID = '00000000-0000-4000-8000-000000000001';
