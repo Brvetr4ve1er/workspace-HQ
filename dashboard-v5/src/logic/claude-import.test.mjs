@@ -20,7 +20,7 @@ test('clImport: started → running state + toast with the file name', async () 
   await r.self.clImport();
   assert.deepEqual(r.calls, ['importExport']);
   assert.deepEqual(r.self.LIVE.claudeImport, { kind: 'import', phase: 'unzip', done: 0, total: 0 });
-  assert.deepEqual(r.toasts, [['info', 'Importing claude-export.zip — the counter shows progress; chats are listed once saved.']]);
+  assert.deepEqual(r.toasts, [['info', 'Importing claude-export.zip — the counter shows progress; chats are listed when the import finishes.']]);
 });
 
 test('clImport: canceled is silent; an error is toasted; refusals never call main', async () => {
