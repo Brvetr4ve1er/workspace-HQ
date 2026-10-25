@@ -48,6 +48,7 @@ export function createStore(DATA, hq) {
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
     claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, docHits: null, doc: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
     claudeImports: { folder: null, found: [], refused: [], error: null },   // AI archive H6: drop-folder offers (main's watcher), raw
+    candidates: { rows: null, pooled: null, capped: null, hidden: 0, error: null, busy: false, loaded: false },   // Prompt library P2: harvest candidates, scored by the Hub on ask
     prompts: { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false },   // Prompt library P1: Library (vault prompt notes via the Hub)
     claudeChat: { turns: [] },   // Claude Hub H3: in-app chat turns, newest last (chatReduce)
     claudeImport: null,  // Claude Hub H4: latest claude.ai import progress event
@@ -227,6 +228,7 @@ export function createStore(DATA, hq) {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
         if (lib().convs) syncClaudeLib();
         if (live.prompts.rows && Array.isArray(e.data && e.data.documents) && e.data.documents.some((d) => String(d).startsWith('prompt:'))) refreshPrompts();
+        if (live.candidates.loaded && Array.isArray(e.data && e.data.documents) && e.data.documents.some((d) => String(d).startsWith('prompt:'))) refreshCandidates();
         if (lib().stats) refreshClaudeStats();
         for (const k of new Set([...Object.keys(lib().byHq), ...Object.keys(lib().pageErr)])) refreshClaudeForProject(k);
         const docIds = Array.isArray(e.data && e.data.documents) ? e.data.documents : [];
@@ -423,6 +425,21 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.claudePrompts || !hq.claudePrompts.open) return Promise.resolve({ error: 'Opening a prompt note needs the WorkspaceHQ app' });
     return askHq(() => hq.claudePrompts.open(id, how)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
   }
+  // Prompt library P2 — harvest candidates are scored by the Hub on ask (never polled)
+  let candSeq = 0;
+  function refreshCandidates() {
+    const C = live.candidates;
+    if (!hq || !hq.claudeHub || !hq.claudeHub.promptCandidates) return Promise.resolve();
+    const my = ++candSeq;
+    C.busy = true; C.loaded = true; emit();
+    return askHq(() => hq.claudeHub.promptCandidates({ limit: 50 })).then((r) => {
+      if (my !== candSeq) return;
+      C.busy = false;
+      if (!isObj(r) || r.error) C.error = 'Claude Hub: ' + ((isObj(r) && r.error) || 'no answer');
+      else { C.error = null; C.rows = Array.isArray(r.candidates) ? r.candidates : []; C.pooled = r.pooled || null; C.capped = r.capped || null; C.hidden = Number(r.hidden) || 0; }
+      emit();
+    });
+  }
   function refreshClaudeStats(days = 30) {
     const to = new Date(), from = new Date(to.getTime() - (days - 1) * 86400000);
     lib().statsErr = null;
@@ -434,7 +451,7 @@ export function createStore(DATA, hq) {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
-    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt,
+    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt, refreshCandidates,
     sendClaudeChat, cancelClaudeChat,
   };
 }

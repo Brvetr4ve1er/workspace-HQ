@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags, promptRow, promptsView } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags, promptRow, promptsView, candidateTitle, reasonText, candidateRow, candidatesView } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -642,7 +642,7 @@ test('P1: promptsView: the empty states are distinct and a Hub error is never an
   assert.equal(texts.size, cases.length - 1, 'every state says something different');
   assert.deepEqual(cases[2][0].rows, [], 'an error shows the error, not the stale rows as if fine');
   assert.match(cases[4][0].text, /^No prompts folder yet — create VEEMO CORTEX\/40_Resources\/Prompts/);
-  assert.doesNotMatch(cases[4][0].text, /promote/i, 'Promote lands in P2');
+  assert.match(cases[4][0].text, /promote a candidate/i, 'P2 restored the Promote clause (spec §8)');
   assert.match(cases[3][0].text, /outside the vault/);
 });
 
@@ -656,4 +656,60 @@ test('P1: promptsView search = Hub FTS hits ∪ title/tag matches; project conte
   assert.equal(all.count, 2);
   assert.equal(all.statsNote, 'Usage is counted from the Run step on — nothing has run yet.');
   assert.equal(promptsView({ ...P, q: '', stats: null, statsErr: 'Claude Hub: timeout' }, { hasBridge: true, now: NOW }).statsNote, 'Usage unknown — Claude Hub: timeout');
+});
+
+// ---- P2 harvest candidates (spec 2026-10-15 §6.2/§6.3)
+const CAND = { key: 'cand:' + '1'.repeat(40), text: 'Placeholder prompt one: review the module\nand list changes', chars: 60, score: 11, sessions: 3, lastAt: '2026-10-01T10:00:00Z',
+  reasons: [{ key: 'reuse', points: 9, text: 'used in 3 sessions' }, { key: 'turns', points: 2, text: 'followed by 8 assistant messages' }],
+  sources: [{ kind: 'code', conversationId: 'code:sess-a1', at: '2026-10-01T10:00:00Z', project: 'project-a' }, { kind: 'history', documentId: 'history:sess-a1:0', at: '2026-09-20T09:00:00Z', project: 'project-a' }] };
+const JUDGE = /\b(good|great|best|better|excellent|strong|quality|top|useful|recommended|valuable|effective|smart)\b/i;
+
+test('candidateTitle: first line, word-boundary cut ≤ 60, never empty', () => {
+  assert.equal(candidateTitle('\n\n  Review   the module \nsecond line'), 'Review the module');
+  const t = candidateTitle('Placeholder words that keep going and going until the line is far longer than sixty characters in all');
+  assert.ok([...t].length <= 60); assert.ok(!/[\s,.;:-]$/.test(t)); assert.ok('Placeholder words that keep going and going until the line'.startsWith(t));
+  assert.equal(candidateTitle('x'.repeat(80)), 'x'.repeat(60));
+  assert.equal(candidateTitle('   '), 'Untitled prompt');
+  assert.equal(candidateTitle(null), 'Untitled prompt');
+});
+
+test('candidateRow: reasons with points, origin, provenance for Promote; no judgment word', () => {
+  const r = candidateRow(CAND, { selected: [CAND.key], now: NOW });
+  assert.equal(r.title, 'Placeholder prompt one: review the module');
+  assert.equal(r.scoreText, 'score 11');
+  assert.deepEqual(r.reasons.map((x) => x.text), ['used in 3 sessions +9', 'followed by 8 assistant messages +2']);
+  assert.equal(r.why, 'used in 3 sessions +9 · followed by 8 assistant messages +2');
+  assert.match(r.origin, /^Claude Code · project-a · /);
+  assert.equal(r.more, '+1 more place');
+  assert.equal(r.selected, true);
+  assert.equal(r.inLibrary, false);
+  assert.deepEqual(r.source, { kind: 'code', conversation: 'code:sess-a1', at: '2026-10-01T10:00:00Z' });
+  assert.equal(reasonText({ points: -5, text: 'already a prompt note' }), 'already a prompt note −5');
+  assert.equal(reasonText({ points: 0, text: 'seen in 1 session' }), 'seen in 1 session +0');
+  const h = candidateRow({ ...CAND, sources: [CAND.sources[1]], reasons: [...CAND.reasons, { key: 'library', points: -5, text: 'already a prompt note' }] }, { now: NOW });
+  assert.match(h.origin, /^Claude Code prompt history · project-a/);
+  assert.equal(h.more, ''); assert.equal(h.inLibrary, true); assert.equal(h.selected, false);
+  assert.deepEqual(h.source, { kind: 'history', conversation: 'history:sess-a1:0', at: '2026-09-20T09:00:00Z' });
+  for (const x of [r.why, r.origin, h.why, h.origin, r.scoreText]) assert.doesNotMatch(x, JUDGE);
+});
+
+test('candidatesView: a Hub error is never an empty list; empty states say why; the pool bound is said', () => {
+  assert.equal(candidatesView({}, { hasBridge: false }).state, 'nobridge');
+  const err = candidatesView({ rows: [], error: 'Claude Hub: timeout' }, { now: NOW });
+  assert.equal(err.state, 'error'); assert.match(err.text, /^Claude Hub: timeout — /); assert.equal(err.rows.length, 0);
+  assert.equal(candidatesView({ rows: null }, { now: NOW }).state, 'loading');
+  const none = candidatesView({ rows: [], pooled: { messages: 0, history: 0 } }, { now: NOW });
+  assert.equal(none.state, 'empty'); assert.match(none.text, /no user message or history line of 120\+ characters/);
+  const all = candidatesView({ rows: [], pooled: { messages: 12, history: 3 }, hidden: 2 }, { now: NOW });
+  assert.equal(all.state, 'empty'); assert.match(all.text, /^None of the 15 prompts looked at qualify/);
+  const list = candidatesView({ rows: [CAND], pooled: { messages: 42, history: 17 }, capped: { messages: true, history: false }, hidden: 1 }, { now: NOW });
+  assert.equal(list.state, 'list'); assert.equal(list.count, 1);
+  assert.equal(list.poolNote, 'Looked at 42 chat messages and 17 prompt-history lines (the newest 20 000 chat messages only — older ones were not looked at) · 1 hidden · scores are counts, not a rating.');
+  assert.equal(candidatesView({ rows: [CAND], pooled: { messages: 1, history: 0 }, capped: { messages: false, history: false } }, { now: NOW }).poolNote,
+    'Looked at 1 chat message and 0 prompt-history lines · scores are counts, not a rating.');
+});
+
+test('promptsView nofolder text offers Promote again (spec §8)', () => {
+  const v = promptsView({ rows: [], status: { vault: 'VEEMO CORTEX', folder: { exists: false } } }, {});
+  assert.equal(v.text, 'No prompts folder yet — create VEEMO CORTEX/40_Resources/Prompts and add notes there, or promote a candidate (Promote creates the folder); edits you make in Obsidian show up here.');
 });

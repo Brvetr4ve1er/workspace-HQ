@@ -675,7 +675,7 @@ export function promptsView(P, { hasBridge = true, q = null, forProject = null, 
   const statsById = Object.fromEntries(arr(p.stats).map((s) => [s.prompt_id, s]));
   if (p.rows.length === 0) {
     if (folder.error) return out('folder-error', `${where}: ${folder.error}`);
-    if (p.status && folder.exists === false) return out('nofolder', `No prompts folder yet — create ${where} and add notes there; edits you make in Obsidian show up here.`);
+    if (p.status && folder.exists === false) return out('nofolder', `No prompts folder yet — create ${where} and add notes there, or promote a candidate (Promote creates the folder); edits you make in Obsidian show up here.`);
     return out('empty', `${where} has no prompt notes yet — add a .md note there in Obsidian (top level of the folder).`);
   }
   const term = String(q == null ? p.q || '' : q).trim().toLowerCase();
@@ -688,5 +688,50 @@ export function promptsView(P, { hasBridge = true, q = null, forProject = null, 
   if (forProject) rows = rows.slice().sort((a, b) => Number(b.usesProject) - Number(a.usesProject));
   const v = out('list', '', rows);
   v.statsNote = p.statsErr ? 'Usage unknown — ' + p.statsErr : arr(p.stats).length === 0 ? 'Usage is counted from the Run step on — nothing has run yet.' : '';
+  return v;
+}
+
+// ---- P2 harvest candidates (spec 2026-10-15 §6.2/§6.3). Scores are shown as their terms; the wording states counts only.
+export const CAND_TITLE_MAX = 60;
+export const ORIGIN_LABEL = { code: 'Claude Code', web: 'claude.ai', chatgpt: 'ChatGPT', history: 'Claude Code prompt history' };
+export function candidateTitle(text) {
+  const one = (String(text == null ? '' : text).split('\n').map((l) => l.trim()).find(Boolean) || '').replace(/\s+/g, ' ');
+  const cps = [...one];
+  if (!cps.length) return 'Untitled prompt';
+  if (cps.length <= CAND_TITLE_MAX) return one;
+  const cut = cps.slice(0, CAND_TITLE_MAX).join('');
+  const sp = cut.lastIndexOf(' ');
+  return (sp > 30 ? cut.slice(0, sp) : cut).replace(/[\s,.;:–-]+$/, '') || 'Untitled prompt';
+}
+export const reasonText = (r) => { const p = num(obj(r).points); return `${obj(r).text || ''} ${p < 0 ? '−' + Math.abs(p) : '+' + p}`; };
+export function candidateRow(c, { selected = [], now = Date.now() } = {}) {
+  const x = obj(c), src = arr(x.sources).map(obj), first = src[0] || {};
+  const reasons = arr(x.reasons).map((r) => ({ key: obj(r).key, text: reasonText(r) }));
+  const when = whenOf(first.at, now);
+  const origin = [ORIGIN_LABEL[first.kind] || 'unknown source', first.project || '', when].filter(Boolean).join(' · ');
+  const n = src.length - 1;
+  return {
+    key: x.key, text: String(x.text || ''), title: candidateTitle(x.text), score: num(x.score), scoreText: `score ${num(x.score)}`,
+    reasons, why: reasons.map((r) => r.text).join(' · '), origin, more: n > 0 ? `+${n} more place${n === 1 ? '' : 's'}` : '',
+    sessions: num(x.sessions), selected: arr(selected).includes(x.key), inLibrary: arr(x.reasons).some((r) => obj(r).key === 'library'),
+    source: first.kind ? { kind: first.kind, conversation: first.conversationId || first.documentId || '', at: first.at || '' } : null,
+  };
+}
+export function candidatesView(C, { hasBridge = true, selected = [], now = Date.now() } = {}) {
+  const c = obj(C), pooled = obj(c.pooled), capped = obj(c.capped);
+  const out = (state, text, rows = []) => ({ state, text, rows, count: rows.length, poolNote: '' });
+  if (!hasBridge) return out('nobridge', 'Prompt candidates need the WorkspaceHQ app — this preview has no bridge to the Claude Hub.');
+  if (c.error) return out('error', `${c.error} — candidates cannot be scored until the Claude Hub answers.`);
+  if (!Array.isArray(c.rows)) return out('loading', 'Scoring your prompts…');
+  const m = num(pooled.messages), h = num(pooled.history);
+  if (!c.rows.length) {
+    if (m + h === 0) return out('empty', 'No prompts to look at yet — the Claude Hub has no user message or history line of 120+ characters.');
+    return out('empty', `None of the ${m + h} prompts looked at qualify (each is under 120 characters, a slash command, a paste, holds a masked secret, or was hidden).`);
+  }
+  const v = out('list', '', c.rows.map((r) => candidateRow(r, { selected, now })));
+  const cap = [capped.messages ? 'chat messages' : '', capped.history ? 'prompt-history lines' : ''].filter(Boolean);
+  v.poolNote = `Looked at ${m} chat message${m === 1 ? '' : 's'} and ${h} prompt-history line${h === 1 ? '' : 's'}`
+    + (cap.length ? ` (the newest 20 000 ${cap.join(' and ')} only — older ones were not looked at)` : '')
+    + (num(c.hidden) ? ` · ${num(c.hidden)} hidden` : '') + ' · scores are counts, not a rating.';
   return v;
 }

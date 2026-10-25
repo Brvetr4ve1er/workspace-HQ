@@ -792,3 +792,29 @@ test('P1 prompts: no bridge → refreshPrompts is a no-op, openPrompt says why',
   assert.equal(st.live.prompts.rows, null);
   assert.match((await st.openPrompt('prompt:a', 'file')).error, /WorkspaceHQ app/);
 });
+
+test('P2 candidates: nothing until asked; loads; errors say why; a prompt-note change re-scores', async () => {
+  let fail = false, asked = 0;
+  const { hq, fire } = libHq({ promptCandidates: (o) => (asked++, Promise.resolve(fail ? { error: 'timeout' }
+    : { candidates: [{ key: 'cand:' + '1'.repeat(40), text: 'x', reasons: [], sources: [] }], pooled: { messages: 1, history: 0 }, capped: { messages: false, history: false }, hidden: 0 })) });
+  const st = createStore(DATA(), hq); await st.start();
+  assert.equal(st.live.candidates.rows, null); assert.equal(asked, 0);
+  await st.refreshCandidates();
+  assert.equal(st.live.candidates.rows.length, 1); assert.equal(st.live.candidates.loaded, true); assert.equal(st.live.candidates.error, null);
+  fail = true; await st.refreshCandidates();
+  assert.equal(st.live.candidates.error, 'Claude Hub: timeout');
+  assert.equal(st.live.candidates.rows.length, 1, 'an error keeps the last rows but the view shows the error');
+  fail = false;
+  fire({ event: 'changed', data: { ids: [], documents: ['prompt:abc'] } });
+  await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
+  assert.equal(asked, 3);
+  fire({ event: 'changed', data: { ids: [], documents: ['memory:abc'] } });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(asked, 3, 'only prompt documents move the −5 term');
+});
+
+test('P2 candidates: no bridge → refreshCandidates is a no-op', async () => {
+  const st = createStore(DATA(), null);
+  await st.refreshCandidates();
+  assert.equal(st.live.candidates.rows, null);
+});
