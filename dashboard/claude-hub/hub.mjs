@@ -12,6 +12,8 @@ import { spawnSync } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
+import { importExportFile, ingestWebConversation, ingestWebProject } from './ingest-web.mjs';
+import { parseWebConversation, parseWebProject, newReport, noteUnknown } from './parse-web.mjs';
 import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
 import { readHqProjects, autoLink } from './link.mjs';
 
@@ -267,6 +269,50 @@ function main() {
     clearTimeout(changedTimer);
     changedTimer = setTimeout(flushChanged, Math.max(0, Math.min(300, changedFirst + CHANGED_MAX_WAIT_MS - now)));
   };
+  // ---- claude.ai (H4). Not routed through serial(): each item is ONE synchronous store.tx with its tombstone check in
+  // the same turn, so forget (also one synchronous tx) cannot interleave with an item, and web ids never collide with
+  // code: ids. Keeping a long import out of the queue keeps live Code ingest, forget and syncPush responsive.
+  let importing = false, importEmitAt = 0;
+  const emitImport = (p, force = false) => {
+    const now = Date.now();
+    if (force || now - importEmitAt > 500) { importEmitAt = now; emit('progress', { kind: 'import', ...p }); }
+  };
+  const lastImport = () => { try { return JSON.parse((store && store.getMeta('last_import')) || 'null'); } catch { return null; } };
+  function runImport(zipPath) {
+    importing = true;
+    const tmpRoot = path.join(path.dirname(path.resolve(dbFile)), 'tmp');
+    importExportFile(store, zipPath, { tmpRoot, onProgress: (p) => emitImport(p) })
+      .then((report) => {
+        store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, report }));
+        emitImport({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report }, true);
+        markChanged([]);
+      }, (e) => {
+        const error = msg(e);
+        try { store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: false, error })); } catch { /* the event still carries it */ }
+        emitImport({ phase: 'failed', done: 0, total: 0, error }, true);
+      })
+      .finally(() => { importing = false; });
+  }
+  function pushItems(items) {
+    const report = newReport(), ids = [];
+    for (const it of items) {
+      if (it && it.kind === 'project') {
+        report.projects.seen++;
+        const p = parseWebProject(it.data);
+        if (!p.ok) { report.projects.skipped++; continue; }
+        noteUnknown(report, p.unknown); ingestWebProject(store, p.project, report);
+      } else if (it && it.kind === 'conversation') {
+        report.conversations.seen++;
+        const c = parseWebConversation(it.data);
+        if (!c.ok) { report.conversations.skipped++; continue; }
+        noteUnknown(report, c.unknown); report.messages.skipped += c.skipped; report.messages.empty += c.empty;
+        if (ingestWebConversation(store, c.conv, report) === 'imported') ids.push('web:' + c.conv.uuid);
+      } else report.conversations.skipped++;
+    }
+    store.setMeta('last_sync_at', new Date().toISOString());
+    if (ids.length) markChanged(ids);
+    return report;
+  }
   const dbBytes = () => { let n = 0; for (const f of [dbFile, dbFile + '-wal']) { try { n += fs.statSync(f).size; } catch { /* absent */ } } return n; };
 
   // ---- indexing. Everything that writes (backfill run, watch ingest, sweep, forget) goes through one queue, so a reindex
@@ -331,7 +377,23 @@ function main() {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
       counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0 }, dbBytes: dbBytes(),
       lastError: lastError || readerNote || (store && store.getMeta('last_error')) || null,
-      lastErrorAt: metaOrNull('last_error_at') }),   // H1's fields unchanged + lastErrorAt
+      lastErrorAt: metaOrNull('last_error_at'), lastImport: lastImport(), importing }),   // H1's fields unchanged + lastErrorAt
+    importExport: (a) => {
+      if (!writer) notOwner();
+      const zipPath = a && typeof a.zipPath === 'string' ? a.zipPath : '';
+      if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importExport needs an absolute .zip path');
+      if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
+      if (importing) throw new Error('an import is already running');
+      runImport(zipPath);
+      return { started: true };
+    },
+    syncState: () => (store ? store.syncState() : { conversations: {}, projects: {}, forgotten: [] }),
+    syncPush: (a) => {
+      if (!writer) notOwner();
+      const items = a && Array.isArray(a.items) ? a.items : [];
+      if (!items.length || items.length > 50) throw new Error('syncPush needs 1–50 items');
+      return pushItems(items);
+    },
     stats: (a) => (store ? store.stats(a) : { from: a.from, to: a.to, tzOffsetMin: 0, days: [], projects: [],
       totals: { chats: 0, active_ms: 0, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } }),
     link: (a) => {

@@ -372,6 +372,17 @@ Additive only. Main side: `dashboard/claude-chat.js` (new) with one hook line in
 
 Engine rules (`dashboard/claude-chat.js`): one `claude -p --output-format stream-json --verbose --include-partial-messages --permission-prompts none --permission-mode plan|acceptEdits [--resume <uuid>]` process per turn, prompt on stdin; `read-only` → `plan`, `edits` → `acceptEdits`; `bypassPermissions` / `--dangerously-skip-permissions` are never passed (unit test). cwd = a WorkspaceHQ project path or a cwd the Hub recorded; drive roots, the Windows folder, Program Files and the profile root itself are always refused. One running turn per conversation, 3 in total, 10 min each. A new or claude.ai-seeded chat's turn also counts as `code:<session>` from the CLI's init line on, so a Continue on that session is refused ("already has a turn running") until it ends. The turn belongs to the window that sent it: when that window reloads (main reloads it after scans, capture saves, commits and relearn), crashes or closes, the turn is stopped (ends `done` + `stopped: true`); a reload while the target is still resolving spawns nothing and the send answers `{error: 'the window that asked was reloaded — nothing was sent'}`. Stop = launcher-safe tree stop (children of the `cmd.exe` launcher, then the root tree). The CLI is `HQ_CLAUDE_BIN` (test override) or the first `claude.exe`/`claude.cmd` on PATH. Errors reach `logs/app-*.log` as reasons only, never prompt or answer text. A finished chat reaches the library through the Hub's ordinary `changed` event (it is a normal Claude Code session).
 
+## 2026-10-16 — Claude Hub, phase H4 (rows written before the handler lands)
+
+Additive only. Main-side code lives in the NEW file `dashboard/claude-import.js`, hooked by one line in `main.js`.
+
+### Claude Hub claude.ai import (spec 2026-10-13-claude-hub-design.md §5.2, §7, phase H4)
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `claudeHub.on(cb)` | push `hq:claude-hub:event` | gains `progress` with `kind:'import'`: `{kind:'import', phase:'unzip'\|'projects'\|'conversations'\|'done'\|'failed', done, total, report?, error?}` — `total: 0` means "not known yet" (conversations are counted as they stream); `report` (on `done`) holds counts and field names only. A `progress` without `kind` is backfill progress, as before. A finished import also sends `changed` `{ids: []}` |
+| `claudeHub.health()` | `hq:claude-hub:health` | gains `lastImport: {at, ok:true, report} \| {at, ok:false, error} \| null` and `importing: boolean` |
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

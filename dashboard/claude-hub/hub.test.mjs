@@ -9,6 +9,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { makeClaudeHome, userLine, titleLine } from './__fixtures__/make-fixture.mjs';
+import { zipFiles, exportJson } from './__fixtures__/make-export.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
 import { acquireLock, resolveClaudeRoot, splitCommandLine } from './hub.mjs';
@@ -801,4 +802,77 @@ test('a reader takes over as writer once the writer exits', async () => {
   assert.equal(h.counts.conversations, 3);
   assert.equal((await b.req('reindex')).ok, true);   // writer-only ops work now
   await b.stop();
+});
+
+function exportZip(dir) {
+  const j = exportJson(), z = path.join(dir, 'claude-export.zip');
+  zipFiles(z, [{ name: 'conversations.json', data: j.conversations }, { name: 'projects.json', data: j.projects }]);
+  return z;
+}
+const importDone = (h, n = 1) => h.until(() => h.events.filter((e) => e.event === 'progress' && e.data.kind === 'import' && ['done', 'failed'].includes(e.data.phase)).length >= n, 20000);
+const lastImportEvent = (h) => h.events.filter((e) => e.event === 'progress' && e.data.kind === 'import').at(-1).data;
+
+test('importExport: started at once, progress with kind import, report in health, idempotent, tmp cleaned (H4)', async () => {
+  const dir = tmp('hub-imp-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'data', 'hub.sqlite'); fs.mkdirSync(path.dirname(db), { recursive: true });
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    await h.healthy();
+    const zip = exportZip(dir);
+    assert.deepEqual((await h.req('importExport', { zipPath: zip })).result, { started: true });
+    assert.ok(await importDone(h));
+    const ev = lastImportEvent(h);
+    assert.equal(ev.phase, 'done'); assert.equal(ev.report.conversations.imported, 3);
+    assert.ok(h.events.some((e) => e.event === 'progress' && e.data.kind === 'import' && e.data.phase === 'unzip'));
+    const health = (await h.req('health')).result;
+    assert.equal(health.lastImport.ok, true); assert.equal(health.lastImport.report.projects.imported, 1); assert.equal(health.importing, false);
+    assert.equal((await h.req('listConversations', { source: 'web' })).result.length, 3);
+    assert.equal(health.counts.conversations, 6, '3 Code + 3 claude.ai');
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'data', 'tmp')), [], 'job folder removed');
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'changed' && Array.isArray(e.data.ids))), 'changed is debounced, so wait for it');
+    await h.req('importExport', { zipPath: zip });
+    assert.ok(await importDone(h, 2));
+    assert.equal(lastImportEvent(h).report.conversations.unchanged, 3);
+    assert.equal((await h.req('health')).result.counts.conversations, 6);
+  } finally { await h.stop(); }
+});
+
+test('importExport: bad input is refused or fails honestly, never leaves files (H4)', async () => {
+  const dir = tmp('hub-impbad-');
+  const { home } = makeClaudeHome(dir);
+  const h = startHub({ HQ_CLAUDE_HOME: home }, path.join(dir, 'hub.sqlite'));
+  try {
+    await h.healthy();
+    assert.match((await h.req('importExport', { zipPath: 'relative.zip' })).error, /absolute \.zip path/);
+    assert.match((await h.req('importExport', { zipPath: path.join(dir, 'missing.zip') })).error, /no such file: missing\.zip/);
+    const junk = path.join(dir, 'junk.zip'); fs.writeFileSync(junk, 'not a zip');
+    assert.equal((await h.req('importExport', { zipPath: junk })).ok, true);
+    assert.ok(await importDone(h));
+    const ev = lastImportEvent(h);
+    assert.equal(ev.phase, 'failed'); assert.match(ev.error, /not a zip file/);
+    assert.equal((await h.req('health')).result.lastImport.ok, false);
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'tmp')), []);
+  } finally { await h.stop(); }
+});
+
+test('syncState / syncPush: uuids, newer wins, forgotten stays forgotten, changed ids (H4)', async () => {
+  const dir = tmp('hub-sync-');
+  const { home } = makeClaudeHome(dir);
+  const h = startHub({ HQ_CLAUDE_HOME: home }, path.join(dir, 'hub.sqlite'));
+  try {
+    await h.healthy();
+    await h.req('importExport', { zipPath: exportZip(dir) }); assert.ok(await importDone(h));
+    const st = (await h.req('syncState')).result;
+    assert.equal(st.conversations['web-chat-1'], '2026-10-01T09:10:00.000Z'); assert.equal(st.projects['web-proj-1'], '2026-10-01T08:00:00.000Z');
+    assert.equal((await h.req('forget', { conversationId: 'web:web-chat-1' })).result, true);
+    const newer = (uuid, text) => ({ kind: 'conversation', data: { uuid, name: 'Synced ' + uuid, updated_at: '2026-10-05T09:00:00Z', chat_messages: [{ uuid: uuid + '-m', sender: 'human', created_at: '2026-10-05T09:00:00Z', text }] } });
+    const r = (await h.req('syncPush', { items: [newer('web-chat-1', 'should stay forgotten'), newer('web-chat-3', 'synced text'), { kind: 'weird' }] })).result;
+    assert.equal(r.conversations.forgotten, 1); assert.equal(r.conversations.imported, 1); assert.equal(r.conversations.skipped, 1);
+    assert.deepEqual((await h.req('syncState')).result.forgotten, ['web-chat-1']);
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'changed' && e.data.ids.includes('web:web-chat-3'))));
+    const conv = (await h.req('getConversation', { id: 'web:web-chat-3' })).result;
+    assert.deepEqual(conv.messages.map((m) => m.text), ['synced text']);
+    assert.match((await h.req('syncPush', { items: [] })).error, /1–50 items/);
+  } finally { await h.stop(); }
 });
