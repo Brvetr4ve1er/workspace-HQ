@@ -10,6 +10,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { makeClaudeHome, userLine, titleLine } from './__fixtures__/make-fixture.mjs';
 import { zipFiles, exportJson } from './__fixtures__/make-export.mjs';
+import { makeDocsHome, historyLine } from './__fixtures__/make-docs.mjs';
+import { writeChatGPTZip } from './__fixtures__/make-chatgpt-export.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
 import { acquireLock, resolveClaudeRoot, splitCommandLine } from './hub.mjs';
@@ -384,7 +386,7 @@ test('reader whose index never appears: retries ~5 s, then runs store-less with 
     assert.ok(waited >= 4500 && waited < 9000, 'gave up after about 5 s, not at once and not never (' + waited + ' ms)');
     assert.equal(last.role, 'reader'); assert.equal(last.state, 'ready');
     assert.match(last.lastError, /read-only.*gave up after 5 s.*no such table/i);
-    assert.deepEqual(last.counts, { projects: 0, conversations: 0, messages: 0 });
+    assert.deepEqual(last.counts, { projects: 0, conversations: 0, messages: 0, documents: 0 });
     assert.deepEqual((await h.req('listConversations')).result, []);
     assert.deepEqual((await h.req('listProjects')).result, []);
     assert.deepEqual((await h.req('search', { q: 'placeholder' })).result, []);
@@ -922,4 +924,51 @@ test('contextFor: no open index → an error, never an empty answer; a broken in
     const r = await w.req('contextFor', { query: 'release', budgetChars: 2000 });
     assert.equal(r.ok, false); assert.match(r.error, /message_fts/);
   } finally { await w.stop(); }
+});
+
+test('H6 documents: the Hub indexes HQ_CLAUDE_HOME notes/history + HQ_VAULT_DIR prompts, lists, gets, forgets, and sees a new prompt live', async () => {
+  const dir = tmp('hub-h6-docs-');
+  const fx = makeDocsHome(dir);
+  fs.writeFileSync(path.join(fx.home, 'history.jsonl'), historyLine({ display: 'placeholder typed prompt' }));
+  const db = path.join(dir, 'hub.sqlite');
+  const h = startHub({ HQ_CLAUDE_HOME: fx.home, HQ_VAULT_DIR: fx.vault, HQ_HUB_SWEEP_MS: '500' }, db);
+  try {
+    assert.ok(await h.until(async () => ((await h.req('health')).result.counts || {}).documents === 5, 15000), 'memory 2 + CLAUDE.md 1 (home; the fixture project has no Hub path yet) + prompt 1 + history 1');
+    const list = (await h.req('listDocuments', {})).result;
+    assert.ok(list.every((d) => d.source !== 'history'));
+    const prompt = list.find((d) => d.source === 'prompt');
+    assert.equal(prompt.title, 'Review a PR like a staff engineer');
+    const doc = (await h.req('getDocument', { id: prompt.id })).result;
+    assert.match(doc.text, /You are reviewing/);
+    assert.equal((await h.req('getDocument', { id: 'prompt:nope' })).result, null);
+    fs.writeFileSync(path.join(fx.prompts, 'second.md'), '---\ntitle: Second placeholder prompt\n---\nBody');
+    assert.ok(await h.until(async () => (await h.req('listDocuments', { source: 'prompt' })).result.length === 2, 8000), 'a new prompt note is picked up live');
+    assert.ok(h.events.some((e) => e.event === 'changed' && Array.isArray(e.data.documents) && e.data.documents.length), 'changed carries documents');
+    assert.equal((await h.req('forget', { documentId: prompt.id })).result, true);
+    assert.equal((await h.req('getDocument', { id: prompt.id })).result, null);
+    assert.equal((await h.req('listDocuments', { q: 'reviewing' })).result.length, 0);
+  } finally { await h.stop(); }
+});
+
+test('H6 importChatGPT: progress carries source chatgpt, lastImport records it, chats are listed; a claude.ai ZIP fails with the reason', async () => {
+  const dir = tmp('hub-h6-cg-');
+  const home = path.join(dir, '.claude'); fs.mkdirSync(path.join(home, 'projects'), { recursive: true });
+  const db = path.join(dir, 'hub.sqlite');
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_VAULT_DIR: path.join(dir, 'vault') }, db);
+  try {
+    await h.healthy();
+    assert.equal((await h.req('importChatGPT', { zipPath: 'relative.zip' })).ok, false);
+    const zip = writeChatGPTZip(path.join(dir, 'chatgpt.zip'));
+    assert.deepEqual((await h.req('importChatGPT', { zipPath: zip })).result, { started: true });
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.kind === 'import' && e.data.phase === 'done' && e.data.source === 'chatgpt')));
+    const health = (await h.req('health')).result;
+    assert.equal(health.lastImport.ok, true); assert.equal(health.lastImport.source, 'chatgpt');
+    assert.equal(health.lastImport.report.conversations.imported, 4);
+    assert.equal((await h.req('listConversations', { source: 'chatgpt' })).result.length, 4);
+    const claude = path.join(dir, 'claude.zip');
+    zipFiles(claude, [{ name: 'conversations.json', data: '[]' }, { name: 'projects.json', data: '[]' }]);
+    assert.deepEqual((await h.req('importChatGPT', { zipPath: claude })).result, { started: true });
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'failed' && /claude\.ai export/.test(e.data.error))));
+    assert.equal((await h.req('health')).result.lastImport.ok, false);
+  } finally { await h.stop(); }
 });

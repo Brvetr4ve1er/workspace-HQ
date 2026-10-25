@@ -26,9 +26,10 @@ function findNode({ env = process.env, run = spawnSync } = {}) {
   return null;
 }
 
+const hubVaultDir = (env, vaultDir) => (env && env.HQ_VAULT_DIR) || vaultDir || null;
 const errText = (e) => String((e && e.message) || e).slice(0, 300);
 
-function create({ hubScript, dbFile, latestFile = null, env = process.env, spawnFn = spawn, findNodeFn = () => findNode({ env }), send = () => {}, log = null, backoff = [1000, 5000, 30000], stableMs = 60000 } = {}) {
+function create({ hubScript, dbFile, latestFile = null, vaultDir = null, env = process.env, spawnFn = spawn, findNodeFn = () => findNode({ env }), send = () => {}, log = null, backoff = [1000, 5000, 30000], stableMs = 60000 } = {}) {
   let child = null, state = 'idle', node = null, error = null, attempt = 0, restarts = 0, stopping = false, seq = 0, timer = null, readyAt = 0;
   const pending = new Map();
   const push = (event, data) => { try { send('hq:claude-hub:event', { event, data }); } catch { /* window gone */ } };
@@ -55,7 +56,7 @@ function create({ hubScript, dbFile, latestFile = null, env = process.env, spawn
     let c;
     try {
       try { fs.mkdirSync(path.dirname(dbFile), { recursive: true }); } catch { /* exists or unwritable: the hub reports it */ }
-      c = spawnFn(node.cmd, ['--no-warnings', hubScript, '--db', dbFile, ...(latestFile ? ['--latest', latestFile] : [])], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
+      c = spawnFn(node.cmd, ['--no-warnings', hubScript, '--db', dbFile, ...(latestFile ? ['--latest', latestFile] : []), ...(vaultDir ? ['--vault', vaultDir] : [])], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
     } catch (e) {   // e.g. EINVAL when HQ_HUB_NODE is a .cmd shim: retrying cannot help
       error = errText(e);
       settle('down');
@@ -146,19 +147,21 @@ function registerIpc(ipcMain, host) {
   h('stats', (_e, o) => host.request('stats', { ...obj(o) }, { timeout: 15000 }));
   h('link', async (_e, id, hqId, state) => bool(await host.request('link', { projectId: String(id || ''), hqProjectId: hqId == null ? null : String(hqId), state: String(state || '') }), 'unknown project'));
   h('forget', async (_e, t) => bool(await host.request('forget', { ...obj(t) }, { timeout: 60000 }), 'nothing to forget'));
+  h('documents', (_e, o) => host.request('listDocuments', { ...obj(o) }));
+  h('document', (_e, id) => host.request('getDocument', { id: String(id || '').slice(0, 300) }));
   h('reindex', () => host.request('reindex'));
 }
 
-function init({ ipcMain, send, dataDir, appLog } = {}) {
+function init({ ipcMain, send, dataDir, appLog, vaultDir } = {}) {
   const host = create({
     hubScript: path.join(__dirname, 'claude-hub', 'hub.mjs'),
     dbFile: process.env.HQ_CLAUDE_DB || path.join(dataDir, 'claude', 'hub.sqlite'),
     latestFile: process.env.HQ_HUB_LATEST || path.join(dataDir, 'latest.json'),
-    send, log: appLog || null,
+    vaultDir: hubVaultDir(process.env, vaultDir), send, log: appLog || null,
   });
   registerIpc(ipcMain, host);
   try { host.start(); } catch (e) { try { appLog && appLog.error('claude-hub-start-failed', e); } catch { /* logging only */ } }   // start() already contains its failures: belt and braces for main
   return host;
 }
 
-module.exports = { create, init, registerIpc, findNode, nodeOk };
+module.exports = { create, init, registerIpc, findNode, nodeOk, hubVaultDir };

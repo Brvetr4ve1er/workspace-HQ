@@ -17,6 +17,8 @@ import { importExportFile, ingestWebConversation, ingestWebProject } from './ing
 import { parseWebConversation, parseWebProject, newReport, noteUnknown } from './parse-web.mjs';
 import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
 import { readHqProjects, autoLink } from './link.mjs';
+import { importChatGPTFile } from './ingest-chatgpt.mjs';
+import { syncDocs, watchDocs } from './ingest-docs.mjs';
 
 export const resolveClaudeRoot = (env = process.env) => path.join(env.HQ_CLAUDE_HOME || path.join(os.homedir(), '.claude'), 'projects');
 
@@ -162,6 +164,8 @@ function main() {
   if (!dbFile) { process.stderr.write('hub: --db <file> is required\n'); process.exit(2); }
   const root = resolveClaudeRoot();
   const lockFile = dbFile + '.lock';
+  const vaultDir = process.env.HQ_VAULT_DIR || arg('--vault') || null;   // env first: tests and gates never reach the real vault
+  const claudeHome = path.dirname(root);                                  // root = <HQ_CLAUDE_HOME>/projects
   const latestFile = arg('--latest') || process.env.HQ_HUB_LATEST || null;   // the WorkspaceHQ scan the linker reads; absent = auto-link off
 
   // U+2028/U+2029 are legal inside a JSON string but line readers (the host's readline) split on them: escape them.
@@ -175,13 +179,14 @@ function main() {
   const diag = (text) => { try { process.stderr.write('hub: ' + text + '\n'); } catch { /* parent gone */ } };
 
   let store = null, writer = false, state = 'indexing', progress = { done: 0, total: 0 }, lastError = null;
-  let stopping = false, watcher = null, sweepTimer = null, readerTimer = null, changedTimer = null;
+  let stopping = false, watcher = null, docWatcher = null, docsRunning = false, sweepTimer = null, readerTimer = null, changedTimer = null;
   let readerNote = null, rebuild = false, upgradeTimer = null;
   const READER_UPGRADE_MS = Math.max(100, Number(process.env.HQ_HUB_READER_UPGRADE_MS) || 30000);
 
   process.on('exit', () => {   // every way out: stdin closed, signal, crash, process.exit()
     clearInterval(sweepTimer); clearInterval(upgradeTimer); clearTimeout(readerTimer); clearTimeout(changedTimer);
     try { watcher && watcher.close(); } catch { /* closing */ }
+    try { docWatcher && docWatcher.close(); } catch { /* closing */ }
     try { store && store.close(); } catch { /* closing */ }
     if (writer) releaseLock(lockFile);
   });
@@ -253,17 +258,19 @@ function main() {
   const fail = (e) => { lastError = msg(e); emit('error', { message: lastError }); };
 
   // ---- changes: one `changed` per burst, but never later than CHANGED_MAX_WAIT_MS after the burst's first change
-  const changedIds = new Set(), changedProjects = new Set();
+  const changedIds = new Set(), changedProjects = new Set(), changedDocs = new Set();
   let changedFirst = 0;
   const flushChanged = () => {
     clearTimeout(changedTimer); changedTimer = null; changedFirst = 0;
     const data = { ids: [...changedIds] };
     if (changedProjects.size) data.projects = [...changedProjects];
-    changedIds.clear(); changedProjects.clear();
+    if (changedDocs.size) data.documents = [...changedDocs];
+    changedIds.clear(); changedProjects.clear(); changedDocs.clear();
     emit('changed', data);
   };
-  const markChanged = (ids, projects = []) => {
+  const markChanged = (ids, projects = [], documents = []) => {
     for (const id of ids) changedIds.add(id);
+    for (const d of documents) changedDocs.add(d);
     for (const p of projects) changedProjects.add(p);
     const now = Date.now();
     if (!changedFirst) changedFirst = now;
@@ -279,19 +286,21 @@ function main() {
     if (force || now - importEmitAt > 500) { importEmitAt = now; emit('progress', { kind: 'import', ...p }); }
   };
   const lastImport = () => { try { return JSON.parse((store && store.getMeta('last_import')) || 'null'); } catch { return null; } };
-  function runImport(zipPath) {
+  function runImport(zipPath, source = 'claude') {
     importing = true;
     const tmpRoot = path.join(path.dirname(path.resolve(dbFile)), 'tmp');
-    importExportFile(store, zipPath, { tmpRoot, onProgress: (p) => emitImport(p), onImported: (ids) => markChanged(ids) })
+    const run = source === 'chatgpt' ? importChatGPTFile : importExportFile;
+    const ev = (p, force) => emitImport({ ...p, source }, force);
+    run(store, zipPath, { tmpRoot, onProgress: (p) => ev(p), onImported: (ids) => markChanged(ids) })
       .then((report) => {
-        store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, report }));
-        emitImport({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report }, true);
+        store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, source, report }));
+        ev({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report }, true);
         markChanged([]);
       })
       .catch((e) => {   // a .catch AFTER the .then: it also covers a throw in the success body (setMeta, emit)
         const error = msg(e);
-        try { store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: false, error })); } catch { /* the event still carries it */ }
-        try { emitImport({ phase: 'failed', done: 0, total: 0, error }, true); } catch { /* never an unhandled rejection */ }
+        try { store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: false, source, error })); } catch { /* the event still carries it */ }
+        try { ev({ phase: 'failed', done: 0, total: 0, error }, true); } catch { /* never an unhandled rejection */ }
         lastError = error;
       })
       .finally(() => { importing = false; });
@@ -344,18 +353,28 @@ function main() {
       .then((r) => { if (r.linked || r.cleared) markChanged([], ['*']); }, fail);
   };
 
+  // Docs (H6): notes by mtime/size + history by byte cursor, in the write queue (forget({documentId}) queues behind it).
+  function runDocs() {
+    if (!writer || !store || docsRunning || stopping) return;
+    docsRunning = true;
+    serial(() => syncDocs(store, { home: claudeHome, vaultDir }))
+      .then((r) => { const d = [...r.changed, ...r.removed]; if (d.length) markChanged([], [], d); }, fail)
+      .finally(() => { docsRunning = false; });
+  }
+
   function startWatching() {
     if (watcher || sweepTimer || stopping) return;
     watcher = watchRoot(root, (file) => {
       serial(() => ingestTracked(store, root, file))
         .then((r) => { if (r.added || r.reset || r.titled) markChanged(['code:' + path.basename(file, '.jsonl')]); }, fail);
     });
+    docWatcher = watchDocs({ home: claudeHome, vaultDir }, runDocs); runDocs();
     sweepTimer = setInterval(() => {   // the safety net behind fs.watch (missed events, a dead watcher)
       if (sweeping) return;
       sweeping = true;
       serial(() => sweep(store, root))
         .then((ids) => { lastError = null; if (ids.length) markChanged(ids); }, fail)
-        .finally(() => { sweeping = false; relink(); });
+        .finally(() => { sweeping = false; relink(); runDocs(); });
     }, Math.max(100, Number(process.env.HQ_HUB_SWEEP_MS) || 60000));
   }
 
@@ -381,7 +400,7 @@ function main() {
   const notOwner = () => { throw new Error('read-only hub (another WorkspaceHQ owns the index)'); };
   const ops = {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
-      counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0 }, dbBytes: dbBytes(),
+      counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0, documents: 0 }, dbBytes: dbBytes(),
       lastError: lastError || readerNote || (store && store.getMeta('last_error')) || null,
       lastErrorAt: metaOrNull('last_error_at'), lastImport: lastImport(), importing }),   // H1's fields unchanged + lastErrorAt
     importExport: (a) => {
@@ -390,9 +409,21 @@ function main() {
       if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importExport needs an absolute .zip path');
       if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
       if (importing) throw new Error('an import is already running');
-      runImport(zipPath);
+      runImport(zipPath, 'claude');
       return { started: true };
     },
+    importChatGPT: (a) => {
+      if (!writer) notOwner();
+      const zipPath = a && typeof a.zipPath === 'string' ? a.zipPath : '';
+      if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importChatGPT needs an absolute .zip path');
+      if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
+      if (importing) throw new Error('an import is already running');
+      runImport(zipPath, 'chatgpt');
+      return { started: true };
+    },
+    // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
+    listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
+    getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
     syncState: () => (store ? store.syncState() : { conversations: {}, projects: {}, forgotten: [] }),
     syncPush: (a) => {
       if (!writer) notOwner();
@@ -418,7 +449,7 @@ function main() {
     // undone by that ingest's remaining batches (they re-create the rows it removed; the tombstone is only checked on
     // entry) while still answering "true". Queued behind the ingest, the tombstone is in place before any later one starts.
     // The answer therefore waits for the slot in progress (a live append: one file; the first backfill: the whole run).
-    forget: (a) => { if (!writer) notOwner(); return serial(() => store.forget(a)).then((ok) => { if (ok) markChanged(a.conversationId ? [a.conversationId] : [], a.projectId ? [a.projectId] : []); return ok; }); },
+    forget: (a) => { if (!writer) notOwner(); return serial(() => store.forget(a)).then((ok) => { if (ok) markChanged(a.conversationId ? [a.conversationId] : [], a.projectId ? [a.projectId] : [], a.documentId ? [a.documentId] : []); return ok; }); },
   };
 
   // ---- stdin: requests, split on '\n' only (readline also splits on U+2028/U+2029, which a search query may hold)

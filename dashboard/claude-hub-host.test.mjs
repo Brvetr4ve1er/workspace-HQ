@@ -235,7 +235,7 @@ test('registerIpc maps every channel to its Hub op and shapes false into {error}
   const h = {}, calls = [];
   const host = { health: async () => ({ state: 'ready' }), request: async (op, args, o) => { calls.push([op, args, o]); return op === 'link' ? false : op === 'forget' ? true : { op }; } };
   registerIpc({ handle: (ch, fn) => { h[ch] = fn; } }, host);
-  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-hub:conversation', 'hq:claude-hub:conversations', 'hq:claude-hub:forget', 'hq:claude-hub:health',
+  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-hub:conversation', 'hq:claude-hub:conversations', 'hq:claude-hub:document', 'hq:claude-hub:documents', 'hq:claude-hub:forget', 'hq:claude-hub:health',
     'hq:claude-hub:link', 'hq:claude-hub:projects', 'hq:claude-hub:reindex', 'hq:claude-hub:search', 'hq:claude-hub:stats']);
   await h['hq:claude-hub:conversation']({}, 'code:s', { limit: 5, before: 'x', beforeId: 'y' });
   assert.deepEqual(calls.at(-1).slice(0, 2), ['getConversation', { limit: 5, before: 'x', beforeId: 'y', id: 'code:s' }]);
@@ -256,4 +256,27 @@ test('create passes --latest to the Hub when given', () => {
     spawnFn: (cmd, args) => { seen.push(args); throw new Error('stop here'); } });
   host.start();
   assert.deepEqual(seen[0].slice(-2), ['--latest', 'C:\placeholder\latest.json']);
+});
+
+test('H6: documents/document channels reach listDocuments/getDocument; junk is reduced', async () => {
+  const h = {}, calls = [];
+  registerIpc({ handle: (ch, fn) => { h[ch] = fn; } }, { health: async () => ({}), request: async (op, args) => { calls.push([op, args]); return op === 'getDocument' ? null : []; } });
+  await h['hq:claude-hub:documents']({}, { q: 'tea', source: 'memory', limit: 5 });
+  assert.deepEqual(calls.at(-1), ['listDocuments', { q: 'tea', source: 'memory', limit: 5 }]);
+  await h['hq:claude-hub:documents']({}, 'junk');
+  assert.deepEqual(calls.at(-1), ['listDocuments', {}]);
+  assert.equal(await h['hq:claude-hub:document']({}, 'x'.repeat(400)), null);
+  assert.equal(calls.at(-1)[1].id.length, 300);
+});
+test('H6: the Hub gets --vault, and HQ_VAULT_DIR wins over main default', () => {
+  const { hubVaultDir } = require('./claude-hub-host.js');
+  assert.equal(hubVaultDir({ HQ_VAULT_DIR: 'C:\\gate\\vault' }, 'C:\\real\\VEEMO CORTEX'), 'C:\\gate\\vault');
+  assert.equal(hubVaultDir({}, 'C:\\real\\VEEMO CORTEX'), 'C:\\real\\VEEMO CORTEX');
+  assert.equal(hubVaultDir({}, undefined), null);
+  const seen = [];
+  const host = create({ hubScript: 'hub.mjs', dbFile: path.join(os.tmpdir(), 'hub-host-never', 'db'), vaultDir: 'C:\\gate\\vault', findNodeFn: thisNode,
+    spawnFn: (cmd, args) => { seen.push(args); throw new Error('stop here'); } });
+  host.start();
+  const i = seen[0].indexOf('--vault');
+  assert.ok(i > 0); assert.equal(seen[0][i + 1], 'C:\\gate\\vault');
 });
