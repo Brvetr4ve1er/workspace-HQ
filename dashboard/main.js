@@ -1593,6 +1593,7 @@ if (!app.requestSingleInstanceLock()) {
     rebuildData();
     require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
     claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog });   // Claude Hub (spec 2026-10-13): index of every Claude Code session
+  require('./claude-vault').init({ ipcMain, hub: claudeHub, dataDir: DATA, vaultDir: VAULT });   // Claude Hub H5: Save to vault (writes only on the owner's Save)
     require('./claude-chat').init({ ipcMain, send: castSend, app, hub: claudeHub, getProjects: studioProjects, appLog });   // Claude Hub H3 in-app chat (spec 2026-10-13 §8)
     require('./claude-import').init({ ipcMain, host: claudeHub, getWin: () => win });   // Claude Hub H4: claude.ai export import + bridge sync routes
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)

@@ -5,6 +5,7 @@
 // Env HQ_VAULT_DIR overrides the vault folder (second-instance gates); tests pass vaultDir directly.
 'use strict';
 
+const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 
@@ -164,8 +165,84 @@ function noteText({ conversation: c, plan, draft, model, basis, created }) {
   ].join('\n');
 }
 
+// the WorkspaceHQ project's name from the latest scan (read-only), for the project note's wikilink
+function hqProjectName(dataDir, hqProjectId) {
+  if (!hqProjectId) return null;
+  try {
+    const S = JSON.parse(fs.readFileSync(path.join(dataDir, 'latest.json'), 'utf8'));
+    const p = (S.projects || []).find((x) => x && x.id === hqProjectId);
+    return p && p.name ? String(p.name) : null;
+  } catch { return null; }
+}
+const HUB_DOWN = { 'hub not running': 'Claude Hub is not running', 'hub stopped': 'Claude Hub stopped while answering', timeout: 'Claude Hub did not answer in time' };
+const hubError = (r) => (r && typeof r.error === 'string' ? 'Claude Hub: ' + (HUB_DOWN[r.error] || r.error) : null);
+
+function createVault({ hub, llm, vaultDir, dataDir, now = () => new Date() }) {
+  async function preview(conversationId) {
+    if (typeof conversationId !== 'string' || !conversationId || conversationId.length > 300) return { error: 'no chat to save' };
+    if (!hub || typeof hub.request !== 'function') return { error: 'Claude Hub is not running — Save to vault reads the chat from it' };
+    if (!fs.existsSync(vaultDir)) return { error: 'the vault folder was not found: ' + vaultDir };
+    const got = await hub.request('getConversation', { id: conversationId, limit: 500 }, { timeout: 10000 });
+    if (hubError(got)) return { error: hubError(got) };
+    if (!got || !got.conversation) return { error: 'that chat is not in the Claude Hub index (forgotten, or not indexed yet)' };
+    const projects = await hub.request('listProjects', {}, { timeout: 10000 });
+    if (hubError(projects)) return { error: hubError(projects) };
+    const c = got.conversation;
+    const proj = (Array.isArray(projects) ? projects : []).find((p) => p && p.id === c.project_id);
+    const d = draftPrompt(c, got.messages);
+    if (!d.basis) return { error: 'that chat has no messages from you or Claude to summarise' };
+    const r = await llm.run({ system: d.system, prompt: d.prompt, timeoutMs: 120000 });
+    if (!r || r.status !== 'done') {
+      return { error: r && r.status === 'unavailable'
+        ? 'the local model isn’t running — start Ollama or LM Studio and try again (' + (r.reason || 'no runtime') + ')'
+        : 'the local model failed: ' + ((r && r.reason) || 'no answer') };
+    }
+    const at = now();
+    // getConversation's row is `SELECT * FROM conversation` (no hq_project_id column); the link lives on the project row
+    // (listProjects p.*). c.hq_project_id is read too, in case a later phase adds it to the conversation row.
+    const hqId = c.hq_project_id || (proj && proj.hq_project_id) || null;
+    const plan = planNote({ conversation: c, projectName: proj ? proj.name : null, hqProjectName: hqProjectName(dataDir, hqId), now: at });
+    let chosen;
+    try { chosen = await choosePath(vaultDir, plan.rel, c.id); } catch (e) { return { error: String(e.message || e) }; }
+    const markdown = noteText({ conversation: c, plan, draft: r.output, model: r.model, basis: d.basis, created: at.toLocaleDateString('en-CA') });
+    return { path: path.join(vaultDir, ...chosen.rel.split('/')), rel: chosen.rel, markdown, exists: chosen.exists, model: r.model || null, basis: d.basis };
+  }
+
+  async function save(req) {
+    if (!req || typeof req !== 'object') return { error: 'no note to save' };
+    const { path: p, markdown, replace } = req;
+    if (typeof markdown !== 'string' || !markdown.trim()) return { error: 'no note text to save' };
+    if (markdown.length > NOTE_MAX) return { error: 'the note is too long (over ' + NOTE_MAX + ' characters)' };
+    const id = frontConversation(markdown);
+    if (!id) return { error: 'the note lost its "conversation:" frontmatter line — keep the frontmatter block' };
+    let file;
+    try { file = await resolveSavePath(vaultDir, p); } catch (e) { return { error: String(e.message || e) }; }
+    let overwrite = false;
+    if (replace === true) {
+      const owner = await noteConversation(file).catch((e) => e);
+      if (owner instanceof Error) return { error: String(owner.message || owner) };
+      if (owner !== undefined && owner !== id) return { error: 'that note belongs to another chat — it is never replaced' };
+      overwrite = owner !== undefined;
+    }
+    try { await writeNoteAtomic(file, markdown, { replace: overwrite }); }
+    catch (e) { return e && e.exists ? { error: e.message, exists: true } : { error: String((e && e.message) || e) }; }
+    return true;
+  }
+  return { preview, save };
+}
+
+// main.js: one line after the Hub host is created. Two invoke channels; neither ever throws.
+function init({ ipcMain, hub, dataDir, vaultDir, llm = require('./llm-local') }) {
+  const vault = createVault({ hub, llm, dataDir, vaultDir: process.env.HQ_VAULT_DIR || vaultDir });
+  const safe = (fn) => async (_e, arg) => { try { return await fn(arg); } catch (e) { return { error: String((e && e.message) || e).slice(0, 300) }; } };
+  ipcMain.handle('hq:claude-vault:preview', safe((id) => vault.preview(id)));
+  ipcMain.handle('hq:claude-vault:save', safe((req) => vault.save(req)));
+  return vault;
+}
+
 module.exports = {
   CLAUDE_DIR, NAME_MAX, NOTE_MAX, DRAFT_SYSTEM,
   safeSegment, projectNoteName, noteDay, planNote, frontConversation, noteConversation, choosePath,
   resolveSavePath, writeNoteAtomic, draftPrompt, noteText,
+  hqProjectName, createVault, init,
 };

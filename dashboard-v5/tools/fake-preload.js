@@ -173,6 +173,10 @@ function createFake(opts) {
     ['claudeHub.link', WRITE], ['claudeHub.forget', WRITE], ['claudeHub.reindex', () => ({ started: true })],
     ['claudeHub.importExport', () => ({ started: true, file: 'claude-export.zip' })],
     ['claudeHub.on', 'on:hq:claude-hub:event'],
+    // Claude Hub H5: Save to vault (canned draft; save resolves true and is recorded)
+    ['claudeVault.preview', (id) => ({ path: 'C:\\fake-vault\\30_Areas\\Claude\\project-a\\2026-10-01 Fake release planning.md', rel: '30_Areas/Claude/project-a/2026-10-01 Fake release planning.md', exists: false, model: 'fake-model', basis: 4,
+      markdown: '---\nsource: claude-code\nconversation: ' + JSON.stringify(String(id)) + '\nproject: "[[project-a]]"\ncreated: 2026-10-16\nchat_date: 2026-10-01\ntitle: "Fake release planning"\ndrafted_by: "local model fake-model, from 4 chat messages"\ntags: [claude]\n---\n\n# Fake release planning\n\nProject: [[project-a]] · chat of 2026-10-01\n\n## Summary\nThe fake release ships Friday.\n\n## Decisions\n- ship Friday\n\n## To-dos\n- [ ] tag\n\n## Links\n- none\n' })],
+    ['claudeVault.save', WRITE],
     ['claudeChat.send', chatTurn], ['claudeChat.cancel', cancelTurn], ['claudeChat.on', 'on:hq:claude-chat:event'],
     ['liveState', () => ({ dev: [], casts: [], scan: { state: 'idle' } })], ['onScanStatus', 'on:hq:scan-status'],
     ['openAt', WRITE], ['onNavigate', 'on:hq:navigate'],

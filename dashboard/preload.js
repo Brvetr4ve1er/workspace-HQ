@@ -54,6 +54,11 @@ contextBridge.exposeInMainWorld('hq', {
       return () => ipcRenderer.removeListener('hq:claude-hub:event', handler);
     },
   },
+  // Claude Hub H5: Save to vault — preview drafts (writes nothing); save writes one confirmed note
+  claudeVault: {
+    preview: (conversationId) => ipcRenderer.invoke('hq:claude-vault:preview', conversationId),
+    save: (req) => ipcRenderer.invoke('hq:claude-vault:save', req),
+  },
   claudeChat: {
     send: (req) => ipcRenderer.invoke('hq:claude-chat:send', req),
     cancel: (turnId) => ipcRenderer.invoke('hq:claude-chat:cancel', turnId),

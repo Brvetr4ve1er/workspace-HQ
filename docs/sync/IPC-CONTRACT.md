@@ -403,6 +403,8 @@ Additive only. Main-side code lives in NEW files (`dashboard/claude-vault.js`) w
 
 | Preload | Channel | Shape |
 |---|---|---|
+| `claudeVault.preview(conversationId)` | `hq:claude-vault:preview` (invoke) | in: conversation id (string ≤ 300) → `{path, rel, markdown, exists, model, basis}` \| `{error}` — the LOCAL model drafts Summary / Decisions / To-dos / Links from the Hub's copy of the chat (≤ 500 newest messages; user + assistant text only). Writes nothing. `path` is absolute under `VEEMO CORTEX/30_Areas/Claude/<Project>/<YYYY-MM-DD> <title>.md`; `exists:true` = this chat's own earlier note is there (the UI then asks Replace). Another chat's note of the same name is never offered: the name takes ` (2)`…` (9)`. `{error}` when the Hub, the chat or the local model is missing (H5; additive to spec §7: `rel`, `exists`, `model`, `basis`); never throws |
+| `claudeVault.save({path, markdown, replace?})` | `hq:claude-vault:save` (invoke) | in: `path` from preview, the edited `markdown` (≤ 200 000 chars, must keep its `conversation:` frontmatter line), `replace` only from the Replace button → `true` \| `{error}` \| `{error, exists:true}` (a note is there and `replace` was not sent). Only `30_Areas/Claude/<Project>/<note>.md` inside the vault (junctions out refused); atomic (temp + link/rename); `replace:true` overwrites only a note whose `conversation:` matches; never automatic, never bulk. Env `HQ_VAULT_DIR` overrides the vault folder for gates (H5); never throws |
 
 ## Rules
 

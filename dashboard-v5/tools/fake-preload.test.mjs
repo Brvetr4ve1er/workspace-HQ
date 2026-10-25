@@ -214,3 +214,13 @@ test('llm.chat: with include.claude the fake answers a Claude history section an
   assert.equal(r.output, 'Fake answer from the fake model, from chat Fake release planning, 2026-10-01.');
   assert.deepEqual(r.sections.find((s) => s.id === 'claude'), { id: 'claude', label: 'Claude history', chars: 420, clipped: false, cites: ['chat Fake release planning, 2026-10-01'] });
 });
+
+test('claudeVault: the fake drafts a canned note and records a save (H5)', async () => {
+  const { hq, control } = createFake();
+  const p = await hq.claudeVault.preview('code:fake-1');
+  assert.equal(p.rel, '30_Areas/Claude/project-a/2026-10-01 Fake release planning.md');
+  assert.equal(p.exists, false);
+  assert.match(p.markdown, /^---\nsource: claude-code\nconversation: "code:fake-1"\n/);
+  assert.equal(await hq.claudeVault.save({ path: p.path, markdown: p.markdown }), true);
+  assert.equal(control.calls('claudeVault.save').length, 1);
+});
