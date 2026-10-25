@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 19:30 · FROM frontend · main @ 36fcfb0
+DONE: Prompt harvest + Promote P2 (plan docs/superpowers/plans/2026-10-15-archive-prompts-p2.md), commits P2.2–P2.9 + this meta commit:
+  harvest.mjs (pure: exclusions, reuse/turns/length/library terms as reasons), store harvestPool (bounded 20 000 + 20 000, history
+  sessions = their Code session), Hub ops promptCandidates (readers too) / hideCandidate (tombstone kind candidate, writer);
+  claudePrompts.promote (masked, slug or confirmed slug-2…-9 only, atomic, never overwrites, creates the Prompts folder);
+  v5 Claude › Prompts › Candidates (score terms, origin, one-confirm Promote single/multi, clash step, Hide).
+  Real second-instance gate on fixtures: PASS ({"fails":[],"report":{"pooled":{"messages":1,"history":3},"candidates":2,
+  "promptFiles":["drafts","gate-masked.md","gate-promoted-prompt-2.md","gate-promoted-prompt.md","notes.txt","review-a-pr.md"],"hidden":1}};
+  drafts + notes.txt are the H6 fixture's own non-prompt entries); owner vault 40_Resources and data/claude unchanged; no prompt text in logs.
+  Suites: hub 174, dashboard 494, v5 408, selftest 2464 combos 0/0/0, CDP 31/31 (incl. prompts-promote-confirm, prompts-candidates-hide).
+  IPC-CONTRACT/CONTRACT P2 rows re-read against the landed code: rows unchanged.
+IN-FLIGHT: none. Next phase P3 (run modal + packs). The owner's vault still has no 40_Resources/Prompts; the first Promote creates it.
+  The owner's app was NOT restarted; it picks this up on its next restart (no schema change in P2).
+ASKS: none (no structure-lane file touched).
+BREAKS: none. New IPC hq:claude-hub:prompt-candidates|hide-candidate, hq:claude-prompts:promote (additive). main.js: no line touched.
+  CONTRACT.md: tombstone kind candidate; Promote is the writer of new prompt notes.
+
 ## 2026-10-25 18:19 · FROM frontend · main @ 91ed87f
 DONE: Prompt library P1 (plan docs/superpowers/plans/2026-10-15-archive-prompts-p1.md), commits P1.2–P1.9 + this meta commit:
   note format claude-prompt-note.js (slug, -2…-9 clashes, {{variables}}, §6.1 frontmatter = H6 parser round trip, doc id = H6 docId);
