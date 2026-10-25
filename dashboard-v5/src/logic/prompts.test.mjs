@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { promptsLogic, RUN_LATER } from './prompts.js';
+import { promptsLogic } from './prompts.js';
 
 function rig(answers = {}) {
   const toasts = [], calls = [], went = [];
@@ -42,11 +42,11 @@ test('prOpen: Obsidian → toast; Obsidian missing → falls back to Open file o
   assert.deepEqual(loop.toasts.at(-1), ['error', 'Open failed · that prompt note is not in the Prompts folder (moved, renamed or deleted?)']);
 });
 
-test('prRun is a labelled placeholder until the run step; it opens and sends nothing', () => {
-  const r = rig(); r.self.prRun('prompt:a');
-  assert.deepEqual(r.toasts, [['info', RUN_LATER]]);
-  assert.match(RUN_LATER, /uses your Claude quota/);
-  assert.deepEqual(r.calls, []);
+test('prRun opens the run modal for that prompt (P3)', () => {
+  const r = rig(); let opened = null;
+  r.self.rnOpen = (id) => { opened = id; };
+  r.self.prRun('prompt:a');
+  assert.equal(opened, 'prompt:a');
 });
 
 test('prForProject: the Library opens with the project as run context; ✕ clears it', async () => {

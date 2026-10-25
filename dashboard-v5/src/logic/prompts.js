@@ -1,6 +1,5 @@
 // Prompt library P1 (spec 2026-10-15 §6.3) — Claude › Prompts › Library actions. Main opens notes (contained, §2);
 // the renderer only ever sends a document id and 'obsidian' | 'file'. Run is wired by the run step (P3).
-export const RUN_LATER = 'Run arrives with the run step (fill the variables, then Chat, Terminal or copy for claude.ai / ChatGPT) — it uses your Claude quota. For now, open the note and copy the prompt.';
 
 export const promptsLogic = {
   prLoad() { return this.store.refreshPrompts && this.store.refreshPrompts(); },
@@ -14,7 +13,7 @@ export const promptsLogic = {
     this.toast('error', 'Open failed · ' + ((r && r.error) || 'no answer'));
     return r;
   },
-  prRun() { this.toast('info', RUN_LATER); },
+  prRun(id) { this.rnOpen(id); },
   prForProject(project) {
     this.setState({ prFor: project && project.id ? String(project.id) : null, prQuery: '', prSearched: false });
     if (this.store.searchPrompts) this.store.searchPrompts('');

@@ -30,6 +30,7 @@ import { onboardLogic } from './logic/onboard.js';
 import { whatsNewLogic } from './logic/whats-new.js';
 import { claudeVaultLogic } from './logic/claude-vault.js';
 import { promptsLogic } from './logic/prompts.js';
+import { runLogic } from './logic/run.js';
 import { candidatesLogic } from './logic/prompt-candidates.js';
 import { systemLogic } from './logic/system.js';
 import { libraryLogic } from './logic/library.js';
@@ -88,7 +89,7 @@ export class Component extends DCLogic {
       // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
       canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
       // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
-      ...clPrefs(), clQuery: '', clSearched: false, prQuery: '', prSearched: false, prFor: null, prView: 'library', hcSel: [], promote: null, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
+      ...clPrefs(), clQuery: '', clSearched: false, prQuery: '', prSearched: false, prFor: null, prView: 'library', hcSel: [], promote: null, run: null, pack: null, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
       // Claude chat composer (H3, logic/claude-chat.js) — not persisted: every composer opens Read-only
       ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
       // Ask's offline box: Retry is probing (logic/ask.js)
@@ -355,8 +356,8 @@ export class Component extends DCLogic {
     // canvasNoteOpen: Escape folds the Canvas ＋ Note form, an in-page form, so after the
     // overlays and only while it is on screen (the flag outlives a tab switch)
     const noteShown = S.canvasNoteOpen && !S.route && S.tab === 'claude' && S.sub && S.sub.claude === 'canvas';
-    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'promote', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
-    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'promote'].includes(k) ? null : false }); return; }
+    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'promote', 'pack', 'run', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
+    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else if (k === 'pack') this.rnPackCancel(); else if (k === 'run') this.rnClose(); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'promote'].includes(k) ? null : false }); return; }
     if (S.route) this.setState({ route: null });
   }
   onKey(e) {
@@ -390,5 +391,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic);
 Component.prototype.renderVals = renderVals;
