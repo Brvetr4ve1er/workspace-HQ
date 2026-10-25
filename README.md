@@ -94,8 +94,7 @@ node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
 
 ```powershell
-..dashboard
-ode_moduleselectrondistelectron.exe dev-main.js --preload=fake --hidden --remote-debugging-port=9351
+..\dashboard\node_modules\electron\dist\electron.exe dev-main.js --preload=fake --hidden --remote-debugging-port=9351
 node tools/cdp-gate.mjs --port 9351 --scenario claude-library-search,claude-thread-open
 ```
 

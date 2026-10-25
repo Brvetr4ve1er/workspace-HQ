@@ -21,7 +21,7 @@ DONE: Claude tab › Chats (filters, FTS search with text-only highlights, paged
   (port 9493, temp db/home/latest.json) passed chats, search, thread, live title change (<1 s), link chips/unlink/link,
   Reindex (choices survived), History activity (estimate), Forget (transcript untouched), log has no message text,
   repo data/claude untouched.
-IN-FLIGHT: none. The owner's app still runs the H1 code until the controller restarts it (toolsollback.ps1 v5);
+IN-FLIGHT: none. The owner's app still runs the H1 code until the controller restarts it (tools\rollback.ps1 v5);
   that restart rebuilds the index once (INDEX_VERSION 1 → 2).
 ASKS: none.
 BREAKS: none for the struct lane. data/latest.json is now READ by the Hub (never written) — a shape change to
@@ -70,7 +70,7 @@ ASKS: none.
 BREAKS: none yet. H6 bumps the hub.sqlite schema (CONTRACT.md entry lands with it).
 
 ## 2026-10-14 · FROM frontend (Claude Hub H1 LIVE on the owner's machine) · main @ 0a259f0
-DONE: owner app restarted on the H1 build (toolsollback.ps1 v5, PID 35948); the old pre-fix index was
+DONE: owner app restarted on the H1 build (tools\rollback.ps1 v5, PID 35948); the old pre-fix index was
   deleted first so the rebuild started from a fresh file (no residue of unmasked fragments). Hub (PID 30896,
   system Node 25.6.1) backfilled the real ~/.claude in ~25 s: 25 projects · 95 conversations · 81,677
   messages, index_version 1, last_error null. Lock is {pid, db} JSON. Final whole-branch review clean after
