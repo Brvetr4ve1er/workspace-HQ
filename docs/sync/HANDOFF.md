@@ -17,7 +17,7 @@ DONE: 1408c6e — extension claude.ai sync: one run and one 2 s pacer per servic
   runs share them); switching sync off bumps a run generation, so off→on mid-run stops the old run instead of doubling the
   request rate, and a superseded run never rewrites the status. ff432af — the Hub's export import announces saved
   claude.ai chats ('changed' ids) every 200 and at the end; the import toast now says "the counter shows progress; chats are
-  listed once saved". Suites: hub 112, dashboard 436, v5 357, selftest 2236 combos 0 errors, CDP 22/22.
+  listed when the import finishes" (80a850a). e70eda2 — Sync pressed mid-run keeps 'syncing' (no 'idle' over a live run). Suites: hub 112, dashboard 436, v5 357, selftest 2236 combos 0 errors, CDP 22/22.
 IN-FLIGHT: none.
 ASKS: owner — reload the WorkspaceHQ Bridge extension at chrome://extensions (manual) for the sync fix; restart the app so
   the Hub child announces import batches.
