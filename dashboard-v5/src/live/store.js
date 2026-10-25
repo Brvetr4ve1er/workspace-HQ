@@ -386,7 +386,7 @@ export function createStore(DATA, hq) {
   function closeClaudeThread() { seq.thread++; lib().thread = null; emit(); }
   const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   // Prompt library P1 — the Library reads the Hub's prompt documents, their prompt_use stats and main's folder/Obsidian status
-  let promptSeq = 0, promptSearchSeq = 0;
+  let promptSeq = 0, promptSearchSeq = 0, searchFailed = false;   // searchFailed: P.error came from a search, so a later good search (or clearing it) lifts it
   const askHq = (f) => Promise.resolve().then(f).catch((e) => ({ error: String((e && e.message) || e).slice(0, 300) }));
   function refreshPrompts() {
     const P = live.prompts;
@@ -400,6 +400,7 @@ export function createStore(DATA, hq) {
     ]).then(([rows, stats, status]) => {
       if (my !== promptSeq) return undefined;
       P.busy = false;
+      searchFailed = false;
       if (isObj(rows) && rows.error) P.error = 'Claude Hub: ' + rows.error; else { P.error = null; P.rows = Array.isArray(rows) ? rows : []; }
       if (isObj(stats) && stats.error) P.statsErr = 'Claude Hub: ' + stats.error; else { P.statsErr = null; P.stats = Array.isArray(stats) ? stats : null; }
       if (isObj(status) && !status.error) P.status = status;
@@ -410,11 +411,11 @@ export function createStore(DATA, hq) {
   function searchPrompts(q) {
     const P = live.prompts;
     P.q = String(q || '').trim().slice(0, 200);
-    if (!P.q || !hq || !hq.claudeHub || !hq.claudeHub.documents) { P.hits = null; emit(); return Promise.resolve(); }
+    if (!P.q || !hq || !hq.claudeHub || !hq.claudeHub.documents) { P.hits = null; if (searchFailed) { P.error = null; searchFailed = false; } emit(); return Promise.resolve(); }
     const my = ++promptSearchSeq;
     return askHq(() => hq.claudeHub.documents({ source: 'prompt', q: P.q, limit: 200 })).then((r) => {
       if (my !== promptSearchSeq) return;
-      if (isObj(r) && r.error) P.error = 'Claude Hub: ' + r.error; else P.hits = Array.isArray(r) ? r : [];
+      if (isObj(r) && r.error) { P.error = 'Claude Hub: ' + r.error; searchFailed = true; } else { P.hits = Array.isArray(r) ? r : []; if (searchFailed) { P.error = null; searchFailed = false; } }
       emit();
     });
   }

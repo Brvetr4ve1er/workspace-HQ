@@ -766,6 +766,26 @@ test('P1 prompts: loads notes + stats + status, searches, re-reads on a prompt c
   st.stop();
 });
 
+test('P1 prompts: a failed search error lifts on a good search or a cleared one, and the view leaves the error state', async () => {
+  let fail = false;
+  const { hq } = libHq({
+    documents: (o) => Promise.resolve(o && o.q ? (fail ? { error: 'timeout' } : [{ id: 'prompt:a' }]) : [{ id: 'prompt:a', source: 'prompt', title: 'A', variables: [] }]),
+    promptStats: () => Promise.resolve([]),
+  });
+  const st = createStore(DATA(), hq); await st.start();
+  await st.refreshPrompts();
+  fail = true; await st.searchPrompts('staff');
+  assert.equal(st.live.prompts.error, 'Claude Hub: timeout');
+  fail = false; await st.searchPrompts('staff');
+  assert.equal(st.live.prompts.error, null, 'a successful search lifts the search error');
+  fail = true; await st.searchPrompts('staff');
+  assert.ok(st.live.prompts.error);
+  await st.searchPrompts('');
+  assert.equal(st.live.prompts.error, null, 'clearing the search lifts it too');
+  assert.equal(st.live.prompts.rows.length, 1, 'rows were never lost');
+  st.stop();
+});
+
 test('P1 prompts: no bridge → refreshPrompts is a no-op, openPrompt says why', async () => {
   const st = createStore(DATA(), null);
   await st.refreshPrompts();
