@@ -89,6 +89,7 @@ node --test dashboard/*.test.mjs
 node --test dashboard/claude-hub/*.test.mjs
 node --test dashboard-v5/src/*.test.mjs dashboard-v5/src/dc/*.test.mjs dashboard-v5/src/live/*.test.mjs dashboard-v5/src/logic/*.test.mjs dashboard-v5/src/elements/*.test.mjs dashboard-v5/styles/*.test.mjs dashboard-v5/tools/*.test.mjs
 node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
+# H6 archive sources only: node --test dashboard/claude-hub/ingest-chatgpt.test.mjs dashboard/claude-hub/ingest-docs.test.mjs dashboard/claude-imports.test.mjs dashboard/claude-import.test.mjs
 ```
 
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
@@ -112,6 +113,8 @@ node --test dashboard/claude-hub/unzip.test.mjs dashboard/claude-hub/parse-web.t
 node --test dashboard/claude-import.test.mjs dashboard/claude-bridge-routes.test.mjs dashboard/claude-sync-ext.test.mjs
 node dashboard-v5/tools/cdp-gate.mjs --port <port> --scenario claude-import-progress   # against dev-main.js --preload=fake
 ```
+
+The Hub also indexes ChatGPT data exports (Claude › Chats › Import ChatGPT export, or drop the ZIP in `Documents\WorkspaceHQ Imports` and confirm the card once), your Claude memory notes, CLAUDE.md files, `~/.claude/history.jsonl` and the prompt notes in `VEEMO CORTEX/40_Resources/Prompts` — all on this PC, masked, read-only on every source. Search shows matching notes with a source badge.
 
 Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test). `HQ_CLAUDE_IMPORT_ZIP` is the absolute path of a claude.ai export used instead of the file dialog (gates and second instances only).
 

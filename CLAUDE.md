@@ -52,3 +52,4 @@ edits gated on in-flight work landing (new main-side features go in NEW files).
   The rule lives in `dashboard/ui-version.js` (pure, `ui-version.test.mjs`).
 - Theme system invariants: never override `position` on `#tabs`/`.timemachine`;
   new themes must remap `--active`/`--active-arrow`/`--divider`/`--mono`.
+- Archive sources (H6): hub.sqlite schema 2 (`document`/`document_fts`, `prompt_use`; migrated in place — an older app refuses it); ChatGPT chats are `source:'chatgpt'` (`chatgpt:<id>`); docs ingest reads `HQ_CLAUDE_HOME` memory/CLAUDE.md/history.jsonl and `HQ_VAULT_DIR/40_Resources/Prompts`; drop folder `Documents\WorkspaceHQ Imports` (`HQ_IMPORTS_DIR`), watcher `dashboard/claude-imports.js`, answered files in `imports-seen.json` next to the db.

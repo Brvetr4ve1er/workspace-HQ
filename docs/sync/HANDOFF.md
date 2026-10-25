@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 16:30 · FROM frontend · main @ 123e0d0
+DONE: AI archive sources H6 (plan docs/superpowers/plans/2026-10-15-archive-prompts-h6.md), commits H6.2–H6.10b + this meta commit:
+  hub.sqlite schema 2 (document + document_fts, prompt_use; in-place 1→2, tested on a populated v1 db); ingest-chatgpt.mjs
+  (current-branch walk, masked, counts-only report, web_sync kind chatgpt); ingest-docs.mjs (memory notes, CLAUDE.md,
+  vault prompt notes, history.jsonl by byte cursor, live watchers); Hub ops importChatGPT/listDocuments/getDocument +
+  forget({documentId}); drop-folder watcher claude-imports.js (asked once); v5 document hits + view, drop card, System report.
+  Real second-instance gate on fixtures: PASS (prompts 1, chatgptChats 4, card "Import ChatGPT export (chatgpt-export.zip, 1 KB)?";
+  photos.zip refused with the reason; no re-offer after a reload; imports-seen.json next to the gate db; drop folder unchanged;
+  owner vault 40_Resources, owner imports folder and data/claude unchanged; no chat text in logs). Suites: hub 152, dashboard 470,
+  v5 384, selftest 2312 combos 0/0/0, CDP 26/26 (incl. imports-drop-confirm, search-documents). IPC-CONTRACT/CONTRACT rows re-read against the landed code: unchanged.
+IN-FLIGHT: none. The owner's app was NOT restarted: its Hub still runs schema 1 code; the first restart on this code
+  migrates data/claude/hub.sqlite to schema 2 (a later rollback of the Hub code below H6 then refuses that db — "newer WorkspaceHQ").
+ASKS: none (no structure-lane file touched).
+BREAKS: main.js :1595 gains `vaultDir: VAULT`; +1 line after :1598 (claude-imports init). New IPC hq:claude-hub:documents|document,
+  hq:claude-imports:pending|dismiss|event; hq:claude-hub:import takes (kind, {dropId}); preload hq.claudeImports. New env HQ_IMPORTS_DIR.
+  CONTRACT.md: data/claude schema 2 + imports-seen.json; vault notes may carry source: chatgpt.
+
 ## 2026-10-25 12:50 · FROM frontend · main @ fd8e885
 DONE: Claude Hub H5 (plan docs/superpowers/plans/2026-10-15-claude-hub-h5.md), commits H5.1–H5.7 + this meta commit: Hub op contextFor
   (context.mjs; OR-of-keywords FTS, cited "chat <title>, <date>", inside a budget); llm-context.js 'claude' section
