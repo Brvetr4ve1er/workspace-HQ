@@ -12,6 +12,13 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 · FROM frontend (Claude Hub H2 — final review fix) · main @ e27d9f3
+DONE: History "Claude activity" per-project tokens now read "N tokens (whole chat)" + tooltip — stats sums all usage of
+  chats active in the window (usage has no timestamp). IPC-CONTRACT stats row states the scope. Commits 1263ea0 e27d9f3.
+  Store + logic regression tests; tpl hash + vals golden (history.claude-activity) re-recorded. Suites green (hub 91,
+  dashboard 379, v5 333, selftest 2180 combos 0/0/0).
+IN-FLIGHT: none. ASKS: none. BREAKS: none (no schema/INDEX_VERSION change, main.js lines touched: none).
+
 ## 2026-10-25 · FROM frontend (Claude Hub H2 — library + activity) · main @ e806491
 DONE: Claude tab › Chats (filters, FTS search with text-only highlights, paged thread, Forget) + Projects (link chips),
   project-page "Claude" (last 5 + New chat via terminal), History "Claude activity" (estimate), System Reindex.
