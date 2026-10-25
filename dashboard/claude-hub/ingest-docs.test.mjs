@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -78,6 +78,29 @@ test('missing roots are not errors; ChatGPT memory rows (no path) are never remo
   const s = openStore(':memory:');
   s.upsertDocument({ id: 'memory:chatgpt:aa', source: 'memory', path: null, title: 't', text: 'placeholder', meta: { origin: 'chatgpt' } });
   const r = await syncNotes(s, { home: path.join(os.tmpdir(), 'no-such-home-h6'), vaultDir: path.join(os.tmpdir(), 'no-such-vault-h6') });
-  assert.deepEqual(r, { changed: [], removed: [], skipped: 0 });
+  assert.deepEqual(r, { changed: [], removed: [], skipped: 0, unreadable: [] });
   assert.ok(s.getDocument({ id: 'memory:chatgpt:aa' }));
+});
+
+test('an unreadable root (EPERM, not ENOENT) keeps its indexed rows and is reported, never swept as empty', async () => {
+  const { fx, s, opts } = setup();
+  await syncNotes(s, opts);
+  const before = s.documentStamps('prompt').size, memBefore = s.documentStamps('memory').size;
+  assert.ok(before > 0 && memBefore > 0);
+  const promptsDir = path.resolve(fx.vault, '40_Resources', 'Prompts'), memRoot = path.resolve(fx.home, 'projects');
+  const real = fs.readdirSync;
+  const m = mock.method(fs, 'readdirSync', (d, o) => {
+    const r = path.resolve(String(d));
+    if (r === promptsDir || r === memRoot) { const e = new Error('locked'); e.code = 'EPERM'; throw e; }
+    return real(d, o);
+  });
+  try {
+    const r = await syncNotes(s, opts);
+    assert.deepEqual(r.removed, []);
+    assert.deepEqual(r.unreadable.map((u) => [u.source, u.code]).sort(), [['memory', 'EPERM'], ['prompt', 'EPERM']]);
+  } finally { m.mock.restore(); }
+  assert.equal(s.documentStamps('prompt').size, before);
+  assert.equal(s.documentStamps('memory').size, memBefore);
+  const r2 = await syncNotes(s, opts);   // root readable again: no churn
+  assert.deepEqual([r2.changed, r2.removed, r2.unreadable], [[], [], []]);
 });

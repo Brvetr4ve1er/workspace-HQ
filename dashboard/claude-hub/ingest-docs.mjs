@@ -14,8 +14,11 @@ const safe = (s) => maskSecrets(clean(s)).text;
 const MASKED = /•••/;
 const sha1 = (s) => crypto.createHash('sha1').update(s).digest('hex');
 export const docId = (source, file) => source + ':' + sha1(path.resolve(file).toLowerCase());
-const mdFiles = (dir) => { try { return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isFile() && /\.md$/i.test(d.name)).map((d) => path.join(dir, d.name)); } catch { return []; } };
-const isFile = (f) => { try { return fs.lstatSync(f).isFile(); } catch { return false; } };
+// Only ENOENT/ENOTDIR mean "root not there". Any other error (EACCES, EPERM, EBUSY, a locked/unmounted vault) is recorded in
+// `bad` so syncNotes skips the removal sweep for that source instead of treating the root as empty and deleting its rows.
+const missing = (e) => e && (e.code === 'ENOENT' || e.code === 'ENOTDIR');
+const mdFiles = (dir, source, bad) => { try { return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isFile() && /\.md$/i.test(d.name)).map((d) => path.join(dir, d.name)); } catch (e) { if (!missing(e)) bad.push({ source, path: dir, code: (e && e.code) || 'ERR' }); return []; } };
+const isFile = (f, source, bad) => { try { return fs.lstatSync(f).isFile(); } catch (e) { if (!missing(e)) bad.push({ source, path: f, code: (e && e.code) || 'ERR' }); return false; } };
 
 function scalar(v) {
   const t = v.trim();
@@ -53,23 +56,24 @@ const maskDeep = (v) => (typeof v === 'string' ? cutText(safe(v), 2000) : Array.
   : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, maskDeep(x)])) : v);
 
 export function listNoteFiles(store, { home, vaultDir }) {
-  const out = [], seen = new Set();
+  const out = [], seen = new Set(), bad = [];
+  Object.defineProperty(out, 'unreadable', { value: bad });   // non-enumerable: [{source, path, code}]
   const add = (o) => { const k = path.resolve(o.file).toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(o); } };
   const code = new Map(store.listProjects({ source: 'code' }).map((p) => [p.id, p.path]));
   const projPath = (id, folder) => { const p = code.get(id); return p && path.isAbsolute(p) && !MASKED.test(p) ? p : folder; };
   if (home) {
     const root = path.join(home, 'projects');
-    let folders = []; try { folders = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { /* no projects yet */ }
-    for (const folder of folders) for (const file of mdFiles(path.join(root, folder, 'memory'))) add({ source: 'memory', file, projectId: 'code:' + folder, projectPath: projPath('code:' + folder, folder) });
+    let folders = []; try { folders = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch (e) { if (!missing(e)) bad.push({ source: 'memory', path: root, code: (e && e.code) || 'ERR' }); }
+    for (const folder of folders) for (const file of mdFiles(path.join(root, folder, 'memory'), 'memory', bad)) add({ source: 'memory', file, projectId: 'code:' + folder, projectPath: projPath('code:' + folder, folder) });
     const g = path.join(home, 'CLAUDE.md');
-    if (isFile(g)) add({ source: 'claude-md', file: g, projectId: null, projectPath: null });
+    if (isFile(g, 'claude-md', bad)) add({ source: 'claude-md', file: g, projectId: null, projectPath: null });
   }
   for (const [id, p] of code) {   // only the project folders the Hub knows; never any other repo file
     if (!p || !path.isAbsolute(p) || MASKED.test(p)) continue;
     const f = path.join(p, 'CLAUDE.md');
-    if (isFile(f)) add({ source: 'claude-md', file: f, projectId: id, projectPath: p });
+    if (isFile(f, 'claude-md', bad)) add({ source: 'claude-md', file: f, projectId: id, projectPath: p });
   }
-  if (vaultDir) for (const file of mdFiles(path.join(vaultDir, PROMPTS_REL))) add({ source: 'prompt', file, projectId: null, projectPath: null });
+  if (vaultDir) for (const file of mdFiles(path.join(vaultDir, PROMPTS_REL), 'prompt', bad)) add({ source: 'prompt', file, projectId: null, projectPath: null });
   return out;
 }
 
@@ -90,6 +94,7 @@ export async function syncNotes(store, { home, vaultDir }) {
   let skipped = 0;
   const files = listNoteFiles(store, { home, vaultDir });
   const live = new Set();
+  const unreadable = files.unreadable.slice(), blocked = new Set(unreadable.map((u) => u.source));
   for (const f of files) {
     const id = docId(f.source, f.file);
     live.add(id);
@@ -105,9 +110,10 @@ export async function syncNotes(store, { home, vaultDir }) {
     if (res === 'added' || res === 'updated') changed.push(id);
   }
   for (const source of ['memory', 'claude-md', 'prompt']) {
+    if (blocked.has(source)) continue;   // a root we could not read is not an empty root: keep its rows
     for (const [id, stamp] of store.documentStamps(source)) {
       if (stamp.path && !live.has(id) && store.removeDocument(id)) removed.push(id);   // path-less rows (ChatGPT memory) are not files
     }
   }
-  return { changed, removed, skipped };
+  return { changed, removed, skipped, unreadable };
 }
