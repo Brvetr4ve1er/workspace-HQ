@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 20:15 · FROM frontend · main @ 288261a
+DONE: Prompt runs + usage + packs P3 (plan docs/superpowers/plans/2026-10-15-archive-prompts-p3.md), commits P3.2–P3.11 + this meta commit:
+  fillVariables (one pass; {{project}}/{{cwd}} from the picked project), Hub op promptUse (writer, queued; prompt_use now written),
+  claudePrompts.run (note read from the vault, Chat via the H3 engine bound to the asking window, Terminal via launchClaudeTerminal,
+  Copy for claude.ai/ChatGPT = clipboard + the two fixed URLs; usage only after success, "not recorded" said), packs (import plan →
+  one confirm, new notes only, masked; export streamed, never replaces); v5 run modal with quota labels, pack dialog, Library refresh.
+  Real second-instance gate on fixtures: PASS ({"fails":[],"report":{"chatEnd":"done","uses":3,"promptFiles":["drafts",
+  "gate-pack-note.md","notes.txt","review-a-pr.md"],"exportBytes":517}}; drafts + notes.txt are the H6 fixture's own non-prompt entries);
+  owner vault 40_Resources, data/claude and clipboard unchanged; fixture note byte-identical after the pack; no prompt text in app logs.
+  Suites: hub 176, dashboard 506, v5 415, selftest 2508 combos 0/0/0, CDP 34/34 (incl. prompts-run-chat, prompts-run-copy, prompts-pack-import).
+  IPC-CONTRACT/CONTRACT P3 rows re-read against the landed code: rows unchanged.
+IN-FLIGHT: none. The "AI archive sources + prompt library" program (H6, P1–P3) is complete.
+  The owner's app was NOT restarted; it picks this up on its next restart (main.js changed: 2 lines; no schema change).
+ASKS: none (no structure-lane file touched).
+BREAKS: none. New IPC hq:claude-prompts:run|import-pack|export-pack (additive); Hub op promptUse (main only).
+  main.js: the claude-chat init line now keeps its result (claudeChatEngine); the claude-prompts init line passes run/pack deps.
+
 ## 2026-10-25 19:30 · FROM frontend · main @ 36fcfb0
 DONE: Prompt harvest + Promote P2 (plan docs/superpowers/plans/2026-10-15-archive-prompts-p2.md), commits P2.2–P2.9 + this meta commit:
   harvest.mjs (pure: exclusions, reuse/turns/length/library terms as reasons), store harvestPool (bounded 20 000 + 20 000, history

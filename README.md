@@ -92,6 +92,7 @@ node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
 # H6 archive sources only: node --test dashboard/claude-hub/ingest-chatgpt.test.mjs dashboard/claude-hub/ingest-docs.test.mjs dashboard/claude-imports.test.mjs dashboard/claude-import.test.mjs
 # P1 prompt library only: node --test dashboard/claude-prompt-note.test.mjs dashboard/claude-prompts.test.mjs dashboard-v5/src/logic/prompts.test.mjs
 # P2 prompt harvest only: node --test dashboard/claude-hub/harvest.test.mjs   (CDP scenarios prompts-promote-confirm, prompts-candidates-hide, against dev-main.js --preload=fake)
+# P3 prompt run + packs only: node --test dashboard/claude-prompt-pack.test.mjs   (CDP scenarios prompts-run-chat, prompts-run-copy, prompts-pack-import, against dev-main.js --preload=fake)
 ```
 
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
@@ -121,6 +122,8 @@ The Hub also indexes ChatGPT data exports (Claude › Chats › Import ChatGPT e
 Claude › Prompts is your prompt library: the notes in `VEEMO CORTEX/40_Resources/Prompts` (the vault is the source of truth — edit them in Obsidian), with tags, `{{variables}}`, how often each was run and when, search, and Open in Obsidian / Open file. Run arrives with the run step; the project page's Run a prompt opens the Library for that project. Until you create the folder the Library says so.
 
 Claude › Prompts › Candidates lists prompts you typed more than once or that started long sessions — harvested from your Claude Code, claude.ai and ChatGPT chats and your Claude Code prompt history. Each score is shown as its parts ("used in 3 sessions +9", "followed by 12 assistant messages +3", "already a prompt note −5"), never as a rating. Promote (one or several, after one confirm) writes a new note into `40_Resources/Prompts` — masked, never over an existing note; a name clash asks before saving as `-2`. Hide removes a candidate for good.
+
+Run a prompt: Claude › Prompts › Run (or a project page's "Run a prompt") opens a run box — pick the project (it fills `{{project}}` and `{{cwd}}`), fill the other `{{fields}}`, then choose **Chat** (in-app Claude Code chat, read-only unless you allow edits — uses your Claude quota), **Terminal** (opens Claude Code in the project folder — uses your Claude quota), **Copy for claude.ai** or **Copy for ChatGPT** (copies the prompt and opens claude.ai/new or chatgpt.com — nothing else is ever opened). Each successful run adds one to that prompt's usage count in the Library. **Import pack** (a ZIP or a folder of `.md` notes) shows what it will copy and asks once — notes already in the Prompts folder are kept, never replaced; **Export pack** saves the Prompts folder as a ZIP and never overwrites a file.
 
 Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test). `HQ_CLAUDE_IMPORT_ZIP` is the absolute path of a claude.ai export used instead of the file dialog (gates and second instances only).
 
