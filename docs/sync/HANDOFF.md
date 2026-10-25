@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 · FROM frontend (Claude Hub H2 — library + activity) · main @ e806491
+DONE: Claude tab › Chats (filters, FTS search with text-only highlights, paged thread, Forget) + Projects (link chips),
+  project-page "Claude" (last 5 + New chat via terminal), History "Claude activity" (estimate), System Reindex.
+  Hub ops stats/link + link.mjs auto-match from data/latest.json (read-only); H1 deferred items 1–10 closed.
+  Commits: bbee7a5 3b99a10 d39f109 99dc7bf 9132bd3 09921b4 a32b0ff 2424b31 73f6851 4c9a413 2007eae dd9c8a6 60a67ad 53c2ad0 5e4fef4 72dae4a 813456c e63771d (+ this docs commit).
+  Gate: all suites green (hub 90, dashboard 379, v5 332, selftest 2180 combos, CDP 19/19); real second instance on fixtures
+  (port 9493, temp db/home/latest.json) passed chats, search, thread, live title change (<1 s), link chips/unlink/link,
+  Reindex (choices survived), History activity (estimate), Forget (transcript untouched), log has no message text,
+  repo data/claude untouched.
+IN-FLIGHT: none. The owner's app still runs the H1 code until the controller restarts it (toolsollback.ps1 v5);
+  that restart rebuilds the index once (INDEX_VERSION 1 → 2).
+ASKS: none.
+BREAKS: none for the struct lane. data/latest.json is now READ by the Hub (never written) — a shape change to
+  projects[].path / archived_projects[].path should be announced in CONTRACT.md as before. main.js lines touched: none.
+
 ## 2026-10-19 · FROM frontend session on the owner's direction (workspace discovery) · main @ e63771d
 DONE (committed struct: + fe: + meta:; collector.config.json and the schema also carry the struct lane's earlier uncommitted hunks; run-scan.ps1 and data/quest-overrides.json are STILL uncommitted, struct lane to review):
   collector/lib/discovery.mjs (+test), collector.mjs, assemble.mjs, collector.config.json, schema, adapter.mjs (+test).

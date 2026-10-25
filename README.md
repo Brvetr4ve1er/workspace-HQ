@@ -91,6 +91,14 @@ node --test dashboard-v5/src/*.test.mjs dashboard-v5/src/dc/*.test.mjs dashboard
 node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
 ```
 
+The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
+
+```powershell
+..dashboard
+ode_moduleselectrondistelectron.exe dev-main.js --preload=fake --hidden --remote-debugging-port=9351
+node tools/cdp-gate.mjs --port 9351 --scenario claude-library-search,claude-thread-open
+```
+
 ## Working on it
 
 Two Claude Code sessions share this repo, split into lanes: frontend and structure. Read `CLAUDE.md`
