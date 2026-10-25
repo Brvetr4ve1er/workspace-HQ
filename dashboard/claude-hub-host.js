@@ -149,6 +149,7 @@ function registerIpc(ipcMain, host) {
   h('forget', async (_e, t) => bool(await host.request('forget', { ...obj(t) }, { timeout: 60000 }), 'nothing to forget'));
   h('documents', (_e, o) => host.request('listDocuments', { ...obj(o) }));
   h('document', (_e, id) => host.request('getDocument', { id: String(id || '').slice(0, 300) }));
+  h('prompt-stats', () => host.request('promptStats', {}));   // P1: usage per prompt id (prompt_use, written from P3)
   h('reindex', () => host.request('reindex'));
 }
 

@@ -328,3 +328,39 @@ test('documents: upsert is idempotent, FTS + snippet, history hidden unless aske
   assert.equal(s.counts().documents, 0);
   s.close();
 });
+
+test('P1: prompt rows carry parsed meta and variables; bad meta JSON is null, never a throw', () => {
+  const s = openStore(':memory:');
+  s.upsertDocument({ id: 'prompt:a', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\a.md', title: 'A', text: 'Use {{file}} in {{project}}', mtimeMs: 2, size: 1, meta: { title: 'A', tags: ['review'], variables: ['project'] } });
+  s.upsertDocument({ id: 'prompt:b', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\b.md', title: 'B', text: 'no vars here', mtimeMs: 1, size: 1, meta: { title: 'B' } });
+  s.upsertDocument({ id: 'memory:m', source: 'memory', path: 'C:\\placeholder\\m.md', title: 'M', text: '{{not_a_prompt}}', mtimeMs: 3, size: 1, meta: { name: 'M' } });
+  s.db.prepare("UPDATE document SET meta = '{bad' WHERE id = 'prompt:b'").run();
+  const rows = s.listDocuments({ source: 'prompt' });
+  assert.deepEqual(rows.map((r) => r.id), ['prompt:a', 'prompt:b']);
+  assert.deepEqual(rows[0].meta, { title: 'A', tags: ['review'], variables: ['project'] });
+  assert.deepEqual(rows[0].variables, ['project', 'file']);
+  assert.equal(rows[1].meta, null);
+  assert.equal(rows[1].origin, null, 'json_valid guards the H6 origin column');
+  assert.deepEqual(rows[1].variables, []);
+  for (const k of ['text', 'meta_json', 'prompt_text']) assert.equal(k in rows[0], false, k + ' must not reach the renderer');
+  const mem = s.listDocuments({}).find((r) => r.id === 'memory:m');
+  assert.deepEqual(mem.meta, { name: 'M' });
+  assert.equal('variables' in mem, false);
+  const hit = s.listDocuments({ source: 'prompt', q: 'file' });
+  assert.equal(hit.length, 1);
+  assert.deepEqual(hit[0].variables, ['project', 'file']);
+  assert.ok(typeof hit[0].snippet === 'string');
+});
+
+test('P1: promptStats counts prompt_use rows per prompt (real counts; empty before P3 writes any)', () => {
+  const s = openStore(':memory:');
+  assert.deepEqual(s.promptStats(), []);
+  const ins = s.db.prepare('INSERT INTO prompt_use(prompt_id, at, target) VALUES (?, ?, ?)');
+  ins.run('prompt:a', '2026-10-20T10:00:00.000Z', 'chat');
+  ins.run('prompt:a', '2026-10-22T10:00:00.000Z', 'terminal');
+  ins.run('prompt:b', '2026-10-21T10:00:00.000Z', 'claude.ai');
+  assert.deepEqual(s.promptStats(), [
+    { prompt_id: 'prompt:a', uses: 2, last_at: '2026-10-22T10:00:00.000Z' },
+    { prompt_id: 'prompt:b', uses: 1, last_at: '2026-10-21T10:00:00.000Z' },
+  ]);
+});

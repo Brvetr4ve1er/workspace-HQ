@@ -4,6 +4,8 @@
 // node:sqlite binds numbers/strings/null only — booleans become 0/1, undefined → null.
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
+import promptNote from '../claude-prompt-note.js';
+const { variablesOf } = promptNote;
 
 // Stable identity of a history.jsonl line (session + timestamp + indexed text): survives rotation/truncation, unlike the byte-offset id.
 export const historyLineKey = (sessionId, at, text) => crypto.createHash('sha1').update([String(sessionId), String(at ?? ''), String(text)].join('|')).digest('hex');
@@ -100,6 +102,16 @@ export function openStore(file, { readOnly = false, indexVersion = null } = {}) 
     try { db.close(); } catch { /* already closed */ }   // a refused open must not leave the file locked
     throw e;
   }
+}
+
+// P1: list rows carry the parsed meta (all sources) and, for prompt notes, their {{variables}}; the text itself stays out
+function docRow(r) {
+  const { meta_json: mj, prompt_text: pt, ...rest } = r;
+  let meta = null;
+  try { meta = mj ? JSON.parse(mj) : null; } catch { meta = null; }
+  const out = { ...rest, meta };
+  if (rest.source === 'prompt') out.variables = variablesOf(meta, pt);
+  return out;
 }
 
 function api(db) {
@@ -330,7 +342,7 @@ function api(db) {
     documentStamps: (source) => new Map(q('SELECT id, path, mtime_ms, size FROM document WHERE source = ?').all(source).map((r) => [r.id, { path: r.path, mtime_ms: r.mtime_ms, size: r.size }])),
     listDocuments({ source, projectId, q: query, limit = 50 } = {}) {
       const lim = Math.max(1, Math.min(200, Number(limit) || 50));
-      const cols = "d.id, d.source, d.path, d.title, d.project_id, d.project_path, d.mtime_ms, d.size, json_extract(d.meta, '$.origin') AS origin";
+      const cols = "d.id, d.source, d.path, d.title, d.project_id, d.project_path, d.mtime_ms, d.size, CASE WHEN json_valid(d.meta) THEN json_extract(d.meta, '$.origin') END AS origin, d.meta AS meta_json, CASE WHEN d.source = 'prompt' THEN d.text END AS prompt_text";
       const w = [], a = [];
       if (source) { w.push('d.source = ?'); a.push(source); } else w.push("d.source <> 'history'");
       if (projectId) { w.push('d.project_id = ?'); a.push(projectId); }
@@ -339,10 +351,12 @@ function api(db) {
         if (!m) return [];
         // errors surface (same reasoning as search): a failing MATCH must not look like "no documents"
         return q(`SELECT ${cols}, snippet(document_fts, 1, '${SNIP_START}', '${SNIP_END}', '…', 12) AS snippet, bm25(document_fts) AS rank
-          FROM document_fts JOIN document d ON d.rowid = document_fts.rowid WHERE document_fts MATCH ? AND ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(m, ...a, lim);
+          FROM document_fts JOIN document d ON d.rowid = document_fts.rowid WHERE document_fts MATCH ? AND ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(m, ...a, lim).map(docRow);
       }
-      return q(`SELECT ${cols} FROM document d WHERE ${w.join(' AND ')} ORDER BY d.mtime_ms DESC, d.id DESC LIMIT ?`).all(...a, lim);
+      return q(`SELECT ${cols} FROM document d WHERE ${w.join(' AND ')} ORDER BY d.mtime_ms DESC, d.id DESC LIMIT ?`).all(...a, lim).map(docRow);
     },
+    promptStats: () => q(`SELECT prompt_id, COUNT(*) AS uses, MAX(at) AS last_at FROM prompt_use
+      GROUP BY prompt_id ORDER BY last_at DESC, prompt_id`).all().map((r) => ({ prompt_id: r.prompt_id, uses: Number(r.uses), last_at: r.last_at })),
     getDocument({ id } = {}) {
       const r = typeof id === 'string' ? q('SELECT id, source, path, title, text, project_id, project_path, mtime_ms, size, meta FROM document WHERE id = ?').get(id) : null;
       if (!r) return null;

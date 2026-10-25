@@ -980,3 +980,17 @@ test('docsProblem: an unreadable notes root surfaces as a counts-and-paths line;
   assert.equal(docsProblem({ changed: [], removed: [], unreadable: [{ source: 'prompt', path: p, code: 'EPERM' }, { source: 'memory', path: m, code: 'EBUSY' }] }),
     'notes unreadable (2): prompt (EPERM) ' + p + '; memory (EBUSY) ' + m);
 });
+
+test('P1: prompt rows from HQ_VAULT_DIR carry tags/variables; promptStats is real (empty) and readers may ask', async () => {
+  const dir = tmp('hub-p1-');
+  const fx = makeDocsHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const h = startHub({ HQ_CLAUDE_HOME: fx.home, HQ_VAULT_DIR: fx.vault, HQ_HUB_SWEEP_MS: '500' }, db);
+  try {
+    assert.ok(await h.until(async () => (await h.req('listDocuments', { source: 'prompt' })).result.length === 1, 15000));
+    const [p] = (await h.req('listDocuments', { source: 'prompt' })).result;
+    assert.deepEqual(p.meta.tags, ['review', 'code']);
+    assert.deepEqual(p.variables, ['project', 'file']);
+    assert.deepEqual((await h.req('promptStats')).result, []);
+  } finally { await h.stop(); }
+});
