@@ -203,3 +203,59 @@ test('manifest 0.4.0, background wiring, popup controls and the risk note', () =
   const pj = read('popup.js');
   assert.match(pj, /chrome\.permissions\.request\(\{ origins: \['https:\/\/claude\.ai\/\*'\] \}\)/);
 });
+
+// ---- one run at a time, one 2 s gap per worker (final H4 review) -------------------------------------------------------
+// A virtual clock: sleep(ms) resolves only when the driver advances time to it, so two runs that each think they waited
+// 2 s are caught sending requests closer together than that.
+function vclock(start = 1e6) {
+  let t = start; const q = [];
+  const clock = { now: () => t, sleep: (ms) => new Promise((r) => q.push({ at: t + ms, r })) };
+  clock.run = async (p) => {
+    let done = false; p.then(() => { done = true; }, () => { done = true; });
+    while (!done) {
+      await new Promise((r) => setImmediate(r));
+      if (!done && q.length) { q.sort((a, b) => a.at - b.at); const x = q.shift(); t = Math.max(t, x.at); x.r(); }
+    }
+    return p;
+  };
+  return clock;
+}
+function claudeTimes(calls) { return calls.filter((c) => c.url.startsWith('https://claude.ai/')).map((c) => c.at); }
+function assertGaps(times) {
+  for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 2000, 'claude.ai GETs ' + (i - 1) + '→' + i + ' only ' + (times[i] - times[i - 1]) + ' ms apart');
+}
+function timedFetch(clock, calls, opts, hook = () => {}) {
+  const base = fakeFetch([], opts);
+  return async (url, o) => { calls.push({ url, at: clock.now() }); hook(url); return base(url, o); };
+}
+const four = () => ['a', 'b', 'c', 'd'].map((id, i) => chat(id, '2026-10-0' + (i + 1) + 'T00:00:00Z'));
+
+test('tick: unticking then re-ticking "on" during a run stops the old run — one reader, GETs stay ≥ 2 s apart, status ends ok', async () => {
+  const clock = vclock(), calls = [], fake = chromeFake();
+  let toggle = null, ctx = null;
+  ctx = loadTick(fake, timedFetch(clock, calls, { list: four() }, (url) => {
+    if (!toggle && url.includes('/chat_conversations/c?')) toggle = ctx.claudeSetOn(false).then(() => ctx.claudeSetOn(true, { sleep: clock.sleep, now: clock.now }));
+  }));
+  const a = ctx.claudeSyncTick({ sleep: clock.sleep, now: clock.now });
+  const [ra, rb] = await clock.run(a.then(async (x) => [x, await toggle]));
+  assert.ok(toggle, 'the toggle ran');
+  assertGaps(claudeTimes(calls));
+  assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 2, 'run A stopped; run B started once');
+  assert.equal(calls.filter((c) => /chat_conversations\/[a-d]\?/.test(c.url)).length, 2 + 4, 'run A read d and c, then stopped; run B read all four');
+  assert.equal(ra.on, true, 'the superseded run did not write off over the new run');
+  assert.equal(rb.status, 'ok'); assert.equal(rb.message, 'Synced 4 chats');
+  assert.deepEqual([fake.store.hq_claude.on, fake.store.hq_claude.status, fake.store.hq_claude.running], [true, 'ok', 0]);
+});
+
+test('tick: an alarm and a click in the same turn start one run; the click waits for it; back-to-back runs keep the gap', async () => {
+  const clock = vclock(), calls = [], fake = chromeFake(), ctx = loadTick(fake, timedFetch(clock, calls, { list: four() }));
+  const o = { sleep: clock.sleep, now: clock.now };
+  await clock.run(Promise.all([ctx.claudeSyncTick(o), ctx.claudeSyncTick(o)]));
+  assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 1, 'the second alarm tick skipped the run in flight');
+  await clock.run(Promise.all([ctx.claudeSyncTick(o), ctx.claudeSyncTick({ ...o, manual: true })]));
+  assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 3, 'a manual click queues behind the run, never alongside it');
+  await clock.run(ctx.claudeSyncTick({ ...o, manual: true }));   // Sync pressed right after a run ended
+  assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 4);
+  assertGaps(claudeTimes(calls));
+  assert.equal(fake.store.hq_claude.status, 'ok');
+});

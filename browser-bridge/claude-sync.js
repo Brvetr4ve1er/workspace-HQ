@@ -30,9 +30,10 @@ function claudeBackoffMs(attempt, retryAfter) {
   return Math.min(CLAUDE_MIN_GAP_MS * 2 ** (attempt + 1), CLAUDE_BACKOFF_MAX_MS);
 }
 
-function claudeCreatePacer({ now, sleep, gapMs = CLAUDE_MIN_GAP_MS }) {
-  let last = -Infinity;
-  return async function claudePace() { const wait = last + gapMs - now(); if (wait > 0) await sleep(wait); last = now(); };
+// state.last is the time of the last paced request. The service worker passes ONE module-scope state, so alarm ticks,
+// popup clicks and back-to-back runs in a worker's lifetime share the 2 s gap (runs never overlap: see claudeInflight).
+function claudeCreatePacer({ now, sleep, gapMs = CLAUDE_MIN_GAP_MS, state = { last: -Infinity } }) {
+  return async function claudePace() { const wait = state.last + gapMs - now(); if (wait > 0) await sleep(wait); state.last = now(); };
 }
 
 async function claudeGet(d, path, shape) {
@@ -133,8 +134,16 @@ async function claudeEnsureAlarm() {
   if (s.on) chrome.alarms.create(CLAUDE_SYNC_ALARM, { periodInMinutes: CLAUDE_SYNC_PERIOD_MIN });
   else await chrome.alarms.clear(CLAUDE_SYNC_ALARM);
 }
+// One run at a time per worker: claudeInflight is set synchronously (before the first await), so two ticks started in
+// the same turn cannot both pass; an alarm tick skips while a run is in flight, a manual one (popup click, off→on) waits
+// for it. storage 'running' still covers a worker restart. claudeGen is bumped by every off switch: a run started under
+// an older generation stops at its next paced request and never writes the status again.
+let claudeInflight = null;
+let claudeGen = 0;
+const claudePaceState = { last: -Infinity };
 async function claudeSetOn(on, opts = {}) {
   if (!on) {
+    claudeGen++;
     await chrome.alarms.clear(CLAUDE_SYNC_ALARM);
     return claudeSetState({ on: false, status: 'off', message: CLAUDE_OFF_MSG, running: 0, nextAt: 0 });
   }
@@ -142,26 +151,39 @@ async function claudeSetOn(on, opts = {}) {
   chrome.alarms.create(CLAUDE_SYNC_ALARM, { periodInMinutes: CLAUDE_SYNC_PERIOD_MIN });
   return claudeSyncTick({ ...opts, manual: true });
 }
-async function claudeSyncTick({ manual = false, sleep = claudeSleep, now = Date.now } = {}) {
+async function claudeSyncTick(opts = {}) {
+  if (claudeInflight && !opts.manual) return claudeGetState();
+  while (claudeInflight) { const prev = claudeInflight; await prev.catch(() => {}); if (claudeInflight === prev) claudeInflight = null; }
+  const p = claudeSyncTickBody(opts);
+  claudeInflight = p;
+  try { return await p; } finally { if (claudeInflight === p) claudeInflight = null; }
+}
+async function claudeSyncTickBody({ manual = false, sleep = claudeSleep, now = Date.now } = {}) {
+  const gen = claudeGen, stale = () => gen !== claudeGen;
   const s = await claudeGetState();
   if (!s.on) return s;
   if (s.status === 'paused' && !manual) return s;                          // a shape change waits for the owner
   if (!manual && s.nextAt && now() < s.nextAt) return s;                    // backoff window
-  if (s.running && now() - s.running < 10 * 60 * 1000) return s;           // a run is already in flight
+  if (s.running && now() - s.running < 10 * 60 * 1000) return s;           // a run is in flight in an earlier worker life
   if (!(await chrome.permissions.contains(CLAUDE_PERM))) return claudeSetState({ status: 'no-permission', message: 'Press "Sync claude.ai" to allow reading claude.ai.' });
   if (!(await chrome.tabs.query({ url: 'https://claude.ai/*' })).length) return claudeSetState({ status: 'no-tab', message: 'Open claude.ai in a tab (logged in) — sync runs only then.' });
+  if (stale()) return claudeGetState();                                     // switched off during the checks above
   await claudeSetState({ status: 'syncing', running: now(), message: 'Reading claude.ai…' });
   try {
     const cfg = await getCfg();
-    // Off-switch: re-read the stored flag around EVERY paced GET, so unticking "on" stops the run at the next request.
-    const pacer = claudeCreatePacer({ now, sleep });
-    const pace = async () => { if (!(await claudeGetState()).on) throw claudeSyncErr('off', CLAUDE_OFF_MSG); await pacer(); if (!(await claudeGetState()).on) throw claudeSyncErr('off', CLAUDE_OFF_MSG); };
+    // Off-switch: check the generation and re-read the stored flag around EVERY paced GET, so unticking "on" stops the
+    // run at the next request — also when it was ticked on again in between (that is a new run; this one ends).
+    const pacer = claudeCreatePacer({ now, sleep, state: claudePaceState });
+    const off = async () => stale() || !(await claudeGetState()).on;
+    const pace = async () => { if (await off()) throw claudeSyncErr('off', CLAUDE_OFF_MSG); await pacer(); if (await off()) throw claudeSyncErr('off', CLAUDE_OFF_MSG); };
     const r = await claudeSyncRun({ fetch: (u, o) => fetch(u, o), sleep, pace, app: claudeAppClient(cfg, (u, o) => fetch(u, o)), skip: s.skip || {} });
+    const done = { lastSyncAt: now(), last: r, skip: { ...(s.skip || {}), ...r.tooBigIds } };
+    if (stale()) return claudeSetState(done);                               // superseded: the off switch owns the status
     // The owner may have switched sync off while the run was reading: never overwrite the off status.
-    const done = { running: 0, nextAt: 0, lastSyncAt: now(), last: r, skip: { ...(s.skip || {}), ...r.tooBigIds } };
-    if (!(await claudeGetState()).on) return claudeSetState({ ...done, status: 'off', message: CLAUDE_OFF_MSG });
-    return claudeSetState({ ...done, status: 'ok', message: claudeSummary(r) });
+    if (!(await claudeGetState()).on) return claudeSetState({ ...done, running: 0, nextAt: 0, status: 'off', message: CLAUDE_OFF_MSG });
+    return claudeSetState({ ...done, running: 0, nextAt: 0, status: 'ok', message: claudeSummary(r) });
   } catch (e) {
+    if (stale()) return claudeGetState();                                    // claudeSetOn(false) already wrote the status
     if ((e && e.kind === 'off') || !(await claudeGetState()).on) return claudeSetState({ running: 0, nextAt: 0, status: 'off', message: CLAUDE_OFF_MSG });
     const kind = (e && e.kind) || 'app';
     return claudeSetState({ status: kind, running: 0, message: String((e && e.message) || e).slice(0, 200), nextAt: e && e.retryIn ? now() + e.retryIn : 0 });
