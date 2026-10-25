@@ -521,3 +521,42 @@ test('seeded turn is refiled under the new Code chat and deduped by the prompt s
   const plain = chatReduce(chatTurnNew({ turnId: 'p', convId: 'code:abc', prompt: 'x', now: 0 }), { kind: 'session', sessionId: 'zzz' }, 1);
   assert.equal(plain.convId, 'code:abc');
 });
+
+import { importView, importReportLines } from './adapter.mjs';
+
+const REP = { files: { conversations: true, projects: true }, conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 },
+  messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 },
+  unknownFields: { mystery_field: 1, 'content:widget': 1 }, truncated: false };
+const HUBW = { state: 'ready', role: 'writer', lastImport: null, importing: false };
+const OPT = { hasBridge: true, canWrite: true, writeReason: '' };
+
+test('importReportLines: counts only, unknown names capped', () => {
+  assert.deepEqual(importReportLines(REP), ['Chats: 3 imported · 0 unchanged · 0 forgotten · 2 skipped', 'Messages: 5 imported · 1 skipped · 1 empty',
+    'Projects: 1 imported · 0 unchanged · 1 skipped', 'Not understood (counted, not imported): content:widget ×1, mystery_field ×1']);
+  const many = { ...REP, unknownFields: Object.fromEntries(Array.from({ length: 8 }, (_, i) => ['f' + i, 8 - i])), truncated: true };
+  const l = importReportLines(many);
+  assert.equal(l[3], 'Not understood (counted, not imported): f0 ×8, f1 ×7, f2 ×6, f3 ×5, f4 ×4, +3 more');
+  assert.equal(l[4], 'The export file ended early — what came before the cut was imported.');
+  assert.deepEqual(importReportLines(null), []);
+});
+
+test('importView: why, running phases, done/failed, last import from health', () => {
+  assert.equal(importView(null, null, { ...OPT, hasBridge: false }).why, 'Importing needs the WorkspaceHQ app — this preview has no app bridge.');
+  assert.equal(importView(null, { state: 'no-node' }, OPT).why, 'The Claude Hub is not running — import is unavailable.');
+  assert.equal(importView(null, { ...HUBW, role: 'reader' }, OPT).why, 'Another WorkspaceHQ window owns the Claude index — import from that one.');
+  assert.equal(importView(null, HUBW, { ...OPT, canWrite: false, writeReason: 'Viewing a past snapshot' }).why, 'Viewing a past snapshot');
+  const idle = importView(null, HUBW, OPT);
+  assert.deepEqual([idle.canImport, idle.text, idle.hasReport], [true, '', false]);
+  const run = importView({ kind: 'import', phase: 'conversations', done: 12, total: 0 }, HUBW, OPT);
+  assert.deepEqual([run.running, run.canImport, run.why, run.text], [true, false, 'An import is running.', 'Reading chats… 12 read']);
+  assert.equal(importView({ kind: 'import', phase: 'unzip', done: 0, total: 0 }, HUBW, OPT).text, 'Unpacking the export…');
+  const done = importView({ kind: 'import', phase: 'done', done: 5, total: 5, report: REP }, HUBW, OPT);
+  assert.deepEqual([done.running, done.tone, done.text.startsWith('Imported 3 chats'), done.hasReport], [false, 'ok', true, true]);
+  const again = importView({ kind: 'import', phase: 'done', report: { ...REP, conversations: { ...REP.conversations, imported: 0, unchanged: 3 } } }, HUBW, OPT);
+  assert.match(again.text, /^Nothing new — 3 chats were already imported/);
+  const failed = importView({ kind: 'import', phase: 'failed', error: 'not a zip file' }, HUBW, OPT);
+  assert.deepEqual([failed.text, failed.tone, failed.canImport], ['Import failed: not a zip file', 'error', true]);
+  const fromHealth = importView(null, { ...HUBW, lastImport: { at: '2026-10-04T08:00:00.000Z', ok: true, report: REP } }, OPT);
+  assert.equal(fromHealth.text, 'Imported 3 chats (2026-10-04)');
+  assert.equal(importView(null, { ...HUBW, importing: true }, OPT).running, true);
+});

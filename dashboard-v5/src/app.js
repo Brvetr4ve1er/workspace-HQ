@@ -18,6 +18,7 @@ import { tasksLogic } from './logic/tasks.js';
 import { claudeLogic } from './logic/claude.js';
 import { claudeLibLogic, clPrefs } from './logic/claude-lib.js';
 import { claudeChatLogic } from './logic/claude-chat.js';
+import { claudeImportLogic } from './logic/claude-import.js';
 import { runsLogic } from './logic/runs.js';
 import { commitLogic } from './logic/commit.js';
 import { sheetLogic } from './logic/sheet.js';
@@ -382,6 +383,6 @@ export class Component extends DCLogic {
     try { navigator.clipboard.writeText(String(text || '')).then(done, () => this.toast('error', 'Clipboard unavailable')); } catch { this.toast('error', 'Clipboard unavailable'); }
   }
 }
-Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
+Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
   whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic);
 Component.prototype.renderVals = renderVals;

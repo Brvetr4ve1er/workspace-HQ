@@ -123,3 +123,76 @@ test('claudeChatVals: composer only on Claude › Chats when open; quota label a
   const nob = claudeChatVals.call({ ...self, hq: null }, ctx({ ccOpen: true, ccProj: 'project-a', ccText: 'Hi' }));
   assert.equal(nob.ccCantSend, true); assert.equal(nob.ccSendTip, 'This window has no app bridge');
 });
+
+test('composerView: a claude.ai chat continues in Claude Code — picker shown, pick required without a link (H4)', () => {
+  const web = { conversation: { id: 'web:web-chat-1', source: 'web', title: 'Release planning (web)', project_id: 'web:web-proj-1' }, messages: [], hasMore: false };
+  const lib = (linked) => ({ thread: web, projects: [{ id: 'web:web-proj-1', source: 'web', hq_project_id: linked ? 'project-a' : null }] });
+  const S = { ccOpen: true, ccConv: 'web:web-chat-1', ccProj: '', ccText: 'Go on', ccMode: 'read-only', ccTurn: null, ccSending: false };
+  const opts = { hasBridge: true, canWrite: true, writeReason: '', hqProjects: [{ id: 'project-a', name: 'Project A' }] };
+  const v = composerView(S, { claudeLib: lib(false), claudeChat: { turns: [] } }, opts);
+  assert.deepEqual([v.isWeb, v.showPicks, v.needsPick, v.sendTip], [true, true, true, 'Pick a project']);
+  assert.equal(v.title, 'Continue in Claude Code · Release planning (web)');
+  assert.match(v.webNote, /NEW Claude Code chat .* last 30 000 characters/);
+  assert.equal(composerView({ ...S, ccProj: 'project-a' }, { claudeLib: lib(false), claudeChat: { turns: [] } }, opts).canSend, true);
+  const linked = composerView(S, { claudeLib: lib(true), claudeChat: { turns: [] } }, opts);
+  assert.deepEqual([linked.needsPick, linked.canSend], [false, true]);
+  const code = composerView({ ...S, ccConv: 'code:sess-a1' }, { claudeLib: { thread: { conversation: { id: 'code:sess-a1', source: 'code', title: 't' }, messages: [] }, projects: [] }, claudeChat: { turns: [] } }, opts);
+  assert.deepEqual([code.isWeb, code.showPicks, code.webNote], [false, false, '']);
+});
+
+test('ccSend from a claude.ai chat then follows the NEW Code chat — a second send never re-seeds a fresh chat (H4)', async () => {
+  const sent = [];
+  const self = { ...claudeChatLogic,
+    state: { ccOpen: true, ccConv: 'web:web-chat-1', ccProj: 'project-a', ccText: 'Go on', ccMode: 'read-only', ccTurn: null, ccSending: false },
+    LIVE: { claudeLib: {}, claudeChat: { turns: [] } }, canWrite: () => true, toast: () => {},
+    setState(p) { Object.assign(this.state, p); },
+    store: { sendClaudeChat: async (a) => { sent.push(a); return { turnId: 't1' }; } } };
+  await self.ccSend();
+  assert.deepEqual([sent[0].conversationId, sent[0].projectId], ['web:web-chat-1', 'project-a']);
+  assert.deepEqual([self.state.ccConv, self.state.ccTurn], [null, 't1'], 'composerTarget now follows the turn (code:<session> once its session event lands)');
+  const code = { ...self, state: { ...self.state, ccConv: 'code:sess-a1', ccText: 'more', ccTurn: null } };
+  await code.ccSend();
+  assert.equal(code.state.ccConv, 'code:sess-a1', 'a Code chat keeps its target');
+});
+
+// ---- Claude Hub H4: claude.ai export import (counts only — the report never holds chat text)
+export function importReportLines(r) {
+  if (!r || typeof r !== 'object') return [];
+  const c = obj(r.conversations), m = obj(r.messages), p = obj(r.projects);
+  const lines = [
+    `Chats: ${num(c.imported, 0)} imported · ${num(c.unchanged, 0)} unchanged · ${num(c.forgotten, 0)} forgotten · ${num(c.skipped, 0)} skipped`,
+    `Messages: ${num(m.imported, 0)} imported · ${num(m.skipped, 0)} skipped · ${num(m.empty, 0)} empty`,
+    `Projects: ${num(p.imported, 0)} imported · ${num(p.unchanged, 0)} unchanged · ${num(p.skipped, 0)} skipped`,
+  ];
+  const u = Object.entries(obj(r.unknownFields)).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  if (u.length) lines.push('Not understood (counted, not imported): ' + u.slice(0, 5).map(([k, n]) => `${k} ×${n}`).join(', ') + (u.length > 5 ? `, +${u.length - 5} more` : ''));
+  if (r.truncated) lines.push('The export file ended early — what came before the cut was imported.');
+  return lines;
+}
+
+const IMPORT_PHASE = { unzip: 'Unpacking the export…', projects: 'Reading claude.ai Projects…', conversations: 'Reading chats…' };
+export function importView(imp, hub, { hasBridge, canWrite, writeReason } = {}) {
+  const cur = imp && imp.kind === 'import' ? imp : null;
+  const ended = !!cur && (cur.phase === 'done' || cur.phase === 'failed');
+  const running = (!!cur && !ended) || (!!hub && !!hub.importing && !ended);
+  const why = !hasBridge ? 'Importing needs the WorkspaceHQ app — this preview has no app bridge.'
+    : !hub || ['no-node', 'down', 'starting'].includes(hub.state) ? 'The Claude Hub is not running — import is unavailable.'
+      : hub.role === 'reader' ? 'Another WorkspaceHQ window owns the Claude index — import from that one.'
+        : !canWrite ? (writeReason || 'Read-only right now')
+          : running ? 'An import is running.' : '';
+  let text = '', tone = 'muted', report = [];
+  if (running) {
+    text = (cur && IMPORT_PHASE[cur.phase]) || 'Importing…';
+    if (cur && cur.phase === 'conversations' && num(cur.done, 0)) text += ` ${num(cur.done, 0)} read`;
+  } else if (cur && cur.phase === 'failed') { text = 'Import failed: ' + String(cur.error || 'unknown error'); tone = 'error'; }
+  else {
+    const last = cur && cur.phase === 'done' ? { ok: true, report: cur.report, at: null } : hub && hub.lastImport ? hub.lastImport : null;
+    if (last && last.ok) {
+      const c = obj(obj(last.report).conversations), day = last.at ? ` (${String(last.at).slice(0, 10)})` : '';
+      const n = num(c.imported, 0), u = num(c.unchanged, 0);
+      text = n ? `Imported ${n} chat${n === 1 ? '' : 's'}${day}` : u ? `Nothing new — ${u} chat${u === 1 ? ' was' : 's were'} already imported${day}` : 'No chats found in that export';
+      tone = 'ok'; report = importReportLines(last.report);
+    } else if (last) { text = 'Last import failed: ' + String(last.error || 'unknown error'); tone = 'error'; }
+  }
+  return { canImport: !why, why, running, text, tone, report, hasReport: report.length > 0 };
+}

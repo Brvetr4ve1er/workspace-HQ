@@ -48,6 +48,7 @@ export function createStore(DATA, hq) {
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
     claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
     claudeChat: { turns: [] },   // Claude Hub H3: in-app chat turns, newest last (chatReduce)
+    claudeImport: null,  // Claude Hub H4: latest claude.ai import progress event
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
   };
 
@@ -205,6 +206,12 @@ export function createStore(DATA, hq) {
     if (hq.claudeHub && hq.claudeHub.health) reads.push(pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : null; }));
     if (hq.claudeHub && hq.claudeHub.on) sub(() => hq.claudeHub.on((e) => {
       if (!isObj(e)) return;
+      if (e.event === 'progress' && isObj(e.data) && e.data.kind === 'import') {   // H4: import progress is not backfill progress
+        live.claudeImport = e.data;
+        if (e.data.phase === 'done' || e.data.phase === 'failed') pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
+        emit();
+        return;
+      }
       if (e.event === 'progress' && isObj(e.data)) {
         live.claudeHub = { ...(live.claudeHub || {}), state: e.data.done >= e.data.total ? 'ready' : 'indexing', backfill: e.data };
         if (e.data.done >= e.data.total) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });

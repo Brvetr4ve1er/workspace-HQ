@@ -665,3 +665,18 @@ test('claudeChat: an {error} answer is returned, adds no turn; no bridge says so
   assert.equal(await s3.cancelClaudeChat('t1'), false);
   st.stop(); s2.stop();
 });
+
+test('claude.ai import events land in live.claudeImport and never touch the backfill bar; done re-asks health', async () => {
+  const h = hubHq({ state: 'ready', role: 'writer', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 } });
+  const st = createStore(DATA(), h.hq); await st.start(); await settle();
+  const healthCalls = () => h.calls.health;
+  const before = healthCalls();
+  h.fire({ event: 'progress', data: { kind: 'import', phase: 'conversations', done: 4, total: 0 } }); await settle();
+  assert.deepEqual(st.live.claudeImport, { kind: 'import', phase: 'conversations', done: 4, total: 0 });
+  assert.equal(st.live.claudeHub.state, 'ready', 'an import progress event is not a backfill');
+  assert.deepEqual(st.live.claudeHub.backfill, { done: 3, total: 3 });
+  h.fire({ event: 'progress', data: { kind: 'import', phase: 'done', done: 5, total: 5, report: {} } }); await settle();
+  assert.equal(st.live.claudeImport.phase, 'done');
+  assert.ok(healthCalls() > before, 'health re-asked after the import ended');
+  st.stop();
+});

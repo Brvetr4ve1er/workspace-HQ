@@ -34,9 +34,13 @@ export function composerView(S, LIVE, { hasBridge, canWrite, writeReason, hqProj
   const raw = convId ? liveTurns(turnsOf(LIVE), convId, thread) : turnsOf(LIVE).filter((t) => t.turnId === S.ccTurn);
   const turns = raw.map(chatTurnView);
   const run = turns.find((t) => t.running);
+  const conv = thread && thread.conversation;
+  const isWeb = !!(conv && conv.source === 'web');   // H4: a claude.ai chat continues as a NEW Claude Code chat (spec §8)
+  const hubProj = isWeb ? (lib.projects || []).find((p) => p.id === conv.project_id) : null;
+  const webLinked = !!(hubProj && hubProj.hq_project_id);
   const opts = pickerOptions(hqProjects, lib.projects);
   const picked = opts.find((o) => o.id === S.ccProj);
-  const needsPick = isNew && !convId;
+  const needsPick = (isNew && !convId) || (isWeb && !webLinked);
   const text = String(S.ccText || '');
   const sendTip = !hasBridge ? 'This window has no app bridge'
     : !canWrite ? (writeReason || 'Read-only right now')
@@ -49,9 +53,11 @@ export function composerView(S, LIVE, { hasBridge, canWrite, writeReason, hqProj
   const tTitle = thread && thread.conversation.title;
   return {
     open: !!S.ccOpen, isNew, convId,
-    title: isNew && !convId ? `New chat · ${picked ? picked.label : 'pick a project'}` : `Continue · ${tTitle || 'this chat'}`,
+    title: isNew && !convId ? `New chat · ${picked ? picked.label : 'pick a project'}` : isWeb ? `Continue in Claude Code · ${tTitle || 'this chat'}` : `Continue · ${tTitle || 'this chat'}`,
     text, mode, modeNote: MODE_NOTE[mode],
     picks: opts.map((o) => ({ ...o, on: o.id === S.ccProj })), needsPick,
+    isWeb, showPicks: (isNew && !convId) || isWeb,
+    webNote: isWeb ? 'Starts a NEW Claude Code chat in the picked project, seeded with this claude.ai conversation (its last 30 000 characters when longer). Uses your Claude quota.' : '',
     turns, running: !!run, runningTurnId: run ? run.id : null,
     canSend: sendTip === 'Send to Claude Code (uses your Claude quota)', sendTip, sending: !!S.ccSending, quota: QUOTA,
   };
@@ -98,7 +104,9 @@ export const claudeChatLogic = {
       r = await this.store.sendClaudeChat({ conversationId: convId || undefined, projectId: S.ccProj || undefined, text, mode: MODES.includes(S.ccMode) ? S.ccMode : 'read-only' });
     } finally { this.setState({ ccSending: false }); }
     if (!r || r.error) { this.toast('error', 'Claude didn’t start · ' + ((r && r.error) || 'no answer')); return; }
-    this.setState({ ccText: '', ccTurn: r.turnId, ...(convId && !S.ccConv ? { ccConv: convId } : {}) });
+    // H4: a claude.ai chat was the seed, not the target — follow the new Code chat (composerTarget → the turn's code:<session>)
+    const follow = String(convId || '').startsWith('web:') ? { ccConv: null } : (convId && !S.ccConv ? { ccConv: convId } : {});
+    this.setState({ ccText: '', ccTurn: r.turnId, ...follow });
     if (r.seeded && r.seeded.trimmed) this.toast('info', `Copied the last ${r.seeded.chars} characters of the claude.ai chat`);
   },
   async ccStop() {
