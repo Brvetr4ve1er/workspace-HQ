@@ -109,6 +109,36 @@ function createFake(opts) {
     j.resolve({ status: 'cancelled', output: j.sent, sections: [{ label: 'Scan', chars: 10 }], model: 'fake-model', ms: Date.now() - j.t0 });
     return true;
   };
+  // Claude Hub H3 — like main (hq:claude-chat:send/cancel): increments, one end per turn.
+  const turns = new Map();
+  let turnSeq = 0;
+  const chatTurn = (req) => {
+    const r = req && typeof req === 'object' ? req : {};
+    if (typeof r.text !== 'string' || !r.text.trim()) return { error: 'empty message' };
+    const turnId = 'ct-fake-' + (++turnSeq), mode = r.mode === 'edits' ? 'edits' : 'read-only';
+    const resumed = typeof r.conversationId === 'string' && r.conversationId.startsWith('code:') ? r.conversationId.slice(5) : null;
+    const sessionId = resumed || '00000000-0000-4000-8000-000000000001';
+    const steps = [
+      { kind: 'session', sessionId, mode }, { kind: 'delta', text: 'Placeholder' }, { kind: 'tool', name: 'Read', hint: 'README.md' },
+      { kind: 'delta', text: ' answer from the fake claude.' },
+      { kind: 'done', sessionId, mode, usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, isError: false, subtype: 'success', result: '', stopped: false },
+    ];
+    const t = { timers: [], sessionId, mode };
+    turns.set(turnId, t);
+    steps.forEach((s, i) => t.timers.push(setTimeout(() => {
+      if (s.kind === 'done') turns.delete(turnId);
+      push('hq:claude-chat:event', { turnId, ...s });
+    }, 150 * (i + 1))));
+    return resumed ? { turnId, sessionId } : { turnId };
+  };
+  const cancelTurn = (turnId) => {
+    const t = turns.get(turnId);
+    if (!t) return false;
+    t.timers.forEach(clearTimeout); turns.delete(turnId);
+    setTimeout(() => push('hq:claude-chat:event', { turnId, kind: 'done', sessionId: t.sessionId, mode: t.mode, usage: null, isError: false, subtype: '', result: '', stopped: true }), 0);
+    return true;
+  };
+
   const cast = () => (casts++ === 0 ? { confirm_required: true, preview: { content_hash: 'fake-hash-2' } } : { castId: 'c-fake' });
   const setPrefs = (patch) => {
     const p = patch && typeof patch === 'object' ? patch : {};
@@ -140,6 +170,7 @@ function createFake(opts) {
       totals: { chats: 2, active_ms: 120000, tokens_in: 6, tokens_out: 40, tokens_cache_read: 100, tokens_cache_write: 10 } })],
     ['claudeHub.link', WRITE], ['claudeHub.forget', WRITE], ['claudeHub.reindex', () => ({ started: true })],
     ['claudeHub.on', 'on:hq:claude-hub:event'],
+    ['claudeChat.send', chatTurn], ['claudeChat.cancel', cancelTurn], ['claudeChat.on', 'on:hq:claude-chat:event'],
     ['liveState', () => ({ dev: [], casts: [], scan: { state: 'idle' } })], ['onScanStatus', 'on:hq:scan-status'],
     ['openAt', WRITE], ['onNavigate', 'on:hq:navigate'],
     ['commitPreview', () => ({
@@ -211,6 +242,7 @@ function createFake(opts) {
     reset: (all) => {
       log.length = 0; casts = 0;
       for (const id of [...chats.keys()]) cancelChat(id);
+      for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }
       return true;
     },

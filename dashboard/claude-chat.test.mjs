@@ -295,3 +295,31 @@ test('resolveClaudeBin: HQ_CLAUDE_BIN first, then claude.exe / claude.cmd on PAT
   assert.deepEqual(resolveClaudeBin({ HQ_CLAUDE_BIN: 'relative\\claude.cmd' }, { exists }), { error: 'Claude Code CLI not found (install it, or set HQ_CLAUDE_BIN)' });
   assert.deepEqual(resolveClaudeBin({ PATH: '' }, { exists }), { error: 'Claude Code CLI not found (install it, or set HQ_CLAUDE_BIN)' });
 });
+
+// --- Task 6: main-process wiring (init)
+const { init } = require('./claude-chat.js');
+import fsm from 'node:fs';
+import osm from 'node:os';
+import pathm from 'node:path';
+test('init: two handlers, renderer cannot inject a session id, before-quit stops running turns', async () => {
+  const dir = fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'hq-chat-init-'));
+  try {
+    const bin = pathm.join(dir, 'claude.exe'); fsm.writeFileSync(bin, '');
+    const proj = pathm.join(dir, 'project-a'); fsm.mkdirSync(proj);
+    const handlers = {}, quit = [], sp = fakeSpawn(), killed = [];
+    const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; } };
+    const hub = { request: async (op, args) => (op === 'getConversation' && args.id === 'code:' + SID2
+      ? { conversation: { id: 'code:' + SID2, source: 'code', native_id: SID2, cwd: proj }, messages: [], hasMore: false } : null) };
+    init({ ipcMain, send: () => {}, app: { on: (ev, fn) => { if (ev === 'before-quit') quit.push(fn); } }, hub,
+      env: { HQ_CLAUDE_BIN: bin, USERPROFILE: 'C:\\Users\\placeholder', SystemRoot: 'C:\\Windows' }, spawnFn: sp.spawnFn, kill: (pid) => killed.push(pid) });
+    assert.deepEqual(Object.keys(handlers).sort(), ['hq:claude-chat:cancel', 'hq:claude-chat:send']);
+    const r = await handlers['hq:claude-chat:send']({}, { conversationId: 'code:' + SID2, text: 'hi', mode: 'read-only', sessionId: 'evil', cwd: 'C:\\', args: ['--dangerously-skip-permissions'] });
+    assert.equal(r.sessionId, SID2);
+    assert.deepEqual(sp.kids[0].args, buildArgs({ mode: 'read-only', sessionId: SID2 }));
+    assert.equal(sp.kids[0].opts.cwd, proj);
+    assert.deepEqual(await handlers['hq:claude-chat:send']({}, null), { error: 'empty message' });
+    assert.equal(await handlers['hq:claude-chat:cancel']({}, 'nope'), false);
+    assert.equal(quit.length, 1); quit[0]();
+    assert.deepEqual(killed, [sp.kids[0].pid]);
+  } finally { fsm.rmSync(dir, { recursive: true, force: true }); }
+});

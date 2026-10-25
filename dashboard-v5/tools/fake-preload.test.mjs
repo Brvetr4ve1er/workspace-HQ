@@ -176,3 +176,26 @@ test('the fake Claude library answers placeholder rows, incl. a hostile snippet 
   assert.equal(await hq.claudeHub.link('code:C--placeholder-project-a', 'project-a', 'confirmed'), true);
   assert.deepEqual(await hq.claudeHub.reindex(), { started: true });
 });
+
+test('claudeChat fake: streams session → delta → tool → delta → done; cancel ends with stopped', async () => {
+  const { hq, control } = createFake();
+  const got = [];
+  const off = hq.claudeChat.on((e) => got.push(e));
+  assert.deepEqual(await hq.claudeChat.send({ projectId: 'project-a', text: '  ', mode: 'read-only' }), { error: 'empty message' });
+  const { turnId } = await hq.claudeChat.send({ projectId: 'project-a', text: 'hi', mode: 'read-only' });
+  await new Promise((r) => setTimeout(r, 900));
+  assert.deepEqual(got.filter((e) => e.turnId === turnId).map((e) => e.kind), ['session', 'delta', 'tool', 'delta', 'done']);
+  const b = await hq.claudeChat.send({ conversationId: 'code:1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed', text: 'more', mode: 'edits' });
+  assert.equal(b.sessionId, '1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed');
+  assert.equal(await hq.claudeChat.cancel(b.turnId), true);
+  assert.equal(await hq.claudeChat.cancel(b.turnId), false);
+  await new Promise((r) => setTimeout(r, 10));   // the fake pushes the end on a 0 ms timer, like main after answering
+  const end = got.filter((e) => e.turnId === b.turnId).pop();
+  assert.equal(end.kind, 'done'); assert.equal(end.stopped, true); assert.equal(end.mode, 'edits');
+  await hq.claudeChat.send({ projectId: 'project-a', text: 'x', mode: 'read-only' });
+  control.reset();
+  const n = got.length;
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(got.length, n, 'reset drops pending fake turns (a CDP scenario that ended mid-turn cannot stream into the next)');
+  off();
+});

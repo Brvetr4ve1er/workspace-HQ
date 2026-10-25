@@ -53,6 +53,15 @@ contextBridge.exposeInMainWorld('hq', {
       return () => ipcRenderer.removeListener('hq:claude-hub:event', handler);
     },
   },
+  claudeChat: {
+    send: (req) => ipcRenderer.invoke('hq:claude-chat:send', req),
+    cancel: (turnId) => ipcRenderer.invoke('hq:claude-chat:cancel', turnId),
+    on: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:claude-chat:event', handler);
+      return () => ipcRenderer.removeListener('hq:claude-chat:event', handler);
+    },
+  },
   liveState: () => ipcRenderer.invoke('hq:live-state'),
   onScanStatus: (callback) => {
     const handler = (_event, data) => callback(data);

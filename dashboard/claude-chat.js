@@ -257,4 +257,23 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
   };
 }
 
-module.exports = { EVENT, resolveClaudeBin, killTree, createChat, MODES, FORBIDDEN_ARGS, PROMPT_MAX, SEED_MAX, TURN_MS, MAX_TURNS, isSessionId, buildArgs, cwdRefusal, seedPrompt, resolveTarget };
+// --- Task 6: main-process wiring. One hook line in main.js calls this inside app.whenReady().
+function init({ ipcMain, send, app = null, hub = null, getProjects = () => [], appLog = null, env = process.env, spawnFn, kill } = {}) {
+  const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
+  const hubReq = (op, args) => (hub && typeof hub.request === 'function' ? hub.request(op, args) : Promise.resolve({ error: 'hub not running' }));
+  const chat = createChat({
+    resolve: (req) => resolveTarget(req, { hub: hubReq, getProjects, isDir, env }),
+    bin: () => resolveClaudeBin(env), send, log: appLog, env,
+    ...(spawnFn ? { spawnFn } : {}), ...(kill ? { kill } : {}),
+  });
+  ipcMain.handle('hq:claude-chat:send', async (_e, req) => {
+    const r = req && typeof req === 'object' ? req : {};
+    try { return await chat.send({ conversationId: r.conversationId, projectId: r.projectId, text: r.text, mode: r.mode }); }
+    catch (e) { return { error: String((e && e.message) || e) }; }
+  });
+  ipcMain.handle('hq:claude-chat:cancel', (_e, turnId) => chat.cancel(turnId));
+  if (app && typeof app.on === 'function') app.on('before-quit', () => { try { chat.stopAll(); } catch { /* quitting */ } });
+  return chat;
+}
+
+module.exports = { init, EVENT, resolveClaudeBin, killTree, createChat, MODES, FORBIDDEN_ARGS, PROMPT_MAX, SEED_MAX, TURN_MS, MAX_TURNS, isSessionId, buildArgs, cwdRefusal, seedPrompt, resolveTarget };
