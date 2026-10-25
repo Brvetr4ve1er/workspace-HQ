@@ -83,3 +83,10 @@ test('chatsView: the claude.ai filter with no rows says how to get them (H4)', (
   const v = chatsView({ convs: [], hits: null, thread: null }, { state: 'ready', role: 'writer' }, { clSrc: 'web', clProj: '', clSince: 'all' }, true);
   assert.equal(v.emptyText, 'No claude.ai chats yet — import your claude.ai data export (button above) or turn on "Sync claude.ai" in the WorkspaceHQ Bridge extension.');
 });
+test('chatsView: claude.ai source with a time window or project chip says the filters hide rows, not that none exist (H4)', () => {
+  const hub = { state: 'ready', role: 'writer' };
+  const a = chatsView({ convs: [], hits: null, thread: null }, hub, { clSrc: 'web', clProj: '', clSince: '7d' }, true);
+  assert.equal(a.emptyText, 'No chats match these filters.');
+  const b = chatsView({ convs: [], hits: null, thread: null }, hub, { clSrc: 'web', clProj: 'project-a', clSince: 'all' }, true);
+  assert.equal(b.emptyText, 'No chats match these filters.');
+});
