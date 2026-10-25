@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 18:19 · FROM frontend · main @ 91ed87f
+DONE: Prompt library P1 (plan docs/superpowers/plans/2026-10-15-archive-prompts-p1.md), commits P1.2–P1.9 + this meta commit:
+  note format claude-prompt-note.js (slug, -2…-9 clashes, {{variables}}, §6.1 frontmatter = H6 parser round trip, doc id = H6 docId);
+  writePromptNote (new files only, contained, atomic — for P2 Promote); Hub rows meta + variables, read-only promptStats;
+  claudePrompts.status/open (contained obsidian:// link or the file, Obsidian-absent fallback, HQ_DRY_LAUNCH); v5 Claude › Prompts
+  Library + project-page Run a prompt (run context chip). Real second-instance gate on fixtures: PASS (fails [], title "Review a PR like a staff engineer",
+  obsidianInstalled true, dryOpenLines 2; a note added to the gate vault reached the Library live; owner vault 40_Resources and data/claude unchanged; no prompt text in logs).
+  Suites: hub 156, dashboard 488, v5 396, selftest 2424 combos 0/0/0, CDP 29/29 (incl. prompts-library-open, prompts-empty-states, prompts-project-shortcut).
+  IPC-CONTRACT/CONTRACT rows re-read against the landed code: unchanged.
+IN-FLIGHT: none. Run is a labelled placeholder until P3. The owner's vault has no 40_Resources/Prompts yet → the Library says so.
+  The owner's app was NOT restarted; it picks this up on its next restart (no schema change in P1).
+ASKS: none (no structure-lane file touched).
+BREAKS: main.js +1 line after the claude-imports init (claude-prompts). New IPC hq:claude-hub:prompt-stats, hq:claude-prompts:status|open;
+  hq:claude-hub:documents rows gain meta (+ variables on prompt rows). CONTRACT.md: 40_Resources/Prompts note format entry.
+
 ## 2026-10-25 16:30 · FROM frontend · main @ 123e0d0
 DONE: AI archive sources H6 (plan docs/superpowers/plans/2026-10-15-archive-prompts-h6.md), commits H6.2–H6.10b + this meta commit:
   hub.sqlite schema 2 (document + document_fts, prompt_use; in-place 1→2, tested on a populated v1 db); ingest-chatgpt.mjs
