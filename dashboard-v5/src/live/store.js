@@ -110,16 +110,46 @@ export function createStore(DATA, hq) {
     let r;
     try { r = await hq.claudeChat.send(req); } catch (e) { return { error: String((e && e.message) || e) }; }
     if (!r || typeof r !== 'object' || r.error || typeof r.turnId !== 'string') return { error: (r && r.error) || 'no answer from the app' };
-    const turns = live.claudeChat.turns;
-    turns.push(A.chatTurnNew({ turnId: r.turnId, convId: req.conversationId || null, projectId: req.projectId || null, prompt: req.text, mode: req.mode, sessionId: r.sessionId || null, seeded: r.seeded || null, now: Date.now() }));
-    if (turns.length > 20) turns.splice(0, turns.length - 20);
-    for (const e of pendingChat.splice(0).filter((x) => { if (x.turnId === r.turnId) return true; pendingChat.push(x); return false; })) applyChat(e);
-    emit();
+    adoptClaudeTurn({ turnId: r.turnId, convId: req.conversationId || null, projectId: req.projectId || null, prompt: req.text, mode: req.mode, sessionId: r.sessionId || null, seeded: r.seeded || null });
     return r;
   }
   async function cancelClaudeChat(turnId) {
     if (!hq || !hq.claudeChat) return false;
     try { return (await hq.claudeChat.cancel(turnId)) === true; } catch { return false; }
+  }
+
+  // Prompt library P3 — a chat run's turn is started by main (claudePrompts.run), so the store adopts it the way
+  // sendClaudeChat does after its answer: push the row, replay events that beat the answer, emit.
+  function adoptClaudeTurn({ turnId, convId = null, projectId = null, prompt = '', mode = 'read-only', sessionId = null, seeded = null } = {}) {
+    if (typeof turnId !== 'string' || !turnId) return false;
+    const turns = live.claudeChat.turns;
+    if (turns.some((t) => t.turnId === turnId)) return false;
+    turns.push(A.chatTurnNew({ turnId, convId, projectId, prompt, mode, sessionId, seeded, now: Date.now() }));
+    if (turns.length > 20) turns.splice(0, turns.length - 20);
+    for (const e of pendingChat.splice(0).filter((x) => { if (x.turnId === turnId) return true; pendingChat.push(x); return false; })) applyChat(e);
+    emit();
+    return true;
+  }
+  async function runPrompt(req = {}) {
+    if (!hq || !hq.claudePrompts || !hq.claudePrompts.run) return { error: 'This window has no app bridge' };
+    const r = await askHq(() => hq.claudePrompts.run(req));
+    if (!r || typeof r !== 'object') return { error: 'no answer from the app' };
+    if (r.error) return r;
+    if (r.target === 'chat' && typeof r.turnId === 'string')
+      adoptClaudeTurn({ turnId: r.turnId, projectId: req.projectId || null, prompt: 'Prompt · ' + (r.title || 'untitled'), mode: req.mode || 'read-only', sessionId: r.sessionId || null, seeded: r.seeded || null });
+    if (r.usage === 'recorded') refreshPrompts();   // prompt_use rows emit no Hub changed event
+    return r;
+  }
+  async function packImport(req = {}) {
+    if (!hq || !hq.claudePrompts || !hq.claudePrompts.importPack) return { error: 'This window has no app bridge' };
+    const r = await askHq(() => hq.claudePrompts.importPack(req));
+    if (r && typeof r.imported === 'number' && r.imported > 0) refreshPrompts();
+    return r && typeof r === 'object' ? r : { error: 'no answer from the app' };
+  }
+  async function packExport() {
+    if (!hq || !hq.claudePrompts || !hq.claudePrompts.exportPack) return { error: 'This window has no app bridge' };
+    const r = await askHq(() => hq.claudePrompts.exportPack());
+    return r && typeof r === 'object' ? r : { error: 'no answer from the app' };
   }
 
   // one cast row; name/icon from the event, else the catalog, else the spell id
@@ -452,6 +482,6 @@ export function createStore(DATA, hq) {
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt, refreshCandidates,
-    sendClaudeChat, cancelClaudeChat,
+    sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, runPrompt, packImport, packExport,
   };
 }

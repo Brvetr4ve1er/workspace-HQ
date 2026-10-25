@@ -818,3 +818,43 @@ test('P2 candidates: no bridge → refreshCandidates is a no-op', async () => {
   await st.refreshCandidates();
   assert.equal(st.live.candidates.rows, null);
 });
+
+test('adoptClaudeTurn registers the run\'s turn and replays events that arrived first; runPrompt refreshes usage', async () => {
+  let chatCb = null, statsAsked = 0, packs = 0;
+  const hq = {
+    claudeChat: { on: (cb) => { chatCb = cb; return () => {}; }, send: async () => ({ error: 'unused' }), cancel: async () => false },
+    claudeHub: { health: async () => ({ state: 'ready' }), on: () => () => {}, documents: async () => [], promptStats: async () => { statsAsked++; return []; } },
+    claudePrompts: {
+      status: async () => ({ folder: { exists: true } }),
+      run: async (req) => {
+        chatCb({ turnId: 'ct-run-1', kind: 'session', sessionId: '00000000-0000-4000-8000-000000000009', mode: 'read-only' });   // beats the answer
+        chatCb({ turnId: 'ct-run-1', kind: 'delta', text: 'Placeholder' });
+        return req.target === 'chat' ? { ok: true, target: 'chat', title: 'Review a PR', turnId: 'ct-run-1', usage: 'recorded' } : { error: 'fill in {{file}}', missing: ['file'] };
+      },
+      importPack: async (req) => { packs++; return req.planId ? { imported: 1, masked: 0, skipped: { exists: 0, failed: 0 } } : { planId: 'pack-1', notes: [] }; },
+      exportPack: async () => ({ file: 'x.zip', notes: 1 }),
+    },
+  };
+  const st = createStore(DATA(), hq);
+  await st.start();
+  const before = statsAsked;
+  const r = await st.runPrompt({ promptId: 'prompt:a', target: 'chat', projectId: 'p1' });
+  assert.equal(r.turnId, 'ct-run-1');
+  const t = st.live.claudeChat.turns.find((x) => x.turnId === 'ct-run-1');
+  assert.ok(t, 'the run\'s turn is in the composer list');
+  assert.equal(t.prompt, 'Prompt · Review a PR'); assert.equal(t.mode, 'read-only'); assert.equal(t.projectId, 'p1');
+  assert.match(JSON.stringify(t), /Placeholder/, 'the delta that arrived before the answer was replayed');
+  await new Promise((res) => setTimeout(res, 0));
+  assert.ok(statsAsked > before, 'a recorded run re-asks promptStats');
+  assert.equal(st.adoptClaudeTurn({ turnId: 'ct-run-1', prompt: 'again' }), false, 'a turn is adopted once');
+  assert.deepEqual(await st.runPrompt({ promptId: 'prompt:a', target: 'terminal' }), { error: 'fill in {{file}}', missing: ['file'] });
+  assert.equal(st.live.claudeChat.turns.length, 1);
+  assert.equal((await st.packImport({ from: 'zip' })).planId, 'pack-1');
+  const s2 = statsAsked;
+  assert.equal((await st.packImport({ planId: 'pack-1' })).imported, 1);
+  await new Promise((res) => setTimeout(res, 0));
+  assert.ok(statsAsked > s2, 'an import that wrote notes refreshes the Library');
+  assert.deepEqual(await st.packExport(), { file: 'x.zip', notes: 1 });
+  assert.equal(packs, 2);
+  assert.deepEqual(await createStore(DATA(), null).runPrompt({}), { error: 'This window has no app bridge' });
+});

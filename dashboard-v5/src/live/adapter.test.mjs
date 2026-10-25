@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags, promptRow, promptsView, candidateTitle, reasonText, candidateRow, candidatesView } from './adapter.mjs';
+import { runView, packView, RUN_TARGETS_UI } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -712,4 +713,52 @@ test('candidatesView: a Hub error is never an empty list; empty states say why; 
 test('promptsView nofolder text offers Promote again (spec §8)', () => {
   const v = promptsView({ rows: [], status: { vault: 'VEEMO CORTEX', folder: { exists: false } } }, {});
   assert.equal(v.text, 'No prompts folder yet — create VEEMO CORTEX/40_Resources/Prompts and add notes there, or promote a candidate (Promote creates the folder); edits you make in Obsidian show up here.');
+});
+
+test('runView: fields per own variable, project needed for chat/terminal or {{project}}/{{cwd}}, quota labels, honest status', () => {
+  const prompt = { id: 'prompt:a', title: 'Review a PR', variables: ['project', 'file', 'line'] };
+  const projects = [{ id: 'p1', name: 'Alpha' }, { id: 'p2', name: 'Beta' }];
+  const base = { id: 'prompt:a', projectId: null, vars: {}, target: 'chat', mode: 'read-only', phase: 'edit', error: null, missing: [], result: null };
+  const v = runView(base, { prompt, projects, hasBridge: true });
+  assert.equal(v.title, 'Review a PR');
+  assert.deepEqual(v.fields.map((f) => f.name), ['file', 'line'], '{{project}}/{{cwd}} are never asked — they come from the project');
+  assert.equal(v.usesProject, true); assert.equal(v.projectNeeded, true); assert.equal(v.canGo, false);
+  assert.deepEqual(RUN_TARGETS_UI.map((t) => t.id), ['chat', 'terminal', 'claude.ai', 'chatgpt']);
+  assert.deepEqual(v.targets.map((t) => [t.id, t.selected]), [['chat', true], ['terminal', false], ['claude.ai', false], ['chatgpt', false]]);
+  assert.equal(v.goLabel, 'Run in Chat · uses your Claude quota'); assert.equal(v.showMode, true);
+  const ready = runView({ ...base, projectId: 'p2', vars: { file: 'a.js', line: '3' } }, { prompt, projects, hasBridge: true });
+  assert.equal(ready.canGo, true); assert.deepEqual(ready.projects.map((p) => p.selected), [false, true]);
+  assert.equal(runView({ ...base, target: 'terminal' }, { prompt, projects }).goLabel, 'Open a Terminal · uses your Claude quota');
+  const cp = runView({ ...base, target: 'claude.ai', vars: { file: 'a', line: '1' } }, { prompt: { ...prompt, variables: ['file', 'line'] }, projects, hasBridge: true });
+  assert.equal(cp.projectNeeded, false); assert.equal(cp.canGo, true); assert.equal(cp.showMode, false);
+  assert.match(cp.note, /uses your Claude quota/, 'pasting into claude.ai also spends the quota — said, not hidden');
+  assert.doesNotMatch(runView({ ...base, target: 'chatgpt' }, { prompt, projects }).note, /Claude quota/);
+  assert.equal(runView({ ...base, projectId: 'p1', vars: { file: ' ', line: '1' } }, { prompt, projects, hasBridge: true }).canGo, false, 'blank is missing');
+  assert.equal(runView({ ...base, projectId: 'p1', vars: { file: 'a', line: '1' } }, { prompt, projects, hasBridge: false }).canGo, false);
+  const miss = runView({ ...base, phase: 'error', error: 'fill in {{line}}', missing: ['line'] }, { prompt, projects });
+  assert.deepEqual(miss.fields.map((f) => f.missing), [false, true]); assert.deepEqual(miss.status, { tone: 'error', text: 'fill in {{line}}' });
+  assert.deepEqual(runView({ ...base, phase: 'done', result: { ok: true, target: 'chat', usage: 'recorded' } }, { prompt, projects }).status,
+    { tone: 'success', text: 'Started in Claude › Chats · counted in the Library' });
+  assert.deepEqual(runView({ ...base, target: 'claude.ai', phase: 'done', result: { ok: true, target: 'claude.ai', usage: 'not recorded: read-only hub (another WorkspaceHQ owns the index)' } }, { prompt, projects }).status,
+    { tone: 'info', text: 'Copied — paste it in the claude.ai tab that opened · not counted: read-only hub (another WorkspaceHQ owns the index)' });
+  assert.match(runView({ ...base, target: 'terminal', phase: 'done', result: { ok: true, target: 'terminal', usage: 'recorded', dry: true } }, { prompt, projects }).status.text, /dry run — nothing was opened/);
+  assert.equal(runView({ ...base, phase: 'running' }, { prompt, projects }).busy, true);
+  assert.equal(runView(base, { prompt: null, projects }).title, 'Prompt not found', 'a prompt that vanished says so');
+});
+
+test('packView: plan rows, counts, skipped reasons, one confirm; done and error texts', () => {
+  const plan = { planId: 'pack-x', source: 'p.zip', total: 3, skipped: { notMd: 1, tooBig: 0, tooMany: 2, duplicate: 0, unreadable: 0 },
+    notes: [{ name: 'a.md', title: 'A', exists: true }, { name: 'b.md', title: 'B', exists: false }, { name: 'c.md', title: 'C', exists: false }] };
+  const v = packView({ phase: 'plan', plan });
+  assert.equal(v.title, 'Import 2 new prompt notes from p.zip?');
+  assert.deepEqual(v.rows.map((r) => [r.name, r.tag]), [['a.md', 'already there — kept'], ['b.md', 'new'], ['c.md', 'new']]);
+  assert.equal(v.newCount, 2); assert.equal(v.existCount, 1);
+  assert.equal(v.skippedText, 'Skipped: 1 not a .md file · 2 over the 200-note limit');
+  assert.equal(v.canConfirm, true); assert.equal(v.confirmLabel, 'Copy 2 notes into Prompts');
+  const none = packView({ phase: 'plan', plan: { ...plan, notes: [plan.notes[0]], total: 1 } });
+  assert.equal(none.canConfirm, false); assert.equal(none.title, 'Nothing new to import from p.zip');
+  assert.equal(packView({ phase: 'done', result: { imported: 2, masked: 1, skipped: { exists: 1, failed: 0 } } }).doneText,
+    'Imported 2 notes · 1 already there (kept) · 1 secret masked');
+  assert.equal(packView({ phase: 'error', error: 'that ZIP is over 50 MB' }).error, 'that ZIP is over 50 MB');
+  assert.equal(packView(null).phase, 'closed');
 });

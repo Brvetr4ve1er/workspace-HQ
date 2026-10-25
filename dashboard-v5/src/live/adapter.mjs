@@ -735,3 +735,67 @@ export function candidatesView(C, { hasBridge = true, selected = [], now = Date.
     + (num(c.hidden) ? ` · ${num(c.hidden)} hidden` : '') + ' · scores are counts, not a rating.';
   return v;
 }
+
+// ---- Prompt library P3: run modal + pack confirm (pure). Quota is said on every Claude target; counts are real.
+export const RUN_TARGETS_UI = [
+  { id: 'chat', label: 'Chat', quota: true, note: 'Runs in Claude › Chats (read-only unless you allow edits) — uses your Claude quota' },
+  { id: 'terminal', label: 'Terminal', quota: true, note: 'Opens Claude Code in a terminal in the project folder (one line, up to 500 characters) — uses your Claude quota' },
+  { id: 'claude.ai', label: 'Copy for claude.ai', quota: false, note: 'Copies the prompt and opens claude.ai/new — sending it there uses your Claude quota' },
+  { id: 'chatgpt', label: 'Copy for ChatGPT', quota: false, note: 'Copies the prompt and opens chatgpt.com' },
+];
+const RUN_GO = { chat: 'Run in Chat · uses your Claude quota', terminal: 'Open a Terminal · uses your Claude quota', 'claude.ai': 'Copy + open claude.ai', chatgpt: 'Copy + open ChatGPT' };
+const RUN_DONE = { chat: 'Started in Claude › Chats', terminal: 'Terminal opened', 'claude.ai': 'Copied — paste it in the claude.ai tab that opened', chatgpt: 'Copied — paste it in the ChatGPT tab that opened' };
+const RESERVED = ['project', 'cwd'];
+
+export function runView(run, { prompt = null, projects = [], hasBridge = true } = {}) {
+  const R = obj(run);
+  const target = RUN_TARGETS_UI.some((t) => t.id === R.target) ? R.target : 'chat';
+  const vars = obj(R.vars), missing = arr(R.missing);
+  const all = prompt && Array.isArray(prompt.variables) ? prompt.variables : [];
+  const fields = all.filter((n) => !RESERVED.includes(n)).map((name) => ({ name, value: typeof vars[name] === 'string' ? vars[name] : '', missing: missing.includes(name) }));
+  const usesProject = all.some((n) => RESERVED.includes(n));
+  const projectNeeded = usesProject || target === 'chat' || target === 'terminal';
+  const busy = R.phase === 'running';
+  const filled = fields.every((f) => f.value.trim());
+  let status = null;
+  if (R.phase === 'error' && R.error) status = { tone: 'error', text: String(R.error) };
+  if (R.phase === 'done' && R.result) {
+    const u = String(R.result.usage || '');
+    const counted = u === 'recorded' ? 'counted in the Library' : u ? u.replace(/^not recorded/, 'not counted') : 'not counted';
+    status = { tone: u === 'recorded' ? 'success' : 'info', text: RUN_DONE[target] + ' · ' + counted + (R.result.dry ? ' · dry run — nothing was opened' : '') };
+  }
+  return {
+    title: prompt ? String(prompt.title || 'Untitled prompt') : 'Prompt not found',
+    fields, usesProject, projectNeeded,
+    projects: arr(projects).map((p) => ({ id: p.id, name: String(p.name || p.id), selected: p.id === R.projectId })),
+    targets: RUN_TARGETS_UI.map((t) => ({ ...t, selected: t.id === target })),
+    note: RUN_TARGETS_UI.find((t) => t.id === target).note,
+    goLabel: RUN_GO[target], busy, status,
+    canGo: !!prompt && hasBridge && !busy && filled && (!projectNeeded || !!R.projectId),
+    showMode: target === 'chat', modeEdits: R.mode === 'edits',
+  };
+}
+
+const SKIP_TEXT = [['notMd', 'not a .md file'], ['tooBig', 'over 200 KB'], ['tooMany', 'over the 200-note limit'], ['duplicate', 'duplicate name'], ['unreadable', 'unreadable']];
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+export function packView(pack) {
+  if (!pack || typeof pack !== 'object') return { phase: 'closed', title: '', rows: [], newCount: 0, existCount: 0, skippedText: '', canConfirm: false, confirmLabel: '', doneText: '', error: null };
+  const plan = obj(pack.plan), notes = arr(plan.notes), sk = obj(plan.skipped);
+  const newCount = notes.filter((n) => !n.exists).length, existCount = notes.length - newCount;
+  const parts = SKIP_TEXT.filter(([k]) => num(sk[k]) > 0).map(([k, t]) => num(sk[k]) + ' ' + t);
+  const res = obj(pack.result), rs = obj(res.skipped);
+  const done = pack.phase === 'done' ? [num(res.imported) === 1 ? 'Imported 1 note' : 'Imported ' + num(res.imported) + ' notes',
+    num(rs.exists) ? num(rs.exists) + ' already there (kept)' : '', num(rs.failed) ? num(rs.failed) + ' not written' : '',
+    num(res.masked) ? plural(num(res.masked), 'secret masked', 'secrets masked') : ''].filter(Boolean).join(' · ') : '';
+  return {
+    phase: String(pack.phase || 'plan'),
+    title: newCount ? `Import ${plural(newCount, 'new prompt note', 'new prompt notes')} from ${plan.source || 'the pack'}?` : `Nothing new to import from ${plan.source || 'the pack'}`,
+    rows: notes.map((n) => ({ name: String(n.name), title: String(n.title || n.name), exists: !!n.exists, tag: n.exists ? 'already there — kept' : 'new' })),
+    newCount, existCount,
+    skippedText: parts.length ? 'Skipped: ' + parts.join(' · ') : '',
+    canConfirm: pack.phase === 'plan' && newCount > 0,
+    confirmLabel: newCount ? `Copy ${plural(newCount, 'note', 'notes')} into Prompts` : '',
+    doneText: done, error: pack.phase === 'error' ? String(pack.error || 'the pack could not be read') : null,
+  };
+}
