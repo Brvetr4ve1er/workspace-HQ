@@ -27,7 +27,7 @@ DONE: claude.ai chats and Projects join the Claude library. Claude › Chats (an
   Commits: c7905c3 59b99d4 43bd079 6acbc68 3e34c5e df42a6f d5f4cf2 567beaf 961b5e3 2571e4f 42ddb0e 86afa48 800dcb9 204abaa a7900e2 (fe:) + this meta: gate commit.
 IN-FLIGHT: none.
 ASKS: owner — reload the WorkspaceHQ Bridge extension at chrome://extensions to get 0.4.0 (manual; nothing reloads it),
-  then press "Sync claude.ai" in its popup when you want live sync. Controller — restart the app (toolsollback.ps1 v5)
+  then press "Sync claude.ai" in its popup when you want live sync. Controller — restart the app (tools\rollback.ps1 v5)
   so main loads claude-import.js and the Hub child gets the new ops.
 BREAKS: none for structure (no collector/schema change). Additive IPC/contract rows: IPC-CONTRACT "phase H4",
   CONTRACT "Local bridge routes — Claude Hub live sync" + data/claude H4 note. main.js: one line (claude-import hook).
