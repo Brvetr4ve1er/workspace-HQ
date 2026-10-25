@@ -119,7 +119,7 @@ node dashboard-v5/tools/cdp-gate.mjs --port <port> --scenario claude-import-prog
 
 The Hub also indexes ChatGPT data exports (Claude › Chats › Import ChatGPT export, or drop the ZIP in `Documents\WorkspaceHQ Imports` and confirm the card once), your Claude memory notes, CLAUDE.md files, `~/.claude/history.jsonl` and the prompt notes in `VEEMO CORTEX/40_Resources/Prompts` — all on this PC, masked, read-only on every source. Search shows matching notes with a source badge.
 
-Claude › Prompts is your prompt library: the notes in `VEEMO CORTEX/40_Resources/Prompts` (the vault is the source of truth — edit them in Obsidian), with tags, `{{variables}}`, how often each was run and when, search, and Open in Obsidian / Open file. Run arrives with the run step; the project page's Run a prompt opens the Library for that project. Until you create the folder the Library says so.
+Claude › Prompts is your prompt library: the notes in `VEEMO CORTEX/40_Resources/Prompts` (the vault is the source of truth — edit them in Obsidian), with tags, `{{variables}}`, how often each was run and when, search, and Open in Obsidian / Open file. Run opens the run box (below). Until you create the folder the Library says so.
 
 Claude › Prompts › Candidates lists prompts you typed more than once or that started long sessions — harvested from your Claude Code, claude.ai and ChatGPT chats and your Claude Code prompt history. Each score is shown as its parts ("used in 3 sessions +9", "followed by 12 assistant messages +3", "already a prompt note −5"), never as a rating. Promote (one or several, after one confirm) writes a new note into `40_Resources/Prompts` — masked, never over an existing note; a name clash asks before saving as `-2`. Hide removes a candidate for good.
 
