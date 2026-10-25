@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags, promptRow, promptsView } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -601,4 +601,59 @@ test('H6: a ChatGPT import report is counts only and names branches and other fi
   ]);
   const v = importView({ kind: 'import', source: 'chatgpt', phase: 'done', report: { source: 'chatgpt', conversations: { imported: 4 } } }, { state: 'ready', role: 'writer' }, { hasBridge: true, canWrite: true });
   assert.equal(v.text, 'Imported 4 ChatGPT chats');
+});
+
+const PR_A = { id: 'prompt:a', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\review-a-pr.md', title: 'Review a PR', mtime_ms: 1,
+  meta: { tags: ['review', 'code'], variables: ['project', 'file'] }, variables: ['project', 'file'] };
+const PR_B = { id: 'prompt:b', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\weekly.md', title: 'Weekly digest', mtime_ms: 2, meta: { tags: 'notes, weekly' }, variables: [] };
+const NOW = Date.parse('2026-10-25T12:00:00Z');
+
+test('P1: promptRow shows real usage, tags, variables and the file name only', () => {
+  const a = promptRow(PR_A, { 'prompt:a': { uses: 3, last_at: '2026-10-24T12:00:00Z' } }, NOW);
+  assert.equal(a.title, 'Review a PR'); assert.equal(a.name, 'review-a-pr.md');
+  assert.deepEqual(a.tags, ['review', 'code']); assert.equal(a.tagText, '#review #code'); assert.equal(a.hasTags, true);
+  assert.deepEqual(a.vars, ['project', 'file']); assert.equal(a.varText, '{{project}} {{file}}'); assert.equal(a.hasVars, true);
+  assert.equal(a.uses, 3); assert.equal(a.usesText, 'used 3×'); assert.match(a.lastUsed, /^last used /);
+  assert.equal(a.usesProject, true);
+  const b = promptRow(PR_B, {}, NOW);
+  assert.deepEqual(b.tags, ['notes', 'weekly']);
+  assert.equal(b.uses, 0); assert.equal(b.usesText, 'not run yet'); assert.equal(b.lastUsed, '');
+  assert.equal(b.hasVars, false); assert.equal(b.usesProject, false);
+  const junk = promptRow({ id: 'prompt:c', meta: 'not an object', variables: 'x' }, null, NOW);
+  assert.equal(junk.title, 'Untitled prompt'); assert.deepEqual(junk.tags, []); assert.equal(junk.hasTags, false); assert.deepEqual(junk.vars, []);
+});
+
+test('P1: promptsView: the empty states are distinct and a Hub error is never an empty list', () => {
+  const base = { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false };
+  const st = (P, o = {}) => promptsView({ ...base, ...P }, { hasBridge: true, now: NOW, ...o });
+  const folder = (exists, error) => ({ vault: 'VEEMO CORTEX', rel: '40_Resources/Prompts', folder: error ? { exists, error } : { exists }, obsidian: true });
+  const cases = [
+    [st({}, { hasBridge: false }), 'nobridge'],
+    [st({}), 'loading'],
+    [st({ error: 'Claude Hub: hub not running', rows: [PR_A] }), 'error'],
+    [st({ rows: [], status: folder(false, '40_Resources/Prompts leads outside the vault — refusing') }), 'folder-error'],
+    [st({ rows: [], status: folder(false) }), 'nofolder'],
+    [st({ rows: [], status: folder(true) }), 'empty'],
+    [st({ rows: [PR_A], q: 'zzz', hits: [], status: folder(true) }), 'nohits'],
+    [st({ rows: [PR_A, PR_B], status: folder(true) }), 'list'],
+  ];
+  const texts = new Set();
+  for (const [v, want] of cases) { assert.equal(v.state, want); if (want !== 'list') { assert.ok(v.text, want); texts.add(v.text); } }
+  assert.equal(texts.size, cases.length - 1, 'every state says something different');
+  assert.deepEqual(cases[2][0].rows, [], 'an error shows the error, not the stale rows as if fine');
+  assert.match(cases[4][0].text, /^No prompts folder yet — create VEEMO CORTEX\/40_Resources\/Prompts/);
+  assert.doesNotMatch(cases[4][0].text, /promote/i, 'Promote lands in P2');
+  assert.match(cases[3][0].text, /outside the vault/);
+});
+
+test('P1: promptsView search = Hub FTS hits ∪ title/tag matches; project context sorts {{project}} prompts first', () => {
+  const P = { rows: [PR_B, PR_A], stats: [], status: { vault: 'v', folder: { exists: true }, obsidian: true }, q: 'weekly', hits: [], error: null, statsErr: null };
+  assert.deepEqual(promptsView(P, { hasBridge: true, now: NOW }).rows.map((r) => r.id), ['prompt:b'], 'tag match without an FTS hit');
+  const viaFts = promptsView({ ...P, q: 'staff', hits: [{ id: 'prompt:a' }] }, { hasBridge: true, now: NOW });
+  assert.deepEqual(viaFts.rows.map((r) => r.id), ['prompt:a']);
+  const all = promptsView({ ...P, q: '' }, { hasBridge: true, now: NOW, forProject: 'project-a' });
+  assert.deepEqual(all.rows.map((r) => r.id), ['prompt:a', 'prompt:b']);
+  assert.equal(all.count, 2);
+  assert.equal(all.statsNote, 'Usage is counted from the Run step on — nothing has run yet.');
+  assert.equal(promptsView({ ...P, q: '', stats: null, statsErr: 'Claude Hub: timeout' }, { hasBridge: true, now: NOW }).statsNote, 'Usage unknown — Claude Hub: timeout');
 });

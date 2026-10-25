@@ -48,6 +48,7 @@ export function createStore(DATA, hq) {
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
     claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, docHits: null, doc: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
     claudeImports: { folder: null, found: [], refused: [], error: null },   // AI archive H6: drop-folder offers (main's watcher), raw
+    prompts: { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false },   // Prompt library P1: Library (vault prompt notes via the Hub)
     claudeChat: { turns: [] },   // Claude Hub H3: in-app chat turns, newest last (chatReduce)
     claudeImport: null,  // Claude Hub H4: latest claude.ai import progress event
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
@@ -220,11 +221,12 @@ export function createStore(DATA, hq) {
         if (e.data.done >= e.data.total) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
       } else if (e.event === 'health' && isObj(e.data)) live.claudeHub = e.data;
       // a Hub that came up after the first health() answered "starting" (a reader never backfills, so no progress follows)
-      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; retryLibLoad(); });
+      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; retryLibLoad(); if (live.prompts.error) refreshPrompts(); });
       // the Hub indexed something new (a live append, a sweep): the card's counts are from the last answer, so ask again
       else if (e.event === 'changed') {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
         if (lib().convs) syncClaudeLib();
+        if (live.prompts.rows && Array.isArray(e.data && e.data.documents) && e.data.documents.some((d) => String(d).startsWith('prompt:'))) refreshPrompts();
         if (lib().stats) refreshClaudeStats();
         for (const k of new Set([...Object.keys(lib().byHq), ...Object.keys(lib().pageErr)])) refreshClaudeForProject(k);
         const docIds = Array.isArray(e.data && e.data.documents) ? e.data.documents : [];
@@ -383,6 +385,43 @@ export function createStore(DATA, hq) {
   }
   function closeClaudeThread() { seq.thread++; lib().thread = null; emit(); }
   const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  // Prompt library P1 — the Library reads the Hub's prompt documents, their prompt_use stats and main's folder/Obsidian status
+  let promptSeq = 0, promptSearchSeq = 0;
+  const askHq = (f) => Promise.resolve().then(f).catch((e) => ({ error: String((e && e.message) || e).slice(0, 300) }));
+  function refreshPrompts() {
+    const P = live.prompts;
+    if (!hq || !hq.claudeHub || !hq.claudeHub.documents) return Promise.resolve();
+    const my = ++promptSeq;
+    P.busy = true; emit();
+    return Promise.all([
+      askHq(() => hq.claudeHub.documents({ source: 'prompt', limit: 200 })),
+      hq.claudeHub.promptStats ? askHq(() => hq.claudeHub.promptStats()) : Promise.resolve(null),
+      hq.claudePrompts && hq.claudePrompts.status ? askHq(() => hq.claudePrompts.status()) : Promise.resolve(null),
+    ]).then(([rows, stats, status]) => {
+      if (my !== promptSeq) return undefined;
+      P.busy = false;
+      if (isObj(rows) && rows.error) P.error = 'Claude Hub: ' + rows.error; else { P.error = null; P.rows = Array.isArray(rows) ? rows : []; }
+      if (isObj(stats) && stats.error) P.statsErr = 'Claude Hub: ' + stats.error; else { P.statsErr = null; P.stats = Array.isArray(stats) ? stats : null; }
+      if (isObj(status) && !status.error) P.status = status;
+      if (P.q) return searchPrompts(P.q);
+      emit(); return undefined;
+    });
+  }
+  function searchPrompts(q) {
+    const P = live.prompts;
+    P.q = String(q || '').trim().slice(0, 200);
+    if (!P.q || !hq || !hq.claudeHub || !hq.claudeHub.documents) { P.hits = null; emit(); return Promise.resolve(); }
+    const my = ++promptSearchSeq;
+    return askHq(() => hq.claudeHub.documents({ source: 'prompt', q: P.q, limit: 200 })).then((r) => {
+      if (my !== promptSearchSeq) return;
+      if (isObj(r) && r.error) P.error = 'Claude Hub: ' + r.error; else P.hits = Array.isArray(r) ? r : [];
+      emit();
+    });
+  }
+  function openPrompt(id, how) {
+    if (!hq || !hq.claudePrompts || !hq.claudePrompts.open) return Promise.resolve({ error: 'Opening a prompt note needs the WorkspaceHQ app' });
+    return askHq(() => hq.claudePrompts.open(id, how)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
+  }
   function refreshClaudeStats(days = 30) {
     const to = new Date(), from = new Date(to.getTime() - (days - 1) * 86400000);
     lib().statsErr = null;
@@ -394,7 +433,7 @@ export function createStore(DATA, hq) {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
-    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
+    refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt,
     sendClaudeChat, cancelClaudeChat,
   };
 }

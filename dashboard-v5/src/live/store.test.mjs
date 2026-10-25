@@ -736,3 +736,39 @@ test('H6: claudeImports — pending on start, found/gone/error pushes', async ()
   assert.equal(st.live.claudeImports.refused[0].file, 'x.zip');
   st.stop();
 });
+
+test('P1 prompts: loads notes + stats + status, searches, re-reads on a prompt change, errors say why', async () => {
+  let fail = false;
+  const seen = [];   // libHq records only its own methods; these overrides record here
+  const { hq, fire } = libHq({
+    documents: (o) => (seen.push(['documents', [o]]), Promise.resolve(fail ? { error: 'timeout' } : o && o.q ? [{ id: 'prompt:a' }] : [{ id: 'prompt:a', source: 'prompt', title: 'A', variables: [] }])),
+    promptStats: () => Promise.resolve([]),
+  });
+  hq.claudePrompts = { status: () => Promise.resolve({ vault: 'v', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: false }),
+    open: (id, how) => Promise.resolve({ ok: true, how }) };
+  const st = createStore(DATA(), hq); await st.start();
+  assert.equal(st.live.prompts.rows, null, 'nothing fetched until the Library asks');
+  await st.refreshPrompts();
+  assert.equal(st.live.prompts.rows.length, 1);
+  assert.deepEqual(st.live.prompts.stats, []);
+  assert.equal(st.live.prompts.status.obsidian, false);
+  assert.ok(seen.some(([n, a]) => n === 'documents' && a[0].source === 'prompt' && a[0].limit === 200));
+  await st.searchPrompts('staff');
+  assert.deepEqual(st.live.prompts.hits, [{ id: 'prompt:a' }]);
+  const before = seen.length;
+  fire({ event: 'changed', data: { ids: [], documents: ['memory:x'] } }); await settle(); await settle();
+  assert.ok(!seen.slice(before).some(([n]) => n === 'documents'), 'a memory note change does not re-read the Library');
+  fire({ event: 'changed', data: { ids: [], documents: ['prompt:a'] } }); await settle(); await settle();
+  assert.ok(seen.slice(before).some(([n]) => n === 'documents'), 'a prompt note edited in Obsidian re-reads the Library');
+  fail = true; await st.refreshPrompts();
+  assert.equal(st.live.prompts.error, 'Claude Hub: timeout');
+  assert.deepEqual(await st.openPrompt('prompt:a', 'file'), { ok: true, how: 'file' });
+  st.stop();
+});
+
+test('P1 prompts: no bridge → refreshPrompts is a no-op, openPrompt says why', async () => {
+  const st = createStore(DATA(), null);
+  await st.refreshPrompts();
+  assert.equal(st.live.prompts.rows, null);
+  assert.match((await st.openPrompt('prompt:a', 'file')).error, /WorkspaceHQ app/);
+});

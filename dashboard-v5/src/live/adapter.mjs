@@ -650,3 +650,43 @@ export function importView(imp, hub, { hasBridge, canWrite, writeReason } = {}) 
   }
   return { canImport: !why, why, running, text, tone, report, hasReport: report.length > 0 };
 }
+
+// Prompt library P1 (spec 2026-10-15 §6.3): Library rows from the Hub's prompt documents + prompt_use stats.
+// Counts are the Hub's; nothing here estimates. Text is bound as text by the template runtime, never HTML.
+const strList = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : []).map((x) => (typeof x === 'string' ? x.trim() : '')).filter(Boolean);
+const baseName = (p) => String(p || '').split(/[\\/]/).pop();
+export function promptRow(row, statsById, now = Date.now()) {
+  const r = obj(row), meta = obj(r.meta), s = obj(obj(statsById)[r.id]);
+  const tags = strList(meta.tags).map((t) => t.replace(/^#/, '')).slice(0, 12);
+  const vars = arr(r.variables).filter((v) => typeof v === 'string');
+  const uses = num(s.uses, 0);
+  return { id: String(r.id || ''), title: r.title ? String(r.title) : 'Untitled prompt', name: baseName(r.path),
+    tags, tagText: tags.map((t) => '#' + t).join(' '), hasTags: tags.length > 0, vars, varText: vars.map((v) => '{{' + v + '}}').join(' '), hasVars: vars.length > 0,
+    uses, usesText: uses > 0 ? `used ${uses}×` : 'not run yet', lastUsed: uses > 0 && s.last_at ? 'last used ' + whenOf(s.last_at, now) : '',
+    usesProject: vars.includes('project') || vars.includes('cwd') };
+}
+export function promptsView(P, { hasBridge = true, q = null, forProject = null, now = Date.now() } = {}) {
+  const p = obj(P), st = obj(p.status), folder = obj(st.folder), vault = st.vault || 'your vault';
+  const where = `${vault}/40_Resources/Prompts`;
+  const out = (state, text, rows = []) => ({ state, text, rows, count: rows.length, statsNote: '' });
+  if (!hasBridge) return out('nobridge', 'The prompt library needs the WorkspaceHQ app — this preview has no bridge to the Claude Hub.');
+  if (p.error) return out('error', `${p.error} — your prompt notes cannot be listed until the Claude Hub answers.`);
+  if (!Array.isArray(p.rows)) return out('loading', 'Reading your prompt notes…');
+  const statsById = Object.fromEntries(arr(p.stats).map((s) => [s.prompt_id, s]));
+  if (p.rows.length === 0) {
+    if (folder.error) return out('folder-error', `${where}: ${folder.error}`);
+    if (p.status && folder.exists === false) return out('nofolder', `No prompts folder yet — create ${where} and add notes there; edits you make in Obsidian show up here.`);
+    return out('empty', `${where} has no prompt notes yet — add a .md note there in Obsidian (top level of the folder).`);
+  }
+  const term = String(q == null ? p.q || '' : q).trim().toLowerCase();
+  let rows = p.rows.map((r) => promptRow(r, statsById, now));
+  if (term) {
+    const hit = new Set(arr(p.hits).map((h) => h && h.id));
+    rows = rows.filter((r) => hit.has(r.id) || r.title.toLowerCase().includes(term) || r.tags.some((t) => t.toLowerCase().includes(term)));
+    if (!rows.length) return out('nohits', `No prompt note matches “${String(q == null ? p.q : q).trim()}”.`);
+  }
+  if (forProject) rows = rows.slice().sort((a, b) => Number(b.usesProject) - Number(a.usesProject));
+  const v = out('list', '', rows);
+  v.statsNote = p.statsErr ? 'Usage unknown — ' + p.statsErr : arr(p.stats).length === 0 ? 'Usage is counted from the Run step on — nothing has run yet.' : '';
+  return v;
+}
