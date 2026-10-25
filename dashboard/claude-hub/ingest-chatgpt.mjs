@@ -16,7 +16,9 @@ const KNOWN_CONV = new Set(['title', 'create_time', 'update_time', 'mapping', 'c
 
 export function epochIso(v) {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
-  return Number.isFinite(n) && n > 0 ? new Date(Math.round(n * 1000)).toISOString() : null;
+  if (!(Number.isFinite(n) && n > 0)) return null;
+  const d = new Date(Math.round(n * 1000));   // out-of-range epochs (> 8.64e15 ms) make an Invalid Date, never a throw
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 function partText(p) {
