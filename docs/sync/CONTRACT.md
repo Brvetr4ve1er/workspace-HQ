@@ -211,6 +211,15 @@ error and clear when that file ingests cleanly. Writer connections use `secure_d
 the synthetic project `web:chats`, "claude.ai chats"); `web_sync` is now written (export + live sync de-dup);
 `meta.last_import` (JSON `{at, ok, report|error}`) and `meta.last_sync_at`. `data/claude/tmp/import-*/` holds one
 import's two extracted JSON files and is removed when that import ends (success or failure). No schema or index-version change.
+(2026-10-25, H6, schema 2 — migrated in place by the first schema-2 writer; an older app refuses the db) New tables:
+`document(id PK, source NOT NULL 'memory'|'claude-md'|'prompt'|'history', path, title, text NOT NULL DEFAULT '' (masked),
+project_id, project_path, mtime_ms, size, meta JSON)` with FTS5 `document_fts(title, text)` (external content, same tokenizer
+as `message_fts`); `prompt_use(prompt_id NOT NULL, at NOT NULL, target NOT NULL, project_id, conversation_id)` (written from
+phase P3 on). Ids: `memory:<sha1 of path>`, `memory:chatgpt:<sha1 of text>`, `claude-md:<sha1 of path>`, `prompt:<sha1 of
+path>`, `history:<sessionId>:<byte offset>`. `ingest_cursor` row `file='history.jsonl'` = the byte cursor of
+`~/.claude/history.jsonl` (never rewritten). `conversation.source` gains `'chatgpt'` (ids `chatgpt:<id>`, project
+`chatgpt:chats`); `web_sync` kind `'chatgpt'` de-dups re-imports; tombstone kind `'document'`. `index_version` unchanged.
+`data/claude/imports-seen.json` = which dropped ZIPs were answered (main-written).
 
 #### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`)
 
@@ -227,7 +236,7 @@ Stored as Hub rows `web:<uuid>` (`source='web'`), de-duplicated through `web_syn
 
 ### `VEEMO CORTEX/30_Areas/Claude/<Project>/<YYYY-MM-DD> <title>.md` — Claude chat notes (frontend lane, owner's vault, Claude Hub H5)
 
-Written only by `dashboard/claude-vault.js`, one note per owner-confirmed Save. Names: `safeSegment` (no `/:*?"<>|[]#^`, no control chars, no leading dot / trailing dot or space, DOS device names prefixed `_`, ≤ 60 code points); a name used by another chat takes ` (2)`…` (9)`. Frontmatter (YAML; strings JSON-quoted): `source` (`claude-code` | `claude.ai`), `conversation` (Hub id — how a later Save recognises "this chat's own note"), `project` (`"[[<WorkspaceHQ project note or Claude project name>]]"`), `created` (YYYY-MM-DD), `chat_date`, `title`, `drafted_by` ("local model <id>, from N chat messages"), `tags: [claude]`. Body: `# <title>`, a `Project: [[…]]` line, then the owner-edited Summary / Decisions / To-dos / Links. The structure lane's pipeline never writes here; Ask's Vault source reads these notes like any other (they carry no `generated_by: workspacehq-pipeline`).
+Written only by `dashboard/claude-vault.js`, one note per owner-confirmed Save. Names: `safeSegment` (no `/:*?"<>|[]#^`, no control chars, no leading dot / trailing dot or space, DOS device names prefixed `_`, ≤ 60 code points); a name used by another chat takes ` (2)`…` (9)`. Frontmatter (YAML; strings JSON-quoted): `source` (`claude-code` | `claude.ai` | `chatgpt` — H6, additive), `conversation` (Hub id — how a later Save recognises "this chat's own note"), `project` (`"[[<WorkspaceHQ project note or Claude project name>]]"`), `created` (YYYY-MM-DD), `chat_date`, `title`, `drafted_by` ("local model <id>, from N chat messages"), `tags: [claude]`. Body: `# <title>`, a `Project: [[…]]` line, then the owner-edited Summary / Decisions / To-dos / Links. The structure lane's pipeline never writes here; Ask's Vault source reads these notes like any other (they carry no `generated_by: workspacehq-pipeline`).
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
