@@ -8,8 +8,9 @@ import { cutText, TEXT_MAX, TOOL_RESULT_MAX } from './parse-code.mjs';
 export const UUID_RE = /^[A-Za-z0-9-]{1,80}$/;
 const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const str = (x) => (typeof x === 'string' ? x : '');
-const safe = (s) => maskSecrets(String(s)).text;
 const clean = (s) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
+
+const safe = (s) => maskSecrets(clean(String(s))).text;   // strip control bytes FIRST so a split secret re-joins before the mask
 const KNOWN_CONV = new Set(['uuid', 'id', 'name', 'title', 'summary', 'created_at', 'updated_at', 'create_time', 'update_time', 'account',
   'chat_messages', 'messages', 'project_uuid', 'project', 'project_id', 'model', 'settings', 'is_starred', 'is_temporary', 'current_leaf_message_uuid', 'platform']);
 const KNOWN_MSG = new Set(['uuid', 'id', 'text', 'content', 'sender', 'role', 'created_at', 'updated_at', 'create_time', 'attachments', 'files', 'files_v2',
@@ -67,7 +68,7 @@ function messageText(m, unknown) {
   for (const a of [...(Array.isArray(m.attachments) ? m.attachments : []), ...(Array.isArray(m.files) ? m.files : [])]) {
     if (isObj(a) && str(a.file_name)) parts.push('[attachment: ' + cutText(safe(a.file_name), 120) + ']');
   }
-  return cutText(clean(parts.filter(Boolean).join('\n')).trim(), TEXT_MAX);
+  return cutText(parts.filter(Boolean).join('\n').trim(), TEXT_MAX);
 }
 
 function roleOf(m) {
@@ -96,7 +97,7 @@ export function parseWebConversation(raw) {
     messages.push({ uuid: mu, parentUuid: UUID_RE.test(parent) ? parent : null, role, at: isoOrNull(m.created_at ?? m.create_time ?? m.updated_at) || createdAt, text });
   }
   const projectUuid = [raw.project_uuid, isObj(raw.project) ? raw.project.uuid : null, raw.project_id].find((p) => typeof p === 'string' && UUID_RE.test(p)) || null;
-  const title = cutText(clean(safe(str(raw.name) || str(raw.title))).trim(), 200);
+  const title = cutText(safe(str(raw.name) || str(raw.title)).trim(), 200);
   return { ok: true, skipped, empty, unknown,
     conv: { uuid, title, projectUuid, model: str(raw.model).slice(0, 80) || null, createdAt, updatedAt: isoOrNull(raw.updated_at ?? raw.update_time), messages } };
 }
@@ -106,7 +107,7 @@ export function parseWebProject(raw) {
   const uuid = uuidOf(raw);
   if (!uuid) return { ok: false, reason: 'no-id' };
   return { ok: true, unknown: unknownOf(raw, KNOWN_PROJ, 'project:'),
-    project: { uuid, name: cutText(clean(safe(str(raw.name))).trim(), 200) || 'claude.ai project', createdAt: isoOrNull(raw.created_at),
+    project: { uuid, name: cutText(safe(str(raw.name)).trim(), 200) || 'claude.ai project', createdAt: isoOrNull(raw.created_at),
       updatedAt: isoOrNull(raw.updated_at), docs: Array.isArray(raw.docs) ? raw.docs.length : 0 } };
 }
 

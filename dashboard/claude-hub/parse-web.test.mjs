@@ -93,3 +93,16 @@ test('parseWebProject + the report holds counts and field names only, never cont
   for (let i = 0; i < 80; i++) noteUnknown(rep, ['f' + i]);
   assert.ok(Object.keys(rep.unknownFields).length <= 51);
 });
+
+test('parseWebConversation: a secret split by a control byte is still masked (control bytes stripped BEFORE the mask)', () => {
+  const split = 'sk-ant-' + 'a'.repeat(12) + '\u0001' + 'a'.repeat(18);
+  const r = parseWebConversation({ uuid: 'web-c', name: 'k ' + split, chat_messages: [
+    { uuid: 'm1', sender: 'human', text: 'key ' + split },
+    { uuid: 'm2', sender: 'assistant', content: [{ type: 'text', text: 'a ' + split }, { type: 'text', text: 'b' }] },
+  ] });
+  for (const m of r.conv.messages) assert.ok(!m.text.includes('sk-ant-'), m.text);
+  assert.ok(!r.conv.title.includes('sk-ant-'), r.conv.title);
+  assert.match(r.conv.messages[0].text, /••• secret \(anthropic-key\)/);
+  const p = parseWebProject({ uuid: 'web-p', name: 'p ' + split });
+  assert.ok(!p.project.name.includes('sk-ant-'), p.project.name);
+});
