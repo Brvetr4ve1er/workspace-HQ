@@ -50,7 +50,10 @@ export function ingestWebConversation(store, conv, report) {
   return 'imported';
 }
 
-export async function importExportFile(store, zipPath, { tmpRoot, onProgress = () => {}, maxBytes } = {}) {
+// onImported(ids) announces the 'web:' ids saved so far every IMPORT_ANNOUNCE_EVERY conversations and once at the end, so
+// the Hub can tell the renderer while a long import is still running (each conversation is its own committed tx).
+export const IMPORT_ANNOUNCE_EVERY = 200;
+export async function importExportFile(store, zipPath, { tmpRoot, onProgress = () => {}, onImported = () => {}, maxBytes } = {}) {
   fs.mkdirSync(tmpRoot, { recursive: true });
   const job = fs.mkdtempSync(path.join(tmpRoot, 'import-'));
   const report = newReport();
@@ -73,16 +76,22 @@ export async function importExportFile(store, zipPath, { tmpRoot, onProgress = (
       onProgress({ phase: 'projects', done: report.projects.seen, total: report.projects.seen });
     }
     if (got['conversations.json']) {
-      const r = await streamJsonArray(got['conversations.json'], async (raw) => {
-        report.conversations.seen++;
-        const c = parseWebConversation(raw);
-        if (!c.ok) { report.conversations.skipped++; return; }
-        noteUnknown(report, c.unknown);
-        report.messages.skipped += c.skipped; report.messages.empty += c.empty;
-        ingestWebConversation(store, c.conv, report);
-        onProgress({ phase: 'conversations', done: report.conversations.seen, total: 0 });
-        if (++n % 200 === 0) await tick();
-      });
+      let fresh = [];
+      const announce = () => { if (fresh.length) { const ids = fresh; fresh = []; onImported(ids); } };
+      let r;
+      try {   // a failing file still announces the chats saved before the failure
+        r = await streamJsonArray(got['conversations.json'], async (raw) => {
+          report.conversations.seen++;
+          const c = parseWebConversation(raw);
+          if (!c.ok) { report.conversations.skipped++; return; }
+          noteUnknown(report, c.unknown);
+          report.messages.skipped += c.skipped; report.messages.empty += c.empty;
+          if (ingestWebConversation(store, c.conv, report) === 'imported') fresh.push('web:' + c.conv.uuid);
+          onProgress({ phase: 'conversations', done: report.conversations.seen, total: 0 });
+          if (report.conversations.seen % IMPORT_ANNOUNCE_EVERY === 0) announce();
+          if (++n % 200 === 0) await tick();
+        });
+      } finally { announce(); }
       report.conversations.skipped += r.bad; if (r.truncated) report.truncated = true;
     }
     return report;

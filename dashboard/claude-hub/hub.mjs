@@ -281,7 +281,7 @@ function main() {
   function runImport(zipPath) {
     importing = true;
     const tmpRoot = path.join(path.dirname(path.resolve(dbFile)), 'tmp');
-    importExportFile(store, zipPath, { tmpRoot, onProgress: (p) => emitImport(p) })
+    importExportFile(store, zipPath, { tmpRoot, onProgress: (p) => emitImport(p), onImported: (ids) => markChanged(ids) })
       .then((report) => {
         store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, report }));
         emitImport({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report }, true);

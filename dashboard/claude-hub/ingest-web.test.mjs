@@ -79,3 +79,29 @@ test('a bad or wrong ZIP: honest error, nothing left in tmp', async () => {
   assert.deepEqual(s.counts(), { projects: 0, conversations: 0, messages: 0 });
   s.close();
 });
+
+test('a long import announces the saved chats in batches of 200 while it runs, then the rest (each batch already readable)', async () => {
+  const d = tmp(), s = openStore(':memory:'), tmpRoot = path.join(d, 'tmp'), zip = path.join(d, 'bulk.zip');
+  const at = '2026-10-01T09:00:00Z';
+  const convs = Array.from({ length: 450 }, (_, i) => ({ uuid: 'bulk-' + i, name: 'Chat ' + i, created_at: at, updated_at: at,
+    chat_messages: [{ uuid: 'bulk-' + i + '-m', sender: 'human', created_at: at, text: 'placeholder ' + i }] }));
+  zipFiles(zip, [{ name: 'conversations.json', data: JSON.stringify(convs) }]);
+  const batches = [], seenAtCall = [];
+  let resolved = false;
+  const p = importExportFile(s, zip, { tmpRoot, onImported: (ids) => {
+    assert.equal(resolved, false, 'announced before the import resolves');
+    batches.push(ids);
+    seenAtCall.push(s.db.prepare("SELECT COUNT(*) AS n FROM conversation WHERE source = 'web'").get().n);
+  } });
+  const r = await p; resolved = true;
+  assert.deepEqual(batches.map((b) => b.length), [200, 200, 50]);
+  assert.deepEqual(seenAtCall, [200, 400, 450], 'every announced chat is already in the index');
+  const all = batches.flat();
+  assert.equal(new Set(all).size, all.length, 'no id announced twice');
+  assert.equal(all.length, r.conversations.imported);
+  assert.ok(all.every((id) => /^web:bulk-\d+$/.test(id)));
+  const again = [];
+  await importExportFile(s, zip, { tmpRoot, onImported: (ids) => again.push(ids) });
+  assert.deepEqual(again, [], 'an unchanged re-import announces nothing');
+  s.close();
+});

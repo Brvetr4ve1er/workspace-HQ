@@ -830,7 +830,9 @@ test('importExport: started at once, progress with kind import, report in health
     assert.equal((await h.req('listConversations', { source: 'web' })).result.length, 3);
     assert.equal(health.counts.conversations, 6, '3 Code + 3 claude.ai');
     assert.deepEqual(fs.readdirSync(path.join(dir, 'data', 'tmp')), [], 'job folder removed');
-    assert.ok(await h.until(() => h.events.some((e) => e.event === 'changed' && Array.isArray(e.data.ids))), 'changed is debounced, so wait for it');
+    // the importer announces the chats it saved (every 200 and at the end), so the Chats list re-pulls them
+    assert.ok(await h.until(() => ['web:web-chat-1', 'web:web-chat-2', 'web:web-chat-3'].every((id) => h.events.some((e) => e.event === 'changed' && e.data.ids.includes(id)))),
+      'changed carries the imported web ids (debounced, so wait for it)');
     await h.req('importExport', { zipPath: zip });
     assert.ok(await importDone(h, 2));
     assert.equal(lastImportEvent(h).report.conversations.unchanged, 3);

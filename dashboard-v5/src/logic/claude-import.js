@@ -9,7 +9,7 @@ export const claudeImportLogic = {
     const r = await this.call(() => this.hq.claudeHub.importExport(), 'Import failed');
     if (r && r.started) {
       this.LIVE.claudeImport = { kind: 'import', phase: 'unzip', done: 0, total: 0 };
-      this.toast('info', 'Importing ' + (r.file || 'the export') + ' — chats appear as they are read.');
+      this.toast('info', 'Importing ' + (r.file || 'the export') + ' — the counter shows progress; chats are listed once saved.');
       this.forceUpdate();
     }
   },
