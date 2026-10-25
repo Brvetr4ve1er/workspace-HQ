@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld('hq', {
     link: (id, hqId, state) => ipcRenderer.invoke('hq:claude-hub:link', id, hqId, state),
     forget: (target) => ipcRenderer.invoke('hq:claude-hub:forget', target),
     reindex: () => ipcRenderer.invoke('hq:claude-hub:reindex'),
+    // Prompt library P2: harvest candidates (scored, with reasons) and Hide (a tombstone)
+    promptCandidates: (opts) => ipcRenderer.invoke('hq:claude-hub:prompt-candidates', opts),
+    hideCandidate: (key) => ipcRenderer.invoke('hq:claude-hub:hide-candidate', key),
     importExport: (kind, opts) => ipcRenderer.invoke('hq:claude-hub:import', kind, opts),
     documents: (opts) => ipcRenderer.invoke('hq:claude-hub:documents', opts),
     document: (id) => ipcRenderer.invoke('hq:claude-hub:document', id),
@@ -66,6 +69,7 @@ contextBridge.exposeInMainWorld('hq', {
   claudePrompts: {
     status: () => ipcRenderer.invoke('hq:claude-prompts:status'),
     open: (id, how) => ipcRenderer.invoke('hq:claude-prompts:open', id, how),
+    promote: (p) => ipcRenderer.invoke('hq:claude-prompts:promote', p),
   },
   // AI archive H6: the imports drop folder — announced once, imported only after the owner confirms
   claudeImports: {

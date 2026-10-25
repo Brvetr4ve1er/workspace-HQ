@@ -172,7 +172,81 @@ test('init: HQ_VAULT_DIR wins; handlers answer, ids are capped', async () => {
   const h = {};
   init({ ipcMain: { handle: (ch, fn) => { h[ch] = fn; } }, app: { getApplicationNameForProtocol: () => '' }, shell: { openExternal: async () => {}, openPath: async () => '' },
     vaultDir: path.join(os.tmpdir(), 'never-the-owner-vault'), env: { HQ_VAULT_DIR: fx.vault, HQ_DRY_LAUNCH: '1' }, log: () => {} });
-  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:open', 'hq:claude-prompts:status']);
+  assert.deepEqual(Object.keys(h).sort(), ['hq:claude-prompts:open', 'hq:claude-prompts:promote', 'hq:claude-prompts:status']);
   assert.equal((await h['hq:claude-prompts:status']({})).folder.exists, true);
   assert.ok((await h['hq:claude-prompts:open']({}, 'prompt:' + 'a'.repeat(400), 'file')).error);
+});
+
+// ---- P2 Promote (spec 2026-10-15 §6.1, §6.4, §8). Temp vaults only; the secret is built at runtime.
+const SECRET = () => 'gh' + 'p_' + 'A'.repeat(36);
+function p2Vault() { return fs.mkdtempSync(path.join(os.tmpdir(), 'hq-p2-vault-')); }
+function p2Make(vaultDir, o = {}) {
+  const logs = [];
+  const p = prompts.createPrompts({ vaultDir, openExternal: async () => {}, openPath: async () => '', protocolName: () => '', env: {},
+    log: (s) => logs.push(s), now: () => new Date('2026-10-25T10:00:00Z'), ...o });
+  return { p, logs };
+}
+const PDIR = (v) => path.join(v, '40_Resources', 'Prompts');
+
+test('promote masks the body and the title before writing; creates the folder; §6.1 layout', async () => {
+  const v = p2Vault(); const { p, logs } = p2Make(v);
+  const r = await p.promote({ text: 'Review {{file}} with the placeholder token ' + SECRET() + ' and list changes.', title: 'Placeholder review ' + SECRET(),
+    source: { kind: 'code', conversation: 'code:sess-a1', at: '2026-09-01T10:00:00Z' } });
+  assert.equal(r.error, undefined, JSON.stringify(r));
+  assert.match(r.name, /^placeholder-review-.*\.md$/);
+  assert.equal(r.path, '40_Resources/Prompts/' + r.name);
+  assert.match(r.id, /^prompt:[0-9a-f]{40}$/);
+  assert.equal(r.masked, 2);
+  const file = path.join(PDIR(v), r.name), src = fs.readFileSync(file, 'utf8');
+  assert.equal(src.includes(SECRET()), false);
+  assert.match(src, /••• secret \(github-token\)/);
+  assert.match(src, /^---\ntitle: "Placeholder review ••• secret \(github-token\)"\ntags: \[harvested\]\nvariables: \[file\]\nversion: 1\ncreated: 2026-10-25T10:00:00.000Z\n/);
+  assert.match(src, /\nsource: \{ kind: code, conversation: "code:sess-a1", at: "2026-09-01T10:00:00Z" \}\n/);
+  assert.ok(src.includes(`hq: { id: "${r.id}" }`));
+  assert.equal(r.id, note.promptDocId(path.join(path.resolve(v), '40_Resources', 'Prompts', r.name)));
+  assert.equal(logs.some((l) => l.includes('placeholder token')), false);   // logs carry the file name only
+});
+
+test("promote: name must be the title's slug or slug-2…-9; never overwrites; creates the folder", async () => {
+  const v = p2Vault(); const { p } = p2Make(v);
+  const base = { text: 'Placeholder prompt body for the clash test.', title: 'Review a PR' };
+  fs.mkdirSync(PDIR(v), { recursive: true });
+  fs.writeFileSync(path.join(PDIR(v), 'review-a-pr.md'), 'OWNER NOTE');
+  const c1 = await p.promote(base);
+  assert.deepEqual(c1, { error: 'a prompt note with this name is already there', exists: true, next: 'review-a-pr-2.md' });
+  assert.equal(fs.readFileSync(path.join(PDIR(v), 'review-a-pr.md'), 'utf8'), 'OWNER NOTE');
+  for (const name of ['../x.md', 'C:\\x.md', '..\\review-a-pr-2.md', 'other-2.md', 'review-a-pr-10.md', 'review-a-pr.md', 'review-a-pr-2.txt', 'sub/review-a-pr-2.md', 7]) {
+    const r = await p.promote({ ...base, name });
+    assert.match(String(r.error), /not one this title can take/, 'refused: ' + name);
+  }
+  const ok = await p.promote({ ...base, name: 'review-a-pr-2.md' });
+  assert.equal(ok.name, 'review-a-pr-2.md');
+  assert.deepEqual(fs.readdirSync(PDIR(v)).sort(), ['review-a-pr-2.md', 'review-a-pr.md']);
+  assert.equal(fs.readdirSync(v).join(','), '40_Resources');
+  const again = await p.promote({ ...base, name: 'review-a-pr-2.md' });
+  assert.deepEqual(again, { error: 'a prompt note with this name is already there', exists: true, next: 'review-a-pr-3.md' });
+});
+
+test('promote refuses empty / oversized / non-object input and a missing vault; drops a forged source', async () => {
+  const v = p2Vault(); const { p } = p2Make(v);
+  assert.match((await p.promote(null)).error, /prompt text is empty/);
+  assert.match((await p.promote({ text: '   ' })).error, /prompt text is empty/);
+  assert.match((await p.promote({ text: 'x'.repeat(100001), title: 't' })).error, /over 100 000 characters/);
+  assert.match((await p2Make(null).p.promote({ text: 'Placeholder', title: 't' })).error, /no vault folder is configured/);
+  assert.match((await p2Make(path.join(v, 'missing')).p.promote({ text: 'Placeholder', title: 't' })).error, /vault folder was not found/);
+  const r = await p.promote({ text: 'Placeholder prompt without a title line', source: { kind: 'evil', conversation: 'javascript:alert(1)', at: 'x' } });
+  assert.equal(r.name, 'placeholder-prompt-without-a-title-line.md');   // title defaults to the first non-empty line
+  const src = fs.readFileSync(path.join(PDIR(v), r.name), 'utf8');
+  assert.equal(/\nsource:/.test(src), false);
+  const r2 = await p.promote({ text: 'Placeholder second', title: 'Second', source: { kind: 'web', conversation: 'javascript:alert(1)', at: 'not a date' } });
+  assert.match(fs.readFileSync(path.join(PDIR(v), r2.name), 'utf8'), /\nsource: \{ kind: web, conversation: "", at: "" \}\n/);
+});
+
+test('init registers hq:claude-prompts:promote; junk input becomes {} and answers {error}', async () => {
+  const v = p2Vault(); const h = {};
+  prompts.init({ ipcMain: { handle: (ch, fn) => { h[ch] = fn; } }, app: { getApplicationNameForProtocol: () => '' }, shell: {}, vaultDir: v, env: {}, log: () => {} });
+  assert.ok(h['hq:claude-prompts:promote']);
+  assert.match((await h['hq:claude-prompts:promote']({}, 'junk')).error, /prompt text is empty/);
+  const ok = await h['hq:claude-prompts:promote']({}, { text: 'Placeholder via ipc', title: 'Via IPC' });
+  assert.equal(ok.name, 'via-ipc.md');
 });

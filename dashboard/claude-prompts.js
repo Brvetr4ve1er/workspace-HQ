@@ -5,7 +5,8 @@
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { PROMPTS_REL, slugify, noteName, promptDocId } = require('./claude-prompt-note');
+const { pathToFileURL } = require('node:url');
+const { PROMPTS_REL, slugify, noteName, variablesOf, promptNoteText, promptDocId } = require('./claude-prompt-note');
 const { writeNoteAtomic } = require('./claude-vault');
 
 const NOTE_TEXT_MAX = 200000;
@@ -73,7 +74,23 @@ function findPromptFile(vaultDir, realDir, id) {
   return null;
 }
 
-function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {}, log = () => {} }) {
+// ---- P2 Promote (spec 2026-10-15 §6.1, §6.4). The Hub's masker is ESM: reached through import() (Electron 32 cannot require ESM).
+const PROMOTE_TEXT_MAX = 100000;
+const SOURCE_KINDS = ['code', 'web', 'chatgpt', 'history'];
+let redactMod = null;
+async function maskText(s) {
+  if (!redactMod) redactMod = await import(pathToFileURL(path.join(__dirname, 'claude-hub', 'redact.mjs')).href);
+  return redactMod.maskSecrets(String(s));
+}
+// A harvested note's provenance: only these kinds, an id-shaped conversation and an ISO time survive; anything else is blanked.
+function sourceOf(s) {
+  if (!s || typeof s !== 'object' || !SOURCE_KINDS.includes(s.kind)) return null;
+  const conversation = typeof s.conversation === 'string' && /^(code|web|chatgpt|history):[A-Za-z0-9:._-]{1,280}$/.test(s.conversation) ? s.conversation : '';
+  const at = typeof s.at === 'string' && /^\d{4}-\d\d-\d\dT[\d:.]+Z?$/.test(s.at) ? s.at : '';
+  return { kind: s.kind, conversation, at };
+}
+
+function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {}, log = () => {}, now = () => new Date() }) {
   const vaultName = vaultDir ? path.basename(path.resolve(vaultDir)) : null;
   const dry = () => env.HQ_DRY_LAUNCH === '1';
   const hasObsidian = () => { try { return !!protocolName('obsidian://'); } catch { return false; } };
@@ -105,6 +122,35 @@ function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {
         return err ? { error: 'Windows could not open the note: ' + String(err).slice(0, 200) } : { ok: true, how };
       } catch (e) { return { error: why(e) }; }
     },
+    // Writes ONE new note the owner confirmed. Masks body + title first; the file name is the title's slug, or the
+    // slug-2…-9 name a clash answer offered (and the owner confirmed) — never a name of the renderer's choosing.
+    async promote(p) {
+      try {
+        const o = p && typeof p === 'object' ? p : {};
+        if (typeof o.text !== 'string' || !o.text.trim()) return { error: 'nothing to promote — the prompt text is empty' };
+        if (o.text.length > PROMOTE_TEXT_MAX) return { error: 'that prompt is over 100 000 characters' };
+        if (!vaultDir) return { error: 'no vault folder is configured' };
+        const body = await maskText(o.text.replace(/\r\n/g, '\n').trim());
+        const first = o.text.split('\n').find((l) => l.trim()) || '';
+        const title = await maskText((typeof o.title === 'string' && o.title.trim() ? o.title : first).slice(0, 400));
+        const t = title.text.replace(/\s+/g, ' ').trim().slice(0, 200) || 'Untitled prompt';
+        const slug = slugify(t);
+        let name = noteName(slug);
+        if (o.name !== undefined) {
+          const offered = [2, 3, 4, 5, 6, 7, 8, 9].map((n) => noteName(slug, n));
+          if (!offered.includes(o.name)) return { error: 'that file name is not one this title can take — promote again to get the offered name' };
+          name = o.name;
+        }
+        const tags = Array.isArray(o.tags) && o.tags.length ? o.tags.slice(0, 10) : ['harvested'];
+        const id = promptDocId(path.join(path.resolve(vaultDir), ...PROMPTS_REL, name));
+        const text = promptNoteText({ title: t, tags, variables: variablesOf({}, body.text), created: now().toISOString(),
+          source: sourceOf(o.source), id, body: body.text });
+        const r = await writePromptNote(vaultDir, { name, text });
+        if (r.error) return r;
+        log('[prompts] promoted ' + r.name);
+        return { path: PROMPTS_REL.join('/') + '/' + r.name, name: r.name, id, masked: body.hits + title.hits };
+      } catch (e) { return { error: why(e) }; }
+    },
   };
 }
 
@@ -114,7 +160,8 @@ function init({ ipcMain, app, shell, vaultDir, env = process.env, log = console.
     protocolName: (u) => (app && app.getApplicationNameForProtocol ? app.getApplicationNameForProtocol(u) : '') });
   ipcMain.handle('hq:claude-prompts:status', () => p.status());
   ipcMain.handle('hq:claude-prompts:open', (_e, id, how) => p.open(typeof id === 'string' && id.length <= 300 ? id : '', how));
+  ipcMain.handle('hq:claude-prompts:promote', (_e, req) => p.promote(req && typeof req === 'object' && !Array.isArray(req) ? req : {}));
   return p;
 }
 
-module.exports = { NOTE_TEXT_MAX, resolvePromptsDir, writePromptNote, obsidianUrl, findPromptFile, createPrompts, init };
+module.exports = { NOTE_TEXT_MAX, PROMOTE_TEXT_MAX, SOURCE_KINDS, sourceOf, resolvePromptsDir, writePromptNote, obsidianUrl, findPromptFile, createPrompts, init };

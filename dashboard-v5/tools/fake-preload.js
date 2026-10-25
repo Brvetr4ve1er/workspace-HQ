@@ -28,6 +28,25 @@
 
 const WRITE = 'write', SEND = 'send';
 
+// P2 harvest candidates (placeholder text; reasons are the Hub's own wording)
+const FAKE_CANDIDATES = [
+  { key: 'cand:' + '1'.repeat(40), text: 'Placeholder prompt one: review the placeholder module and list what to change, file by file, with the reason for each change, in plain words.',
+    chars: 141, score: 11, sessions: 3, lastAt: '2026-10-01T10:00:00Z',
+    reasons: [{ key: 'reuse', points: 9, text: 'used in 3 sessions' }, { key: 'turns', points: 2, text: 'followed by 8 assistant messages' }],
+    sources: [{ kind: 'code', conversationId: 'code:sess-a1', at: '2026-10-01T10:00:00Z', project: 'project-a' },
+      { kind: 'history', documentId: 'history:sess-a1:0', at: '2026-09-20T09:00:00Z', project: 'project-a' }] },
+  { key: 'cand:' + '2'.repeat(40), text: 'Placeholder prompt two: draft a placeholder plan with steps, owners and checks, then point out every step that has no check yet.',
+    chars: 128, score: 3.25, sessions: 1, lastAt: '2026-09-15T10:00:00Z',
+    reasons: [{ key: 'reuse', points: 0, text: 'seen in 1 session' }, { key: 'turns', points: 3.25, text: 'followed by 13 assistant messages' }],
+    sources: [{ kind: 'chatgpt', conversationId: 'chatgpt:placeholder-1', at: '2026-09-15T10:00:00Z', project: null }] },
+  { key: 'cand:' + '3'.repeat(40), text: 'Placeholder prompt three: ' + 'summarize the placeholder notes into a short list of decisions and open questions. '.repeat(4).trim(),
+    chars: 357, score: -4, sessions: 1, lastAt: '2026-09-01T10:00:00Z',
+    reasons: [{ key: 'reuse', points: 0, text: 'seen in 1 session' }, { key: 'turns', points: 0, text: 'no assistant message followed it' },
+      { key: 'length', points: 1, text: '300+ characters' }, { key: 'library', points: -5, text: 'already a prompt note' }],
+    sources: [{ kind: 'web', conversationId: 'web:placeholder-web-1', at: '2026-09-01T10:00:00Z', project: 'claude.ai chats' }] },
+];
+const fakeSlug = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'prompt';
+
 // storage (optional): a Web Storage for set(…, {persist:true}); the Electron branch passes sessionStorage
 function createFake(opts) {
   const storage = opts && opts.storage ? opts.storage : null;
@@ -179,6 +198,9 @@ function createFake(opts) {
       totals: { chats: 2, active_ms: 120000, tokens_in: 6, tokens_out: 40, tokens_cache_read: 100, tokens_cache_write: 10 } })],
     ['claudeHub.link', WRITE], ['claudeHub.forget', WRITE], ['claudeHub.reindex', () => ({ started: true })],
     ['claudeHub.importExport', (kind) => ({ started: true, file: kind === 'chatgpt' ? 'chatgpt-export.zip' : 'claude-export.zip', kind: kind === 'chatgpt' ? 'chatgpt' : 'claude' })],
+    ['claudeHub.promptCandidates', () => ({ candidates: FAKE_CANDIDATES, pooled: { messages: 42, history: 17 }, capped: { messages: false, history: false }, hidden: 0 })],
+    ['claudeHub.hideCandidate', WRITE],
+    ['claudePrompts.promote', (p) => { const name = (p && p.name) || fakeSlug(p && p.title) + '.md'; return { path: '40_Resources/Prompts/' + name, name, id: 'prompt:' + 'c'.repeat(40), masked: 0 }; }],
     ['claudeHub.documents', (opts) => {
       if (!(opts && opts.source === 'prompt')) return HUB_DOCS;
       const q = opts.q ? String(opts.q).toLowerCase() : '';
