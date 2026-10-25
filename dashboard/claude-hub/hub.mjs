@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
+import { contextFor } from './context.mjs';
 import { importExportFile, ingestWebConversation, ingestWebProject } from './ingest-web.mjs';
 import { parseWebConversation, parseWebProject, newReport, noteUnknown } from './parse-web.mjs';
 import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
@@ -410,6 +411,8 @@ function main() {
     listConversations: (a) => (store ? store.listConversations(a) : []),
     getConversation: (a) => (store ? store.getConversation(a) : null),
     search: (a) => (store ? store.search(a) : []),
+    // H5 Ask grounding (read-only: readers answer it too). No open index is an error, never an empty answer.
+    contextFor: (a) => { if (!store) throw new Error('the index is not open yet'); return contextFor(store, a); },
     reindex: () => { if (!writer) notOwner(); resetNext = true; progress = { done: 0, total: 0 }; runIndex(); return { started: true }; },
     // forget writes, so it takes its turn in the queue: run beside an in-flight ingest of the same transcript, it would be
     // undone by that ingest's remaining batches (they re-create the rows it removed; the tombstone is only checked on

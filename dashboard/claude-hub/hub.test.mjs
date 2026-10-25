@@ -878,3 +878,48 @@ test('syncState / syncPush: uuids, newer wins, forgotten stays forgotten, change
     assert.match((await h.req('syncPush', { items: [] })).error, /1–50 items/);
   } finally { await h.stop(); }
 });
+
+test('contextFor over stdio: a question gets cited snippets inside its budget; FTS-hostile text is fine (H5, Review Focus 1)', async () => {
+  const dir = tmp('hub-ctx-');
+  const { home } = makeClaudeHome(dir);
+  const h = startHub({ HQ_CLAUDE_HOME: home, TZ: 'UTC' }, path.join(dir, 'hub.sqlite'));
+  try {
+    assert.equal((await h.healthy()).counts.conversations, 3);
+    const r = await h.req('contextFor', { query: 'What was the placeholder release plan?', budgetChars: 3000 });
+    assert.equal(r.ok, true, r.error);
+    assert.ok(r.result.cites.includes('chat Release planning, 2026-10-01'), JSON.stringify(r.result.cites));
+    assert.ok(r.result.text.length <= 3000);
+    assert.match(r.result.text, /\n- chat "Release planning", 2026-10-01 · project-a · Claude Code\n {2}· you: Plan the placeholder release/);
+    for (const q of ['NEAR("release" OR *', '"', 'release*)', '']) {
+      const x = await h.req('contextFor', { query: q, budgetChars: 3000 });
+      assert.equal(x.ok, true, q + ': ' + x.error);
+    }
+  } finally { await h.stop(); }
+});
+
+test('contextFor: no open index → an error, never an empty answer; a broken index → its own error (H5, Review Focus 3)', async () => {
+  // a reader still waiting for the owner to create and migrate the index
+  const dir = tmp('hub-ctx-noidx-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  fs.writeFileSync(db, '');
+  const holder = standInHub(dir, db);
+  fs.writeFileSync(db + '.lock', JSON.stringify({ pid: holder.pid, db }));
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    assert.ok(await h.ready());
+    const r = await h.req('contextFor', { query: 'release', budgetChars: 2000 });
+    assert.equal(r.ok, false); assert.match(r.error, /the index is not open yet/);
+  } finally { await h.stop(); holder.kill('SIGKILL'); }
+  // a writer whose FTS table disappears underneath it
+  const dir2 = tmp('hub-ctx-broken-');
+  const { home: home2 } = makeClaudeHome(dir2);
+  const db2 = path.join(dir2, 'hub.sqlite');
+  const w = startHub({ HQ_CLAUDE_HOME: home2 }, db2);
+  try {
+    assert.equal((await w.healthy()).counts.conversations, 3);
+    const other = openStore(db2); other.db.exec('DROP TABLE message_fts'); other.close();
+    const r = await w.req('contextFor', { query: 'release', budgetChars: 2000 });
+    assert.equal(r.ok, false); assert.match(r.error, /message_fts/);
+  } finally { await w.stop(); }
+});

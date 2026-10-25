@@ -258,6 +258,18 @@ function api(db) {
         FROM message_fts JOIN message m ON m.rowid = message_fts.rowid JOIN conversation c ON c.id = m.conversation_id
         WHERE ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(...a);
     },
+    // H5 contextFor (context.mjs): the best FTS rows for an OR-of-keywords MATCH, user/assistant text only, no subagent
+    // turns, no forgotten chat. Empty snippet markers: the text goes to a model, not to a highlighter. Errors surface.
+    contextHits({ match, limit = 60 } = {}) {
+      if (!match) return [];
+      return q(`SELECT m.conversation_id AS conversationId, m.role, m.at,
+        snippet(message_fts, 0, '', '', '…', 32) AS snippet, bm25(message_fts) AS rank,
+        c.title, c.started_at AS startedAt, c.last_at AS lastAt, c.source, p.name AS projectName
+        FROM message_fts JOIN message m ON m.rowid = message_fts.rowid JOIN conversation c ON c.id = m.conversation_id
+        LEFT JOIN project p ON p.id = c.project_id
+        WHERE message_fts MATCH ? AND c.forgotten = 0 AND m.role IN ('user', 'assistant') AND m.is_sidechain = 0
+        ORDER BY rank LIMIT ?`).all(match, Math.max(1, Math.min(200, Number(limit) || 60)));
+    },
     getMeta: (key) => { const r = st.getMeta.get(key); return r ? r.value : null; },
     setMeta: (key, value) => st.setMeta.run(key, String(value)),
     setLink({ projectId, hqProjectId, state }) {
