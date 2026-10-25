@@ -1596,6 +1596,7 @@ if (!app.requestSingleInstanceLock()) {
   require('./claude-vault').init({ ipcMain, hub: claudeHub, dataDir: DATA, vaultDir: VAULT });   // Claude Hub H5: Save to vault (writes only on the owner's Save)
     require('./claude-chat').init({ ipcMain, send: castSend, app, hub: claudeHub, getProjects: studioProjects, appLog });   // Claude Hub H3 in-app chat (spec 2026-10-13 §8)
     require('./claude-import').init({ ipcMain, host: claudeHub, getWin: () => win });   // Claude Hub H4: claude.ai export import + bridge sync routes
+    require('./claude-imports').init({ ipcMain, send: castSend, dataDir: DATA });   // AI archive H6: imports drop folder watcher (asks once in v5; never writes the folder)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();

@@ -202,7 +202,8 @@ test('claudeChat fake: streams session → delta → tool → delta → done; ca
 
 test('claudeHub.importExport answers started with a basename (H4)', async () => {
   const { hq } = createFake();
-  assert.deepEqual(await hq.claudeHub.importExport(), { started: true, file: 'claude-export.zip' });
+  assert.deepEqual(await hq.claudeHub.importExport(), { started: true, file: 'claude-export.zip', kind: 'claude' });
+  assert.deepEqual(await hq.claudeHub.importExport('chatgpt'), { started: true, file: 'chatgpt-export.zip', kind: 'chatgpt' });
 });
 
 test('llm.chat: with include.claude the fake answers a Claude history section and a cited chat (H5)', async () => {

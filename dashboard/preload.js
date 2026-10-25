@@ -47,7 +47,9 @@ contextBridge.exposeInMainWorld('hq', {
     link: (id, hqId, state) => ipcRenderer.invoke('hq:claude-hub:link', id, hqId, state),
     forget: (target) => ipcRenderer.invoke('hq:claude-hub:forget', target),
     reindex: () => ipcRenderer.invoke('hq:claude-hub:reindex'),
-    importExport: () => ipcRenderer.invoke('hq:claude-hub:import'),
+    importExport: (kind, opts) => ipcRenderer.invoke('hq:claude-hub:import', kind, opts),
+    documents: (opts) => ipcRenderer.invoke('hq:claude-hub:documents', opts),
+    document: (id) => ipcRenderer.invoke('hq:claude-hub:document', id),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:claude-hub:event', handler);
@@ -58,6 +60,16 @@ contextBridge.exposeInMainWorld('hq', {
   claudeVault: {
     preview: (conversationId) => ipcRenderer.invoke('hq:claude-vault:preview', conversationId),
     save: (req) => ipcRenderer.invoke('hq:claude-vault:save', req),
+  },
+  // AI archive H6: the imports drop folder — announced once, imported only after the owner confirms
+  claudeImports: {
+    pending: () => ipcRenderer.invoke('hq:claude-imports:pending'),
+    dismiss: (dropId) => ipcRenderer.invoke('hq:claude-imports:dismiss', dropId),
+    on: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:claude-imports:event', handler);
+      return () => ipcRenderer.removeListener('hq:claude-imports:event', handler);
+    },
   },
   claudeChat: {
     send: (req) => ipcRenderer.invoke('hq:claude-chat:send', req),
