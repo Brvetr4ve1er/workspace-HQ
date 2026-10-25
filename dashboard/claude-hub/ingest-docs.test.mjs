@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openStore } from './store.mjs';
-import { parseFrontmatter, docId, syncNotes, listNoteFiles } from './ingest-docs.mjs';
-import { makeDocsHome, FOLDER } from './__fixtures__/make-docs.mjs';
+import { parseFrontmatter, docId, syncNotes, listNoteFiles, ingestHistory, syncDocs, watchDocs, HISTORY_CURSOR } from './ingest-docs.mjs';
+import { makeDocsHome, FOLDER, historyLine } from './__fixtures__/make-docs.mjs';
 
 const SECRET = 'sk-' + 'ant-' + 'A'.repeat(30);
 const setup = () => {
@@ -103,4 +103,79 @@ test('an unreadable root (EPERM, not ENOENT) keeps its indexed rows and is repor
   assert.equal(s.documentStamps('memory').size, memBefore);
   const r2 = await syncNotes(s, opts);   // root readable again: no churn
   assert.deepEqual([r2.changed, r2.removed, r2.unreadable], [[], [], []]);
+});
+
+const histSetup = () => {
+  const { dir, fx, s, opts } = setup();
+  const file = path.join(fx.home, 'history.jsonl');
+  return { dir, fx, s, opts, file };
+};
+
+test('history: each complete line is a document keyed by its byte offset, meta carries session/project/pasted', async () => {
+  const { s, fx, file } = histSetup();
+  const l1 = historyLine({ display: 'placeholder fix the lantern bug' });
+  const l2 = historyLine({ display: 'placeholder paste this ' + SECRET, pasted: true, sessionId: 'sess-2' });
+  fs.writeFileSync(file, l1 + 'not json\n' + l2);
+  const r = await ingestHistory(s, fx.home);
+  assert.equal(r.added, 2); assert.equal(r.bad, 1);
+  const off2 = Buffer.byteLength(l1 + 'not json\n');
+  assert.deepEqual(r.ids, ['history:sess-1:0', 'history:sess-2:' + off2]);
+  const d2 = s.getDocument({ id: 'history:sess-2:' + off2 });
+  assert.equal(d2.source, 'history');
+  assert.deepEqual(d2.meta, { sessionId: 'sess-2', project: 'C:\\placeholder\\project-a', pasted: true, at: '2025-10-01T12:00:00.000Z' });
+  assert.ok(!d2.text.includes(SECRET), 'masked');
+  assert.equal(s.getCursor(HISTORY_CURSOR).offset, Buffer.byteLength(l1 + 'not json\n' + l2));
+  assert.equal(s.listDocuments({ q: 'lantern' }).length, 0, 'history is not in default search');
+  assert.equal(s.listDocuments({ q: 'lantern', source: 'history' }).length, 1);
+});
+
+test('partial last line waits; truncation resets; append continues', async () => {
+  const { s, fx, file } = histSetup();
+  const a = historyLine({ display: 'placeholder one' }), b = historyLine({ display: 'placeholder two' });
+  fs.writeFileSync(file, a + b.slice(0, 20));   // a writer is mid-line
+  assert.equal((await ingestHistory(s, fx.home)).added, 1);
+  assert.equal(s.getCursor(HISTORY_CURSOR).offset, Buffer.byteLength(a), 'the cursor stops before the half line');
+  fs.appendFileSync(file, b.slice(20));
+  const r2 = await ingestHistory(s, fx.home);
+  assert.deepEqual(r2.ids, ['history:sess-1:' + Buffer.byteLength(a)], 'the finished line, once');
+  assert.equal((await ingestHistory(s, fx.home)).added, 0, 'nothing doubles');
+  const c = historyLine({ display: 'placeholder rotated' });
+  fs.writeFileSync(file, c);   // Claude Code rewrote/rotated the file: shorter than the cursor
+  const r3 = await ingestHistory(s, fx.home);
+  assert.equal(r3.reset, true);
+  assert.deepEqual(s.listDocuments({ source: 'history' }).map((d) => d.id), ['history:sess-1:0']);
+  assert.match(s.getDocument({ id: 'history:sess-1:0' }).text, /rotated/);
+  const same = historyLine({ display: 'placeholder XXXXXXX' });   // same length, different head: also a reset
+  fs.writeFileSync(file, same.replace('XXXXXXX', 'rotated'.toUpperCase()) + historyLine({ display: 'placeholder more' }));
+  assert.equal((await ingestHistory(s, fx.home)).reset, true);
+});
+
+test('history.jsonl is never written; a missing file is not an error', async () => {
+  const { s, fx, file } = histSetup();
+  assert.equal((await ingestHistory(s, fx.home)).missing, true);
+  fs.writeFileSync(file, historyLine({ display: 'placeholder keep' }));
+  const before = fs.statSync(file), bytes = fs.readFileSync(file);
+  await ingestHistory(s, fx.home); await ingestHistory(s, fx.home);
+  assert.equal(fs.statSync(file).mtimeMs, before.mtimeMs);
+  assert.deepEqual(fs.readFileSync(file), bytes);
+});
+
+test('syncDocs = notes + history; watchDocs fires once per burst and stops on close', async () => {
+  const { s, fx, opts, file } = histSetup();
+  fs.writeFileSync(file, historyLine({ display: 'placeholder via sync' }));
+  const r = await syncDocs(s, opts);
+  assert.equal(r.changed.length, 6, '5 notes + 1 history line');
+  let calls = 0;
+  const w = watchDocs(opts, () => { calls++; }, { debounceMs: 200 });
+  try {
+    fs.writeFileSync(path.join(fx.prompts, 'new-prompt.md'), '---\ntitle: New placeholder\n---\nBody');
+    fs.appendFileSync(file, historyLine({ display: 'placeholder live' }));
+    const until = Date.now() + 4000;
+    while (!calls && Date.now() < until) await new Promise((res) => setTimeout(res, 50));
+    assert.ok(calls >= 1, 'a change was noticed');
+  } finally { w.close(); }
+  const n = calls;
+  fs.writeFileSync(path.join(fx.prompts, 'after-close.md'), 'x');
+  await new Promise((res) => setTimeout(res, 600));
+  assert.equal(calls, n, 'closed watchers stay quiet');
 });

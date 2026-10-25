@@ -117,3 +117,97 @@ export async function syncNotes(store, { home, vaultDir }) {
   }
   return { changed, removed, skipped, unreadable };
 }
+
+export const HISTORY_CURSOR = 'history.jsonl';
+const HEAD_BYTES = 256;
+const SID_RE = /^[A-Za-z0-9-]{1,80}$/;
+async function headOf(file, size) {
+  const len = Math.min(HEAD_BYTES, size);
+  const fh = await fs.promises.open(file, 'r');
+  try { const b = Buffer.alloc(len); await fh.read(b, 0, len, 0); return len + ':' + sha1(b); } finally { await fh.close(); }
+}
+
+// Byte-cursor ingest of ~/.claude/history.jsonl (spec §5.2). Read-only: the file is opened 'r' and never written.
+export async function ingestHistory(store, home, { chunkSize = 1 << 20, maxLine = 8 << 20 } = {}) {
+  const file = path.join(home, 'history.jsonl');
+  const st = await fs.promises.stat(file).catch(() => null);
+  if (!st || !st.isFile()) return { added: 0, bad: 0, reset: false, ids: [], missing: true };
+  let cur = store.getCursor(HISTORY_CURSOR), reset = false;
+  if (cur) {
+    const prevLen = cur.head ? Number(String(cur.head).split(':')[0]) || 0 : 0;
+    const headNow = prevLen && st.size >= prevLen ? await headOf(file, prevLen) : null;
+    if (st.size < cur.offset || (cur.head && headNow !== cur.head)) {
+      store.tx(() => { store.removeDocuments({ source: 'history', idPrefix: 'history:' }); store.deleteCursor(HISTORY_CURSOR); });
+      cur = null; reset = true;
+    }
+  }
+  const start = cur ? cur.offset : 0;
+  if (start >= st.size) return { added: 0, bad: 0, reset, ids: [] };
+  const head = await headOf(file, st.size);
+  const ids = [];
+  let added = 0, bad = 0, offset = start, pending = Buffer.alloc(0), pendingAt = start, skipping = false;
+  const handle = (buf, at) => {
+    let o; try { o = JSON.parse(buf.toString('utf8')); } catch { bad++; return; }
+    const display = o && typeof o.display === 'string' ? o.display : '';
+    if (!display.trim()) { bad++; return; }
+    const sessionId = typeof o.sessionId === 'string' && SID_RE.test(o.sessionId) ? o.sessionId : 'nosession';
+    const project = typeof o.project === 'string' ? cutText(safe(o.project), 500) : null;
+    const at2 = typeof o.timestamp === 'number' && Number.isFinite(o.timestamp) ? new Date(o.timestamp).toISOString() : null;
+    const pasted = !!(o.pastedContents && typeof o.pastedContents === 'object' && Object.keys(o.pastedContents).length);
+    const id = 'history:' + sessionId + ':' + at;
+    const res = store.upsertDocument({ id, source: 'history', path: null, title: null, text: cutText(safe(display), TEXT_MAX),
+      projectId: null, projectPath: project, mtimeMs: null, size: buf.length, meta: { sessionId, project, pasted, at: at2 } });
+    if (res === 'added' || res === 'updated') { added++; ids.push(id); }
+  };
+  const fh = await fs.promises.open(file, 'r');
+  try {
+    let pos = start;
+    while (pos < st.size) {
+      const len = Math.min(chunkSize, st.size - pos), chunk = Buffer.alloc(len);
+      const { bytesRead } = await fh.read(chunk, 0, len, pos);
+      if (!bytesRead) break;
+      let from = 0;
+      store.tx(() => {
+        for (let i = 0; i < bytesRead; i++) {
+          if (chunk[i] !== 0x0a) continue;
+          const piece = chunk.subarray(from, i), lineAt = pendingAt;
+          const line = pending.length ? Buffer.concat([pending, piece]) : piece;
+          const body = line.length && line[line.length - 1] === 0x0d ? line.subarray(0, line.length - 1) : line;   // CRLF-safe
+          if (!skipping && body.length) handle(body, lineAt);
+          pending = Buffer.alloc(0); skipping = false;
+          from = i + 1; pendingAt = pos + from; offset = pos + from;
+        }
+        store.setCursor({ file: HISTORY_CURSOR, size: st.size, mtimeMs: st.mtimeMs, offset, head, sessionId: null });
+      });
+      const rest = chunk.subarray(from, bytesRead);
+      if (!skipping) { pending = Buffer.concat([pending, rest]); if (pending.length > maxLine) { pending = Buffer.alloc(0); skipping = true; bad++; } }
+      pos += bytesRead;
+    }
+  } finally { await fh.close(); }
+  return { added, bad, reset, ids };   // a trailing half line stays unread: the cursor sits at its start
+}
+
+export async function syncDocs(store, { home, vaultDir }) {
+  const n = await syncNotes(store, { home, vaultDir });
+  const h = home ? await ingestHistory(store, home) : { ids: [] };
+  return { changed: [...n.changed, ...h.ids], removed: n.removed };
+}
+
+export function watchDocs({ home, vaultDir }, onChange, { debounceMs = 1000 } = {}) {
+  const ws = [];
+  let timer = null, closed = false;
+  const kick = () => { if (closed) return; clearTimeout(timer); timer = setTimeout(() => { timer = null; if (!closed) onChange(); }, debounceMs); };
+  const watch = (dir, opts, ok) => {
+    try {
+      const w = fs.watch(dir, opts, (_e, name) => { if (name && ok(String(name))) kick(); });
+      w.on('error', () => { try { w.close(); } catch { /* closed */ } });   // a dead watch falls back to the Hub's sweep
+      ws.push(w);
+    } catch { /* missing folder: the sweep covers it */ }
+  };
+  if (home) {
+    watch(home, {}, (n) => n === 'history.jsonl' || n === 'CLAUDE.md');
+    watch(path.join(home, 'projects'), { recursive: true }, (n) => /^[^\\/]+[\\/]memory[\\/][^\\/]+\.md$/i.test(n));
+  }
+  if (vaultDir) watch(path.join(vaultDir, PROMPTS_REL), {}, (n) => /\.md$/i.test(n));
+  return { close() { closed = true; clearTimeout(timer); for (const w of ws) { try { w.close(); } catch { /* closed */ } } } };
+}
