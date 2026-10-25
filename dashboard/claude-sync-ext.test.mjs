@@ -231,18 +231,19 @@ function timedFetch(clock, calls, opts, hook = () => {}) {
 const four = () => ['a', 'b', 'c', 'd'].map((id, i) => chat(id, '2026-10-0' + (i + 1) + 'T00:00:00Z'));
 
 test('tick: unticking then re-ticking "on" during a run stops the old run — one reader, GETs stay ≥ 2 s apart, status ends ok', async () => {
-  const clock = vclock(), calls = [], fake = chromeFake();
+  const clock = vclock(), calls = [], fake = chromeFake(), written = [], set = fake.chrome.storage.local.set;
+  fake.chrome.storage.local.set = async (x) => { await set(x); written.push(fake.store.hq_claude.status); };
   let toggle = null, ctx = null;
   ctx = loadTick(fake, timedFetch(clock, calls, { list: four() }, (url) => {
     if (!toggle && url.includes('/chat_conversations/c?')) toggle = ctx.claudeSetOn(false).then(() => ctx.claudeSetOn(true, { sleep: clock.sleep, now: clock.now }));
   }));
   const a = ctx.claudeSyncTick({ sleep: clock.sleep, now: clock.now });
-  const [ra, rb] = await clock.run(a.then(async (x) => [x, await toggle]));
+  const [, rb] = await clock.run(a.then(async (x) => [x, await toggle]));
   assert.ok(toggle, 'the toggle ran');
   assertGaps(claudeTimes(calls));
   assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 2, 'run A stopped; run B started once');
   assert.equal(calls.filter((c) => /chat_conversations\/[a-d]\?/.test(c.url)).length, 2 + 4, 'run A read d and c, then stopped; run B read all four');
-  assert.equal(ra.on, true, 'the superseded run did not write off over the new run');
+  assert.deepEqual(written, ['syncing', 'off', 'idle', 'syncing', 'ok'], 'the superseded run wrote no status after the off switch');
   assert.equal(rb.status, 'ok'); assert.equal(rb.message, 'Synced 4 chats');
   assert.deepEqual([fake.store.hq_claude.on, fake.store.hq_claude.status, fake.store.hq_claude.running], [true, 'ok', 0]);
 });
@@ -254,6 +255,17 @@ test('tick: an alarm and a click in the same turn start one run; the click waits
   assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 1, 'the second alarm tick skipped the run in flight');
   await clock.run(Promise.all([ctx.claudeSyncTick(o), ctx.claudeSyncTick({ ...o, manual: true })]));
   assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 3, 'a manual click queues behind the run, never alongside it');
+  // "Sync claude.ai" pressed while on and mid-run: the status stays 'syncing' (no 'idle' over a run that is going)
+  const mf = chromeFake(), written = [], set = mf.chrome.storage.local.set;
+  mf.chrome.storage.local.set = async (x) => { await set(x); written.push(mf.store.hq_claude.status); };
+  let click = null;
+  const mid = loadTick(mf, timedFetch(clock, [], { list: four() }, (url) => { if (!click && url.includes('/chat_conversations/c?')) click = mid.claudeSetOn(true, o); }));
+  const first = mid.claudeSyncTick(o);
+  const second = await clock.run(first.then(() => click));
+  assert.ok(click, 'the click happened mid-run');
+  assert.ok(!written.includes('idle'), 'no idle written over a run in flight: ' + written.join(','));
+  assert.deepEqual(written, ['syncing', 'syncing', 'ok', 'syncing', 'ok']);
+  assert.equal(second.status, 'ok');
   await clock.run(ctx.claudeSyncTick({ ...o, manual: true }));   // Sync pressed right after a run ended
   assert.equal(calls.filter((c) => c.url.endsWith('/api/organizations')).length, 4);
   assertGaps(claudeTimes(calls));

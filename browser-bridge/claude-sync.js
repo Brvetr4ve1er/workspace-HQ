@@ -147,7 +147,9 @@ async function claudeSetOn(on, opts = {}) {
     await chrome.alarms.clear(CLAUDE_SYNC_ALARM);
     return claudeSetState({ on: false, status: 'off', message: CLAUDE_OFF_MSG, running: 0, nextAt: 0 });
   }
-  await claudeSetState({ on: true, status: 'idle', message: 'On — reading claude.ai…' });
+  const cur = await claudeGetState();
+  // Already on with a run going (Sync pressed mid-run): keep its 'syncing' status; the queued tick writes its own.
+  await claudeSetState(cur.on && cur.running ? { on: true } : { on: true, status: 'idle', message: 'On — reading claude.ai…' });
   chrome.alarms.create(CLAUDE_SYNC_ALARM, { periodInMinutes: CLAUDE_SYNC_PERIOD_MIN });
   return claudeSyncTick({ ...opts, manual: true });
 }
