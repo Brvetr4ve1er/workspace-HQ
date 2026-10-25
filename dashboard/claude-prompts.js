@@ -6,7 +6,8 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { PROMPTS_REL, slugify, noteName, variablesOf, promptNoteText, promptDocId } = require('./claude-prompt-note');
+const { PROMPTS_REL, slugify, noteName, variablesOf, promptNoteText, promptDocId, bodyOf, fillVariables } = require('./claude-prompt-note');
+const { PROMPT_MAX: LAUNCH_MAX } = require('./claude-launch');
 const { writeNoteAtomic } = require('./claude-vault');
 
 const NOTE_TEXT_MAX = 200000;
@@ -90,11 +91,47 @@ function sourceOf(s) {
   return { kind: s.kind, conversation, at };
 }
 
-function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {}, log = () => {}, now = () => new Date() }) {
+// ---- P3 run (spec 2026-10-15 §6.3, §6.4). The only URLs a run ever opens are these two literals (spec §2).
+const RUN_TARGETS = ['chat', 'terminal', 'claude.ai', 'chatgpt'];
+const RUN_MODES = ['read-only', 'edits'];
+const OPEN_URLS = Object.freeze({ 'claude.ai': 'https://claude.ai/new', chatgpt: 'https://chatgpt.com/' });
+
+function titleOf(src, fileName) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(String(src == null ? '' : src).replace(/^﻿/, ''));
+  const t = m && /^title:[ \t]*(.+)$/m.exec(m[1]);
+  let s = t ? t[1].trim() : '';
+  if (/^".*"$/.test(s)) { try { s = JSON.parse(s); } catch { s = s.slice(1, -1); } } else if (/^'.*'$/.test(s)) s = s.slice(1, -1);
+  return (String(s).trim() || String(fileName).replace(/\.md$/i, '')).slice(0, 200);
+}
+
+function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {}, log = () => {}, now = () => new Date(), hub = null, chat = null, getProjects = () => [], launch = () => false, clipboard = null, watch = () => () => {}, turnPollMs = 5000 }) {
   const vaultName = vaultDir ? path.basename(path.resolve(vaultDir)) : null;
   const dry = () => env.HQ_DRY_LAUNCH === '1';
   const hasObsidian = () => { try { return !!protocolName('obsidian://'); } catch { return false; } };
   const why = (e) => String((e && e.message) || e).slice(0, 300);
+  async function recordUse(promptId, target, projectId) {
+    if (!hub || typeof hub.request !== 'function') return 'not recorded: Claude Hub is not running';
+    try {
+      const u = await hub.request('promptUse', { promptId, target, projectId: projectId || null }, { timeout: 5000 });
+      return u === true ? 'recorded' : 'not recorded: ' + String((u && u.error) || 'no answer from the Hub').slice(0, 200);
+    } catch (e) { return 'not recorded: ' + why(e); }
+  }
+  async function loadPrompt(id) {
+    const realDir = await resolvePromptsDir(vaultDir);
+    if (!realDir) return { error: `No prompts folder yet — create ${vaultName}/${PROMPTS_REL.join('/')}` };
+    const hit = findPromptFile(vaultDir, realDir, id);
+    if (!hit) return { error: 'that prompt note is not in the Prompts folder (moved, renamed or deleted?)' };
+    const real = await fsp.realpath(hit.file);
+    if (!same(path.dirname(real), realDir)) return { error: 'that note leads outside the Prompts folder — refusing' };
+    const st = await fsp.stat(real);
+    if (st.size > NOTE_TEXT_MAX * 4) return { error: 'that prompt note is too large to run' };
+    const src = await fsp.readFile(real, 'utf8');
+    return { name: hit.name, src, title: titleOf(src, hit.name) };
+  }
+  async function sendChat(req, sender) {   // Task 5 binds the turn to the asking window
+    if (!chat || typeof chat.send !== 'function') return { error: 'the chat engine is not running' };
+    return { error: 'chat runs land in the next step' };
+  }
   return {
     async status() {
       const folder = { exists: false };
@@ -151,6 +188,51 @@ function createPrompts({ vaultDir, openExternal, openPath, protocolName, env = {
         return { path: PROMPTS_REL.join('/') + '/' + r.name, name: r.name, id, masked: body.hits + title.hits };
       } catch (e) { return { error: why(e) }; }
     },
+
+    async run(req, { sender = null } = {}) {
+      try {
+        const r = req && typeof req === 'object' && !Array.isArray(req) ? req : {};
+        const target = r.target;
+        if (typeof target !== 'string' || !RUN_TARGETS.includes(target)) return { error: 'a prompt runs only in Chat, a Terminal, or as a copy for claude.ai / ChatGPT' };
+        const mode = r.mode === undefined || r.mode === null ? 'read-only' : r.mode;
+        if (target === 'chat' && !RUN_MODES.includes(mode)) return { error: 'unknown chat mode (read-only or edits)' };
+        const note = await loadPrompt(r.promptId);
+        if (note.error) return note;
+        let proj = null;
+        if (r.projectId !== undefined && r.projectId !== null) {
+          proj = (getProjects() || []).find((p) => p && p.id === r.projectId) || null;
+          if (!proj) return { error: 'unknown project — pick one from the list' };
+        }
+        if ((target === 'chat' || target === 'terminal') && !proj) return { error: 'pick a project — a Chat or Terminal run starts in its folder' };
+        const f = fillVariables(bodyOf(note.src), r.vars, proj ? { project: proj.name, cwd: proj.path } : {});
+        if (f.error) return { error: f.error };
+        if (f.missing.length) return { error: 'fill in ' + f.missing.map((n) => '{{' + n + '}}').join(', '), missing: f.missing };
+        const text = f.text.replace(/\s+$/, '');   // the note body ends with a newline; nothing else is trimmed
+        if (!text.trim()) return { error: 'that prompt note has no text' };
+        const out = { ok: true, target, title: note.title };
+        if (target === 'chat') {
+          const sent = await sendChat({ projectId: proj.id, text, mode }, sender);
+          if (sent.error) return { error: sent.error };
+          Object.assign(out, sent);
+        } else if (target === 'terminal') {
+          // claude-launch.js passes the seed on ONE cmd line: it flattens newlines and cuts at its PROMPT_MAX (500).
+          // A silent cut would run a different prompt than the note — refuse instead and say where it fits.
+          if (text.length > LAUNCH_MAX) return { error: `this prompt is ${text.length} characters — a Terminal run takes at most ${LAUNCH_MAX} (one command line); use Chat or a copy target` };
+          if (!launch(proj.path, text)) return { error: 'the terminal did not start (folder gone, or the Claude launcher is missing)' };
+          if (dry()) out.dry = true;
+        } else if (dry()) {
+          log(`[dry-copy] ${target} ${text.length} chars`);
+          out.dry = true;
+        } else {
+          if (!clipboard || typeof clipboard.writeText !== 'function') return { error: 'no clipboard in this window' };
+          clipboard.writeText(text);
+          try { await openExternal(OPEN_URLS[target]); } catch (e) { return { error: 'copied, but the browser did not open: ' + why(e) }; }
+        }
+        out.usage = await recordUse(r.promptId, target, proj ? proj.id : null);
+        log(`[prompts] run ${target} ${note.name} ${text.length} chars, usage ${out.usage === 'recorded' ? 'recorded' : 'not recorded'}`);
+        return out;
+      } catch (e) { return { error: why(e) }; }
+    },
   };
 }
 
@@ -164,4 +246,4 @@ function init({ ipcMain, app, shell, vaultDir, env = process.env, log = console.
   return p;
 }
 
-module.exports = { NOTE_TEXT_MAX, PROMOTE_TEXT_MAX, SOURCE_KINDS, sourceOf, resolvePromptsDir, writePromptNote, obsidianUrl, findPromptFile, createPrompts, init };
+module.exports = { NOTE_TEXT_MAX, PROMOTE_TEXT_MAX, SOURCE_KINDS, sourceOf, resolvePromptsDir, writePromptNote, obsidianUrl, findPromptFile, createPrompts, init, RUN_TARGETS, RUN_MODES, OPEN_URLS, titleOf };

@@ -264,3 +264,93 @@ test('init registers hq:claude-prompts:promote; junk input becomes {} and answer
   const ok = await h['hq:claude-prompts:promote']({}, { text: 'Placeholder via ipc', title: 'Via IPC' });
   assert.equal(ok.name, 'via-ipc.md');
 });
+
+// ---- P3 run (spec 2026-10-15 §6.3, §6.4, §2 external links). Temp vaults only; placeholder text only.
+function p3Vault(body = 'Review {{file}} in {{project}} at {{cwd}}.') {
+  const v = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-p3-vault-'));
+  const dir = path.join(v, '40_Resources', 'Prompts'); fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'review-a-pr.md');
+  fs.writeFileSync(file, ['---', 'title: "Review a PR: placeholder"', 'variables: [file]', '---', body, ''].join('\n'));
+  return { v, dir, file, id: note.promptDocId(file) };
+}
+const P3_PROJ = (root) => [{ id: 'project-a', name: 'Placeholder project', path: root }];
+function p3Make(vaultDir, o = {}) {
+  const logs = [], ext = [], clip = [], launches = [], uses = [];
+  const hub = { request: async (op, args) => { uses.push([op, args]); return o.hubAnswer !== undefined ? o.hubAnswer : true; } };
+  const p = prompts.createPrompts({ vaultDir, env: o.env || {}, log: (s) => logs.push(s), now: () => new Date('2026-10-25T10:00:00Z'),
+    openExternal: async (u) => { if (o.openFails) throw new Error('no browser'); ext.push(u); }, openPath: async () => '', protocolName: () => '',
+    hub: o.noHub ? null : hub, getProjects: () => P3_PROJ(o.projRoot || vaultDir),
+    launch: (cwd, text) => { launches.push([cwd, text]); return o.launchOk !== false; },
+    clipboard: { writeText: (t) => clip.push(t) }, ...(o.extra || {}) });
+  return { p, logs, ext, clip, launches, uses };
+}
+
+test('run target whitelist: only four targets; only the two literal URLs; dry mode writes no clipboard', async () => {
+  const fx = p3Vault();
+  const m = p3Make(fx.v);
+  for (const target of ['https://evil.example', 'claude.ai ', 'CHAT', 'obsidian', '', null, 42])
+    assert.match((await m.p.run({ promptId: fx.id, target, vars: { file: 'a.js' }, projectId: 'project-a' })).error, /runs only in Chat, a Terminal/);
+  const a = await m.p.run({ promptId: fx.id, target: 'claude.ai', vars: { file: 'a.js' }, projectId: 'project-a', url: 'https://evil.example' });
+  assert.equal(a.ok, true); assert.equal(a.target, 'claude.ai'); assert.equal(a.title, 'Review a PR: placeholder');
+  const b = await m.p.run({ promptId: fx.id, target: 'chatgpt', vars: { file: 'b.js' }, projectId: 'project-a' });
+  assert.equal(b.ok, true);
+  assert.deepEqual(m.ext, ['https://claude.ai/new', 'https://chatgpt.com/'], 'only the literal constants are ever opened');
+  assert.deepEqual(m.clip, [`Review a.js in Placeholder project at ${fx.v}.`, `Review b.js in Placeholder project at ${fx.v}.`]);
+  assert.ok(Object.isFrozen(prompts.OPEN_URLS));
+  // dry mode: nothing copied, nothing opened, a log line without the text
+  const d = p3Make(fx.v, { env: { HQ_DRY_LAUNCH: '1' } });
+  const r = await d.p.run({ promptId: fx.id, target: 'chatgpt', vars: { file: 'secret-ish.js' }, projectId: 'project-a' });
+  assert.equal(r.ok, true); assert.equal(r.dry, true);
+  assert.deepEqual(d.clip, []); assert.deepEqual(d.ext, []);
+  assert.ok(d.logs.some((l) => /^\[dry-copy\] chatgpt \d+ chars$/.test(l)), d.logs.join('\n'));
+  assert.ok(!d.logs.join('\n').includes('secret-ish'), 'logs never carry prompt text');
+});
+
+test('usage is recorded only after the target succeeded; a reader hub says not recorded', async () => {
+  const fx = p3Vault();
+  const ok = p3Make(fx.v);
+  const r = await ok.p.run({ promptId: fx.id, target: 'terminal', vars: { file: 'a.js' }, projectId: 'project-a' });
+  assert.equal(r.ok, true); assert.equal(r.usage, 'recorded');
+  assert.deepEqual(ok.launches, [[fx.v, `Review a.js in Placeholder project at ${fx.v}.`]]);
+  assert.deepEqual(ok.uses, [['promptUse', { promptId: fx.id, target: 'terminal', projectId: 'project-a' }]]);
+  // failed targets write no usage
+  const noTerm = p3Make(fx.v, { launchOk: false });
+  assert.match((await noTerm.p.run({ promptId: fx.id, target: 'terminal', vars: { file: 'a' }, projectId: 'project-a' })).error, /terminal did not start/);
+  const noBrowser = p3Make(fx.v, { openFails: true });
+  assert.match((await noBrowser.p.run({ promptId: fx.id, target: 'claude.ai', vars: { file: 'a' }, projectId: 'project-a' })).error, /copied, but the browser did not open/);
+  assert.deepEqual([...noTerm.uses, ...noBrowser.uses], []);
+  // the launcher cuts at 500 chars on one line — a longer filled prompt is refused, never silently cut
+  const long = await ok.p.run({ promptId: fx.id, target: 'terminal', vars: { file: 'f'.repeat(600) }, projectId: 'project-a' });
+  assert.match(long.error, /a Terminal run takes at most 500/);
+  assert.equal(ok.launches.length, 1, 'nothing launched for the long prompt'); assert.equal(ok.uses.length, 1);
+  // a reader / stopped hub never fails the run, and says so
+  const reader = p3Make(fx.v, { hubAnswer: { error: 'read-only hub (another WorkspaceHQ owns the index)' } });
+  const rr = await reader.p.run({ promptId: fx.id, target: 'claude.ai', vars: { file: 'a' }, projectId: 'project-a' });
+  assert.equal(rr.ok, true); assert.equal(rr.usage, 'not recorded: read-only hub (another WorkspaceHQ owns the index)');
+  const none = p3Make(fx.v, { noHub: true });
+  assert.equal((await none.p.run({ promptId: fx.id, target: 'claude.ai', vars: { file: 'a' }, projectId: 'project-a' })).usage, 'not recorded: Claude Hub is not running');
+});
+
+test('run refuses unknown notes, missing fields and missing projects before anything is sent', async () => {
+  const fx = p3Vault();
+  const m = p3Make(fx.v);
+  const base = { promptId: fx.id, target: 'claude.ai', vars: { file: 'a.js' }, projectId: 'project-a' };
+  assert.match((await m.p.run({ ...base, promptId: 'prompt:' + 'f'.repeat(40) })).error, /not in the Prompts folder/);
+  assert.match((await m.p.run({ ...base, promptId: '..\\..\\x' })).error, /not in the Prompts folder/);
+  const miss = await m.p.run({ ...base, vars: {} });
+  assert.deepEqual(miss.missing, ['file']); assert.match(miss.error, /fill in \{\{file\}\}/);
+  assert.deepEqual((await m.p.run({ ...base, projectId: undefined })).missing, ['project', 'cwd']);
+  assert.match((await m.p.run({ ...base, projectId: 'nope' })).error, /unknown project/);
+  assert.match((await m.p.run({ ...base, target: 'terminal', projectId: undefined, vars: { file: 'a' } })).error, /pick a project/);
+  assert.match((await m.p.run({ ...base, vars: { file: 'x'.repeat(4001) } })).error, /over 4 000 characters/);
+  assert.match((await p3Make(path.join(fx.v, 'missing')).p.run(base)).error, /No prompts folder yet|vault folder was not found/);
+  assert.deepEqual([m.clip, m.ext, m.launches, m.uses], [[], [], [], []], 'nothing was sent');
+  // a body without variables needs no project for the copy targets
+  const plain = p3Vault('Plain placeholder prompt.');
+  const pm = p3Make(plain.v);
+  assert.equal((await pm.p.run({ promptId: plain.id, target: 'chatgpt' })).ok, true);
+  assert.deepEqual(pm.uses[0][1], { promptId: plain.id, target: 'chatgpt', projectId: null });
+  // the title falls back to the file name
+  assert.equal(prompts.titleOf('no frontmatter', 'weekly-notes.md'), 'weekly-notes');
+  assert.equal(prompts.titleOf("---\ntitle: 'Quoted'\n---\nx", 'a.md'), 'Quoted');
+});
