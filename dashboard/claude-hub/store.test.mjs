@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openStore, ftsQuery, SNIP_START, SNIP_END, SCHEMA_VERSION } from './store.mjs';
+import { makeV1Db } from './__fixtures__/make-v1-db.mjs';
 
 const tmpDb = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hub-store-')), 'hub.sqlite');
 const seed = (s) => {
@@ -107,7 +108,7 @@ test('listConversations hides empty and forgotten chats, newest first, with coun
   s.ensureConversation({ id: 'code:s3', source: 'code', projectId: 'code:C--p-a', nativeId: 's3' });
   s.addMessages('code:s3', [msg(9, '2026-10-02T10:00:00.000Z', 'new')]);
   assert.deepEqual(s.listConversations({}).map((c) => c.id), ['code:s3', 'code:s1']);
-  assert.deepEqual(s.counts(), { projects: 1, conversations: 2, messages: 2 });
+  assert.deepEqual(s.counts(), { projects: 1, conversations: 2, messages: 2, documents: 0 });
   assert.equal(s.listProjects({})[0].conversations, 2);
 });
 
@@ -118,7 +119,7 @@ test('readOnly opens an existing db for reading and refuses writes', () => {
   w.close();
   const r = openStore(f, { readOnly: true });
   assert.equal(r.search({ q: 'readable' }).length, 1);
-  assert.deepEqual(r.counts(), { projects: 1, conversations: 1, messages: 1 });
+  assert.deepEqual(r.counts(), { projects: 1, conversations: 1, messages: 1, documents: 0 });
   assert.deepEqual({ ...r.getCursor('a.jsonl') }, { file: 'a.jsonl', size: 10, mtime_ms: 1234, offset: 10, head: 'h', session_id: 's1' });
   assert.throws(() => r.addMessages('code:s1', [msg(2, '2026-10-01T10:01:00.000Z', 'nope')]), /readonly/i);
   r.close();
@@ -267,5 +268,63 @@ test('web_sync helpers, setProjectName, syncState', () => {
   s.addMessages('web:u3', [{ id: 'web:u3:m', role: 'user', at: '2026-10-01T00:00:00.000Z', text: 'hi' }]);
   s.forget({ conversationId: 'web:u3' });
   assert.deepEqual(s.syncState(), { conversations: { u1: '2026-10-02T00:00:00.000Z', u2: null }, projects: { p1: '2026-09-01T00:00:00.000Z' }, forgotten: ['u3'] });
+  s.close();
+});
+
+test('a populated schema-1 db migrates in place to 2; every v1 row, cursor, tombstone and FTS hit survives', () => {
+  const file = makeV1Db(tmpDb());
+  const s = openStore(file);
+  assert.equal(SCHEMA_VERSION, 2);
+  assert.equal(s.getMeta('schema_version'), '2');
+  assert.equal(s.getMeta('index_version'), '2', 'the code index is not rebuilt by the schema bump');
+  assert.deepEqual(s.counts(), { projects: 1, conversations: 1, messages: 2, documents: 0 });
+  assert.equal(s.search({ q: 'lanterns' }).length, 1, 'message_fts still answers');
+  assert.equal(s.getCursor('C--placeholder-project-a\\s1.jsonl').offset, 123);
+  assert.equal(s.isTombstoned('conversation', 'code:gone'), true);
+  assert.equal(s.getSync('conversation', 'web-uuid-1').updated_at, '2026-10-01T00:00:00Z');
+  assert.equal(s.listProjects({})[0].link_state, 'confirmed');
+  s.close();
+  const again = openStore(file);   // a second open is a no-op
+  assert.equal(again.getMeta('schema_version'), '2');
+  assert.deepEqual(again.counts(), { projects: 1, conversations: 1, messages: 2, documents: 0 });
+  again.close();
+});
+
+test('a db stamped newer than this app is refused BEFORE any DDL runs on it', () => {
+  const file = makeV1Db(tmpDb(), { schemaVersion: '3' });
+  assert.throws(() => openStore(file), /newer WorkspaceHQ \(schema 3\)/);
+  const db = new DatabaseSync(file, { readOnly: true });
+  assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'document'").get(), undefined, 'nothing was created');
+  db.close();
+});
+
+test('documents: upsert is idempotent, FTS + snippet, history hidden unless asked, forget tombstones', () => {
+  const s = openStore(':memory:');
+  const d = { id: 'memory:aa', source: 'memory', path: 'C:\\h\\.claude\\projects\\p\\memory\\a.md', title: 'Placeholder lantern note',
+    text: 'the lantern keeper placeholder', projectId: 'code:p', projectPath: 'C:\\placeholder\\p', mtimeMs: 1, size: 10, meta: { type: 'user' } };
+  assert.equal(s.upsertDocument(d), 'added');
+  assert.equal(s.upsertDocument({ ...d, mtimeMs: 2 }), 'unchanged', 'stamps only');
+  assert.equal(s.upsertDocument({ ...d, text: 'the lantern keeper placeholder, edited', mtimeMs: 3 }), 'updated');
+  assert.equal(s.upsertDocument({ id: 'history:s1:0', source: 'history', path: null, title: null, text: 'lantern from history',
+    projectId: null, projectPath: 'C:\\placeholder\\p', mtimeMs: null, size: null, meta: { sessionId: 's1', pasted: false } }), 'added');
+  const hits = s.listDocuments({ q: 'lantern' });
+  assert.deepEqual(hits.map((r) => r.id), ['memory:aa'], 'history rows are the harvest pool, not search results');
+  assert.ok(hits[0].snippet.includes(SNIP_START) && hits[0].snippet.includes(SNIP_END));
+  assert.equal(s.listDocuments({ q: 'lantern', source: 'history' }).length, 1);
+  assert.deepEqual(s.listDocuments({ q: '!!!' }), []);
+  assert.equal(s.listDocuments({ q: 'edited' }).length, 1, 'the update reached the FTS index');
+  assert.equal(s.listDocuments({ q: 'keeper placeholder' }).length, 1);
+  const got = s.getDocument({ id: 'memory:aa' });
+  assert.deepEqual(got.meta, { type: 'user' });
+  assert.equal(got.text, 'the lantern keeper placeholder, edited');
+  assert.equal(s.documentStamps('memory').get('memory:aa').mtime_ms, 3);
+  assert.equal(s.counts().documents, 2);
+  assert.equal(s.forget({ documentId: 'memory:aa' }), true);
+  assert.equal(s.forget({ documentId: 'memory:aa' }), false);
+  assert.equal(s.getDocument({ id: 'memory:aa' }), null);
+  assert.equal(s.listDocuments({ q: 'edited' }).length, 0, 'FTS row gone too');
+  assert.equal(s.upsertDocument(d), 'forgotten', 'a forgotten document is never re-indexed');
+  assert.equal(s.removeDocuments({ source: 'history', idPrefix: 'history:' }), 1);
+  assert.equal(s.counts().documents, 0);
   s.close();
 });

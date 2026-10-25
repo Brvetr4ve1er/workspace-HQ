@@ -531,7 +531,7 @@ test('a missing transcripts root: the Hub runs and health says why it holds noth
   const h = startHub({ HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '300' }, path.join(dir, 'hub.sqlite'));
   try {
     const health = await h.healthy();
-    assert.equal(health.role, 'writer'); assert.deepEqual(health.counts, { projects: 0, conversations: 0, messages: 0 });
+    assert.equal(health.role, 'writer'); assert.deepEqual(health.counts, { projects: 0, conversations: 0, messages: 0, documents: 0 });
     assert.match(health.lastError, /no transcripts root at .*projects/);
     assert.equal(h.p.exitCode, null);
 
@@ -579,7 +579,7 @@ test('reindex requested while a long backfill is running restarts it cleanly: no
     const replies = await Promise.all([h.req('reindex'), h.req('reindex'), h.req('reindex')]);
     for (const r of replies) assert.deepEqual(r.result, { started: true });
     const done = await h.healthy(30000);
-    assert.deepEqual(done.counts, { projects: 3, conversations: 153, messages: 155 });   // 5 fixture messages + 150 bulk, each exactly once
+    assert.deepEqual(done.counts, { projects: 3, conversations: 153, messages: 155, documents: 0 });   // 5 fixture messages + 150 bulk, each exactly once
     assert.deepEqual(done.backfill, { done: 153, total: 153 });
     assert.equal(done.lastError, null);
     assert.deepEqual(h.events.filter((e) => e.event === 'error'), []);
@@ -675,7 +675,7 @@ test('forget of a project landing mid-ingest of one of its transcripts stays for
   await forgetMidStream({ projectId: 'code:C--placeholder-project-a' }, async (h, done) => {
     assert.deepEqual((await h.req('listConversations', { limit: 10 })).result.map((c) => c.id), ['code:sess-b1']);
     assert.deepEqual((await h.req('listProjects')).result.map((p) => p.id), ['code:C--placeholder-project-b'], 'the project row is not re-created either');
-    assert.deepEqual(done.counts, { projects: 1, conversations: 1, messages: 1 });
+    assert.deepEqual(done.counts, { projects: 1, conversations: 1, messages: 1, documents: 0 });
   });
 });
 

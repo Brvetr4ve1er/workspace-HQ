@@ -76,7 +76,7 @@ test('a bad or wrong ZIP: honest error, nothing left in tmp', async () => {
   const other = path.join(d, 'other.zip'); zipFiles(other, [{ name: 'users.json', data: '[]' }]);
   await assert.rejects(importExportFile(s, other, { tmpRoot }), /neither conversations\.json nor projects\.json/);
   assert.deepEqual(fs.readdirSync(tmpRoot), []);
-  assert.deepEqual(s.counts(), { projects: 0, conversations: 0, messages: 0 });
+  assert.deepEqual(s.counts(), { projects: 0, conversations: 0, messages: 0, documents: 0 });
   s.close();
 });
 

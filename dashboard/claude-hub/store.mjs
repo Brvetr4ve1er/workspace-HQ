@@ -4,7 +4,7 @@
 // node:sqlite binds numbers/strings/null only — booleans become 0/1, undefined → null.
 import { DatabaseSync } from 'node:sqlite';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const SNIP_START = '\u0002';
 export const SNIP_END = '\u0003';
 const ACTIVE_GAP_MS = 5 * 60 * 1000;
@@ -40,6 +40,20 @@ CREATE TABLE IF NOT EXISTS ingest_cursor(file TEXT PRIMARY KEY, size INTEGER NOT
   offset INTEGER NOT NULL, head TEXT, session_id TEXT);
 CREATE TABLE IF NOT EXISTS web_sync(kind TEXT NOT NULL, native_id TEXT NOT NULL, updated_at TEXT, PRIMARY KEY(kind, native_id));
 CREATE TABLE IF NOT EXISTS tombstone(kind TEXT NOT NULL, native_id TEXT NOT NULL, at TEXT, PRIMARY KEY(kind, native_id));
+CREATE TABLE IF NOT EXISTS document(id TEXT PRIMARY KEY, source TEXT NOT NULL, path TEXT, title TEXT, text TEXT NOT NULL DEFAULT '',
+  project_id TEXT, project_path TEXT, mtime_ms INTEGER, size INTEGER, meta TEXT);
+CREATE INDEX IF NOT EXISTS document_source ON document(source, mtime_ms);
+CREATE VIRTUAL TABLE IF NOT EXISTS document_fts USING fts5(title, text, content='document', content_rowid='rowid',
+  tokenize='unicode61 remove_diacritics 2');
+CREATE TRIGGER IF NOT EXISTS document_ai AFTER INSERT ON document BEGIN
+  INSERT INTO document_fts(rowid, title, text) VALUES (new.rowid, coalesce(new.title, ''), new.text); END;
+CREATE TRIGGER IF NOT EXISTS document_ad AFTER DELETE ON document BEGIN
+  INSERT INTO document_fts(document_fts, rowid, title, text) VALUES ('delete', old.rowid, coalesce(old.title, ''), old.text); END;
+CREATE TRIGGER IF NOT EXISTS document_au AFTER UPDATE OF title, text ON document BEGIN
+  INSERT INTO document_fts(document_fts, rowid, title, text) VALUES ('delete', old.rowid, coalesce(old.title, ''), old.text);
+  INSERT INTO document_fts(rowid, title, text) VALUES (new.rowid, coalesce(new.title, ''), new.text); END;
+CREATE TABLE IF NOT EXISTS prompt_use(prompt_id TEXT NOT NULL, at TEXT NOT NULL, target TEXT NOT NULL, project_id TEXT, conversation_id TEXT);
+CREATE INDEX IF NOT EXISTS prompt_use_prompt ON prompt_use(prompt_id, at);
 `;
 
 export function ftsQuery(q) {
@@ -48,11 +62,19 @@ export function ftsQuery(q) {
   return terms.slice(0, 8).map((t) => '"' + t + '"*').join(' ');   // every term prefix-matches
 }
 
+// Schema 1 → 2 is purely additive (new tables), so the migration is the CREATE IF NOT EXISTS script plus the stamp, in one
+// transaction. The version is read FIRST: a newer db is refused before any DDL touches it.
 function migrate(db) {
-  db.exec(SCHEMA);
-  const row = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
-  if (!row) db.prepare("INSERT INTO meta(key, value) VALUES ('schema_version', ?)").run(String(SCHEMA_VERSION));
-  else if (Number(row.value) > SCHEMA_VERSION) throw new Error('hub.sqlite is from a newer WorkspaceHQ (schema ' + row.value + ')');
+  const hasMeta = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'").get();
+  const row = hasMeta ? db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() : undefined;
+  if (row && Number(row.value) > SCHEMA_VERSION) throw new Error('hub.sqlite is from a newer WorkspaceHQ (schema ' + row.value + ')');
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(SCHEMA);
+    if (!row) db.prepare("INSERT INTO meta(key, value) VALUES ('schema_version', ?)").run(String(SCHEMA_VERSION));
+    else if (Number(row.value) < SCHEMA_VERSION) db.prepare("UPDATE meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION));
+    db.exec('COMMIT');
+  } catch (e) { try { db.exec('ROLLBACK'); } catch { /* not in a transaction */ } throw e; }
 }
 
 export function openStore(file, { readOnly = false, indexVersion = null } = {}) {
@@ -191,6 +213,12 @@ function api(db) {
     forget(target) {
       return tx(() => {
         const now = new Date().toISOString();
+        if (target && typeof target.documentId === 'string' && target.documentId) {
+          const r = q('DELETE FROM document WHERE id = ?').run(target.documentId);
+          if (!r.changes) return false;
+          st.tomb.run('document', target.documentId, now);
+          return true;
+        }
         if (target && target.conversationId) {
           const c = st.getConv.get(target.conversationId);
           if (!c) return false;
@@ -206,7 +234,7 @@ function api(db) {
         return false;
       });
     },
-    counts: () => ({ projects: st.countP.get().c, conversations: st.countC.get().c, messages: st.countM.get().c }),
+    counts: () => ({ projects: st.countP.get().c, conversations: st.countC.get().c, messages: st.countM.get().c, documents: q('SELECT COUNT(*) AS c FROM document').get().c }),
     listProjects({ source } = {}) {
       const where = source ? 'WHERE p.source = ?' : '';
       return q(`SELECT p.*, COUNT(c.id) AS conversations, MAX(c.last_at) AS last_at FROM project p
@@ -272,6 +300,45 @@ function api(db) {
     },
     getMeta: (key) => { const r = st.getMeta.get(key); return r ? r.value : null; },
     setMeta: (key, value) => st.setMeta.run(key, String(value)),
+    upsertDocument({ id, source, path: p = null, title = null, text = '', projectId = null, projectPath = null, mtimeMs = null, size = null, meta = null }) {
+      if (st.isTomb.get('document', id)) return 'forgotten';
+      const m = meta == null ? null : JSON.stringify(meta);
+      const prev = q('SELECT path, title, text, project_id, project_path, meta FROM document WHERE id = ?').get(id);
+      if (prev && prev.path === n(p) && prev.title === n(title) && prev.text === String(text) && prev.project_id === n(projectId)
+        && prev.project_path === n(projectPath) && prev.meta === m) {
+        q('UPDATE document SET mtime_ms = ?, size = ? WHERE id = ?').run(n(mtimeMs), n(size), id);
+        return 'unchanged';
+      }
+      q(`INSERT INTO document(id, source, path, title, text, project_id, project_path, mtime_ms, size, meta) VALUES (?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET source = excluded.source, path = excluded.path, title = excluded.title, text = excluded.text,
+        project_id = excluded.project_id, project_path = excluded.project_path, mtime_ms = excluded.mtime_ms, size = excluded.size, meta = excluded.meta`)
+        .run(id, source, n(p), n(title), String(text), n(projectId), n(projectPath), n(mtimeMs), n(size), m);
+      return prev ? 'updated' : 'added';
+    },
+    removeDocument: (id) => q('DELETE FROM document WHERE id = ?').run(id).changes > 0,
+    removeDocuments: ({ source, idPrefix }) => q("DELETE FROM document WHERE source = ? AND substr(id, 1, length(?)) = ?").run(source, idPrefix, idPrefix).changes,
+    documentStamps: (source) => new Map(q('SELECT id, path, mtime_ms, size FROM document WHERE source = ?').all(source).map((r) => [r.id, { path: r.path, mtime_ms: r.mtime_ms, size: r.size }])),
+    listDocuments({ source, projectId, q: query, limit = 50 } = {}) {
+      const lim = Math.max(1, Math.min(200, Number(limit) || 50));
+      const cols = "d.id, d.source, d.path, d.title, d.project_id, d.project_path, d.mtime_ms, d.size, json_extract(d.meta, '$.origin') AS origin";
+      const w = [], a = [];
+      if (source) { w.push('d.source = ?'); a.push(source); } else w.push("d.source <> 'history'");
+      if (projectId) { w.push('d.project_id = ?'); a.push(projectId); }
+      if (query !== undefined && query !== null && String(query).trim() !== '') {
+        const m = ftsQuery(query);
+        if (!m) return [];
+        // errors surface (same reasoning as search): a failing MATCH must not look like "no documents"
+        return q(`SELECT ${cols}, snippet(document_fts, 1, '${SNIP_START}', '${SNIP_END}', '…', 12) AS snippet, bm25(document_fts) AS rank
+          FROM document_fts JOIN document d ON d.rowid = document_fts.rowid WHERE document_fts MATCH ? AND ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(m, ...a, lim);
+      }
+      return q(`SELECT ${cols} FROM document d WHERE ${w.join(' AND ')} ORDER BY d.mtime_ms DESC, d.id DESC LIMIT ?`).all(...a, lim);
+    },
+    getDocument({ id } = {}) {
+      const r = typeof id === 'string' ? q('SELECT id, source, path, title, text, project_id, project_path, mtime_ms, size, meta FROM document WHERE id = ?').get(id) : null;
+      if (!r) return null;
+      let meta = null; try { meta = r.meta ? JSON.parse(r.meta) : null; } catch { meta = null; }
+      return { ...r, meta };
+    },
     setLink({ projectId, hqProjectId, state }) {
       if (!['auto', 'confirmed', 'none', 'rejected'].includes(state)) throw new Error('link: bad state');
       const keep = state === 'auto' || state === 'confirmed';
