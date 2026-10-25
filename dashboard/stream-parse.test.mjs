@@ -4,7 +4,7 @@
 // malformed lines, CRLF, protocol-event filtering.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseChunk } from './stream-parse.js';
+import { parseChunk, parseEvents } from './stream-parse.js';
 
 const line = (obj) => JSON.stringify(obj) + '\n';
 const assistant = (...content) => ({ type: 'assistant', message: { id: 'msg_1', role: 'assistant', content } });
@@ -153,4 +153,56 @@ test('trailing unterminated line flushes when fed a bare newline (end-of-process
   const r2 = parseChunk(r1.rest, '\n');
   assert.equal(r2.text, tail + '\n');
   assert.equal(r2.rest, '');
+});
+
+const J = (o) => JSON.stringify(o);
+const SID = '0f8fad5b-d9cb-469f-a165-70867728950e';
+const delta = (text) => J({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } });
+
+test('parseEvents: init, deltas, tool, result — text exactly once even though assistant repeats it', () => {
+  const lines = [
+    J({ type: 'system', subtype: 'init', session_id: SID, cwd: 'C:\placeholder\project-a' }),
+    J({ type: 'stream_event', event: { type: 'message_start', message: {} } }),
+    delta('Hello'), delta(' world'),
+    J({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'hmm' } } }),
+    J({ type: 'assistant', message: { content: [{ type: 'text', text: 'Hello world' }, { type: 'tool_use', name: 'Read', input: { file_path: 'C:\placeholder\project-a\README.md' } }] } }),
+    J({ type: 'user', message: { content: [{ type: 'tool_result', content: 'file text' }] } }),
+    J({ type: 'result', subtype: 'success', is_error: false, session_id: SID, result: 'Hello world', usage: { input_tokens: 6, output_tokens: 40, cache_read_input_tokens: 100, cache_creation_input_tokens: 10 } }),
+  ];
+  const { events, rest } = parseEvents('', lines.join('\n') + '\n');
+  assert.equal(rest, '');
+  assert.deepEqual(events, [
+    { kind: 'session', sessionId: SID },
+    { kind: 'delta', text: 'Hello' }, { kind: 'delta', text: ' world' },
+    { kind: 'tool', name: 'Read', hint: 'C:\placeholder\project-a\README.md' },
+    { kind: 'result', sessionId: SID, usage: { in: 6, out: 40, cacheRead: 100, cacheWrite: 10 }, isError: false, subtype: 'success', result: 'Hello world' },
+  ]);
+});
+
+test('parseEvents: CRLF, split lines, blank lines, banners and non-object JSON', () => {
+  const a = parseEvents('', 'Claude Code banner\r\n' + delta('par'));
+  assert.deepEqual(a.events, [{ kind: 'raw', text: 'Claude Code banner' }]);
+  const b = parseEvents(a.rest, '\r\n42\r\n[1,2]\r\n');
+  assert.deepEqual(b.events, [{ kind: 'delta', text: 'par' }, { kind: 'raw', text: '42' }, { kind: 'raw', text: '[1,2]' }]);
+  assert.equal(b.rest, '');
+  const c = parseEvents('', '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"x"}}');
+  assert.deepEqual(c.events, []); assert.ok(c.rest.length > 0, 'a partial line waits');
+});
+
+test('parseEvents: a failed run says why; missing usage is null, not zero', () => {
+  const { events } = parseEvents('', J({ type: 'result', subtype: 'error_max_turns', is_error: true, session_id: SID }) + '\n'
+    + J({ type: 'result', subtype: 'error_during_execution' }) + '\n');
+  assert.deepEqual(events, [
+    { kind: 'result', sessionId: SID, usage: null, isError: true, subtype: 'error_max_turns', result: '' },
+    { kind: 'result', sessionId: null, usage: null, isError: true, subtype: 'error_during_execution', result: '' },
+  ]);
+});
+
+test('parseEvents: hostile shapes never throw', () => {
+  const weird = [J({ type: 'assistant', message: { content: 'not an array' } }), J({ type: 'assistant', message: { content: [null, 7, { type: 'tool_use' }] } }),
+    J({ type: 'stream_event' }), J({ type: 'stream_event', event: { delta: null } }), J({ type: 'system', subtype: 'init', session_id: 7 }),
+    J({ type: 'result', usage: 'x' }), J(null), '{bad json', '\u0000'];
+  const { events } = parseEvents(null, weird.join('\n') + '\n');
+  assert.deepEqual(events.filter((e) => e.kind === 'tool'), [{ kind: 'tool', name: 'tool', hint: '' }]);
+  assert.ok(events.every((e) => typeof e.kind === 'string'));
 });

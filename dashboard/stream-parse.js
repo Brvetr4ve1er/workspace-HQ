@@ -1,3 +1,4 @@
+// parseEvents (Claude Hub H3) — structured events for claude-chat.js; see its own comment.
 // v4.1 Phase 3 — pure stream-json line parser for the live agent pane.
 // `claude -p --output-format stream-json --verbose` emits line-delimited JSON
 // events on stdout; session-api.js runs every onOutput chunk through
@@ -110,4 +111,64 @@ function parseChunk(buffered, chunk) {
   return { text, rest: s.slice(start) };
 }
 
-module.exports = { parseChunk };
+// Claude Hub H3 (spec §8): structured events for the in-app chat engine (claude-chat.js).
+// Same buffering contract as parseChunk; parseChunk itself is unchanged. With
+// --include-partial-messages the text arrives as stream_event text_deltas AND again in the
+// complete `assistant` line, so text comes only from the deltas and `assistant` lines
+// contribute only their tool_use blocks (one render, never two).
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+function eventsFrom(ev) {
+  if (ev.type === 'system') {
+    return ev.subtype === 'init' && typeof ev.session_id === 'string' && ev.session_id ? [{ kind: 'session', sessionId: ev.session_id }] : [];
+  }
+  if (ev.type === 'stream_event') {
+    const d = ev.event && typeof ev.event === 'object' ? ev.event.delta : null;
+    return d && typeof d === 'object' && d.type === 'text_delta' && typeof d.text === 'string' && d.text ? [{ kind: 'delta', text: d.text }] : [];
+  }
+  if (ev.type === 'assistant') {
+    const content = ev.message && Array.isArray(ev.message.content) ? ev.message.content : [];
+    const out = [];
+    for (const b of content) {
+      if (!b || typeof b !== 'object' || b.type !== 'tool_use') continue;
+      out.push({ kind: 'tool', name: typeof b.name === 'string' && b.name ? b.name : 'tool', hint: toolHint(b.input) });
+    }
+    return out;
+  }
+  if (ev.type === 'result') {
+    const u = ev.usage && typeof ev.usage === 'object' ? ev.usage : null;
+    const subtype = typeof ev.subtype === 'string' ? ev.subtype : '';
+    return [{
+      kind: 'result',
+      sessionId: typeof ev.session_id === 'string' && ev.session_id ? ev.session_id : null,
+      usage: u ? { in: num(u.input_tokens), out: num(u.output_tokens), cacheRead: num(u.cache_read_input_tokens), cacheWrite: num(u.cache_creation_input_tokens) } : null,
+      isError: ev.is_error === true || /^error/i.test(subtype),
+      subtype,
+      result: typeof ev.result === 'string' ? ev.result : '',
+    }];
+  }
+  return [];
+}
+
+function parseEvents(buffered, chunk) {
+  const s = String(buffered ?? '') + String(chunk ?? '');
+  const events = [];
+  let start = 0;
+  let idx;
+  while ((idx = s.indexOf('\n', start)) !== -1) {
+    let line = s.slice(start, idx);
+    start = idx + 1;
+    if (line.endsWith('\r')) line = line.slice(0, -1);
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { ev = undefined; }
+    if (ev && typeof ev === 'object' && !Array.isArray(ev)) {
+      try { events.push(...eventsFrom(ev)); } catch { events.push({ kind: 'raw', text: line }); }
+    } else {
+      events.push({ kind: 'raw', text: line });
+    }
+  }
+  return { events, rest: s.slice(start) };
+}
+
+module.exports = { parseChunk, parseEvents };
+
