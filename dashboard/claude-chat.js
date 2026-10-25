@@ -61,4 +61,68 @@ function seedPrompt({ title, text, message } = {}) {
   return { prompt: `${head}\n\n${body}\n\n---\n\n${String(message == null ? '' : message)}`, chars: body.length, trimmed };
 }
 
-module.exports = { MODES, FORBIDDEN_ARGS, PROMPT_MAX, SEED_MAX, TURN_MS, MAX_TURNS, isSessionId, buildArgs, cwdRefusal, seedPrompt };
+// --- Task 3: where a turn runs (spec §8 cwd rule). Ids are only ever compared with === against
+// Hub / scan rows; a path is never built from an id. cwdRefusal runs on recorded paths too.
+const SEED_SPEAKER = { user: 'Owner', assistant: 'Claude' };
+async function resolveTarget(req, { hub, getProjects, isDir, env = process.env } = {}) {
+  const r = req && typeof req === 'object' ? req : {};
+  const text = typeof r.text === 'string' ? r.text : '';
+  if (!text.trim()) return { error: 'empty message' };
+  if (text.length > PROMPT_MAX) return { error: `message is over ${PROMPT_MAX} characters` };
+  if (typeof r.mode !== 'string' || !Object.prototype.hasOwnProperty.call(MODES, r.mode)) return { error: 'unknown mode' };
+  const convId = typeof r.conversationId === 'string' && r.conversationId ? r.conversationId : null;
+  const projId = typeof r.projectId === 'string' && r.projectId ? r.projectId : null;
+  if (!convId && !projId) return { error: 'pick a project or a chat' };
+  const hubErr = (x) => (x && typeof x === 'object' && !Array.isArray(x) && x.error ? { error: 'Claude Hub: ' + x.error } : null);
+  const place = (cwd, rest) => {
+    const why = cwdRefusal(cwd, env);
+    if (why) return { error: `refused folder (${why})` };
+    if (!isDir(cwd)) return { error: 'the folder no longer exists' };
+    return { cwd, ...rest };
+  };
+  const hqPath = (id) => { const p = (getProjects() || []).find((x) => x && x.id === id); return p ? p.path : null; };
+  const projectCwd = async (id) => {
+    if (id.startsWith('code:')) {
+      const rows = await hub('listProjects', { source: 'code' });
+      if (hubErr(rows)) return hubErr(rows);
+      const p = (Array.isArray(rows) ? rows : []).find((x) => x && x.id === id);
+      return p && p.path ? { path: p.path } : { error: 'unknown Claude Code project' };
+    }
+    const p = hqPath(id);
+    return p ? { path: p } : { error: 'unknown WorkspaceHQ project, or its folder is outside Documents' };
+  };
+
+  if (convId) {
+    const got = await hub('getConversation', { id: convId, limit: 1 });
+    if (hubErr(got)) return hubErr(got);
+    const c = got && got.conversation;
+    if (!c || c.id !== convId) return { error: 'that chat is not in the index (forgotten, or not indexed yet)' };
+    if (c.source === 'code') {
+      if (!isSessionId(c.native_id)) return { error: 'this chat has no resumable Claude Code session id' };
+      return place(c.cwd, { sessionId: c.native_id, key: c.id, prompt: text, seeded: null });
+    }
+    // claude.ai (H4 rows): a NEW Code chat, seeded with the chat's text (spec §8)
+    let dest;
+    if (projId) dest = await projectCwd(projId);
+    else {
+      const rows = await hub('listProjects', {});
+      if (hubErr(rows)) return hubErr(rows);
+      const p = (Array.isArray(rows) ? rows : []).find((x) => x && x.id === c.project_id);
+      const path0 = p && p.hq_project_id ? hqPath(p.hq_project_id) : null;
+      dest = path0 ? { path: path0 } : { error: 'link this claude.ai project to a WorkspaceHQ project first (Claude › Projects)' };
+    }
+    if (dest.error) return dest;
+    const full = await hub('getConversation', { id: convId, limit: 500 });
+    if (hubErr(full)) return hubErr(full);
+    const body = (full && Array.isArray(full.messages) ? full.messages : [])
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text)
+      .map((m) => `${SEED_SPEAKER[m.role]}: ${m.text}`).join('\n\n');
+    const s = seedPrompt({ title: c.title, text: body, message: text });
+    return place(dest.path, { sessionId: null, key: c.id, prompt: s.prompt, seeded: { chars: s.chars, trimmed: s.trimmed } });
+  }
+  const dest = await projectCwd(projId);
+  if (dest.error) return dest;
+  return place(dest.path, { sessionId: null, key: null, prompt: text, seeded: null });
+}
+
+module.exports = { MODES, FORBIDDEN_ARGS, PROMPT_MAX, SEED_MAX, TURN_MS, MAX_TURNS, isSessionId, buildArgs, cwdRefusal, seedPrompt, resolveTarget };
