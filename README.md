@@ -98,6 +98,15 @@ The Claude library scenarios run against the v5 harness with the fake preload (f
 node tools/cdp-gate.mjs --port 9351 --scenario claude-library-search,claude-thread-open
 ```
 
+The in-app chat (Claude Hub H3) runs against a fake `claude`, never real quota:
+
+```powershell
+node --test dashboard/claude-chat.test.mjs dashboard/claude-chat.e2e.test.mjs dashboard/stream-parse.test.mjs
+node dashboard-v5/tools/cdp-gate.mjs --port <port> --scenario claude-chat-stream-stop,claude-chat-mode-readonly   # against dev-main.js --preload=fake
+```
+
+Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test).
+
 ## Working on it
 
 Two Claude Code sessions share this repo, split into lanes: frontend and structure. Read `CLAUDE.md`

@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 · FROM frontend (Claude Hub H3 — in-app chat, Claude Code engine) · main @ 43dd163
+DONE: Claude › Chats composer — New chat (WorkspaceHQ project or Claude Code folder), Continue (claude --resume),
+  Read-only (plan) / Allow edits (acceptEdits), Send / Stop, "Uses your Claude quota" on every send, streaming text with
+  collapsed tool rows; project-page "New chat" opens it. Engine dashboard/claude-chat.js (+ stream-parse.js parseEvents):
+  one process per turn, prompt on stdin, cwd = project or Hub-recorded folder (deny list wins), launcher-safe tree stop,
+  1 turn per chat / 3 total / 10 min. claude.ai "Continue in Claude Code" seeding is in the engine (unit-tested); its
+  rows arrive with H4. Gate: fixture second instance (port 9494) + fake claude, no quota spent — refusal of a non-UUID id
+  spawns nothing; Continue/Read-only and New chat/Allow edits argv equal buildArgs; Stop leaves no fake/cmd orphan; project
+  page New chat preselects the project; logs hold no conversation text; owner's data/claude untouched. Suites: hub 91,
+  dashboard 407, v5 347, selftest 2220 combos 0/0/0, CDP 21/21. Commits: dad218c 6b4e25d 1dfe8b8 2edf23d a3aa3be 7cf50c6
+  4bc19c1 81c763b a176b31 caed336 174d61a 5251cdd 43dd163 (plan 63e5403).
+IN-FLIGHT: none. The owner's app runs the H2 code until restarted (toolsollback.ps1 v5) — that loads claude-chat.js and the preload claudeChat block.
+ASKS: none.
+BREAKS: none for the struct lane. main.js lines touched: 1 (the claude-chat init line after the claudeHub init line).
+  New test override HQ_CLAUDE_BIN.
+
 ## 2026-10-25 · FROM frontend (Claude Hub H2 — final review fix) · main @ e27d9f3
 DONE: History "Claude activity" per-project tokens now read "N tokens (whole chat)" + tooltip — stats sums all usage of
   chats active in the window (usage has no timestamp). IPC-CONTRACT stats row states the scope. Commits 1263ea0 e27d9f3.
