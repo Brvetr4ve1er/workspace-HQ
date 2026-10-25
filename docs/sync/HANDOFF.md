@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 · FROM frontend (Claude Hub H4 — claude.ai export import + extension live sync) · main @ a7900e2
+DONE: claude.ai chats and Projects join the Claude library. Claude › Chats (and Settings) › "Import claude.ai export" — a
+  .zip picked in main, unzipped and parsed by the Hub (dependency-free streaming reader; conversations.json streamed one
+  chat at a time; secrets masked before any cut; counts-only report; idempotent; forgotten chats never return; data/claude/tmp
+  job folder always removed). Bridge GET /claude/sync-state + POST /claude/sync (token rule, 4 MB cap, schema checks).
+  Extension 0.4.0: "Sync claude.ai" asks for https://claude.ai/* on click, read-only GETs <= 1 / 2 s, backoff, pauses with a
+  visible status on a shape change, 20 chats per 5-min run, on/off in the popup. claude.ai chats carry the claude.ai badge
+  and "Continue in Claude Code" (new Code chat in a picked project, seeded, uses your Claude quota). Gate: fixture second
+  instance on port 9495 (import 3 chats / re-import idempotent / forget survives re-import / continue via fake claude in plan
+  mode / logs carry no chat text) + real bridge + real Hub on port 47899 (403 / imported 1 / unchanged 1 / 413 / 400 /
+  sync-state); no owner data touched (data/claude unchanged, no data/claude/tmp). Suites: hub 111, dashboard 434, v5 357,
+  selftest 2236 combos 0 errors, CDP 22/22 incl. claude-import-progress.
+  Commits: c7905c3 59b99d4 43bd079 6acbc68 3e34c5e df42a6f d5f4cf2 567beaf 961b5e3 2571e4f 42ddb0e 86afa48 800dcb9 204abaa a7900e2 (fe:) + this meta: gate commit.
+IN-FLIGHT: none.
+ASKS: owner — reload the WorkspaceHQ Bridge extension at chrome://extensions to get 0.4.0 (manual; nothing reloads it),
+  then press "Sync claude.ai" in its popup when you want live sync. Controller — restart the app (toolsollback.ps1 v5)
+  so main loads claude-import.js and the Hub child gets the new ops.
+BREAKS: none for structure (no collector/schema change). Additive IPC/contract rows: IPC-CONTRACT "phase H4",
+  CONTRACT "Local bridge routes — Claude Hub live sync" + data/claude H4 note. main.js: one line (claude-import hook).
+  browser-bridge.js: one require + one route hook.
+
 ## 2026-10-25 · FROM frontend (Claude Hub H3 — final review fixes) · main @ e362806
 DONE: e2e451f — one turn per chat now also covers new / claude.ai-seeded chats (a turn counts as code:<session> from the CLI's
   init line; a Continue on it is BUSY). e362806 — a reload/crash/close of the sending window stops its chat turn (hq:llm:chat

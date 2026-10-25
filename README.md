@@ -105,7 +105,15 @@ node --test dashboard/claude-chat.test.mjs dashboard/claude-chat.e2e.test.mjs da
 node dashboard-v5/tools/cdp-gate.mjs --port <port> --scenario claude-chat-stream-stop,claude-chat-mode-readonly   # against dev-main.js --preload=fake
 ```
 
-Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test).
+claude.ai import and extension sync (Claude Hub H4):
+
+```powershell
+node --test dashboard/claude-hub/unzip.test.mjs dashboard/claude-hub/parse-web.test.mjs dashboard/claude-hub/ingest-web.test.mjs
+node --test dashboard/claude-import.test.mjs dashboard/claude-bridge-routes.test.mjs dashboard/claude-sync-ext.test.mjs
+node dashboard-v5/tools/cdp-gate.mjs --port <port> --scenario claude-import-progress   # against dev-main.js --preload=fake
+```
+
+Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test). `HQ_CLAUDE_IMPORT_ZIP` is the absolute path of a claude.ai export used instead of the file dialog (gates and second instances only).
 
 ## Working on it
 
