@@ -114,6 +114,54 @@ function claudeSummary(r) {
   return parts.length ? parts.join(' · ') : 'Up to date';
 }
 
+// ---- chrome wrapper (service worker only; node tests run it in a vm with a fake chrome) -------------------------
+const CLAUDE_PERM = { origins: ['https://claude.ai/*'] };
+const CLAUDE_OFF_MSG = 'Off — nothing is read from claude.ai.';
+const claudeSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function claudeGetState() {
+  const { hq_claude } = await chrome.storage.local.get('hq_claude');
+  return { on: false, status: 'off', message: CLAUDE_OFF_MSG, lastSyncAt: 0, last: null, skip: {}, nextAt: 0, running: 0, ...(hq_claude || {}) };
+}
+async function claudeSetState(patch) {
+  const s = { ...(await claudeGetState()), ...patch };
+  await chrome.storage.local.set({ hq_claude: s });
+  return s;
+}
+async function claudeEnsureAlarm() {
+  const s = await claudeGetState();
+  if (s.on) chrome.alarms.create(CLAUDE_SYNC_ALARM, { periodInMinutes: CLAUDE_SYNC_PERIOD_MIN });
+  else await chrome.alarms.clear(CLAUDE_SYNC_ALARM);
+}
+async function claudeSetOn(on, opts = {}) {
+  if (!on) {
+    await chrome.alarms.clear(CLAUDE_SYNC_ALARM);
+    return claudeSetState({ on: false, status: 'off', message: CLAUDE_OFF_MSG, running: 0, nextAt: 0 });
+  }
+  await claudeSetState({ on: true, status: 'idle', message: 'On — reading claude.ai…' });
+  chrome.alarms.create(CLAUDE_SYNC_ALARM, { periodInMinutes: CLAUDE_SYNC_PERIOD_MIN });
+  return claudeSyncTick({ ...opts, manual: true });
+}
+async function claudeSyncTick({ manual = false, sleep = claudeSleep, now = Date.now } = {}) {
+  const s = await claudeGetState();
+  if (!s.on) return s;
+  if (s.status === 'paused' && !manual) return s;                          // a shape change waits for the owner
+  if (!manual && s.nextAt && now() < s.nextAt) return s;                    // backoff window
+  if (s.running && now() - s.running < 10 * 60 * 1000) return s;           // a run is already in flight
+  if (!(await chrome.permissions.contains(CLAUDE_PERM))) return claudeSetState({ status: 'no-permission', message: 'Press "Sync claude.ai" to allow reading claude.ai.' });
+  if (!(await chrome.tabs.query({ url: 'https://claude.ai/*' })).length) return claudeSetState({ status: 'no-tab', message: 'Open claude.ai in a tab (logged in) — sync runs only then.' });
+  await claudeSetState({ status: 'syncing', running: now(), message: 'Reading claude.ai…' });
+  try {
+    const cfg = await getCfg();
+    const r = await claudeSyncRun({ fetch: (u, o) => fetch(u, o), sleep, pace: claudeCreatePacer({ now, sleep }), app: claudeAppClient(cfg, (u, o) => fetch(u, o)), skip: s.skip || {} });
+    return claudeSetState({ status: 'ok', running: 0, nextAt: 0, lastSyncAt: now(), last: r, skip: { ...(s.skip || {}), ...r.tooBigIds }, message: claudeSummary(r) });
+  } catch (e) {
+    const kind = (e && e.kind) || 'app';
+    return claudeSetState({ status: kind, running: 0, message: String((e && e.message) || e).slice(0, 200), nextAt: e && e.retryIn ? now() + e.retryIn : 0 });
+  }
+}
+
+
 if (typeof module === 'object' && module && module.exports) {
   module.exports = { CLAUDE_ORIGIN, CLAUDE_SYNC_ALARM, CLAUDE_SYNC_PERIOD_MIN, CLAUDE_MIN_GAP_MS, CLAUDE_BATCH, CLAUDE_MAX_PUSH_BYTES, CLAUDE_RETRIES,
     CLAUDE_SHAPES, claudeSyncErr, claudeBackoffMs, claudeCreatePacer, claudeGet, claudeIsNewer, claudeSyncRun, claudeAppClient, claudeSummary };

@@ -10,6 +10,7 @@
 // never in module-scope variables (those die when the worker is unloaded).
 
 importScripts('social.js');   // SOCIAL BINDING: socialTick (read) + socialSend (approved write)
+importScripts('claude-sync.js');   // CLAUDE SYNC (0.4.0): paced read-only claude.ai -> /claude/sync
 
 const DEFAULTS = { endpoint: 'http://127.0.0.1:47821', paused: false, token: '' };
 const IDLE_SECONDS = 60;      // no interaction for this long => stop counting focus
@@ -80,6 +81,7 @@ async function bootstrap() {
   await transition(await activeTab());
   flush();
   socialTick().catch(() => {});
+  claudeEnsureAlarm().catch(() => {});
 }
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
@@ -109,6 +111,7 @@ chrome.idle.onStateChanged.addListener(async (state) => {
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'flush') flush();
   else if (a.name === SOCIAL_ALARM) socialTick().catch(() => {});
+  else if (a.name === CLAUDE_SYNC_ALARM) claudeSyncTick().catch(() => {});
 });
 
 // Popup-driven social actions. 'social:send' is the ONLY publish path and it is
@@ -119,6 +122,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'social:sync') { socialTick().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
   // popup "check again": deliver queued focus sessions now instead of on the next alarm
   if (msg && msg.type === 'bridge:flush') { flush().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
+  if (msg && msg.type === 'claude:set') { claudeSetOn(!!msg.on).then(reply).catch((e) => reply({ status: 'app', message: String(e) })); return true; }
   return false;
 });
 

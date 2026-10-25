@@ -107,3 +107,85 @@ test('every top-level name is claude-prefixed (shared classic-script global scop
   for (const n of names) assert.match(n, /^(claude|CLAUDE_)/, n);
   assert.ok(!/\bmethod:\s*'(POST|PUT|PATCH|DELETE)'[^\n]*claude\.ai/i.test(src));
 });
+
+import vm from 'node:vm';
+
+function chromeFake({ on = true, granted = true, tabs = 1, state = {} } = {}) {
+  const store = { hq_claude: { on, status: on ? 'idle' : 'off', ...state } }, alarms = new Map();
+  return { store, alarms, chrome: {
+    storage: { local: { get: async (k) => ({ [k]: store[k] }), set: async (o) => { Object.assign(store, o); } } },
+    alarms: { create: (n, o) => alarms.set(n, o), clear: async (n) => alarms.delete(n) },
+    permissions: { contains: async () => granted },
+    tabs: { query: async () => Array.from({ length: tabs }, () => ({ url: 'https://claude.ai/new' })) },
+  } };
+}
+function loadTick(fake, fetchImpl) {
+  const ctx = vm.createContext({ chrome: fake.chrome, fetch: fetchImpl, getCfg: async () => ({ endpoint: 'http://127.0.0.1:47821', token: '' }), setTimeout, TextEncoder, URL, console });
+  vm.runInContext(fs.readFileSync(SRC, 'utf8'), ctx);
+  return ctx;
+}
+const fastSleep = async () => {};
+function fakeFetch(calls, { list = [] } = {}) {
+  return async (url, o = {}) => {
+    calls.push(url);
+    const p = new URL(url).pathname;
+    if (p === '/claude/sync-state') return resp({ json: { ok: true, conversations: {}, projects: {}, forgotten: [] } });
+    if (p === '/claude/sync') return resp({ json: { ok: true, report: {} } });
+    if (p === '/api/organizations') return resp({ json: ORG });
+    if (p.endsWith('/projects')) return resp({ json: [] });
+    if (p.endsWith('/chat_conversations')) return resp({ json: list });
+    return resp({ json: full(p.split('/').pop()) });
+  };
+}
+
+test('tick: off / no permission / no claude.ai tab never touch claude.ai', async () => {
+  for (const [opts, status] of [[{ on: false }, 'off'], [{ granted: false }, 'no-permission'], [{ tabs: 0 }, 'no-tab']]) {
+    const calls = [], fake = chromeFake(opts), ctx = loadTick(fake, fakeFetch(calls));
+    const s = await ctx.claudeSyncTick({ sleep: fastSleep });
+    assert.equal(s.status, status); assert.equal(calls.length, 0, status);
+  }
+});
+
+test('tick: a good run records ok + summary + lastSyncAt; paused waits for a manual click; backoff window respected', async () => {
+  const calls = [], fake = chromeFake(), ctx = loadTick(fake, fakeFetch(calls, { list: [chat('a', '2026-10-01T00:00:00Z')] }));
+  const s = await ctx.claudeSyncTick({ sleep: fastSleep });
+  assert.equal(s.status, 'ok'); assert.equal(s.message, 'Synced 1 chat'); assert.ok(s.lastSyncAt > 0); assert.equal(s.running, 0);
+  const p = chromeFake({ state: { status: 'paused', message: 'claude.ai changed, sync paused (list looks different)' } }), pc = [];
+  const pctx = loadTick(p, fakeFetch(pc));
+  assert.equal((await pctx.claudeSyncTick({ sleep: fastSleep })).status, 'paused'); assert.equal(pc.length, 0);
+  assert.equal((await pctx.claudeSyncTick({ manual: true, sleep: fastSleep })).status, 'ok');
+  const b = chromeFake({ state: { status: 'backoff', nextAt: Date.now() + 60000 } }), bc = [];
+  const bctx = loadTick(b, fakeFetch(bc));
+  await bctx.claudeSyncTick({ sleep: fastSleep }); assert.equal(bc.length, 0);
+});
+
+test('tick: a shape change becomes a visible paused status', async () => {
+  const calls = [], fake = chromeFake();
+  const ctx = loadTick(fake, async (url) => { calls.push(url); return new URL(url).pathname === '/claude/sync-state' ? resp({ json: { conversations: {}, projects: {}, forgotten: [] } }) : resp({ json: { not: 'an array' } }); });
+  const s = await ctx.claudeSyncTick({ sleep: fastSleep });
+  assert.equal(s.status, 'paused'); assert.match(s.message, /claude\.ai changed, sync paused/);
+});
+
+test('claudeSetOn: alarm on/off', async () => {
+  const fake = chromeFake({ on: false }), ctx = loadTick(fake, fakeFetch([]));
+  await ctx.claudeSetOn(true, { sleep: fastSleep });
+  assert.deepEqual({ ...fake.alarms.get('claude-sync') }, { periodInMinutes: 5 });  // spread: vm-realm object
+  const off = await ctx.claudeSetOn(false);
+  assert.equal(off.status, 'off'); assert.equal(fake.alarms.has('claude-sync'), false);
+});
+
+test('manifest 0.4.0, background wiring, popup controls and the risk note', () => {
+  const read = (f) => fs.readFileSync(new URL('../browser-bridge/' + f, import.meta.url), 'utf8');
+  const m = JSON.parse(read('manifest.json'));
+  assert.equal(m.version, '0.4.0'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
+  assert.ok(!m.host_permissions.some((h) => h.includes('claude.ai')), 'claude.ai stays optional, granted on the owner\'s click');
+  const bg = read('background.js');
+  assert.match(bg, /importScripts\('claude-sync\.js'\)/);
+  assert.match(bg, /a\.name === CLAUDE_SYNC_ALARM\) claudeSyncTick\(\)/);
+  assert.match(bg, /msg\.type === 'claude:set'/);
+  const html = read('popup.html');
+  for (const id of ['claude-on', 'claude-sync', 'claude-status', 'claude-last']) assert.match(html, new RegExp('id="' + id + '"'));
+  assert.match(html, /not a public API/); assert.match(html, /export/);
+  const pj = read('popup.js');
+  assert.match(pj, /chrome\.permissions\.request\(\{ origins: \['https:\/\/claude\.ai\/\*'\] \}\)/);
+});
