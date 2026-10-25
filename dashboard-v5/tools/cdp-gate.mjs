@@ -31,12 +31,16 @@
 // H6 archive scenarios (same rules; the fake watcher events are emitted by hand, the fake Hub answers documents):
 //   imports-drop-confirm · search-documents
 // P1 prompt library scenarios (same rules; the fake FAKE_PROMPTS / claudePrompts answer):
-//   prompts-library-open — Library lists the fake notes; Open in Obsidian -> claudePrompts.open(id,'obsidian'); Obsidian missing -> one Open-file fallback; Run sends nothing
+//   prompts-library-open — Library lists the fake notes; Open in Obsidian -> claudePrompts.open(id,'obsidian'); Obsidian missing -> one Open-file fallback; Run opens the run modal and sends nothing
 //   prompts-empty-states — no folder / empty folder / Hub error each say why
 //   prompts-project-shortcut — project page "Run a prompt" opens Claude > Prompts with the project chip; x clears it
 // P2 harvest scenarios (same rules; fake FAKE_CANDIDATES / claudePrompts.promote / claudeHub.hideCandidate):
 //   prompts-promote-confirm — one confirm before any write; a clash asks once more; a batch clash is reported, never renamed
 //   prompts-candidates-hide — Hide is permanent and said so; a reader refusal shows and keeps the row; a Hub error is an error
+// P3 run + pack scenarios (same rules; fake claudePrompts.run / importPack / exportPack):
+//   prompts-run-chat — modal gates Run on project + {{file}}; main sends the chat (page never does); turn streams to done in Chats
+//   prompts-run-copy — copy targets say the quota note, honest done status, a usage miss is said; Escape closes
+//   prompts-pack-import — plan lists rows + kept/skipped, one confirm writes, done report; export toast
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -1322,11 +1326,12 @@ const SCENARIOS = {
     // main says Obsidian is absent → no Obsidian buttons, the note says why, Open file stays
     await t.evaluate(`(() => { hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: false }); WHQ.app.logic.prLoad(); return true; })()`);
     if (!await t.waitFor(`!document.querySelector('[data-pr="obsidian"]') && !!document.querySelector('[data-pr="no-obsidian"]') && !!document.querySelector('[data-pr="file"]')`)) out.push('Obsidian-absent state not shown');
-    // Run is a labelled placeholder: nothing is sent, launched or copied
+    // Run opens the run modal (P3); opening it sends, launches and copies nothing
     await click('[data-pr="run"]');
     await t.sleep(300);
     for (const m of ['claudeChat.send', 'claudeQuest']) if ((await t.evaluate(`hqFake.calls(${JSON.stringify(m)}).length`)) !== 0) out.push('Run called ' + m);
-    if (!await t.waitFor(`document.body.textContent.includes('Run arrives with the run step')`)) out.push('Run did not explain itself');
+    if (!await t.waitFor(`!!document.querySelector('[data-rn="dialog"]')`)) out.push('Run did not open the run modal');
+    if ((await t.evaluate(`hqFake.calls('claudePrompts.run').length`)) !== 0) out.push('opening the run modal ran something');
     // search: FTS hits ∪ tag/title matches
     await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ prQuery: 'weekly' }); L.prSearch(); return true; })()`);
     if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 1 && document.querySelector('[data-pr="row"]').textContent.includes('Weekly notes digest')`)) out.push('search did not narrow to the weekly note');
@@ -1419,6 +1424,76 @@ const SCENARIOS = {
     // a Hub error is an error, never "no candidates"
     await t.evaluate(`hqFake.set('claudeHub.promptCandidates', { error: 'timeout' }); WHQ.app.logic.hcLoad()`);
     if (!await t.waitFor(`(document.querySelector('[data-hc="empty"]') || {}).textContent?.startsWith('Claude Hub: timeout — ')`)) out.push('Hub error not shown as an error');
+    return out.concat(t.errors());
+  },
+  async 'prompts-run-chat'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const out = [];
+    const runCalls = async () => JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.run').map((c) => c.args[0]))`));
+    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-pr="run"]').length >= 1`)) return out.concat('no Run button on the Library rows');
+    await t.evaluate(`document.querySelector('[data-pr="run"]').click()`);
+    if (!await t.waitFor(`!!document.querySelector('[data-rn="dialog"]')`)) return out.concat('no run modal');
+    const go = await t.evaluate(`document.querySelector('[data-rn="go"]').textContent`);
+    if (!/uses your Claude quota/.test(go)) out.push('Chat target lacks the quota label: ' + go);
+    if (!await t.evaluate(`document.querySelector('[data-rn="go"]').disabled`)) out.push('Run is enabled before a project and {{file}} are given');
+    if (await t.evaluate(`[...document.querySelectorAll('[data-rn="field"]')].length`) !== 1) out.push('expected exactly one field ({{file}}; {{project}} comes from the project)');
+    await t.evaluate(`document.querySelector('[data-rn="project"]').click()`);
+    await t.evaluate(`(() => { const i = document.querySelector('[data-rn="field"]'); i.value = 'placeholder.js'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    if (!await t.waitFor(`!document.querySelector('[data-rn="go"]').disabled`)) out.push('Run still disabled after filling');
+    if ((await runCalls()).length !== 0) out.push('run was sent before the click');
+    await t.evaluate(`document.querySelector('[data-rn="go"]').click()`);
+    if (!await t.waitFor(`!document.querySelector('[data-rn="dialog"]')`)) out.push('the modal did not close on a started chat');
+    const req = (await runCalls())[0] || null;
+    if (!req || req.target !== 'chat' || req.mode !== 'read-only' || !req.vars || req.vars.file !== 'placeholder.js' || 'text' in req || !req.projectId) out.push('run request: ' + JSON.stringify(req));
+    if (await t.evaluate(`hqFake.calls('claudeChat.send').length`) !== 0) out.push('the page sent the chat itself — main must');
+    if (!await t.waitFor(`WHQ.app.logic.store.live.claudeChat.turns.some((x) => x.prompt.startsWith('Prompt · ') && x.status === 'done')`, 8000)) out.push('the run\'s turn did not stream to done');
+    if (!await t.waitFor(`document.body.textContent.includes('answer from the fake claude')`)) out.push('the streamed answer is not visible in Claude › Chats');
+    return out.concat(t.errors());
+  },
+  async 'prompts-run-copy'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const out = [];
+    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-pr="run"]').length >= 2`)) return out.concat('Library rows missing');
+    await t.evaluate(`document.querySelectorAll('[data-pr="run"]')[1].click()`);   // the fixture prompt without variables
+    if (!await t.waitFor(`!!document.querySelector('[data-rn="dialog"]')`)) return out.concat('no run modal');
+    await t.evaluate(`[...document.querySelectorAll('[data-rn="target"]')].find((b) => /claude\\.ai/.test(b.textContent)).click()`);
+    const note = await t.evaluate(`document.querySelector('[data-rn="dialog"]').textContent`);
+    if (!/uses your Claude quota/.test(note)) out.push('Copy for claude.ai does not say pasting spends the quota');
+    if (await t.evaluate(`!!document.querySelector('[data-rn="mode"]')`)) out.push('mode toggle shown for a copy target');
+    await t.evaluate(`document.querySelector('[data-rn="go"]').click()`);
+    if (!await t.waitFor(`/Copied — paste it in the claude\\.ai tab that opened · counted in the Library/.test((document.querySelector('[data-rn="status"]') || {}).textContent || '')`)) out.push('no honest done status');
+    await t.evaluate(`hqFake.set('claudePrompts.run', (r) => ({ ok: true, target: r.target, title: 'x', usage: 'not recorded: read-only hub (another WorkspaceHQ owns the index)' }))`);
+    await t.evaluate(`[...document.querySelectorAll('[data-rn="target"]')].find((b) => /ChatGPT/.test(b.textContent)).click()`);
+    await t.evaluate(`document.querySelector('[data-rn="go"]').click()`);
+    if (!await t.waitFor(`/not counted: read-only hub/.test((document.querySelector('[data-rn="status"]') || {}).textContent || '')`)) out.push('a usage miss is not said');
+    const reqs = JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.run').map((c) => c.args[0].target))`));
+    if (JSON.stringify(reqs) !== '["claude.ai","chatgpt"]') out.push('targets sent: ' + JSON.stringify(reqs));
+    await t.press('Escape');
+    if (!await t.waitFor(`!document.querySelector('[data-rn="dialog"]')`)) out.push('Escape did not close the run modal');
+    return out.concat(t.errors());
+  },
+  async 'prompts-pack-import'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const out = [];
+    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
+    if (!await t.waitFor(`!!document.querySelector('[data-pk="import-zip"]')`)) return out.concat('no Import pack button');
+    await t.evaluate(`document.querySelector('[data-pk="import-zip"]').click()`);
+    if (!await t.waitFor(`document.querySelectorAll('[data-rp="row"]').length === 3`)) return out.concat('the plan rows are not listed');
+    const txt = await t.evaluate(`document.querySelector('[data-rp="dialog"]').textContent`);
+    if (!/already there — kept/.test(txt) || !/Skipped: 1 not a \.md file/.test(txt)) out.push('plan lacks the kept/skipped lines: ' + txt.slice(0, 300));
+    const label = await t.evaluate(`document.querySelector('[data-rp="confirm"]').textContent`);
+    if (label.trim() !== 'Copy 2 notes into Prompts') out.push('confirm label: ' + label);
+    if (await t.evaluate(`hqFake.calls('claudePrompts.importPack').length`) !== 1) out.push('more than the plan call before the confirm');
+    await t.evaluate(`document.querySelector('[data-rp="confirm"]').click()`);
+    if (!await t.waitFor(`/Imported 2 notes · 1 already there \\(kept\\)/.test((document.querySelector('[data-rp="done"]') || {}).textContent || '')`)) out.push('no done report');
+    const args = JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.importPack').map((c) => c.args[0]))`));
+    if (JSON.stringify(args) !== JSON.stringify([{ from: 'zip' }, { planId: 'pack-' + '0'.repeat(16) }])) out.push('importPack calls: ' + JSON.stringify(args));
+    await t.press('Escape');
+    if (!await t.waitFor(`!document.querySelector('[data-rp="dialog"]')`)) out.push('Escape did not close the pack dialog');
+    await t.evaluate(`document.querySelector('[data-pk="export"]').click()`);
+    if (!await t.waitFor(`document.body.textContent.includes('Exported 2 prompt notes to prompts-pack-2026-10-25.zip')`)) out.push('no export toast');
     return out.concat(t.errors());
   },
 };
