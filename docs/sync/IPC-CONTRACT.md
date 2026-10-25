@@ -358,6 +358,20 @@ Hub's own snake_case rows, passed through unchanged. Every handler resolves; fai
 | `claudeHub.reindex()` | `hq:claude-hub:reindex` (invoke) | → `{started:true}` \| `{error}` (a read-only Hub refuses); links and tombstones survive |
 | `claudeHub.on(cb)` (H1) | push `hq:claude-hub:event` | additive: `changed` may carry `projects:[projectId]` (`'*'` = links re-matched); `health()` gains `lastErrorAt` |
 
+## 2026-10-16 — Claude Hub, phase H3 (rows written before the handler lands)
+
+Additive only. Main side: `dashboard/claude-chat.js` (new) with one hook line in `main.js` (rule 2).
+
+### Claude Hub in-app chat (spec 2026-10-13-claude-hub-design.md §7–§8, phase H3)
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `claudeChat.send(req)` | `hq:claude-chat:send` (invoke) | `req = {conversationId?, projectId?, text, mode: 'read-only'\|'edits'}`; any other field is ignored (no session id, cwd or argument ever comes from the renderer). `projectId` = a Hub project id (`code:<folder>`) or a WorkspaceHQ project id (resolved main-side; paths never cross IPC). → `{turnId, sessionId?, seeded?: {chars, trimmed}}` (`sessionId` when continuing a Claude Code session; `seeded` when a claude.ai chat was copied into a new Code chat) \| `{error}` with the reason (empty message, over 100 000 chars, unknown mode, no target, Hub error, unknown project, refused folder, folder gone, CLI not found, 1 turn per chat, 3 turns in total). Never throws |
+| `claudeChat.cancel(turnId)` | `hq:claude-chat:cancel` (invoke) | `true` when that turn was running (its process tree is stopped; the turn then ends with `done` + `stopped: true`) \| `false` |
+| `claudeChat.on(cb)` | push `hq:claude-chat:event` | `{turnId, kind, …}`: `session {sessionId, mode}` (new chats: from the CLI's init line) · `delta {text}` (increment, not accumulated) · `tool {name, hint}` · exactly one end per turn: `done {sessionId, mode, usage: {in, out, cacheRead, cacheWrite}\|null, isError, subtype, result, stopped}` (`result` = the failure text when `isError`, else `''`) or `error {error}` (cap reached "stopped after 10 min", spawn failure, exit without a result) |
+
+Engine rules (`dashboard/claude-chat.js`): one `claude -p --output-format stream-json --verbose --include-partial-messages --permission-prompts none --permission-mode plan|acceptEdits [--resume <uuid>]` process per turn, prompt on stdin; `read-only` → `plan`, `edits` → `acceptEdits`; `bypassPermissions` / `--dangerously-skip-permissions` are never passed (unit test). cwd = a WorkspaceHQ project path or a cwd the Hub recorded; drive roots, the Windows folder, Program Files and the profile root itself are always refused. One running turn per conversation, 3 in total, 10 min each. Stop = launcher-safe tree stop (children of the `cmd.exe` launcher, then the root tree). The CLI is `HQ_CLAUDE_BIN` (test override) or the first `claude.exe`/`claude.cmd` on PATH. Errors reach `logs/app-*.log` as reasons only, never prompt or answer text. A finished chat reaches the library through the Hub's ordinary `changed` event (it is a normal Claude Code session).
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
