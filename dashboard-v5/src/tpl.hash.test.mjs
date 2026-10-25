@@ -32,9 +32,11 @@ import tpl from './app.tpl.js';
 // 2026-10-16 H5 Ask: chip placeholder count 6 → 7 + marker text (+32 chars / +32 bytes)
 // 2026-10-16 H5 Save to vault: extras dialog + thread-view button (+5844 chars / +5852 bytes)
 // 2026-10-25 H6 archive sources: + ChatGPT import button, document hits + view, drop confirm card, System imports report (+5761 units)
-const SHA256 = 'd50b4518ff9853e4a0fd172109c560d0d5304b24c6124395093aaacb24038c38';
-const LENGTH = 238116;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 238556;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-25 H6 final review: claude fragment, one line — the open-in-place document line <span> gains
+// style="min-height:1.2em" so a blank line keeps its height in the flex column (+25 chars / +25 bytes, no line removed)
+const SHA256 = 'a0ab2dc70bffefe38ba860e0ed2baf53bf34dfc793c21c74f58e2257df7f9574';
+const LENGTH = 238141;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 238581;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
