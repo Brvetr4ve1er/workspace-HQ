@@ -21,6 +21,7 @@ export function chatsView(lib, hub, S, hasBridge, now = Date.now()) {
   if (!emptyText) {
     if (L.convs === null) emptyText = L.error ? 'Couldn’t load chats — the Hub answered with an error (shown below). It retries when the Hub reports ready; changing a filter retries too.' : 'Loading chats…';
     else if (!rows.length && hub && hub.state === 'indexing') emptyText = 'The Hub is still reading your transcripts (' + ((hub.backfill && hub.backfill.done) || 0) + ' of ' + ((hub.backfill && hub.backfill.total) || '?') + ' files).';
+    else if (!rows.length && S.clSrc === 'web') emptyText = 'No claude.ai chats yet — import your claude.ai data export (button above) or turn on "Sync claude.ai" in the WorkspaceHQ Bridge extension.';
     else if (!rows.length && filtered) emptyText = 'No chats match these filters.';
     else if (!rows.length) emptyText = 'No Claude Code sessions indexed yet — the Hub reads ~/.claude/projects.';
   }

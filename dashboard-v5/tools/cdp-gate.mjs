@@ -24,6 +24,8 @@
 //   claude-library-search · claude-thread-open
 // H3 in-app chat scenarios (same rules; claudeChat.send/cancel overridden to emit events by hand):
 //   claude-chat-stream-stop · claude-chat-mode-readonly
+// H4 claude.ai import scenario (same rules; claudeHub.importExport answered by the fake, progress events emitted by hand):
+//   claude-import-progress
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -112,6 +114,7 @@ async function fresh(t) {
   if (!await t.evaluate('!!window.hqFake')) return ['window.hqFake missing · start the harness with --preload=fake'];
   await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L._libRescan = false; L._canvasBusy = false;
     if (L.store && L.store.live && L.store.live.claudeChat) L.store.live.claudeChat.turns.length = 0;
+    if (L.store && L.store.live) L.store.live.claudeImport = null;
     L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null,
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
@@ -1098,6 +1101,38 @@ const SCENARIOS = {
     } finally {
       await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.store.live.claudeChat.turns.length = 0; L.setState({ ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false }); return true; })()`);
     }
+  },
+  async 'claude-import-progress'(t) {
+    const bad = await fresh(t); if (bad) return bad;
+    const fails = [];
+    const status = `((document.querySelector('[data-ci="status"]') || {}).textContent || '')`;
+    const click = `document.querySelector('[data-ci="go"]').click()`;
+    try {
+      await t.evaluate(`WHQ.app.logic.go('claude', 'chats')`);
+      if (!(await t.waitFor(`!!document.querySelector('[data-ci="go"]')`, 5000))) return ['the import button never rendered'];
+      await t.evaluate(click);
+      if (!(await t.waitFor(`hqFake.calls('claudeHub.importExport').length === 1`, 3000))) fails.push('importExport was not called');
+      if (!(await t.waitFor(`${status} === 'Unpacking the export…'`, 3000))) fails.push('no running status after start: ' + (await t.evaluate(status)));
+      await t.evaluate(`hqFake.emit('hq:claude-hub:event', { event: 'progress', data: { kind: 'import', phase: 'conversations', done: 7, total: 0 } })`);
+      if (!(await t.waitFor(`${status} === 'Reading chats… 7 read'`, 3000))) fails.push('progress not shown: ' + (await t.evaluate(status)));
+      if (!(await t.evaluate(`document.querySelector('[data-ci="go"]').disabled`))) fails.push('the button stays enabled while an import runs');
+      if ((await t.evaluate(`WHQ.app.logic.store.live.claudeHub && WHQ.app.logic.store.live.claudeHub.state`)) === 'indexing') fails.push('an import event was treated as a backfill');
+      await t.evaluate(`hqFake.emit('hq:claude-hub:event', { event: 'progress', data: { kind: 'import', phase: 'done', done: 5, total: 5, report: { conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 }, messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 }, unknownFields: {}, truncated: false } } })`);
+      if (!(await t.waitFor(`/^Imported 3 chats/.test(${status})`, 3000))) fails.push('done not shown: ' + (await t.evaluate(status)));
+      const lines = await t.evaluate(`[...document.querySelectorAll('[data-ci="report"] span')].map((s) => s.textContent)`);
+      if (lines[0] !== 'Chats: 3 imported · 0 unchanged · 0 forgotten · 2 skipped') fails.push('report line: ' + lines[0]);
+      if (await t.evaluate(`document.querySelector('[data-ci="go"]').disabled`)) fails.push('the button is not re-enabled after the import');
+      await t.evaluate(`hqFake.set('claudeHub.importExport', () => ({ error: 'an import is already running' }))`);
+      await t.evaluate(click);
+      if (!(await t.waitFor(`document.body.textContent.includes('an import is already running')`, 3000))) fails.push('a refused import is not toasted');
+      await t.evaluate(`hqFake.set('claudeHub.importExport', () => ({ canceled: true }))`);
+      await t.evaluate(click);
+      await t.sleep(300);
+      if (!/^Imported 3 chats/.test(await t.evaluate(status))) fails.push('a canceled dialog changed the status');
+    } finally {
+      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; if (L.store && L.store.live) L.store.live.claudeImport = null; L.setState({}); })()`);
+    }
+    return fails.concat(t.errors());
   },
 };
 

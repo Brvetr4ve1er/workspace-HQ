@@ -391,6 +391,21 @@ add('claude.composer-new', ccAt({ ccOpen: true }, []));
 add('claude.composer-streaming', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID }, [ccTurn()]));
 add('claude.composer-edits-done', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID, ccMode: 'edits' }, [ccTurn({ mode: 'edits', status: 'done', usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, endedAt: Date.parse('2026-10-05T10:00:00Z') })]));
 add('claude.composer-error', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID }, [ccTurn({ status: 'error', error: 'stopped after 10 min', endedAt: Date.parse('2026-10-05T10:00:00Z') })]));
+// ---- Claude Hub H4: claude.ai import strip + web Continue
+const CI_REP = { files: { conversations: true, projects: true }, conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 },
+  messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 }, unknownFields: { mystery_field: 1 }, truncated: false };
+const CI_HUB = { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: HUB_COUNTS, lastImport: null, importing: false };
+const CI_HQ = { ...P3_HQ, claudeHub: { importExport() {} } };
+const ciAt = (imp, hub = CI_HUB) => ({ hq: CI_HQ, live: (L) => { L.claudeHub = hub; L.claudeImport = imp; }, state: tabSub('claude', 'chats') });
+add('claude.import-running', ciAt({ kind: 'import', phase: 'conversations', done: 12, total: 0 }));
+add('claude.import-done', ciAt({ kind: 'import', phase: 'done', done: 5, total: 5, report: CI_REP }));
+add('claude.import-failed', ciAt({ kind: 'import', phase: 'failed', done: 0, total: 0, error: 'not a zip file' }));
+add('claude.import-reader', ciAt(null, { ...CI_HUB, role: 'reader' }));
+add('claude.import-last', ciAt(null, { ...CI_HUB, lastImport: { at: '2026-10-04T08:00:00.000Z', ok: true, report: CI_REP } }));
+add('claude.web-continue', { hq: CC_HQ, live: (L) => {
+  L.claudeLib.thread = { conversation: { id: 'web:g-web', source: 'web', title: 'Golden web chat', project_id: 'web:chats' }, messages: [], hasMore: false };
+  L.claudeLib.projects = [{ id: 'web:chats', source: 'web', key: 'chats', name: 'claude.ai chats', hq_project_id: null, link_state: 'none', conversations: 1, last_at: CL_AT }];
+}, state: (c) => ({ ...tabSub('claude', 'chats')(c), ccOpen: true, ccConv: 'web:g-web' }) });
 add('history.claude-activity', clAt({ stats: { days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [], totals: { chats: 1, active_ms: 60000 } } }, 'history', 'trends'));
 // P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
 add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });
