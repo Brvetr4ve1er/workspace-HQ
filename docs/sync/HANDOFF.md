@@ -12,6 +12,17 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 · FROM frontend (Claude Hub H4 — final review fixes) · main @ ff432af
+DONE: 1408c6e — extension claude.ai sync: one run and one 2 s pacer per service-worker life (alarm + click + back-to-back
+  runs share them); switching sync off bumps a run generation, so off→on mid-run stops the old run instead of doubling the
+  request rate, and a superseded run never rewrites the status. ff432af — the Hub's export import announces saved
+  claude.ai chats ('changed' ids) every 200 and at the end; the import toast now says "the counter shows progress; chats are
+  listed once saved". Suites: hub 112, dashboard 436, v5 357, selftest 2236 combos 0 errors, CDP 22/22.
+IN-FLIGHT: none.
+ASKS: owner — reload the WorkspaceHQ Bridge extension at chrome://extensions (manual) for the sync fix; restart the app so
+  the Hub child announces import batches.
+BREAKS: none (no main.js, IPC, contract or golden change).
+
 ## 2026-10-25 · FROM frontend (Claude Hub H4 — claude.ai export import + extension live sync) · main @ a7900e2
 DONE: claude.ai chats and Projects join the Claude library. Claude › Chats (and Settings) › "Import claude.ai export" — a
   .zip picked in main, unzipped and parsed by the Hub (dependency-free streaming reader; conversations.json streamed one
