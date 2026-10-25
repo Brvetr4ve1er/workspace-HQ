@@ -29,6 +29,7 @@ import { paletteLogic } from './logic/palette.js';
 import { onboardLogic } from './logic/onboard.js';
 import { whatsNewLogic } from './logic/whats-new.js';
 import { claudeVaultLogic } from './logic/claude-vault.js';
+import { promptsLogic } from './logic/prompts.js';
 import { systemLogic } from './logic/system.js';
 import { libraryLogic } from './logic/library.js';
 import { studioLogic } from './logic/studio.js';
@@ -86,7 +87,7 @@ export class Component extends DCLogic {
       // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
       canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
       // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
-      ...clPrefs(), clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
+      ...clPrefs(), clQuery: '', clSearched: false, prQuery: '', prSearched: false, prFor: null, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
       // Claude chat composer (H3, logic/claude-chat.js) — not persisted: every composer opens Read-only
       ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
       // Ask's offline box: Retry is probing (logic/ask.js)
@@ -115,7 +116,7 @@ export class Component extends DCLogic {
     // live data → re-render; finished runs → one toast each; main's shared UI prefs → state
     this._offStore = this.store.on(() => { this.announceRuns(); this.followUiPrefs(); this.forceUpdate(); });
     this.store.start();
-    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); }   // a cold start on Chats/Projects loads too
+    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); if (S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad(); }   // a cold start on Chats/Projects loads too; P1: the Library loads on arrival
     this.followUiPrefs();
     if (this.hq && this.hq.studio && this.hq.studio.onOpenRealm) this._offRealm = this.hq.studio.onOpenRealm(() => this.go('studio'));   // Ctrl+Alt+L
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
@@ -155,6 +156,7 @@ export class Component extends DCLogic {
     if (moved && S.tab === 'studio') this.store.refreshCaptures();
     if (moved && S.tab === 'life') this.store.refreshSocial();
     if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
+    if (moved && S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad();   // P1: the Library loads on arrival
     if (moved && S.route && S.route.id) this.store.refreshClaudeForProject && this.store.refreshClaudeForProject(S.route.id);
     if (moved && S.tab === 'history' && !S.route) this.store.refreshClaudeStats && this.store.refreshClaudeStats(30);
   }
@@ -387,5 +389,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic);
 Component.prototype.renderVals = renderVals;
