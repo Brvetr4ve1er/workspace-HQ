@@ -118,12 +118,13 @@ test('model history: only finished pairs with text, then the new question (v3 se
 test('sources: v3 format, defaults for anything that is not a boolean', () => {
   assert.deepEqual(AS.loadInclude(memStorage()), AS.DEFAULT_INCLUDE);
   const st = memStorage({ [AS.LS_INCLUDE]: JSON.stringify({ scan: false, tasks: 'yes', vault: true, extra: true }) });
-  assert.deepEqual(AS.loadInclude(st), { scan: false, tasks: true, projects: true, health: false, browser: false, vault: true });
+  assert.deepEqual(AS.loadInclude(st), { scan: false, tasks: true, projects: true, health: false, browser: false, vault: true, claude: false });
   assert.deepEqual(AS.loadInclude(memStorage({ [AS.LS_INCLUDE]: '[1,2]' })), AS.DEFAULT_INCLUDE);
   AS.saveInclude(st, { scan: true, health: true });
-  // v3 writes the object loadInclude built: every source, in SOURCES order
+  // v3 writes the object loadInclude built: every v3 source, in SOURCES order — Claude history off adds nothing
   assert.equal(st.getItem(AS.LS_INCLUDE), '{"scan":true,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false}');
-  assert.deepEqual(AS.SOURCES.map((s) => s.id), ['scan', 'tasks', 'projects', 'health', 'browser', 'vault']);
+  assert.deepEqual(AS.SOURCES.map((s) => s.id), ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude']);
+  assert.deepEqual(AS.V3_SOURCES, ['scan', 'tasks', 'projects', 'health', 'browser', 'vault']);
   assert.equal(AS.SOURCES.find((s) => s.id === 'health').tip, 'The SYSTEM tab\'s vitals');
 });
 
@@ -143,4 +144,28 @@ test('job ids are v3-shaped and pass main\'s check', () => {
   for (let i = 0; i < 50; i++) assert.match(AS.jobId(), /^or-[a-z0-9]+-[a-z0-9]{1,5}$/);
   assert.match(AS.jobId(), /^[a-z0-9-]{4,40}$/i);
   assert.match(AS.today(new Date(2026, 0, 2, 23, 59)), /^2026-01-02$/);
+});
+
+test('Claude history: the 7th chip is off by default, stored as the extra key claude only when on; a v3 rewrite turns it off (spec §9)', () => {
+  assert.equal(AS.DEFAULT_INCLUDE.claude, false);
+  assert.deepEqual(AS.SOURCES[6], { id: 'claude', label: 'Claude history', tip: 'Snippets of your past Claude chats from the local Claude Hub index (read-only)' });
+  const st = memStorage();
+  const on = AS.saveInclude(st, { ...AS.DEFAULT_INCLUDE, claude: true });
+  assert.equal(on.claude, true);
+  assert.equal(st.getItem(AS.LS_INCLUDE), '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":true}');
+  assert.equal(AS.loadInclude(st).claude, true);
+  // what v3 writes after a rollback: its six keys only
+  st.setItem(AS.LS_INCLUDE, '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}');
+  assert.equal(AS.loadInclude(st).claude, false);
+  assert.equal(AS.loadInclude(memStorage({ [AS.LS_INCLUDE]: '{"claude":"yes"}' })).claude, false);
+});
+
+test('meta line names the chats Claude history drew from (≤ 3, then "+N more"); a Hub note shows like any note', () => {
+  const cites = ['chat Release planning, 2026-10-01', 'chat Café menu, 2026-09-20', 'chat Key rotation, 2026-09-03', 'chat Old, 2026-01-01'];
+  const sec = (extra) => [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'claude', label: 'Claude history', chars: 2400, clipped: false, cites: cites.slice(0, 2), ...extra }];
+  assert.equal(AS.metaLine({ status: 'done', sections: sec(), ms: 1400 }), 'grounded in Scan · Claude history · from chat Release planning, 2026-10-01; chat Café menu, 2026-09-20 · 1.4s');
+  assert.equal(AS.metaLine({ status: 'done', sections: sec({ cites }), ms: 1400 }), 'grounded in Scan · Claude history · from chat Release planning, 2026-10-01; chat Café menu, 2026-09-20; chat Key rotation, 2026-09-03 (+1 more) · 1.4s');
+  assert.equal(AS.metaLine({ status: 'done', sections: [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'claude', label: 'Claude history', chars: 0, clipped: false, cites: [], note: 'Claude Hub is not running' }], ms: 1400 }),
+    'grounded in Scan · Claude history: Claude Hub is not running · 1.4s');
+  assert.equal(AS.metaLine({ status: 'done', sections: [{ id: 'claude', label: 'Claude history', chars: 0, cites: 'bad' }], ms: 100 }), 'no sources ticked · 0.1s');
 });

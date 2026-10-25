@@ -87,7 +87,8 @@ function createFake(opts) {
 
   // ---- the stateful canned answers ----
   const chat = (req) => new Promise((resolve) => {
-    const jobId = req && req.jobId, parts = ['Fake', 'Fake answer', 'Fake answer from the fake model.'];
+    const claude = !!(req && req.include && req.include.claude === true);   // H5: a Claude history section, cited
+    const jobId = req && req.jobId, parts = ['Fake', 'Fake answer', claude ? 'Fake answer from the fake model, from chat Fake release planning, 2026-10-01.' : 'Fake answer from the fake model.'];
     const job = { resolve, timers: [], sent: '', t0: Date.now() };
     if (jobId) chats.set(jobId, job);
     parts.forEach((text, i) => job.timers.push(setTimeout(() => {
@@ -95,7 +96,8 @@ function createFake(opts) {
       push('hq:llm:delta', { jobId, text });   // main sends the accumulated text, not the increment
       if (i === parts.length - 1) {
         chats.delete(jobId);
-        resolve({ status: 'done', output: text, sections: [{ label: 'Scan', chars: 10 }], model: 'fake-model', ms: 300 });
+        const sections = [{ label: 'Scan', chars: 10 }].concat(claude ? [{ id: 'claude', label: 'Claude history', chars: 420, clipped: false, cites: ['chat Fake release planning, 2026-10-01'] }] : []);
+        resolve({ status: 'done', output: text, sections, model: 'fake-model', ms: 300 });
       }
     }, 100 * (i + 1))));
   });

@@ -5,7 +5,9 @@
 // and a flip between renderers keeps today's chat and the ticked sources.
 //
 //   hq-oracle-include  {"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}
-//                      a value that isn't a boolean falls back to its default
+//                      a value that isn't a boolean falls back to its default. Claude Hub H5 adds the 7th chip
+//                      as the extra key "claude", written ONLY while it is on: off, the string is v3's byte for
+//                      byte; v3 rewrites the object with its six keys on its next save, which v5 reads as off.
 //   hq-oracle-chat     {"day":"YYYY-MM-DD" (en-CA, local), "messages":[{role:'user'|'assistant', content, meta?}]}
 //                      one day only; at most 40 messages; assistant meta is
 //                      {status:'done'|'cancelled'|'error'|'unavailable', reason?, sections, ms, model}
@@ -25,7 +27,7 @@ export const KEEP = 40;                       // messages kept per day (v3)
 export const INTERRUPTED = 'interrupted — the window reloaded';
 export const STATUSES = ['done', 'cancelled', 'error', 'unavailable'];
 
-// v3's chips, in v3's order, with v3's tooltips
+// v3's chips, in v3's order, with v3's tooltips — then v5's Claude history (Claude Hub H5, spec 2026-10-13 §9)
 export const SOURCES = [
   { id: 'scan', label: 'Scan', tip: 'Level, XP, health index and today\'s suggested picks' },
   { id: 'tasks', label: 'Tasks', tip: 'Open tasks and flagged risks' },
@@ -33,8 +35,10 @@ export const SOURCES = [
   { id: 'health', label: 'PC health', tip: 'The SYSTEM tab\'s vitals' },
   { id: 'browser', label: 'Browser', tip: 'Focus time by site, from the Bridge extension' },
   { id: 'vault', label: 'Vault', tip: 'Keyword search of your VEEMO CORTEX notes (read-only)' },
+  { id: 'claude', label: 'Claude history', tip: 'Snippets of your past Claude chats from the local Claude Hub index (read-only)' },
 ];
-export const DEFAULT_INCLUDE = { scan: true, tasks: true, projects: true, health: false, browser: false, vault: false };
+export const V3_SOURCES = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault'];
+export const DEFAULT_INCLUDE = { scan: true, tasks: true, projects: true, health: false, browser: false, vault: false, claude: false };
 // v3's starter prompts (shown while the chat is empty)
 export const PROMPTS = [
   'What should I actually work on today?',
@@ -60,7 +64,15 @@ export function normInclude(o) {
   return out;
 }
 export const loadInclude = (storage) => normInclude(read(storage, LS_INCLUDE));
-export function saveInclude(storage, include) { const out = normInclude(include); write(storage, LS_INCLUDE, out); return out; }
+// writes v3's six keys in v3's order; "claude" only while it is on (see the header)
+export function saveInclude(storage, include) {
+  const out = normInclude(include);
+  const stored = {};
+  for (const id of V3_SOURCES) stored[id] = out[id];
+  if (out.claude) stored.claude = true;
+  write(storage, LS_INCLUDE, stored);
+  return out;
+}
 
 // ---- chat ----------------------------------------------------------------------
 const validMsg = (m) => !!m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string';
@@ -138,12 +150,16 @@ export function metaLine(meta) {
   const secs = Array.isArray(meta.sections) ? meta.sections.filter((s) => s && typeof s === 'object') : null;
   const used = (secs || []).filter((s) => s.chars > 0).map((s) => s.label + (s.clipped ? ' (trimmed)' : ''));
   const notes = (secs || []).filter((s) => s.note).map((s) => s.label + ': ' + s.note);
+  // Claude history (H5): name the chats the answer could draw from, as the model was told to cite them
+  const claude = (secs || []).find((s) => s.id === 'claude' && s.chars > 0 && Array.isArray(s.cites));
+  const cites = claude ? claude.cites.filter((c) => typeof c === 'string' && c) : [];
   const parts = [];
   if (meta.status === 'cancelled') parts.push('stopped');
   else if (meta.status === 'unavailable') parts.push('model offline — ' + (meta.reason || 'no runtime'));
   else if (meta.status === 'error') parts.push('error — ' + (meta.reason || 'unknown'));
   if (meta.status !== 'unavailable' && secs) parts.push(used.length ? 'grounded in ' + used.join(' · ') : 'no sources ticked');
   if (notes.length) parts.push(notes.join('; '));
+  if (cites.length) parts.push('from ' + cites.slice(0, 3).join('; ') + (cites.length > 3 ? ' (+' + (cites.length - 3) + ' more)' : ''));
   if (Number.isFinite(meta.ms)) parts.push((meta.ms / 1000).toFixed(1) + 's');
   return parts.join(' · ');
 }

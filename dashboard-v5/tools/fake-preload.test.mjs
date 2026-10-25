@@ -204,3 +204,13 @@ test('claudeHub.importExport answers started with a basename (H4)', async () => 
   const { hq } = createFake();
   assert.deepEqual(await hq.claudeHub.importExport(), { started: true, file: 'claude-export.zip' });
 });
+
+test('llm.chat: with include.claude the fake answers a Claude history section and a cited chat (H5)', async () => {
+  const { hq } = createFake();
+  const plain = await hq.llm.chat({ jobId: 'or-a', messages: [{ role: 'user', content: 'q' }], include: { scan: true } });
+  assert.equal(plain.output, 'Fake answer from the fake model.');
+  assert.equal(plain.sections.some((s) => s.id === 'claude'), false);
+  const r = await hq.llm.chat({ jobId: 'or-b', messages: [{ role: 'user', content: 'q' }], include: { scan: true, claude: true } });
+  assert.equal(r.output, 'Fake answer from the fake model, from chat Fake release planning, 2026-10-01.');
+  assert.deepEqual(r.sections.find((s) => s.id === 'claude'), { id: 'claude', label: 'Claude history', chars: 420, clipped: false, cites: ['chat Fake release planning, 2026-10-01'] });
+});

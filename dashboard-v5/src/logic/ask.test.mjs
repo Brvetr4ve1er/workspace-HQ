@@ -78,7 +78,7 @@ test('askInitState reads today’s v3 chat and the v3 sources; another day’s c
   const s = c.askInitState();
   assert.deepEqual(Object.keys(s).sort(), ['askHistory', 'askInclude']);
   assert.deepEqual(s.askHistory.map((h) => [h.q, h.a.text, h.a.status]), [['q1', 'a1', 'done']]);
-  assert.deepEqual(s.askInclude, { scan: false, tasks: true, projects: true, health: true, browser: false, vault: false });
+  assert.deepEqual(s.askInclude, { scan: false, tasks: true, projects: true, health: true, browser: false, vault: false, claude: false });
   localStorage.setItem(AS.LS_CHAT, JSON.stringify({ day: '2001-01-01', messages: [{ role: 'user', content: 'old' }] }));
   assert.deepEqual(c.askInitState().askHistory, []);
 });
@@ -86,7 +86,7 @@ test('askInitState reads today’s v3 chat and the v3 sources; another day’s c
 test('source chips toggle, persist in v3’s format and go with the question', async () => {
   const { c, f } = make();
   const v = c.renderVals();
-  assert.deepEqual(v.askSources.map((s) => [s.label, s.on]), [['Scan', true], ['Tasks', true], ['Projects', true], ['PC health', false], ['Browser', false], ['Vault', false]]);
+  assert.deepEqual(v.askSources.map((s) => [s.label, s.on]), [['Scan', true], ['Tasks', true], ['Projects', true], ['PC health', false], ['Browser', false], ['Vault', false], ['Claude history', false]]);
   assert.deepEqual(v.askSources.map((s) => s.tip), AS.SOURCES.map((s) => s.tip), 'v3’s tooltips');
   v.askSources[5].toggle();
   v.askSources[0].toggle();
@@ -94,7 +94,7 @@ test('source chips toggle, persist in v3’s format and go with the question', a
   assert.equal(c.renderVals().askSources[5].on, true);
   c.submitAsk('what changed?');
   await tick();
-  assert.deepEqual(f.called('llm.chat')[0][0].include, { scan: false, tasks: true, projects: true, health: false, browser: false, vault: true });
+  assert.deepEqual(f.called('llm.chat')[0][0].include, { scan: false, tasks: true, projects: true, health: false, browser: false, vault: true, claude: false });
 });
 
 test('a sent question is stored as v3 pending; the settled answer replaces it with v3 meta', async () => {

@@ -297,6 +297,12 @@ add('overlay.ask-streaming', { hq: LLM_HQ, live: (L) => { L.llm = { available: t
 add('overlay.ask-empty', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: 'placeholder-model' }; }, state: { askOpen: true, askHistory: [] } });
 add('overlay.ask-offline', { hq: LLM_HQ, live: (L) => { L.llm = { available: false, reason: 'not running' }; }, state: { askOpen: true, askHistory: [] } });
 add('overlay.ask-no-chat-model', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: null }; }, state: { askOpen: true, askHistory: [], askChecking: true } });
+// Claude Hub H5: the 7th chip on, an answer citing a chat, and a Hub-down note
+const ASK_CLAUDE = [
+  { q: 'What did we decide about the release?', id: 'c1', a: { text: 'From chat Release planning, 2026-10-01: Friday.', status: 'done', meta: { status: 'done', sections: ASK_SEC.concat([{ id: 'claude', label: 'Claude history', chars: 2400, clipped: false, cites: ['chat Release planning, 2026-10-01', 'chat Café menu, 2026-09-20'] }]), ms: 1500, model: 'placeholder-model' }, est: true } },
+  { q: 'And the menu?', id: 'c2', a: { text: 'Not in what I can see.', status: 'done', meta: { status: 'done', sections: [{ id: 'claude', label: 'Claude history', chars: 0, clipped: false, cites: [], note: 'Claude Hub is not running' }], ms: 700, model: 'placeholder-model' }, est: true } },
+];
+add('overlay.ask-claude', { hq: LLM_HQ, live: (L) => { L.llm = { available: true, runtime: 'placeholder', chatModel: 'placeholder-model' }; }, state: { askOpen: true, askHistory: ASK_CLAUDE, askInclude: { scan: true, tasks: true, projects: true, health: false, browser: false, vault: false, claude: true } } });
 // Phase 2 C2: the scan row comes from main's live scan state (hq:live-state / hq:scan-status), not a localRuns entry
 add('overlay.runs', { live: (L) => { L.scan = { state: 'running', startedAt: Date.parse('2026-10-05T10:00:00Z'), endedAt: null, code: null }; }, state: { runsOpen: true, expandedRun: 'c2', localRuns: [
   { id: 't1', name: 'Review', status: 'opened', meta: 'Terminal opened · claude /review', started: '09:50', out: ['Opened in an external terminal; output stays there.'] },

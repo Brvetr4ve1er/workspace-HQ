@@ -23,6 +23,11 @@ const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', palette
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
+// H5: an answer grounded in Claude history (cited chats in the meta line) and one where the Hub was down
+const ASK_CLAUDE = [
+  { q: 'selftest claude', id: 'selftest-claude', a: { text: 'From chat Selftest planning, 2026-10-01: ship on Friday.', status: 'done', meta: { status: 'done', sections: ASK_SEC.concat([{ id: 'claude', label: 'Claude history', chars: 1800, clipped: false, cites: ['chat Selftest planning, 2026-10-01'] }]), ms: 1400, model: 'selftest-model' }, est: true } },
+  { q: 'selftest claude down', id: 'selftest-claude-down', a: { text: 'Not in what I can see.', status: 'done', meta: { status: 'done', sections: ASK_SEC.concat([{ id: 'claude', label: 'Claude history', chars: 0, clipped: false, cites: [], note: 'Claude Hub is not running' }]), ms: 900, model: 'selftest-model' }, est: true } },
+];
 const ASK = [
   { q: 'selftest question', id: 'selftest-ask', a: { text: 'Synthetic answer for the selftest.', status: 'done', meta: { status: 'done', sections: ASK_SEC, ms: 1400, model: 'selftest-model' }, est: true } },
   { q: 'selftest stopped', id: 'selftest-stop', a: { text: 'A partial answer that was', status: 'cancelled', meta: { status: 'cancelled', sections: ASK_SEC, ms: 900, model: 'selftest-model' }, est: true } },
@@ -158,6 +163,7 @@ export async function run(W = window.WHQ) {
         ['ask-streaming', at('home'), { askOpen: true, askHistory: ASK_STREAMING }],
         ['ask-offline', at('home'), { askOpen: true, askHistory: [] }, () => { LV.llm = { available: false, reason: 'selftest: runtime down' }; }],
         ['ask-offline-checking', at('home'), { askOpen: true, askChecking: true, askHistory: [] }, () => { LV.llm = { available: true, runtime: 'selftest', chatModel: null }; }],
+        ['ask-claude', at('home'), { askOpen: true, askHistory: ASK_CLAUDE }],   // askInclude is not a CLEAR key: leave the chips alone
         ['palette-capture', at('home'), { paletteOpen: true, paletteMode: 'go', paletteQuery: 'capture A selftest idea' }],
         ['system-examining', at('system', 'machine'), { sysExamining: true }],
         ['system-fixed', at('system', 'machine'), { fixed: M.ISSUES.map((i) => i.id).concat(['llm']) }],

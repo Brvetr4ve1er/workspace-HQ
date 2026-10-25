@@ -29,9 +29,10 @@ import tpl from './app.tpl.js';
 // the per-project token span shows "N tokens (whole chat)" with a tooltip, and the strip's <!-- v5: reason --> marker gains the scope clause
 // 2026-10-16 H3 Claude chat composer (claude.tpl.js: Continue, New chat bar, composer; project-page title) +5899 chars / +5916 bytes
 // 2026-10-16 H4 claude.ai import strip (Chats + Settings), web Continue label/picker/note: +2728 chars / +2742 bytes
-const SHA256 = '8ad0682fb3fa88d816a86fd866c6aa59aece58ac00d5fd9bdfa83917f4139145';
-const LENGTH = 226479;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 226890;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-16 H5 Ask: chip placeholder count 6 → 7 + marker text (+32 chars / +32 bytes)
+const SHA256 = '1776818a435104d8b232ef96da009b44b92b6fa98239c966f7d7750f54645fae';
+const LENGTH = 226511;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 226922;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

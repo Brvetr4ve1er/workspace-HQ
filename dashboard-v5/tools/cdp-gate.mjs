@@ -22,6 +22,8 @@
 //   automations-filters · projects-filter · whats-new-first-launch · capture-toast-first
 // H2 Claude library scenarios (same rules; fake Hub answers):
 //   claude-library-search · claude-thread-open
+// H5 Ask scenario (same rules; the fake chat answers a cited Claude history section):
+//   ask-claude-chip
 // H3 in-app chat scenarios (same rules; claudeChat.send/cancel overridden to emit events by hand):
 //   claude-chat-stream-stop · claude-chat-mode-readonly
 // H4 claude.ai import scenario (same rules; claudeHub.importExport answered by the fake, progress events emitted by hand):
@@ -526,7 +528,7 @@ const SCENARIOS = {
       const want3 = ['user:Placeholder question one', 'assistant:Fake answer from the fake model.', 'user:Placeholder question three'];
       if (JSON.stringify(sent3) !== JSON.stringify(want3)) out.push('the model got ' + JSON.stringify(sent3) + ', want only the finished pair + the new question');
       const inc = await t.evaluate(`hqFake.calls('llm.chat').at(-1).args[0].include`);
-      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
+      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
       // 4. Retry on the stopped answer: that pair goes, the question is asked again at the end
       await t.evaluate(`${btn('Retry')}.click()`);
       if (!await t.waitFor(`${hist}.length === 3 && ${hist}[2].q === 'Placeholder question two' && ${hist}[2].a.status === 'done'`, 5000)) out.push('Retry did not re-ask the stopped question: ' + JSON.stringify(await t.evaluate(`${hist}.map((h) => h.q + '=' + h.a.status)`)));
@@ -585,7 +587,7 @@ const SCENARIOS = {
       if (st !== 'done,error,cancelled') out.push('loaded statuses ' + JSON.stringify(st) + ', want done,error,cancelled');
       if (s.h[1] && s.h[1].reason !== 'interrupted — the window reloaded') out.push('a pending answer did not load as "interrupted — the window reloaded"');
       if (s.h[2] && s.h[2].text !== 'A partial v3 answer') out.push('the stopped v3 answer lost its partial text');
-      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
+      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false,"claude":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
       // the panel shows them the way v3 does
       await t.evaluate(`WHQ.app.logic.setState({ askOpen: true })`);
       await t.sleep(150);
@@ -594,7 +596,7 @@ const SCENARIOS = {
           spans: [...a.querySelectorAll('span')].map((x) => x.textContent.trim()) }; })()`);
       if (!ui) out.push('the Ask panel did not open');
       else {
-        if (ui.chips !== 'false,true,true,true,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false');
+        if (ui.chips !== 'false,true,true,true,false,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false,false');
         if (!ui.spans.includes('grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s')) out.push('no v3 meta line "grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s"');
         if (!ui.spans.includes('error — interrupted — the window reloaded')) out.push('no "error — interrupted — the window reloaded" meta line');
         if (!ui.spans.some((x) => x.startsWith('stopped · grounded in'))) out.push('no "stopped · …" meta line');
@@ -1133,6 +1135,42 @@ const SCENARIOS = {
       await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; if (L.store && L.store.live) L.store.live.claudeImport = null; L.setState({}); })()`);
     }
     return fails.concat(t.errors());
+  },
+
+  // H5 (spec §9 Ask, §11 ask-claude-chip): the 7th chip is off by default, is sent as include.claude, persists as the
+  // extra key "claude" only while on, and the answer's meta line names the chat it drew from.
+  async 'ask-claude-chip'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`(() => { localStorage.removeItem('hq-oracle-include'); localStorage.removeItem('hq-oracle-chat');
+        WHQ.app.logic.setState({ askInclude: null, askHistory: [], askOpen: true }); return true; })()`);
+      await t.sleep(150);
+      const chips = () => t.evaluate(`(() => { const a = document.querySelector('aside[aria-label="Ask"]'); if (!a) return null;
+        return [...a.querySelectorAll('[aria-label="Context sources"] button')].map((b) => b.textContent.trim() + '=' + b.getAttribute('aria-pressed')); })()`);
+      const c0 = await chips();
+      if (!c0) return ['the Ask panel did not open'];
+      if (c0.length !== 7 || c0[6] !== 'Claude history=false') out.push('chips ' + JSON.stringify(c0) + ', want 7 with "Claude history" off last');
+      await t.evaluate(`(() => { const a = document.querySelector('aside[aria-label="Ask"]'); [...a.querySelectorAll('[aria-label="Context sources"] button')][6].click(); return true; })()`);
+      await t.sleep(100);
+      const inc = await t.evaluate(`localStorage.getItem('hq-oracle-include')`);
+      if (inc !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":true}') out.push('stored include ' + inc);
+      if ((await chips())[6] !== 'Claude history=true') out.push('the chip did not show as on');
+      await t.evaluate(`(() => { WHQ.app.logic.submitAsk('What did we decide about the placeholder release?'); return true; })()`);
+      if (!await t.waitFor(`(() => { const h = WHQ.app.logic.state.askHistory; return h.length && h[h.length - 1].a.status === 'done'; })()`, 5000)) out.push('the answer never settled');
+      const sent = await t.evaluate(`hqFake.calls('llm.chat').map((c) => c.args[0].include)`);
+      if (!sent.length || sent[sent.length - 1].claude !== true) out.push('llm.chat was not sent include.claude: ' + JSON.stringify(sent));
+      await t.sleep(150);
+      const spans = await t.evaluate(`[...document.querySelectorAll('aside[aria-label="Ask"] span')].map((x) => x.textContent.trim())`);
+      if (!spans.some((x) => x.includes('Claude history · from chat Fake release planning, 2026-10-01'))) out.push('no meta line naming "chat Fake release planning, 2026-10-01": ' + JSON.stringify(spans.filter((x) => x.includes('grounded'))));
+      // off again: the stored string is v3's own, byte for byte
+      await t.evaluate(`(() => { WHQ.app.logic.toggleAskSource('claude'); return true; })()`);
+      const off = await t.evaluate(`localStorage.getItem('hq-oracle-include')`);
+      if (off !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false}') out.push('chip off stored ' + off + ', want v3’s six keys');
+    } finally {
+      await t.evaluate(`(() => { localStorage.removeItem('hq-oracle-include'); localStorage.removeItem('hq-oracle-chat'); WHQ.app.logic.setState({ askOpen: false, askHistory: [], askInclude: null }); return true; })()`).catch(() => {});
+    }
+    return out.concat(t.errors());
   },
 };
 
