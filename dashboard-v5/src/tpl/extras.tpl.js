@@ -5,6 +5,7 @@
 // Styled with the template's own tokens and the Settings overlay's scrim, card,
 // label and button styles; z-index 1070 puts it over Settings (1050), which it
 // can be opened from, and under the lightbox (1080) and the dialogs (1100+).
+// H5 adds the Save to vault dialog (z-index 1100: a dialog).
 export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P8); opens once per version, from Settings and from the palette -->
   <sc-if value="{{ whatsNewOpen }}" hint-placeholder-val="{{ false }}">
     <!-- v5: scrim; a click outside the card closes it (Escape too, through closeTop) -->
@@ -46,6 +47,39 @@ export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P
         </div>
         <!-- v5: where to find it again -->
         <div style="font-size:12px;color:var(--faint);margin-top:12px">Shown once per update. Settings › What's new · trailers opens it again.</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- v5: Save to vault (Claude Hub H5, spec 2026-10-13 §9 Vault): the local model's draft, editable; nothing is written until Save (or Replace, after it asked) -->
+  <sc-if value="{{ vaultOpen }}" hint-placeholder-val="{{ false }}">
+    <!-- v5: scrim; only Close, Cancel or Escape dismiss it, so a stray click never drops an edited draft -->
+    <div style="position:fixed;inset:0;z-index:1100;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px">
+      <!-- v5: the card, Settings' frame -->
+      <div ref="{{ popIn }}" role="dialog" aria-label="Save to vault" style="width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--card);border:1px solid var(--frame-hi);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <!-- v5: title row (Ask's "Local model" badge: the draft is the local model's) -->
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;padding:2px 7px;border:1px solid var(--purple);color:var(--purple)">✦ Local model</span><span style="font-size:20px;flex:1">Save to vault</span><button type="button" onClick="{{ vaultClose }}" aria-label="Close" style="width:34px;height:34px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer">×</button></div>
+        <!-- v5: drafting -->
+        <sc-if value="{{ vaultDrafting }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:13px;color:var(--muted)">The local model is drafting a summary, decisions, to-dos and links from this chat… Nothing is written yet.</div></sc-if>
+        <!-- v5: the draft could not be made: why, and try again -->
+        <sc-if value="{{ vaultFailed }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:13px;color:var(--orange)">{{ vaultError }}</div><div><button type="button" onClick="{{ vaultRetry }}" style="height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer">Try again</button></div></sc-if>
+        <!-- v5: the editable draft, where it will go, who drafted it -->
+        <sc-if value="{{ vaultReady }}" hint-placeholder-val="{{ true }}">
+          <!-- v5: where the note will go -->
+          <div style="font-family:var(--term);font-size:12px;color:var(--text);word-break:break-all">VEEMO CORTEX / {{ vaultRel }}</div>
+          <!-- v5: who drafted it, and that nothing is written before Save -->
+          <div style="font-size:12px;color:var(--muted)">{{ vaultBasis }}</div>
+          <sc-if value="{{ vaultHasExists }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--orange)">{{ vaultExistsNote }}</div></sc-if>
+          <!-- v5: the editable draft -->
+          <textarea aria-label="Note text" value="{{ vaultDraft }}" onChange="{{ onVaultEdit }}" disabled="{{ vaultSaving }}" spellcheck="false" style="min-height:320px;resize:vertical;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--text);font-family:var(--term);font-size:12px;line-height:1.5;padding:10px 12px"></textarea>
+          <sc-if value="{{ vaultHasSaveError }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:13px;color:var(--orange)">{{ vaultSaveError }}</div></sc-if>
+          <!-- v5: the replace question: only this chat's own note is ever offered, and only these buttons answer it -->
+          <sc-if value="{{ vaultAskReplace }}" hint-placeholder-val="{{ false }}"><div role="alertdialog" aria-label="Replace the note" style="padding:10px 12px;border:1px solid var(--orange);border-radius:8px;font-size:13px">Replace the note that is already there? Its current text is overwritten with this draft. <button type="button" data-vault="replace" onClick="{{ vaultReplace }}" style="margin-left:8px;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--orange);background:transparent;color:var(--orange);cursor:pointer">Replace</button><button type="button" onClick="{{ vaultKeep }}" style="margin-left:6px;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer">Keep it</button></div></sc-if>
+          <!-- v5: Cancel and Save: the only way the dialog writes -->
+          <div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" onClick="{{ vaultClose }}" style="height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer">Cancel</button><button type="button" data-vault="save" onClick="{{ vaultSave }}" disabled="{{ vaultSaveOff }}" style="height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--purple);background:color-mix(in oklab, var(--purple) 16%, transparent);color:var(--text);cursor:pointer">{{ vaultSaveLabel }}</button></div>
+        </sc-if>
+        <!-- v5: saved -->
+        <sc-if value="{{ vaultSaved }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:13px;color:var(--text)">Saved to VEEMO CORTEX / {{ vaultRel }}.</div><div><button type="button" onClick="{{ vaultClose }}" style="height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer">Close</button></div></sc-if>
       </div>
     </div>
   </sc-if>

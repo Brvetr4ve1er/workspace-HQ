@@ -16,7 +16,7 @@ import { gapsOf } from './live/adapter.mjs';
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
+const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, studioFilter: 'all' };
@@ -199,6 +199,15 @@ export async function run(W = window.WHQ) {
         ['cl-chats-rows', at('claude', 'chats'), {}, clLib({})],
         ['cl-chats-hits-hostile', at('claude', 'chats'), { clSearched: true, clQuery: 'img' }, clLib({ q: 'img', hits: [{ conversationId: 'code:selftest-a', messageId: 'm', title: 'Selftest chat A', at: new Date().toISOString(), snippet: '\u0002<img src=x onerror=alert(1)>\u0003 tail \u0002open' }] })],
         ['cl-thread-open', at('claude', 'chats'), { clOpen: true }, clLib({ thread: CL_THREAD })],
+        // Claude Hub H5 — Save to vault dialog (logic/claude-vault.js): every phase over the open thread
+        ...(() => {
+          const base = { id: 'code:selftest-a', phase: 'ready', path: 'C:/placeholder-vault/30_Areas/Claude/project-a/2026-10-01 Selftest chat.md', rel: '30_Areas/Claude/project-a/2026-10-01 Selftest chat.md', draft: '# Selftest chat\nPlaceholder note text.', exists: false, model: 'selftest-model', basis: 3, askReplace: false, saveError: null };
+          return [['drafting', { id: base.id, phase: 'drafting' }], ['ready', base],
+            ['ask-replace', { ...base, exists: true, askReplace: true, saveError: 'A note with this name appeared after the draft was made.' }],
+            ['saving', { ...base, phase: 'saving' }], ['saved', { ...base, phase: 'saved' }],
+            ['error', { id: base.id, phase: 'error', error: 'selftest: the local model isn’t running' }],
+          ].map(([n, vault]) => ['cl-vault-' + n, at('claude', 'chats'), { clOpen: true, vault }, clLib({ thread: CL_THREAD })]);
+        })(),
         ['cl-thread-forget-ask', at('claude', 'chats'), { clOpen: true, clForgetAsk: true, clExpanded: { m2: true } }, clLib({ thread: CL_THREAD })],
         ['cl-projects', at('claude', 'projects'), { clLinkPick: 'p1' }, clLib({ projects: [{ id: 'p1', name: 'project-a', path: 'C:\placeholder\project-a', conversations: 2, last_at: CL_CONVS[0].last_at, hq_project_id: (M.P0[0] || {}).id || null, link_state: 'auto' }] })],
         ['cl-history-activity', at('history', 'trends'), {}, clLib({ stats: { from: '2026-09-06', to: '2026-10-05', tzOffsetMin: 0, days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [{ project_id: 'p1', name: 'project-a', chats: 1, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 }], totals: { chats: 1, active_ms: 60000, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 } } })],

@@ -27,6 +27,7 @@ import { askLogic } from './logic/ask.js';
 import { paletteLogic } from './logic/palette.js';
 import { onboardLogic } from './logic/onboard.js';
 import { whatsNewLogic } from './logic/whats-new.js';
+import { claudeVaultLogic } from './logic/claude-vault.js';
 import { systemLogic } from './logic/system.js';
 import { libraryLogic } from './logic/library.js';
 import { studioLogic } from './logic/studio.js';
@@ -73,6 +74,7 @@ export class Component extends DCLogic {
       momentum: 'unc', fixed: [], sinceDismissed: P.sinceSeen === M.at(0).id, actTab: 'runs', compareOff: null, commitSel: 0, onboard: null, notifLog: [],
       // What's new · trailers (logic/whats-new.js): open, and trailers whose video failed to play (id → true)
       whatsNewOpen: false, whatsNewMissing: {},
+      vault: null,   // Save to vault dialog (Claude Hub H5, logic/claude-vault.js)
       // Phase 3 surface state (contract K-4; each reader also treats undefined as these defaults):
       // System (logic/system.js): Re-examine running · per-capture-text save state ('saving'|'noted'|'failed')
       sysExamining: false, sysSaves: {},
@@ -349,8 +351,8 @@ export class Component extends DCLogic {
     // canvasNoteOpen: Escape folds the Canvas ＋ Note form, an in-page form, so after the
     // overlays and only while it is on screen (the flag outlives a tab switch)
     const noteShown = S.canvasNoteOpen && !S.route && S.tab === 'claude' && S.sub && S.sub.claude === 'canvas';
-    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
-    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard'].includes(k) ? null : false }); return; }
+    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
+    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault'].includes(k) ? null : false }); return; }
     if (S.route) this.setState({ route: null });
   }
   onKey(e) {
@@ -370,7 +372,7 @@ export class Component extends DCLogic {
     }
     if (S.confirm && e.key === 'Enter' && !typing && this.confirmKey(e)) return;
     if (typing) return;
-    if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard || S.whatsNewOpen) return;
+    if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard || S.whatsNewOpen || S.vault) return;
     if (e.key === '/') { e.preventDefault(); this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); return; }
     if (e.key === '?') { this.setState({ cheatOpen: true }); return; }
     if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) { this.go(this.M.NAV[+e.key - 1].id); return; }
@@ -384,5 +386,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic);
 Component.prototype.renderVals = renderVals;
