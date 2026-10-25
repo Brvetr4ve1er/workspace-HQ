@@ -463,3 +463,46 @@ test('clutter surfaces everything the scan does not score: anomalies, untracked,
   assert.match(by.loose.detail, /1 file · .*GB/);
   assert.deepEqual(clutter({ unclassified: [], ignored: [] }), []);   // nothing flagged -> no empty groups
 });
+
+import { chatTurnNew, chatReduce, chatTurnView, liveTurns, CHAT_TEXT_MAX } from './adapter.mjs';
+const SIDX = '00000000-0000-4000-8000-000000000001';
+test('chatReduce: text grows, tools become their own rows, one end, nothing after it', () => {
+  let t = chatTurnNew({ turnId: 't1', convId: null, projectId: 'project-a', prompt: 'Say hi', mode: 'read-only', sessionId: null, seeded: null, now: 1000 });
+  t = chatReduce(t, { kind: 'session', sessionId: SIDX }, 1001);
+  assert.equal(t.convId, 'code:' + SIDX); assert.equal(t.status, 'running');
+  for (const ev of [{ kind: 'delta', text: 'Hel' }, { kind: 'delta', text: 'lo' }, { kind: 'tool', name: 'Read', hint: 'README.md' }, { kind: 'delta', text: 'Done.' }]) t = chatReduce(t, ev, 1002);
+  assert.deepEqual(t.items, [{ type: 'text', text: 'Hello' }, { type: 'tool', name: 'Read', hint: 'README.md' }, { type: 'text', text: 'Done.' }]);
+  const done = chatReduce(t, { kind: 'done', sessionId: SIDX, usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, isError: false, stopped: false }, 2000);
+  assert.equal(done.status, 'done'); assert.equal(done.endedAt, 2000);
+  assert.deepEqual(chatReduce(done, { kind: 'delta', text: 'late' }, 2001), done);
+  assert.equal(t.items.length, 3, 'the input turn was not mutated');
+  const stopped = chatReduce(t, { kind: 'done', stopped: true, usage: null }, 3000);
+  assert.equal(stopped.status, 'stopped');
+  const failed = chatReduce(t, { kind: 'done', isError: true, subtype: 'error_max_turns', result: '' }, 3000);
+  assert.equal(failed.status, 'error'); assert.equal(failed.error, 'error_max_turns');
+  assert.equal(chatReduce(t, { kind: 'error', error: 'stopped after 10 min' }, 3000).error, 'stopped after 10 min');
+  let big = chatTurnNew({ turnId: 't2', prompt: 'x', mode: 'edits', now: 0 });
+  big = chatReduce(big, { kind: 'delta', text: 'a'.repeat(CHAT_TEXT_MAX) }, 1); big = chatReduce(big, { kind: 'delta', text: 'END' }, 2);
+  assert.equal(big.items[0].text.length, CHAT_TEXT_MAX); assert.ok(big.items[0].text.endsWith('END'));
+});
+test('chatTurnView: mode on every turn, honest status, unknown tokens are null, trim note', () => {
+  const t = chatTurnNew({ turnId: 't1', convId: 'code:' + SIDX, prompt: 'x', mode: 'edits', seeded: { chars: 30000, trimmed: true }, now: 0 });
+  const v = chatTurnView(t);
+  assert.equal(v.modeText, 'Allow edits'); assert.equal(v.statusText, 'Starting Claude Code…'); assert.equal(v.running, true);
+  assert.equal(v.tokens, null); assert.equal(v.hasTokens, false);
+  assert.equal(v.seededNote, 'Copied the last 30000 characters of the claude.ai chat (trimmed)');
+  const d = chatTurnView(chatReduce(t, { kind: 'done', usage: { in: 600, out: 12000, cacheRead: 5, cacheWrite: 0 } }, 1));
+  assert.equal(d.tokens, '12.6k'); assert.equal(d.running, false); assert.equal(d.modeText, 'Allow edits');
+  assert.equal(chatTurnView(chatTurnNew({ turnId: 'x', prompt: 'p', mode: 'read-only', now: 0 })).modeText, 'Read-only');
+});
+test('liveTurns: a finished turn disappears once the thread shows its prompt; running turns stay', () => {
+  const base = { convId: 'code:' + SIDX, mode: 'read-only' };
+  const a = { ...chatTurnNew({ turnId: 'a', prompt: 'Explain   the release plan please', now: Date.parse('2026-10-05T10:00:00Z'), ...base }), status: 'done' };
+  const b = { ...chatTurnNew({ turnId: 'b', prompt: 'And the risks?', now: Date.parse('2026-10-05T10:01:00Z'), ...base }), status: 'running' };
+  const other = chatTurnNew({ turnId: 'c', convId: 'code:other', prompt: 'x', mode: 'read-only', now: 0 });
+  const thread = { messages: [{ role: 'user', at: '2026-10-05T10:00:01Z', text: 'Explain the release plan please' }, { role: 'user', at: '2026-10-05T10:01:01Z', text: 'And the risks?' }] };
+  assert.deepEqual(liveTurns([a, b, other], 'code:' + SIDX, null).map((t) => t.turnId), ['a', 'b']);
+  assert.deepEqual(liveTurns([a, b, other], 'code:' + SIDX, thread).map((t) => t.turnId), ['b']);
+  const old = { messages: [{ role: 'user', at: '2026-09-01T00:00:00Z', text: 'Explain the release plan please' }] };
+  assert.deepEqual(liveTurns([a], 'code:' + SIDX, old).map((t) => t.turnId), ['a'], 'an older identical prompt is not this turn');
+});

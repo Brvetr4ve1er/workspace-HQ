@@ -624,3 +624,44 @@ test('claudeLib: a failed project-page / History load keeps its own error, never
   assert.equal(st.live.claudeLib.statsErr, null);
   st.stop();
 });
+
+function chatHq(answer = { turnId: 't1' }) {
+  const f = fakeHq(), cbs = [], calls = [];
+  f.hq.claudeChat = {
+    send: (req) => { calls.push(['send', req]); return typeof answer === 'function' ? answer(req) : Promise.resolve(answer); },
+    cancel: (id) => { calls.push(['cancel', id]); return Promise.resolve(true); },
+    on: (cb) => { cbs.push(cb); return () => cbs.splice(cbs.indexOf(cb), 1); },
+  };
+  return { ...f, calls, fire: (e) => cbs.slice().forEach((cb) => cb(e)) };
+}
+test('claudeChat: send adds a turn, early events are replayed, deltas stream, cancel goes to main', async () => {
+  let fire;
+  const h = chatHq((req) => { fire({ turnId: 't1', kind: 'session', sessionId: '00000000-0000-4000-8000-000000000001', mode: req.mode }); return Promise.resolve({ turnId: 't1' }); });
+  fire = h.fire;
+  const st = createStore(DATA(), h.hq);
+  await st.start();
+  assert.deepEqual(st.live.claudeChat, { turns: [] });
+  assert.deepEqual(await st.sendClaudeChat({ projectId: 'project-a', text: 'hi', mode: 'read-only' }), { turnId: 't1' });
+  assert.equal(st.live.claudeChat.turns.length, 1);
+  assert.equal(st.live.claudeChat.turns[0].convId, 'code:00000000-0000-4000-8000-000000000001', 'the session event that beat the answer was replayed');
+  h.fire({ turnId: 't1', kind: 'delta', text: 'Hel' }); h.fire({ turnId: 't1', kind: 'delta', text: 'lo' });
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(st.live.claudeChat.turns[0].items[0].text, 'Hello');
+  assert.equal(await st.cancelClaudeChat('t1'), true);
+  assert.deepEqual(h.calls.map((c) => c[0]), ['send', 'cancel']);
+  st.stop();
+});
+test('claudeChat: an {error} answer is returned, adds no turn; no bridge says so', async () => {
+  const h = chatHq({ error: '3 Claude turns are already running — wait for one or press Stop' });
+  const st = createStore(DATA(), h.hq);
+  await st.start();
+  assert.deepEqual(await st.sendClaudeChat({ projectId: 'p', text: 'x', mode: 'read-only' }), { error: '3 Claude turns are already running — wait for one or press Stop' });
+  assert.equal(st.live.claudeChat.turns.length, 0);
+  const thrower = chatHq(() => Promise.reject(new Error('ipc gone')));
+  const s2 = createStore(DATA(), thrower.hq); await s2.start();
+  assert.deepEqual(await s2.sendClaudeChat({ projectId: 'p', text: 'x', mode: 'read-only' }), { error: 'ipc gone' });
+  const s3 = createStore(DATA(), null);
+  assert.deepEqual(await s3.sendClaudeChat({ projectId: 'p', text: 'x', mode: 'read-only' }), { error: 'This window has no app bridge' });
+  assert.equal(await s3.cancelClaudeChat('t1'), false);
+  st.stop(); s2.stop();
+});

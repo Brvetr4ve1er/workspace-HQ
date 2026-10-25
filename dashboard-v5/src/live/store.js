@@ -47,6 +47,7 @@ export function createStore(DATA, hq) {
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
     claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
+    claudeChat: { turns: [] },   // Claude Hub H3: in-app chat turns, newest last (chatReduce)
     claudeHub: null,  // hq.claudeHub.health() / the hq:claude-hub:event push (null until the first answer); logic/claude-hub.js reads it
   };
 
@@ -88,6 +89,34 @@ export function createStore(DATA, hq) {
     if (typeof p === 'function') { try { p = p(); } catch (e) { p = Promise.reject(e); } }
     return Promise.resolve(p).then(fn).catch((e) => console.warn('[store] read failed', e)).finally(emit);
   };
+
+  // Claude Hub H3 — in-app chat turns. Events can beat the send() answer, so unknown turnIds wait in `pending`.
+  const pendingChat = [];
+  let chatTimer = null;
+  const emitSoon = () => { if (chatTimer) return; chatTimer = setTimeout(() => { chatTimer = null; emit(); }, 50); };
+  const applyChat = (e) => {
+    if (!e || typeof e !== 'object' || typeof e.turnId !== 'string') return false;
+    const turns = live.claudeChat.turns, i = turns.findIndex((t) => t.turnId === e.turnId);
+    if (i < 0) { pendingChat.push(e); if (pendingChat.length > 200) pendingChat.shift(); return false; }
+    turns[i] = A.chatReduce(turns[i], e, Date.now());
+    return true;
+  };
+  async function sendClaudeChat(req = {}) {
+    if (!hq || !hq.claudeChat) return { error: 'This window has no app bridge' };
+    let r;
+    try { r = await hq.claudeChat.send(req); } catch (e) { return { error: String((e && e.message) || e) }; }
+    if (!r || typeof r !== 'object' || r.error || typeof r.turnId !== 'string') return { error: (r && r.error) || 'no answer from the app' };
+    const turns = live.claudeChat.turns;
+    turns.push(A.chatTurnNew({ turnId: r.turnId, convId: req.conversationId || null, projectId: req.projectId || null, prompt: req.text, mode: req.mode, sessionId: r.sessionId || null, seeded: r.seeded || null, now: Date.now() }));
+    if (turns.length > 20) turns.splice(0, turns.length - 20);
+    for (const e of pendingChat.splice(0).filter((x) => { if (x.turnId === r.turnId) return true; pendingChat.push(x); return false; })) applyChat(e);
+    emit();
+    return r;
+  }
+  async function cancelClaudeChat(turnId) {
+    if (!hq || !hq.claudeChat) return false;
+    try { return (await hq.claudeChat.cancel(turnId)) === true; } catch { return false; }
+  }
 
   // one cast row; name/icon from the event, else the catalog, else the spell id
   function castRow(d, t0) {
@@ -172,6 +201,7 @@ export function createStore(DATA, hq) {
     if (hq.liveState) reads.push(pull(() => hq.liveState(), hydrate));
     if (hq.uiPrefs && hq.uiPrefs.on) sub(() => hq.uiPrefs.on((p) => { if (isObj(p)) { prefsPushed = true; live.uiPrefs = p; emit(); } }));
     if (hq.uiPrefs && hq.uiPrefs.get) reads.push(pull(() => hq.uiPrefs.get(), (p) => { if (isObj(p) && !prefsPushed) live.uiPrefs = p; }));
+    if (hq.claudeChat && hq.claudeChat.on) sub(() => hq.claudeChat.on((e) => { if (applyChat(e)) { if (e.kind === 'delta' || e.kind === 'tool') emitSoon(); else emit(); } }));
     if (hq.claudeHub && hq.claudeHub.health) reads.push(pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : null; }));
     if (hq.claudeHub && hq.claudeHub.on) sub(() => hq.claudeHub.on((e) => {
       if (!isObj(e)) return;
@@ -318,12 +348,13 @@ export function createStore(DATA, hq) {
     lib().statsErr = null;
     return hubCall(() => hq.claudeHub.stats({ from: localDay(from), to: localDay(to), tzOffsetMin: -new Date().getTimezoneOffset() }), (r) => { lib().stats = r; }, null, (m) => { lib().statsErr = m; });
   }
-  function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); }
+  function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); clearTimeout(chatTimer); chatTimer = null; }
 
   return {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
+    sendClaudeChat, cancelClaudeChat,
   };
 }

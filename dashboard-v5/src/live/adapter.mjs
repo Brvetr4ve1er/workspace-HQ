@@ -515,3 +515,57 @@ export function hubStats(res) {
     projects: arr(r.projects).map((p) => ({ id: String(p.project_id), name: String(p.name || p.project_id), chats: num(p.chats, 0), tokens: fmtTokens(tokSum(p)) })),
     totals: { chats: num(t.chats, 0), activeMin: Math.round(num(t.active_ms, 0) / 60000), tokens: fmtTokens(tokSum(t)) } };
 }
+
+// ---- Claude Hub H3: in-app chat turns (spec §8). Pure; text is bound as text, never HTML.
+export const CHAT_TEXT_MAX = 200000;
+export function chatTurnNew({ turnId, convId = null, projectId = null, prompt = '', mode = 'read-only', sessionId = null, seeded = null, now = Date.now() } = {}) {
+  return { turnId, convId, projectId, prompt: String(prompt), mode, status: 'starting', items: [], sessionId, usage: null, error: null, seeded: seeded || null, startedAt: now, endedAt: null };
+}
+const ENDED = new Set(['done', 'stopped', 'error']);
+export function chatReduce(turn, ev, now = Date.now()) {
+  if (!turn || !ev || ENDED.has(turn.status)) return turn;
+  const t = { ...turn, items: turn.items.slice() };
+  if (ev.kind === 'session' && typeof ev.sessionId === 'string') {
+    t.sessionId = ev.sessionId; t.convId = t.convId || 'code:' + ev.sessionId; t.status = 'running';
+  } else if (ev.kind === 'delta' && typeof ev.text === 'string') {
+    const last = t.items[t.items.length - 1];
+    const text = ((last && last.type === 'text' ? last.text : '') + ev.text).slice(-CHAT_TEXT_MAX);
+    if (last && last.type === 'text') t.items[t.items.length - 1] = { type: 'text', text }; else t.items.push({ type: 'text', text });
+    t.status = 'running';
+  } else if (ev.kind === 'tool') {
+    t.items.push({ type: 'tool', name: String(ev.name || 'tool'), hint: String(ev.hint || '') });
+    if (t.items.length > 200) t.items.splice(0, t.items.length - 200);
+    t.status = 'running';
+  } else if (ev.kind === 'done') {
+    t.status = ev.stopped ? 'stopped' : ev.isError ? 'error' : 'done';
+    if (ev.isError && !ev.stopped) t.error = ev.result || ev.subtype || 'Claude Code reported an error';
+    t.usage = ev.usage && typeof ev.usage === 'object' ? ev.usage : null;
+    if (typeof ev.sessionId === 'string' && ev.sessionId) { t.sessionId = ev.sessionId; t.convId = t.convId || 'code:' + ev.sessionId; }
+    t.endedAt = now;
+  } else if (ev.kind === 'error') {
+    t.status = 'error'; t.error = String(ev.error || 'Claude Code failed'); t.endedAt = now;
+  } else return turn;
+  return t;
+}
+const TURN_STATUS = { starting: 'Starting Claude Code…', running: 'Claude is replying…', done: 'Done', stopped: 'Stopped — the partial answer is kept', error: 'Failed' };
+export function chatTurnView(turn) {
+  const u = turn.usage;
+  const tokens = u ? fmtTokens((Number(u.in) || 0) + (Number(u.out) || 0)) : null;
+  const s = turn.seeded;
+  return {
+    id: turn.turnId, status: turn.status, running: !ENDED.has(turn.status), statusText: TURN_STATUS[turn.status] || turn.status,
+    modeText: turn.mode === 'edits' ? 'Allow edits' : 'Read-only', prompt: turn.prompt,
+    items: turn.items.map((it, i) => ({ key: turn.turnId + ':' + i, text: it.type === 'text' ? it.text : '', tool: it.type === 'tool', name: it.name || '', hint: it.hint || '' })),
+    tokens, hasTokens: tokens != null, error: turn.error || '',
+    seededNote: !s ? '' : s.trimmed ? `Copied the last ${s.chars} characters of the claude.ai chat (trimmed)` : `Copied the claude.ai chat (${s.chars} characters)`,
+  };
+}
+const squash = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+export function liveTurns(turns, convId, thread) {
+  const msgs = thread && Array.isArray(thread.messages) ? thread.messages : [];
+  return (Array.isArray(turns) ? turns : []).filter((t) => t && t.convId === convId).filter((t) => {
+    if (!ENDED.has(t.status)) return true;
+    const head = squash(t.prompt).slice(0, 40);
+    return !msgs.some((m) => m && m.role === 'user' && squash(m.text).startsWith(head) && Date.parse(m.at) >= t.startedAt - 60000);
+  });
+}
