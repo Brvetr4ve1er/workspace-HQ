@@ -286,31 +286,36 @@ function main() {
         store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, report }));
         emitImport({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report }, true);
         markChanged([]);
-      }, (e) => {
+      })
+      .catch((e) => {   // a .catch AFTER the .then: it also covers a throw in the success body (setMeta, emit)
         const error = msg(e);
         try { store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: false, error })); } catch { /* the event still carries it */ }
-        emitImport({ phase: 'failed', done: 0, total: 0, error }, true);
+        try { emitImport({ phase: 'failed', done: 0, total: 0, error }, true); } catch { /* never an unhandled rejection */ }
+        lastError = error;
       })
       .finally(() => { importing = false; });
   }
   function pushItems(items) {
     const report = newReport(), ids = [];
-    for (const it of items) {
-      if (it && it.kind === 'project') {
-        report.projects.seen++;
-        const p = parseWebProject(it.data);
-        if (!p.ok) { report.projects.skipped++; continue; }
-        noteUnknown(report, p.unknown); ingestWebProject(store, p.project, report);
-      } else if (it && it.kind === 'conversation') {
-        report.conversations.seen++;
-        const c = parseWebConversation(it.data);
-        if (!c.ok) { report.conversations.skipped++; continue; }
-        noteUnknown(report, c.unknown); report.messages.skipped += c.skipped; report.messages.empty += c.empty;
-        if (ingestWebConversation(store, c.conv, report) === 'imported') ids.push('web:' + c.conv.uuid);
-      } else report.conversations.skipped++;
+    try {
+      for (const it of items) {
+        if (it && it.kind === 'project') {
+          report.projects.seen++;
+          const p = parseWebProject(it.data);
+          if (!p.ok) { report.projects.skipped++; continue; }
+          noteUnknown(report, p.unknown); ingestWebProject(store, p.project, report);
+        } else if (it && it.kind === 'conversation') {
+          report.conversations.seen++;
+          const c = parseWebConversation(it.data);
+          if (!c.ok) { report.conversations.skipped++; continue; }
+          noteUnknown(report, c.unknown); report.messages.skipped += c.skipped; report.messages.empty += c.empty;
+          if (ingestWebConversation(store, c.conv, report) === 'imported') ids.push('web:' + c.conv.uuid);
+        } else report.conversations.skipped++;
+      }
+      store.setMeta('last_sync_at', new Date().toISOString());
+    } finally {   // items written before a throwing one are still announced; the error then propagates
+      if (ids.length) markChanged(ids);
     }
-    store.setMeta('last_sync_at', new Date().toISOString());
-    if (ids.length) markChanged(ids);
     return report;
   }
   const dbBytes = () => { let n = 0; for (const f of [dbFile, dbFile + '-wal']) { try { n += fs.statSync(f).size; } catch { /* absent */ } } return n; };
