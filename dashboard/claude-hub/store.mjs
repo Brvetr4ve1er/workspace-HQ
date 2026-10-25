@@ -248,12 +248,13 @@ function api(db) {
     isTombstoned: (kind, nativeId) => !!st.isTomb.get(kind, nativeId),
     harvestPool({ limit = HARVEST_POOL_MAX } = {}) {
       const n = Math.max(1, Math.min(Math.floor(Number(limit)) || HARVEST_POOL_MAX, HARVEST_POOL_MAX));
+      const realSid = (v) => typeof v === 'string' && v !== 'nosession' && /^[A-Za-z0-9-]{1,80}$/.test(v); // ingest's placeholder is not a session
       const base = (p) => (p ? String(p).split(/[\\/]/).filter(Boolean).pop() || null : null);
       const msgs = st.poolMsgs.all(n + 1), hist = st.poolHist.all(n + 1);
       const rows = msgs.slice(0, n).map((r) => ({ kind: r.source, role: 'user', text: r.text, at: r.at || null, sessionKey: r.cid,
         conversationId: r.cid, documentId: null, project: r.project || null, turnsAfter: Number(r.turns) || 0, pasted: false }))
         .concat(hist.slice(0, n).map((r) => ({ kind: 'history', role: null, text: r.text, at: r.at || null,
-          sessionKey: r.sid ? 'code:' + r.sid : r.id, conversationId: null, documentId: r.id,
+          sessionKey: realSid(r.sid) ? 'code:' + r.sid : r.id, conversationId: null, documentId: r.id,
           project: base(r.proj || r.project_path), turnsAfter: Number(r.turns) || 0, pasted: !!r.pasted })));
       return { rows, pooled: { messages: Math.min(msgs.length, n), history: Math.min(hist.length, n) },
         capped: { messages: msgs.length > n, history: hist.length > n } };

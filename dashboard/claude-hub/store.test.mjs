@@ -425,6 +425,16 @@ test('harvestPool: history rows carry sessionKey code:<sessionId> and pasted', (
   s.close();
 });
 
+test('harvestPool: a history line with the nosession placeholder keys by its document id', () => {
+  const s = p2Store();
+  for (const off of [0, 500]) s.upsertDocument({ id: 'history:nosession:' + off, source: 'history', path: null, title: null, text: P2_LONG('Placeholder session-less prompt'),
+    projectId: null, projectPath: null, mtimeMs: null, size: null, meta: { sessionId: 'nosession', project: null, pasted: false, at: '2026-09-04T10:00:0' + (off ? 1 : 0) + 'Z' } });
+  const h = s.harvestPool().rows.filter((r) => r.kind === 'history' && r.documentId.startsWith('history:nosession:'));
+  assert.deepEqual(h.map((r) => r.sessionKey).sort(), ['history:nosession:0', 'history:nosession:500']);
+  assert.equal(h.every((r) => r.turnsAfter === 0), true);
+  s.close();
+});
+
 test('harvestPool: a forgotten chat and its history lines leave the pool', () => {
   const s = p2Store();
   assert.equal(s.forget({ conversationId: 'code:s2' }), true);
