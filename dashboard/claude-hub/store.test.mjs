@@ -253,3 +253,19 @@ test('stats token scope: a chat active in the window brings its whole token tota
   assert.equal(s.stats({ from: '2026-09-01', to: '2026-09-30' }).projects.length, 0);   // a chat not active in the window adds nothing
   s.close();
 });
+
+test('web_sync helpers, setProjectName, syncState', () => {
+  const s = openStore(':memory:');
+  assert.equal(s.getSync('conversation', 'u1'), undefined);
+  s.setSync('conversation', 'u1', '2026-10-01T00:00:00.000Z'); s.setSync('conversation', 'u1', '2026-10-02T00:00:00.000Z');
+  s.setSync('conversation', 'u2', null); s.setSync('project', 'p1', '2026-09-01T00:00:00.000Z');
+  assert.deepEqual(s.getSync('conversation', 'u1'), { updated_at: '2026-10-02T00:00:00.000Z' });
+  s.upsertProject({ id: 'web:p1', source: 'web', key: 'p1', name: 'claude.ai project', path: null });
+  s.setProjectName('web:p1', 'project-a (claude.ai)');
+  assert.equal(s.listProjects({ source: 'web' })[0].name, 'project-a (claude.ai)');
+  s.ensureConversation({ id: 'web:u3', source: 'web', projectId: 'web:p1', nativeId: 'u3' });
+  s.addMessages('web:u3', [{ id: 'web:u3:m', role: 'user', at: '2026-10-01T00:00:00.000Z', text: 'hi' }]);
+  s.forget({ conversationId: 'web:u3' });
+  assert.deepEqual(s.syncState(), { conversations: { u1: '2026-10-02T00:00:00.000Z', u2: null }, projects: { p1: '2026-09-01T00:00:00.000Z' }, forgotten: ['u3'] });
+  s.close();
+});

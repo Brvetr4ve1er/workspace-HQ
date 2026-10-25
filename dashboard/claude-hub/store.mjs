@@ -175,6 +175,18 @@ function api(db) {
     getCursor: (file) => st.getCursor.get(file),
     setCursor: (c) => st.setCursor.run(c.file, c.size, Math.floor(c.mtimeMs), c.offset, n(c.head), n(c.sessionId)),
     deleteCursor: (file) => st.delCursor.run(file),
+    getSync(kind, nativeId) {
+      const r = q('SELECT updated_at FROM web_sync WHERE kind = ? AND native_id = ?').get(kind, nativeId);
+      return r ? { updated_at: r.updated_at } : undefined;   // plain object (node:sqlite rows are null-prototype)
+    },
+    setSync: (kind, nativeId, updatedAt) => q(`INSERT INTO web_sync(kind, native_id, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(kind, native_id) DO UPDATE SET updated_at = excluded.updated_at`).run(kind, nativeId, n(updatedAt)),
+    setProjectName: (id, name) => q('UPDATE project SET name = ?, updated_at = ? WHERE id = ?').run(String(name), new Date().toISOString(), id),
+    syncState() {
+      const map = (kind) => Object.fromEntries(q('SELECT native_id, updated_at FROM web_sync WHERE kind = ? ORDER BY native_id').all(kind).map((r) => [r.native_id, r.updated_at ?? null]));
+      const forgotten = q("SELECT native_id FROM tombstone WHERE kind = 'conversation' AND native_id LIKE 'web:%' ORDER BY native_id").all().map((r) => r.native_id.slice(4));
+      return { conversations: map('conversation'), projects: map('project'), forgotten };
+    },
     isTombstoned: (kind, nativeId) => !!st.isTomb.get(kind, nativeId),
     forget(target) {
       return tx(() => {
