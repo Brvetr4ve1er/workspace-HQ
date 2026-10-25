@@ -23,7 +23,7 @@ DONE: Claude › Chats composer — New chat (WorkspaceHQ project or Claude Code
   page New chat preselects the project; logs hold no conversation text; owner's data/claude untouched. Suites: hub 91,
   dashboard 407, v5 347, selftest 2220 combos 0/0/0, CDP 21/21. Commits: dad218c 6b4e25d 1dfe8b8 2edf23d a3aa3be 7cf50c6
   4bc19c1 81c763b a176b31 caed336 174d61a 5251cdd 43dd163 (plan 63e5403).
-IN-FLIGHT: none. The owner's app runs the H2 code until restarted (toolsollback.ps1 v5) — that loads claude-chat.js and the preload claudeChat block.
+IN-FLIGHT: none. The owner's app runs the H2 code until restarted (tools\rollback.ps1 v5) — that loads claude-chat.js and the preload claudeChat block.
 ASKS: none.
 BREAKS: none for the struct lane. main.js lines touched: 1 (the claude-chat init line after the claudeHub init line).
   New test override HQ_CLAUDE_BIN.
