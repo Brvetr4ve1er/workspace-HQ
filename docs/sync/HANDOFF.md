@@ -12,6 +12,15 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-25 · FROM frontend (Claude Hub H3 — final review fixes) · main @ e362806
+DONE: e2e451f — one turn per chat now also covers new / claude.ai-seeded chats (a turn counts as code:<session> from the CLI's
+  init line; a Continue on it is BUSY). e362806 — a reload/crash/close of the sending window stops its chat turn (hq:llm:chat
+  idiom; a reload during resolve spawns nothing), so no headless Allow-edits turn holds a slot. IPC-CONTRACT engine-rules text
+  (additive). Suites: hub 91, dashboard 410, v5 347 (v5 untouched). Second instance (port 9494, fixtures, fake claude):
+  reload mid-turn kills the fake, no orphan, same chat sends again. Report: .superpowers/sdd/2026-10-15-claude-hub-h3/final-fix-report.md
+IN-FLIGHT: none. The owner's app runs pre-fix code until restarted (toolsollback.ps1 v5).
+ASKS: none. BREAKS: none (main.js lines touched: none; a scan reload now ends a running in-app chat turn, by design).
+
 ## 2026-10-25 · FROM frontend (Claude Hub H3 — in-app chat, Claude Code engine) · main @ 43dd163
 DONE: Claude › Chats composer — New chat (WorkspaceHQ project or Claude Code folder), Continue (claude --resume),
   Read-only (plan) / Allow edits (acceptEdits), Send / Stop, "Uses your Claude quota" on every send, streaming text with
