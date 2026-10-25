@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('hq', {
     link: (id, hqId, state) => ipcRenderer.invoke('hq:claude-hub:link', id, hqId, state),
     forget: (target) => ipcRenderer.invoke('hq:claude-hub:forget', target),
     reindex: () => ipcRenderer.invoke('hq:claude-hub:reindex'),
+    importExport: () => ipcRenderer.invoke('hq:claude-hub:import'),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:claude-hub:event', handler);

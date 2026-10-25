@@ -158,7 +158,7 @@ test('the real sheetOk, driven by the fake healthFix, takes the success path (re
 test('claudeHub.health answers the canned Hub shape; claudeHub.on gets hq:claude-hub:event pushes until disposed', async () => {
   const { hq, control } = createFake();
   const h = await hq.claudeHub.health();
-  assert.deepEqual(h, { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576 });
+  assert.deepEqual(h, { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576, lastImport: null, importing: false });
   const seen = [];
   const off = hq.claudeHub.on((e) => seen.push(e));
   assert.equal(control.emit('hq:claude-hub:event', { event: 'changed', data: { ids: ['code:sess-a1'] } }), 1);
@@ -198,4 +198,9 @@ test('claudeChat fake: streams session → delta → tool → delta → done; ca
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(got.length, n, 'reset drops pending fake turns (a CDP scenario that ended mid-turn cannot stream into the next)');
   off();
+});
+
+test('claudeHub.importExport answers started with a basename (H4)', async () => {
+  const { hq } = createFake();
+  assert.deepEqual(await hq.claudeHub.importExport(), { started: true, file: 'claude-export.zip' });
 });

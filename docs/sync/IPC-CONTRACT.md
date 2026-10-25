@@ -380,8 +380,14 @@ Additive only. Main-side code lives in the NEW file `dashboard/claude-import.js`
 
 | Preload | Channel | Shape |
 |---|---|---|
+| `claudeHub.importExport()` | `hq:claude-hub:import` (invoke) | opens a `.zip`-only file dialog in main, then asks the Hub to import it → `{started:true, file:<basename>}` \| `{canceled:true}` \| `{error}` (`'an import is already running'`, `'read-only hub (another WorkspaceHQ owns the index)'`, `'pick a .zip file'`, …). The full path never reaches the renderer. Env **`HQ_CLAUDE_IMPORT_ZIP=<abs .zip>`** (gates and second instances only) replaces the dialog |
 | `claudeHub.on(cb)` | push `hq:claude-hub:event` | gains `progress` with `kind:'import'`: `{kind:'import', phase:'unzip'\|'projects'\|'conversations'\|'done'\|'failed', done, total, report?, error?}` — `total: 0` means "not known yet" (conversations are counted as they stream); `report` (on `done`) holds counts and field names only. A `progress` without `kind` is backfill progress, as before. A finished import also sends `changed` `{ids: []}` |
 | `claudeHub.health()` | `hq:claude-hub:health` | gains `lastImport: {at, ok:true, report} \| {at, ok:false, error} \| null` and `importing: boolean` |
+
+Hub ops behind it (protocol, not IPC): `importExport({zipPath})` → `{started:true}`; `syncState()`; `syncPush({items})` —
+the last two are reached only through the local bridge routes (CONTRACT.md "Local bridge routes — Claude Hub live sync").
+claude.ai chats appear in every existing list/search/thread channel with `source:'web'`, ids `web:<uuid>`, `title_source:'web'`,
+no `cwd`/`git_branch`/tokens (null — unknown, not zero).
 
 ## Rules
 

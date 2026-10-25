@@ -207,6 +207,10 @@ file holds `{"pid","db"}` (a plain pid is still read).
 `project.hq_project_id`/`link_state` are now written (auto-match from `data/latest.json`, read-only; owner choices
 `confirmed`/`rejected` are never overwritten). `meta.last_error_at` / `meta.last_error_file` timestamp the last ingest
 error and clear when that file ingests cleanly. Writer connections use `secure_delete`.
+(2026-10-16, H4, additive) claude.ai rows: `source='web'`, ids `web:<uuid>` (chats without a claude.ai project live under
+the synthetic project `web:chats`, "claude.ai chats"); `web_sync` is now written (export + live sync de-dup);
+`meta.last_import` (JSON `{at, ok, report|error}`) and `meta.last_sync_at`. `data/claude/tmp/import-*/` holds one
+import's two extracted JSON files and is removed when that import ends (success or failure). No schema or index-version change.
 
 #### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`)
 
