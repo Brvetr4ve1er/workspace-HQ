@@ -22,6 +22,8 @@
 //   automations-filters · projects-filter · whats-new-first-launch · capture-toast-first
 // H2 Claude library scenarios (same rules; fake Hub answers):
 //   claude-library-search · claude-thread-open
+// H3 in-app chat scenarios (same rules; claudeChat.send/cancel overridden to emit events by hand):
+//   claude-chat-stream-stop · claude-chat-mode-readonly
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -109,11 +111,13 @@ async function fresh(t) {
   if (!await t.waitFor(READY, 15000)) return ['the app never mounted'];
   if (!await t.evaluate('!!window.hqFake')) return ['window.hqFake missing · start the harness with --preload=fake'];
   await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L._libRescan = false; L._canvasBusy = false;
+    if (L.store && L.store.live && L.store.live.claudeChat) L.store.live.claudeChat.turns.length = 0;
     L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null,
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
     whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
     clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
+    ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
     projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null }); return true; })()`);
   await t.sleep(80);
   t.clearErrors();
@@ -1019,6 +1023,81 @@ const SCENARIOS = {
       if (!await t.waitFor(`hqFake.calls('claudeHub.forget').length === 1 && !document.querySelector('[data-cl="thread"]')`, 3000)) fails.push('Forget did not call the Hub and close the thread');
     } finally { await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ clOpen: false, clForgetAsk: false, clExpanded: {} }); return true; })()`); }
     return fails.concat(t.errors());
+  },
+  // Claude Hub H3 (spec §8–§9): a turn streams as text, Stop ends it once with the partial text kept, and the mode
+  // switch reaches main. Deterministic: claudeChat.send/cancel are overridden to emit events by hand.
+  async 'claude-chat-stream-stop'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`(() => {
+        const SID = '00000000-0000-4000-8000-000000000001', ev = (d) => hqFake.emit('hq:claude-chat:event', d);
+        hqFake.set('claudeChat.send', (req) => {
+          setTimeout(() => ev({ turnId: 'ct-g1', kind: 'session', sessionId: SID, mode: req.mode }), 30);
+          setTimeout(() => ev({ turnId: 'ct-g1', kind: 'delta', text: 'Placeholder <img src=x onerror=alert(1)> partial' }), 60);
+          setTimeout(() => ev({ turnId: 'ct-g1', kind: 'tool', name: 'Read', hint: 'README.md' }), 90);
+          return { turnId: 'ct-g1' };
+        });
+        hqFake.set('claudeChat.cancel', (id) => { setTimeout(() => ev({ turnId: id, kind: 'done', sessionId: SID, mode: 'read-only', usage: null, isError: false, subtype: '', result: '', stopped: true }), 0); return true; });
+        const L = WHQ.app.logic; L.go('claude', 'chats'); L.ccNew(''); return true; })()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cc="composer"]')`, 3000)) return ['the composer never opened'];
+      if (!await t.evaluate(`(document.querySelector('[data-cc="quota"]') || {}).textContent === 'Uses your Claude quota'`)) out.push('the quota label is missing');
+      if (!await t.evaluate(`document.querySelector('[data-cc="send"]').disabled`)) out.push('Send was enabled with no project picked');
+      if (!await t.evaluate(`(() => { const b = document.querySelector('[data-cc="picker"] button'); if (!b) return false; b.click(); return true; })()`)) return out.concat(['no project to pick in the harness']);
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ ccText: 'Placeholder question' }); return true; })()`);
+      await t.sleep(80);
+      await t.evaluate(`document.querySelector('[data-cc="send"]').click(), true`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cc="stop"]') && [...document.querySelectorAll('[data-cc="tool"]')].some((e) => e.textContent.includes('Read README.md'))`, 3000)) out.push('the turn never streamed a tool row with Stop showing');
+      const sent = await t.evaluate(`hqFake.calls('claudeChat.send').map((c) => c.args[0])`);
+      if (sent.length !== 1 || sent[0].mode !== 'read-only' || sent[0].text !== 'Placeholder question' || !sent[0].projectId) out.push('send got ' + JSON.stringify(sent));
+      await t.evaluate(`document.querySelector('[data-cc="stop"]').click(), true`);
+      if (!await t.waitFor(`!document.querySelector('[data-cc="stop"]') && [...document.querySelectorAll('[data-cc="meta"]')].some((e) => e.textContent.startsWith('Read-only · Stopped — the partial answer is kept'))`, 3000)) out.push('Stop did not end the turn as stopped');
+      await t.sleep(400);
+      const r = await t.evaluate(`(() => { const turns = document.querySelector('[data-cc="turns"]');
+        return { cancels: hqFake.calls('claudeChat.cancel').length, texts: [...document.querySelectorAll('[data-cc="text"]')].map((e) => e.textContent),
+          markup: turns ? turns.querySelectorAll('img,script').length : -1, metas: [...document.querySelectorAll('[data-cc="meta"]')].map((e) => e.textContent) }; })()`);
+      if (r.cancels !== 1) out.push('cancel calls: ' + r.cancels);
+      if (r.texts.length !== 1 || r.texts[0] !== 'Placeholder <img src=x onerror=alert(1)> partial') out.push('partial text not kept exactly once as text: ' + JSON.stringify(r.texts));
+      if (r.markup !== 0) out.push('streamed text became markup: ' + r.markup);
+      if (r.metas.filter((m) => m.includes('Stopped')).length !== 1) out.push('the turn ended more than once: ' + JSON.stringify(r.metas));
+      return out.concat(await t.errors());
+    } finally {
+      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.store.live.claudeChat.turns.length = 0; L.setState({ ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false }); return true; })()`);
+    }
+  },
+
+  async 'claude-chat-mode-readonly'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const pressed = (k) => `document.querySelector('[data-cc="${k}"]').getAttribute('aria-pressed')`;
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.go('claude', 'chats'); return true; })()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cc="new"]')`, 3000)) return ['no New chat button on Claude › Chats'];
+      await t.evaluate(`document.querySelector('[data-cc="new"]').click(), true`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cc="composer"]')`, 3000)) return ['New chat did not open the composer'];
+      if (await t.evaluate(pressed('mode-ro')) !== 'true' || await t.evaluate(pressed('mode-edits')) !== 'false') out.push('the composer did not open Read-only');
+      await t.evaluate(`(() => { document.querySelector('[data-cc="picker"] button').click(); WHQ.app.logic.setState({ ccText: 'First' }); return true; })()`);
+      await t.sleep(80);
+      await t.evaluate(`document.querySelector('[data-cc="send"]').click(), true`);
+      if (!await t.waitFor(`[...document.querySelectorAll('[data-cc="meta"]')].some((e) => e.textContent.startsWith('Read-only · Done'))`, 4000)) out.push('the first turn never showed "Read-only · Done"');
+      await t.evaluate(`document.querySelector('[data-cc="mode-edits"]').click(), true`);
+      await t.sleep(80);
+      if (await t.evaluate(pressed('mode-edits')) !== 'true') out.push('Allow edits did not switch on');
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ ccText: 'Second' }); return true; })()`);
+      await t.sleep(80);
+      await t.evaluate(`document.querySelector('[data-cc="send"]').click(), true`);
+      if (!await t.waitFor(`[...document.querySelectorAll('[data-cc="meta"]')].some((e) => e.textContent.startsWith('Allow edits · Done'))`, 4000)) out.push('the second turn never showed "Allow edits · Done"');
+      const sent = await t.evaluate(`hqFake.calls('claudeChat.send').map((c) => ({ mode: c.args[0].mode, conv: c.args[0].conversationId || null }))`);
+      if (JSON.stringify(sent) !== JSON.stringify([{ mode: 'read-only', conv: null }, { mode: 'edits', conv: 'code:00000000-0000-4000-8000-000000000001' }])) out.push('send calls: ' + JSON.stringify(sent));
+      await t.evaluate(`(() => { WHQ.app.logic.ccClose(); return true; })()`);
+      await t.sleep(80);
+      await t.evaluate(`document.querySelector('[data-cc="new"]').click(), true`);
+      await t.sleep(120);
+      if (await t.evaluate(pressed('mode-ro')) !== 'true') out.push('Allow edits was remembered: a new composer must open Read-only');
+      return out.concat(await t.errors());
+    } finally {
+      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.store.live.claudeChat.turns.length = 0; L.setState({ ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false }); return true; })()`);
+    }
   },
 };
 

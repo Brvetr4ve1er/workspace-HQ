@@ -379,6 +379,18 @@ add('claude.chats-rows', clAt({ projects: [], convs: [CL_CONV], convsMore: true 
 add('claude.chats-hits', clAt({ convs: [CL_CONV], q: 'img', hits: [{ conversationId: 'code:g-1', messageId: 'm', title: 'Golden chat', at: CL_AT, snippet: '\u0002<img src=x>\u0003 tail' }] }, 'claude', 'chats', { clSearched: true }));
 add('claude.thread', clAt({ convs: [CL_CONV], thread: { conversation: CL_CONV, hasMore: true, messages: [{ id: 'm1', role: 'tool', at: CL_AT, text: 'out' }, { id: 'm2', role: 'assistant', at: CL_AT, text: 'reply' }] } }, 'claude', 'chats', { clOpen: true }));
 add('claude.projects', clAt({ projects: [{ id: 'code:g-p', name: 'project-a', path: 'C:\\placeholder\\project-a', conversations: 1, last_at: CL_AT, hq_project_id: 'project-a', link_state: 'auto' }] }, 'claude', 'projects'));
+// Claude Hub H3 — composer. A bridge with claudeChat (never started: render() does not call store.start()).
+const CC_HQ = { ...P3_HQ, claudeChat: { send() {}, cancel() {}, on() { return () => {}; } } };
+const CC_SID = '00000000-0000-4000-8000-000000000001';
+const ccTurn = (o) => ({ turnId: 'g-1', convId: 'code:' + CC_SID, projectId: null, prompt: 'Placeholder question', mode: 'read-only', status: 'running',
+  items: [{ type: 'text', text: 'Placeholder answer' }, { type: 'tool', name: 'Read', hint: 'README.md' }], sessionId: CC_SID, usage: null, error: null, seeded: null,
+  startedAt: Date.parse('2026-10-05T09:59:00Z'), endedAt: null, ...o });
+// tabSub(tab, sub) returns a FUNCTION (c) => ({...}): call it - spreading the function itself yields {} and every scenario would render Home
+const ccAt = (state, turns) => ({ hq: CC_HQ, live: (L) => { L.claudeChat = { turns }; }, state: (c) => ({ ...tabSub('claude', 'chats')(c), ...state }) });
+add('claude.composer-new', ccAt({ ccOpen: true }, []));
+add('claude.composer-streaming', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID }, [ccTurn()]));
+add('claude.composer-edits-done', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID, ccMode: 'edits' }, [ccTurn({ mode: 'edits', status: 'done', usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, endedAt: Date.parse('2026-10-05T10:00:00Z') })]));
+add('claude.composer-error', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID }, [ccTurn({ status: 'error', error: 'stopped after 10 min', endedAt: Date.parse('2026-10-05T10:00:00Z') })]));
 add('history.claude-activity', clAt({ stats: { days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [], totals: { chats: 1, active_ms: 60000 } } }, 'history', 'trends'));
 // P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
 add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });

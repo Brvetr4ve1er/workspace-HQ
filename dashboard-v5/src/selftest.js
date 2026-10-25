@@ -121,7 +121,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib };
+    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -197,6 +197,24 @@ export async function run(W = window.WHQ) {
         ['cl-projects', at('claude', 'projects'), { clLinkPick: 'p1' }, clLib({ projects: [{ id: 'p1', name: 'project-a', path: 'C:\placeholder\project-a', conversations: 2, last_at: CL_CONVS[0].last_at, hq_project_id: (M.P0[0] || {}).id || null, link_state: 'auto' }] })],
         ['cl-history-activity', at('history', 'trends'), {}, clLib({ stats: { from: '2026-09-06', to: '2026-10-05', tzOffsetMin: 0, days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [{ project_id: 'p1', name: 'project-a', chats: 1, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 }], totals: { chats: 1, active_ms: 60000, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 } } })],
         M.P0[0] && ['cl-page-chats', at('projects', 'grid', M.P0[0].id), {}, () => { clLib({})(); LV.claudeLib.byHq = { [M.P0[0].id]: CL_CONVS }; }],
+        // Claude Hub H3 — composer (logic/claude-chat.js): every visible state, both themes, both snapshot ends
+        ...(() => {
+          const SID = '00000000-0000-4000-8000-000000000001';
+          const turn = (o) => ({ turnId: 'st-1', convId: 'code:' + SID, projectId: null, prompt: 'Placeholder question', mode: 'read-only', status: 'running',
+            items: [{ type: 'text', text: 'Placeholder answer' }, { type: 'tool', name: 'Read', hint: 'README.md' }], sessionId: SID, usage: null, error: null, seeded: null,
+            startedAt: Date.now(), endedAt: null, ...o });
+          const cont = { ccOpen: true, ccConv: 'code:' + SID };
+          const firstProj = (M.P0[0] || {}).id || '';
+          return [
+            ['cc-new-empty', at('claude', 'chats'), { ccOpen: true }],
+            ['cc-new-picked', at('claude', 'chats'), { ccOpen: true, ccProj: firstProj, ccText: 'Placeholder question' }],
+            ['cc-streaming', at('claude', 'chats'), cont, () => { LV.claudeChat = { turns: [turn()] }; }],
+            ['cc-stopped', at('claude', 'chats'), cont, () => { LV.claudeChat = { turns: [turn({ status: 'stopped', endedAt: Date.now() })] }; }],
+            ['cc-error', at('claude', 'chats'), cont, () => { LV.claudeChat = { turns: [turn({ status: 'error', error: 'stopped after 10 min', endedAt: Date.now() })] }; }],
+            ['cc-edits-done', at('claude', 'chats'), { ...cont, ccMode: 'edits' }, () => { LV.claudeChat = { turns: [turn({ mode: 'edits', status: 'done', usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, endedAt: Date.now() })] }; }],
+            ['cc-seeded', at('claude', 'chats'), cont, () => { LV.claudeChat = { turns: [turn({ seeded: { chars: 30000, trimmed: true } })] }; }],
+          ];
+        })(),
         ['canvas-no-boards', at('claude', 'canvas'), { canvasNoteOpen: true }, () => { LV.canvasBoards = []; }],
       ].filter(Boolean);
       for (const theme of ['dark', 'light']) {
