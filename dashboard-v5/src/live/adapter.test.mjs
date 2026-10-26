@@ -849,3 +849,15 @@ test('github view: missing, junk and failure states are honest', () => {
   const p = ghView({ ...GH_RAW, stale: true, staleReason: 'network', partial: true, totals: { ...GH_RAW.totals, waiting: null } }, GH_NOW);
   assert.deepEqual([p.stale, p.staleReason, p.partial, p.totals.waiting], [true, 'network', true, null]);
 });
+
+// ---- freshness (data overhaul Front A2) ----
+import { freshness, STALE_DAYS } from './adapter.mjs';
+test('freshness: today, stale after STALE_DAYS, estimate age, unknown', () => {
+  const now = Date.parse('2026-03-10T12:00:00Z');
+  assert.deepEqual(freshness('2026-03-10T02:00:00Z', 0, now), { days: 0, stale: false, estAge: 0, badge: '', note: 'Data from today’s scan' });
+  const old = freshness('2026-03-06T02:00:00Z', 3, now);
+  assert.deepEqual([old.days, old.stale, old.badge], [4, true, '4 days old']);
+  assert.equal(old.note, 'Data from a scan 4 days ago · completion %, insights and roadmap are estimates from 3 days before that scan');
+  assert.equal(freshness('2026-03-09T02:00:00Z', null, now).stale, STALE_DAYS <= 1);
+  assert.deepEqual([freshness(null, 1, now).days, freshness(null, 1, now).stale], [null, false]);
+});

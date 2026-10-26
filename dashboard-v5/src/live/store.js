@@ -89,6 +89,7 @@ export function createStore(DATA, hq) {
     get POSTS() { return live.social.POSTS; }, get MENTIONS() { return live.social.MENTIONS; },
     projectNotes: DATA.projectNotes && typeof DATA.projectNotes === 'object' ? DATA.projectNotes : {},
     weeklyRecap: DATA.weeklyRecap || null, builtAt: DATA.built_at || null,
+    get FRESH() { const s = at(0); return A.freshness(s.at, s.enrichAge); },   // how old the live scan + its estimates are (top-bar badge)
     confirmedHashes: (DATA.telemetry && DATA.telemetry.confirmed_hashes) || {},
   };
 

@@ -97,6 +97,8 @@ export function shellVals(ctx) {
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // shell
     scanLabel: sc.label || 'Last scan ' + S.lastScan, scanTitle, scanNow: () => this.scanNow(),
+    // data overhaul Front A2: the live scan's age (+ how old its estimates are); only the live view gets the badge
+    scanStale: !sc.label && live && H.FRESH.stale, scanStaleText: '· ' + H.FRESH.badge, scanFreshTip: H.FRESH.note,
     running, hasRunning: running > 0, toggleRuns: () => this.setState({ runsOpen: !S.runsOpen }), openRuns: () => this.setState({ runsOpen: true }),
     openPalette: () => { this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); FX().sfx('open'); },
     toggleFocus: () => this.toggleFocus(), toggleTheme: () => this.toggleTheme(), openSettings: () => this.setState({ settingsOpen: true }), openCheat: () => this.setState({ cheatOpen: true }),

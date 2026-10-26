@@ -134,6 +134,8 @@ function rebuildData() {
   // this blocking spawnSync and stops the window from ever being created).
   const r = spawnSync(process.execPath, [path.join(DIR, 'build-data.mjs')], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
   if (r.stdout) console.log(r.stdout.trim());
+  // a failed bake leaves the window on the previous bundle — say so instead of going silently stale
+  if (r.status !== 0) console.error('[build-data] bake failed (exit ' + r.status + '): ' + String(r.stderr || (r.error && r.error.message) || '').trim().slice(0, 500));
 }
 function latest() {
   try { return JSON.parse(fs.readFileSync(path.join(DATA, 'latest.json'), 'utf8')); } catch { return null; }
@@ -1586,10 +1588,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     appLog.watchPower(powerMonitor); appLog.heartbeat();   // suspend / resume / shutdown + a 15-min 'alive' line (app-log.js)
-    // Persist as the main dashboard: launch at login, hidden to tray.
-    if (app.isPackaged) {
-      app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
-    }
+    // Persist as the main dashboard: launch at login, hidden to tray — packaged or not; test instances never register
+    require('./login-item').init({ app });
     rebuildData();
     require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
     claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog, vaultDir: VAULT });   // Claude Hub (spec 2026-10-13): index of every Claude Code session

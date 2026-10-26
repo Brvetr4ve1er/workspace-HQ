@@ -408,6 +408,8 @@ add('projects.github-failing-refreshing', { hq: GH_HQ, live: (L, store) => { sto
 add('projects.github-signed-out', { hq: GH_HQ, live: (L, store) => { store.refreshGithub({ v: 1, state: 'signed-out', at: '2026-10-05T09:30:00.000Z', error: 'Not signed in to GitHub — run: gh auth login' }); }, state: tabSub('projects', 'github') });
 add('projects.github-stale-partial', { hq: GH_HQ, live: (L, store) => { store.refreshGithub({ ...GH, stale: true, staleReason: 'repos: network', partial: true, waiting: [], totals: { ...GH.totals, waiting: null } }); }, state: tabSub('projects', 'github') });
 add('projects.github-none', { state: tabSub('projects', 'github') });
+// data overhaul Front A2: the newest scan is days old (scans stopped landing) — the top bar says so
+add('shell.stale-data', { live: (L, store) => { Object.defineProperty(store.model, 'FRESH', { configurable: true, get: () => ({ days: 4, stale: true, estAge: 3, badge: '4 days old', note: 'Data from a scan 4 days ago · completion %, insights and roadmap are estimates from 3 days before that scan' }) }); } });
 add('system.all-fixed', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), fixed: ['organ-disk', 'organ-ram'] }) });
 add('system.clutter-saves', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), sysSaves: { 'Clean up: Project A copy ↔ Project A': 'saving', 'Clean up: notes ↔ notes-old': 'noted', 'Clean up: x ↔ y': 'failed' } }) });
 add('system.clutter-past', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), snapOffset: 1 }) });

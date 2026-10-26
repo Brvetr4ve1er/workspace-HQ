@@ -27,6 +27,21 @@ export function dayOf(id) {
   return m ? new Date(+m[1], +m[2] - 1, +m[3], 12) : null;
 }
 export const fmtD = (d) => (d ? MON[d.getMonth()] + ' ' + d.getDate() : '—');
+// How old the live data is (data overhaul Front A2). The nightly scan should keep it under a day;
+// two days or more means scans stopped landing. Estimates are older when enrichment was skipped.
+export const STALE_DAYS = 2;
+export function freshness(scanAt, enrichAge, now = Date.now()) {
+  const t = Date.parse(scanAt || '');
+  const days = Number.isFinite(t) ? Math.max(0, Math.floor((now - t) / 86400e3)) : null;
+  const est = Number.isInteger(enrichAge) && enrichAge > 0 ? enrichAge : 0;
+  const plural = (n) => n + (n === 1 ? ' day' : ' days');
+  return {
+    days, stale: days != null && days >= STALE_DAYS, estAge: est,
+    badge: days != null && days >= STALE_DAYS ? plural(days) + ' old' : '',
+    note: [days == null ? 'No scan date in the data' : days === 0 ? 'Data from today’s scan' : 'Data from a scan ' + plural(days) + ' ago',
+      est ? 'completion %, insights and roadmap are estimates from ' + plural(est) + ' before that scan' : ''].filter(Boolean).join(' · '),
+  };
+}
 export function ago(ms, now = Date.now()) {
   const s = Math.max(0, Math.round((now - ms) / 1000));
   if (s < 90) return 'just now';
@@ -171,6 +186,8 @@ export function snapshot(scan) {
   const acct = obj(scan.account);
   return {
     id: String(obj(scan.scan).id || ''), day: dayOf(obj(scan.scan).id), at: obj(scan.scan).date || null,
+    // days the soft fields (completion %, insights, roadmap) were carried forward from the last enrichment; null = unknown
+    enrichAge: Number.isInteger(obj(scan.scan).enrichment_age_days) && obj(scan.scan).enrichment_age_days >= 0 ? obj(scan.scan).enrichment_age_days : null,
     P0, archived,
     T0: arr(scan.quests).filter((q) => OPEN.has(obj(q).status)).map(toTask),
     doneTasks: arr(scan.quests).filter((q) => obj(q).status === 'done').map((q) => ({ ...toTask(q), completed: obj(q).completed || null })),
