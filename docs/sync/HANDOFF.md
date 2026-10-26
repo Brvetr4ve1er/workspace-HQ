@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-26 · FROM frontend (PC health tells the truth and says more; struct-lane edit owner-authorized) · main @ f1a4f7d
+DONE: owner reported "4 GB VRAM is wrong" (RTX 3070 Laptop = 8 GB) and "PC health is boring".
+  1e7ef34 struct: collector/pc-health.ps1 + new pure collector/lib/pc-health.mjs (13 tests): real VRAM from the display
+  registry qwMemorySize / nvidia-smi (WMI AdapterRAM is 32-bit, caps at ~4 GB); every GPU + live NVIDIA stats; top RAM
+  and CPU apps; folder-size breakdown via robocopy /L (cached 6 h in gitignored data/pc-health-disk.json); Recycle Bin;
+  battery organ; power plan; drive health; startup apps; pending restart; link speed; week trends; an honest
+  "not readable without admin" list. Fix commands + danger levels unchanged. Scan ~7 s, ~60 s when disk is re-measured.
+  d75a875 hq:pc-open-folder (new dashboard/pc-health-open.js, 6 tests; one main.js hook line before the nav-bridge init).
+  2b5edf9 v5 System › Machine: 8 new panels; goldens attributed (^md[A-Z], sysScanTip) + new scenario; tpl hash +9890.
+  f1a4f7d Ask health section: real VRAM, top apps, biggest folders, GPU now, trends (old sidecars still omit VRAM).
+  Suites: collector/lib 45, dashboard 514, claude-hub 176, v5 420; selftest 2508 combos 0/0/0; checked on a test copy.
+IN-FLIGHT: none. The owner's app needs a restart to load the new IPC + panels (tools\rollback.ps1 v5, or tray Quit + relaunch).
+ASKS: struct lane — review 1e7ef34 (pc-health is yours); CONTRACT.md 2026-10-26 entry describes the additive fields.
+BREAKS: none (additive). Re-examine is ~7 s; every 6 h it re-measures the disk breakdown (~1 min).
+
 ## 2026-10-26 · FROM frontend (archive + prompt library program complete; tree committed) · main @ b7ffa0b
 DONE: all 8 features built, reviewed and pushed (Claude Hub H2–H5 live since 2026-10-25 12:52; H6 ChatGPT/Claude-memory
   import, P1 prompt Library, P2 harvest/promote, P3 run modal + packs at 0102fc5). Suites at 0102fc5: claude-hub 176,
