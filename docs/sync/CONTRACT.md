@@ -295,3 +295,19 @@ Older sidecars without `detail`/`trends` stay valid: every consumer treats them 
 - `local` = a clone found on this machine (scanned project paths + direct children of Documents and Desktop) whose
   `origin` points at the repo. `latest.json` / `projects[]` are untouched (remote-only repos are Front B's job).
 - `dashboard/build-data.mjs` bakes it as `DATA.github` (null when absent).
+
+## 2026-10-26 · struct · own repos become projects (additive, owner-authorized — data overhaul Front B)
+`projects[]` grows on its own: besides the hand-kept `products[]`, every git repo under `root` and the new
+`discover_roots` (config; seeded `["~/Desktop"]`, up to `discover_depth` = 3 levels) becomes a scored project when its
+GitHub owner is in `owner_logins` (seeded with the owner's login), it has no remote at all, or it is on `adopt`.
+Respected as before: `ignore` (top-level names under root), configured products / vaults / clones (neither candidates nor
+searched inside). Never descends into a repo, `node_modules`, dot-folders or pruned names; a worktree/submodule (`.git`
+file) is not a project. Third-party clones stay inventory.
+- raw-metrics `products[]` and latest.json `projects[]` gain optional `discovered: 'owner'|'no-remote'|'adopted'` on
+  those entries only (absent on configured products — the golden sample is unchanged).
+- Their `id` is a slug of the folder name (parent-qualified, then numbered, on a clash); `name` is the folder name
+  (a generic one like `theme` gets its parent's name in front). `path` stays relative to `root` when inside it; a repo
+  outside `root` (Desktop) carries its absolute path with forward slashes.
+- Main accepts an absolute project path outside Documents only when it is exactly a tracked project's path in the
+  current latest.json (`dashboard/project-paths.js`, used by main.js `resolveProjectPath` and session-api.js).
+- The first scan with this on found 15 own repos (24 projects); the collector takes ~40 s instead of ~15 s.
