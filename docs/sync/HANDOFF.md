@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-26 · FROM frontend (GitHub view — the data-overhaul spec's Front C; struct-lane edit owner-authorized) · main @ 53e23e5
+DONE: owner: "I don't see any of the GitHub data" → "start building the GitHub part" (gh already signed in).
+  1580183 struct: new collector/github.mjs + pure collector/lib/github.mjs (7 tests) — two read-only GraphQL calls through
+  the owner's own gh login (no stored token) into gitignored data/github.json: owned repos (private incl.) with CI, open
+  PRs/issues and the local clone found for each (scanned projects + git folders ≤3 deep under Documents/Desktop), PRs
+  waiting on the owner, their own PRs, assigned issues. Snapshot kept if <10 min old. Optional pipeline step after pc-health.
+  b45a0c3 meta: CONTRACT + IPC-CONTRACT entries. 53e23e5 fe: Projects › GitHub sub-tab; new dashboard/github-view.js
+  (7 tests; hq:github-refresh, hq:github-open = github.com links listed in the snapshot only); one main.js hook line;
+  build-data bakes DATA.github; goldens attributed + 5 scenarios; tpl hash +10003.
+  Suites: collector/lib 52, dashboard 521, v5 422; selftest 2584 combos 0/0/0; checked in the harness on real data.
+IN-FLIGHT: none. Remote-only repos are listed in the GitHub tab only; projects[] is untouched (Front B).
+ASKS: struct lane — review 1580183 (collector/ is yours).
+BREAKS: new gitignored sidecar data/github.json; pipeline step `github` (optional); IPC hq:github-refresh / hq:github-open;
+  new sub projects/github. All additive.
+
 ## 2026-10-26 · FROM frontend (PC health tells the truth and says more; struct-lane edit owner-authorized) · main @ f1a4f7d
 DONE: owner reported "4 GB VRAM is wrong" (RTX 3070 Laptop = 8 GB) and "PC health is boring".
   1e7ef34 struct: collector/pc-health.ps1 + new pure collector/lib/pc-health.mjs (13 tests): real VRAM from the display
