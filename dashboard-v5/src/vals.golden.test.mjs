@@ -372,6 +372,22 @@ add('overlay.whats-new-over-settings', { state: { settingsOpen: true, whatsNewOp
 // P2 System: Re-examine running, a fresh report (no reload: store.refreshMachine), every issue fixed, clutter saves
 add('system.examining', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), sysExamining: true }) });
 add('system.reexamined', { hq: P3_HQ, live: (L, store) => { store.refreshMachine(FRESH_PC); }, state: tabSub('system', 'machine') });
+// PC health detail panels (2026-10-26): every panel filled from a placeholder report (pc-health detail + trends)
+const DETAIL_PC = { ...FRESH_PC, detail: {
+  gpus: [{ name: 'Placeholder dGPU', vramGB: 8, vramSource: 'registry', driverDate: '2026-07-02', driverDays: 100 }, { name: 'Placeholder iGPU', vramGB: 0.5, vramSource: 'wmi', driverDate: '2025-12-11', driverDays: 320, width: 1920, height: 1080, hz: 144 }],
+  gpuLive: { name: 'Placeholder dGPU', tempC: 88, loadPct: 40, memUsedMB: 2048, memTotalMB: 8192, powerW: 60.25, powerLimitW: 115, clockMHz: 1500, pstate: 'P0' },
+  topRam: [{ name: 'app-a', count: 20, mb: 3072 }, { name: 'app-b', count: 1, mb: 512 }],
+  topCpu: [{ name: 'app-a', pct: 12 }, { name: 'app-b', pct: 0 }],
+  hogs: { at: '2026-10-05T09:00:00Z', partial: true, items: [{ path: 'C:/Users/tester/Videos', label: 'Videos', gb: 50 }, { path: 'C:/Users/tester/Downloads', label: 'Downloads', gb: 10.5 }] },
+  recycleGB: 1.25,
+  storage: [{ name: 'Placeholder NVMe', media: 'SSD', bus: 'NVMe', health: 'Healthy', sizeGB: 477 }, { name: 'Placeholder HDD', media: 'HDD', bus: 'SATA', health: 'Warning', sizeGB: 1000 }],
+  battery: { pct: 15, plugged: false, runtimeMin: 75 }, power: { plan: 'High performance' },
+  network: { adapter: 'Placeholder Wi-Fi', wireless: true, linkMbps: 287 },
+  displays: [{ gpu: 'Placeholder iGPU', width: 1920, height: 1080, hz: 144 }],
+  rebootPending: true, startupApps: ['App One', 'App Two'], uptimeHrs: 400,
+  unreadable: ['CPU temperature', 'Battery wear'],
+}, trends: [{ id: 'disk', dir: 'down', bad: true, text: 'Disk free fell 9.6 GB over this week (49.6 → 40 GB)' }, { id: 'ram', dir: 'flat', bad: false, text: 'RAM averaged 75% across the last 3 checks (peak 80%)' }] };
+add('system.machine-detail', { hq: { ...P3_HQ, pcOpenFolder() {} }, live: (L, store) => { store.refreshMachine(DETAIL_PC); }, state: tabSub('system', 'machine') });
 add('system.all-fixed', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), fixed: ['organ-disk', 'organ-ram'] }) });
 add('system.clutter-saves', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), sysSaves: { 'Clean up: Project A copy ↔ Project A': 'saving', 'Clean up: notes ↔ notes-old': 'noted', 'Clean up: x ↔ y': 'failed' } }) });
 add('system.clutter-past', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), snapOffset: 1 }) });

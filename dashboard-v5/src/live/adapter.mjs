@@ -302,7 +302,55 @@ export function machine(pcHealth) {
     const f = obj(arr(o.fixes)[0]);
     return { id: 'organ-' + o.id, sev: o.status === 'blood' ? 'red' : 'orange', title: String(o.diagnosis || o.label), why: String(o.teaching || ''), fix: String(f.title || 'No automatic fix'), cmd: String(f.command || ''), safe: f.danger === 'safe' };
   });
-  return { VITALS, ISSUES, scannedAt: ph.scanned_at || null, host: obj(ph.host) };
+  return { VITALS, ISSUES, scannedAt: ph.scanned_at || null, host: obj(ph.host), DETAIL: machineDetail(ph) };
+}
+
+// System › Machine panels from the pc-health `detail` + `trends` blocks (collector/lib/pc-health.mjs).
+// Pure and defensive: an older sidecar without them yields empty panels, which the screen hides.
+const fnum = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+const gbOf = (mb) => (mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB');
+// bar width as a % of the biggest row, never below a visible sliver
+const bars = (rows, key) => { const max = Math.max(0, ...rows.map((r) => r[key])); return rows.map((r) => ({ ...r, w: max > 0 ? Math.max(2, Math.round((r[key] / max) * 100)) + '%' : '0%' })); };
+export function machineDetail(pcHealth) {
+  const ph = obj(pcHealth), d = obj(ph.detail);
+  const ram = bars(arr(d.topRam).map(obj).filter((p) => p.name && fnum(p.mb) != null)
+    .map((p) => ({ name: String(p.name), val: gbOf(p.mb), sub: num(p.count, 1) > 1 ? num(p.count, 1) + ' processes' : '1 process', n: p.mb })), 'n');
+  const cpu = bars(arr(d.topCpu).map(obj).filter((p) => p.name && fnum(p.pct) != null && p.pct > 0)
+    .map((p) => ({ name: String(p.name), val: p.pct + '%', sub: 'of the whole CPU', n: p.pct })), 'n');
+  const hog = obj(d.hogs);
+  const disk = bars(arr(hog.items).map(obj).filter((h) => h.path && fnum(h.gb) != null)
+    .map((h) => ({ name: String(h.label || h.path), path: String(h.path), val: h.gb + ' GB', n: h.gb })), 'n');
+  const gpus = arr(d.gpus).map(obj).filter((g) => g.name).map((g, i) => ({
+    name: String(g.name), val: fnum(g.vramGB) != null ? g.vramGB + ' GB' : '—',
+    sub: ['VRAM' + (g.vramSource === 'wmi' ? ' (Windows’ 4 GB-capped figure)' : ''), g.driverDate ? 'driver ' + g.driverDate + (fnum(g.driverDays) != null ? ' · ' + g.driverDays + ' days old' : '') : ''].filter(Boolean).join(' · '),
+    first: i === 0,
+  }));
+  const L = obj(d.gpuLive), live = [];
+  if (fnum(L.tempC) != null) live.push({ k: 'Temp', v: L.tempC + ' °C', warn: L.tempC >= 85 });
+  if (fnum(L.loadPct) != null) live.push({ k: 'Load', v: L.loadPct + '%', warn: false });
+  if (fnum(L.memTotalMB) != null) live.push({ k: 'VRAM in use', v: gbOf(num(L.memUsedMB)) + ' of ' + gbOf(L.memTotalMB), warn: false });
+  if (fnum(L.powerW) != null) live.push({ k: 'Power', v: Math.round(L.powerW * 10) / 10 + ' W' + (fnum(L.powerLimitW) != null ? ' of ' + Math.round(L.powerLimitW) + ' W' : ''), warn: false });
+  if (fnum(L.clockMHz) != null) live.push({ k: 'Clock', v: L.clockMHz + ' MHz', warn: false });
+  if (L.pstate) live.push({ k: 'State', v: String(L.pstate) + (String(L.pstate) === 'P8' ? ' (idle)' : String(L.pstate) === 'P0' ? ' (full power)' : ''), warn: false });
+  const facts = [];
+  const bat = obj(d.battery);
+  if (fnum(bat.pct) != null) facts.push({ k: 'Battery', v: bat.pct + '% · ' + (bat.plugged ? 'plugged in' : 'on battery' + (fnum(bat.runtimeMin) ? ' · ~' + (bat.runtimeMin >= 60 ? Math.floor(bat.runtimeMin / 60) + ' h ' : '') + (bat.runtimeMin % 60) + ' min left' : '')), warn: !bat.plugged && bat.pct <= 20 });
+  if (obj(d.power).plan) facts.push({ k: 'Power plan', v: String(d.power.plan), warn: false });
+  for (const s of arr(d.displays).map(obj)) if (fnum(s.width) && fnum(s.height)) facts.push({ k: 'Display', v: s.width + '×' + s.height + (fnum(s.hz) ? ' · ' + s.hz + ' Hz' : ''), warn: false });
+  const net = obj(d.network);
+  if (net.adapter || fnum(net.linkMbps) != null) facts.push({ k: 'Network', v: (net.wireless ? 'Wi-Fi' : 'Wired') + (fnum(net.linkMbps) != null ? ' · ' + net.linkMbps + ' Mbps link' : ''), warn: false });
+  if (fnum(d.uptimeHrs) != null) facts.push({ k: 'Up for', v: d.uptimeHrs >= 48 ? Math.round(d.uptimeHrs / 24) + ' days' : Math.round(d.uptimeHrs) + ' h', warn: d.uptimeHrs >= 24 * 14 });
+  if (d.rebootPending === true) facts.push({ k: 'Restart', v: 'pending — finishes an update', warn: true });
+  const storage = arr(d.storage).map(obj).filter((s) => s.name).map((s) => ({
+    name: String(s.name), sub: [s.media, s.bus, fnum(s.sizeGB) != null ? s.sizeGB + ' GB' : ''].filter(Boolean).join(' · '),
+    health: String(s.health || 'Unknown'), ok: String(s.health) === 'Healthy',
+  }));
+  const trends = arr(ph.trends).map(obj).filter((t) => t.text).map((t) => ({ text: String(t.text), arrow: t.dir === 'down' ? '↓' : t.dir === 'up' ? '↑' : '→', bad: !!t.bad }));
+  const startup = arr(d.startupApps).map(String).filter(Boolean);
+  return {
+    ram, cpu, disk, diskAt: hog.at || null, diskPartial: !!hog.partial, recycleGB: fnum(d.recycleGB),
+    gpus, live, facts, storage, trends, startup, unreadable: arr(d.unreadable).map(String),
+  };
 }
 // One row per clutter item, labelled the way v3 named them (derive.mjs anomalies):
 // a clone by its name, a duplicate by its detail, an empty folder by itself, a

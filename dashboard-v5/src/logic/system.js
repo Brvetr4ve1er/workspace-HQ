@@ -11,7 +11,8 @@ import { FX, normText } from './shared.js';
 
 export const CAPTURE_OFF = 'Needs the live app — capture is unavailable in this preview';
 export const ALREADY_IDEA = 'Already in your ideas';
-export const SCAN_TIP = 'Run a fresh health scan of this machine (~3s)';
+export const SCAN_TIP = 'Run a fresh health scan of this machine (~10 s; about a minute when the disk breakdown is re-measured, every 6 h)';
+export const OPEN_OFF = 'Needs the live app — opening folders is unavailable in this preview';
 export const SCAN_OFF = 'Needs the live app — the health scan is unavailable in this preview';
 const errText = (e) => { try { return String((e && e.message) || e); } catch { return 'unknown error'; } };
 
@@ -68,6 +69,14 @@ export const systemLogic = {
     const reason = why || (r && r.error ? String(r.error) : 'the scan returned no report');
     this.toast('error', 'Re-examine failed · ' + reason, { ms: 6000 });
     FX().sfx('error');
+  },
+
+  // Disk breakdown › Open: main opens only a folder listed in the current pc-health.json
+  // (hq:pc-open-folder); it answers true or {error}. Explorer opens, nothing runs.
+  async openPcFolder(p) {
+    if (!(this.hq && this.hq.pcOpenFolder) || this.ps() === 'nobridge') return this.denied(OPEN_OFF);
+    const r = await this.call(() => this.hq.pcOpenFolder(p), 'Couldn’t open that folder');
+    if (r === true) this.toast('info', 'Opened in Explorer · ' + p);
   },
 
   // a safe-listed fix ran ok: hide its issue until the next Re-examine. The fix confirm

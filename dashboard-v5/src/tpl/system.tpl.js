@@ -31,6 +31,85 @@ export default String.raw`        <sc-if value="{{ v.system }}" hint-placeholder
                   <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Vitals</div>
                   <div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ vitals }}" as="vt" hint-placeholder-count="8"><span style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;font-size:13px"><span style="width:7px;height:7px;background:{{ vt.color }}"></span><span style="color:var(--muted)">{{ vt.k }}</span><span>{{ vt.v }}</span></span></sc-for></div>
                 </section>
+                <!-- v5: PC health detail (2026-10-26) — what is using the machine right now, from the pc-health detail block -->
+                <sc-if value="{{ mdHasNow }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="now" style="display:flex;flex-wrap:wrap;gap:12px">
+                    <sc-if value="{{ mdHasRam }}" hint-placeholder-val="{{ true }}">
+                      <div style="flex:1 1 300px;min-width:0;background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                        <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Using your memory</div>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                          <sc-for list="{{ mdRam }}" as="r" hint-placeholder-count="5">
+                            <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;gap:8px;align-items:baseline;font-size:13px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span><span style="color:var(--faint);font-size:11px">{{ r.sub }}</span><span style="font-family:var(--term)">{{ r.val }}</span></div><div style="height:4px;background:var(--frame);border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ r.w }};background:var(--blue)"></div></div></div>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ mdHasCpu }}" hint-placeholder-val="{{ true }}">
+                      <div style="flex:1 1 300px;min-width:0;background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                        <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Using your processor</div>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                          <sc-for list="{{ mdCpu }}" as="c" hint-placeholder-count="4">
+                            <div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;gap:8px;align-items:baseline;font-size:13px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.name }}</span><span style="color:var(--faint);font-size:11px">{{ c.sub }}</span><span style="font-family:var(--term)">{{ c.val }}</span></div><div style="height:4px;background:var(--frame);border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ c.w }};background:var(--gold)"></div></div></div>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </section>
+                </sc-if>
+                <!-- v5: PC health detail (2026-10-26) — where the disk went; Open asks main (hq:pc-open-folder), which opens only a folder listed in the current report -->
+                <sc-if value="{{ mdHasDisk }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="disk" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:4px">Where your disk went</div>
+                    <div style="font-size:12px;color:var(--faint);margin-bottom:10px">{{ mdDiskNote }}</div>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                      <sc-for list="{{ mdDisk }}" as="d" hint-placeholder-count="6">
+                        <div style="display:flex;gap:10px;align-items:center"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><div style="display:flex;gap:8px;align-items:baseline;font-size:13px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ d.path }}">{{ d.name }}</span><span style="font-family:var(--term)">{{ d.val }}</span></div><div style="height:4px;background:var(--frame);border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ d.w }};background:var(--orange)"></div></div></div><button type="button" onClick="{{ d.open }}" disabled="{{ !mdCanOpen }}" title="{{ mdOpenTip }}" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button><button type="button" onClick="{{ d.copy }}" title="Copy the folder path" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--term)">Copy</button></div>
+                      </sc-for>
+                    </div>
+                  </section>
+                </sc-if>
+                <!-- v5: PC health detail (2026-10-26) — every GPU with its real VRAM (not WMI's 4 GB cap) and live NVIDIA stats -->
+                <sc-if value="{{ mdHasGpus }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="gpu" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Graphics</div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <sc-for list="{{ mdGpus }}" as="g" hint-placeholder-count="2">
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline"><span style="font-size:14px">{{ g.name }}</span><span style="font-family:var(--term);font-size:13px">{{ g.val }}</span><span style="font-size:12px;color:var(--faint)">{{ g.sub }}</span></div>
+                      </sc-for>
+                    </div>
+                    <sc-if value="{{ mdHasLive }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"><sc-for list="{{ mdLive }}" as="l" hint-placeholder-count="5"><span style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;font-size:13px"><span style="color:var(--muted)">{{ l.k }}</span><span style="color:{{ l.color }}">{{ l.v }}</span></span></sc-for></div>
+                    </sc-if>
+                  </section>
+                </sc-if>
+                <!-- v5: PC health detail (2026-10-26) — power, display, network, uptime, storage health and trends from the report's history -->
+                <sc-if value="{{ mdHasFacts }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="facts">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Power &amp; system</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ mdFacts }}" as="f" hint-placeholder-count="5"><span style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;font-size:13px"><span style="color:var(--muted)">{{ f.k }}</span><span style="color:{{ f.color }}">{{ f.v }}</span></span></sc-for></div>
+                  </section>
+                </sc-if>
+                <sc-if value="{{ mdHasStorage }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="storage">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Drives</div>
+                    <div style="display:flex;flex-direction:column;gap:6px"><sc-for list="{{ mdStorage }}" as="s" hint-placeholder-count="1"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;font-size:13px"><span style="width:7px;height:7px;background:{{ s.color }}"></span><span>{{ s.name }}</span><span style="color:var(--faint);font-size:12px">{{ s.sub }}</span><span style="color:{{ s.color }}">{{ s.health }}</span></div></sc-for></div>
+                  </section>
+                </sc-if>
+                <sc-if value="{{ mdHasTrends }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="trends">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Trends</div>
+                    <div style="display:flex;flex-direction:column;gap:6px"><sc-for list="{{ mdTrends }}" as="t" hint-placeholder-count="3"><div style="display:flex;gap:8px;font-size:13px;color:{{ t.color }}"><span style="font-family:var(--term)">{{ t.arrow }}</span><span>{{ t.text }}</span></div></sc-for></div>
+                  </section>
+                </sc-if>
+                <sc-if value="{{ mdHasStartup }}" hint-placeholder-val="{{ true }}">
+                  <section data-md="startup">
+                    <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:6px">Starts with Windows</div>
+                    <div style="font-size:13px;color:var(--muted);line-height:1.6">{{ mdStartup }}</div>
+                  </section>
+                </sc-if>
+                <sc-if value="{{ mdHasUnreadable }}" hint-placeholder-val="{{ true }}">
+                  <div data-md="unreadable" style="font-size:12px;color:var(--faint)">Not readable without admin rights: {{ mdUnreadable }}</div>
+                </sc-if>
                 <!-- v5: Claude Hub (spec 2026-10-13 §9 System) — the local index of every Claude Code session; honest states incl. no Node / read-only -->
                 <sc-if value="{{ hubShow }}" hint-placeholder-val="{{ true }}">
                   <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">

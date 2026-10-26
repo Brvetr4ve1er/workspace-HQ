@@ -94,7 +94,9 @@ test('machine: organs become vitals; only warn/bad organs become issues', () => 
   ] });
   assert.deepEqual(m.VITALS, [['CPU', '18 %', 'ok'], ['Storage', '9 GB free', 'bad']]);
   assert.equal(m.ISSUES.length, 1); assert.equal(m.ISSUES[0].safe, true); assert.equal(m.ISSUES[0].sev, 'red');
-  assert.deepEqual(machine(null), { VITALS: [], ISSUES: [], scannedAt: null, host: {} });
+  const { DETAIL, ...rest } = machine(null);
+  assert.deepEqual(rest, { VITALS: [], ISSUES: [], scannedAt: null, host: {} });
+  assert.deepEqual(DETAIL.ram, []); // an absent sidecar still yields empty panels
 });
 
 test('clutter, sites and canvas degrade to empty on missing blocks', () => {
@@ -761,4 +763,58 @@ test('packView: plan rows, counts, skipped reasons, one confirm; done and error 
     'Imported 2 notes · 1 already there (kept) · 1 secret masked');
   assert.equal(packView({ phase: 'error', error: 'that ZIP is over 50 MB' }).error, 'that ZIP is over 50 MB');
   assert.equal(packView(null).phase, 'closed');
+});
+
+// ---- System › Machine detail panels (PC health 2026-10-26) ----
+import { machineDetail } from './adapter.mjs';
+
+test('machineDetail: an older sidecar (no detail/trends) gives empty panels, never throws', () => {
+  for (const x of [undefined, null, {}, { organs: [] }, { detail: 'junk', trends: 5 }]) {
+    const d = machineDetail(x);
+    for (const k of ['ram', 'cpu', 'disk', 'gpus', 'live', 'facts', 'storage', 'trends', 'startup', 'unreadable']) assert.deepEqual(d[k], [], k);
+  }
+});
+
+test('machineDetail: rows carry readable values and bars relative to the biggest', () => {
+  const d = machineDetail({ detail: {
+    topRam: [{ name: 'a', count: 3, mb: 3072 }, { name: 'b', count: 1, mb: 512 }, { name: 'bad' }],
+    topCpu: [{ name: 'a', pct: 10 }, { name: 'idle', pct: 0 }],
+    hogs: { at: '2026-10-05T09:00:00Z', partial: true, items: [{ path: 'C:/x/Big', label: 'Big', gb: 50 }, { path: 'C:/x/Small', label: 'Small', gb: 0.5 }] },
+  } });
+  assert.deepEqual(d.ram.map((r) => [r.name, r.val, r.sub, r.w]), [['a', '3.0 GB', '3 processes', '100%'], ['b', '512 MB', '1 process', '17%']]);
+  assert.deepEqual(d.cpu.map((r) => r.name), ['a']); // a 0% row is not a finding
+  assert.deepEqual(d.disk.map((r) => [r.name, r.val, r.w, r.path]), [['Big', '50 GB', '100%', 'C:/x/Big'], ['Small', '0.5 GB', '2%', 'C:/x/Small']]);
+  assert.equal(d.diskPartial, true);
+});
+
+test('machineDetail: GPUs say where VRAM came from; live stats flag heat; facts flag what needs action', () => {
+  const d = machineDetail({ detail: {
+    gpus: [{ name: 'dGPU', vramGB: 8, vramSource: 'registry', driverDate: '2026-07-02', driverDays: 100 }, { name: 'old', vramGB: 4, vramSource: 'wmi' }],
+    gpuLive: { tempC: 90, loadPct: 5, memUsedMB: 1024, memTotalMB: 8192, powerW: 12.75, clockMHz: 210, pstate: 'P8' },
+    battery: { pct: 15, plugged: false, runtimeMin: 75 }, power: { plan: 'Balanced' },
+    displays: [{ width: 1920, height: 1080, hz: 300 }], network: { wireless: false, linkMbps: 1000 }, uptimeHrs: 400, rebootPending: true,
+  } });
+  assert.equal(d.gpus[0].sub, 'VRAM · driver 2026-07-02 · 100 days old');
+  assert.match(d.gpus[1].sub, /4 GB-capped/);
+  assert.deepEqual(d.live.map((c) => c.k + '=' + c.v), ['Temp=90 °C', 'Load=5%', 'VRAM in use=1.0 GB of 8.0 GB', 'Power=12.8 W', 'Clock=210 MHz', 'State=P8 (idle)']);
+  assert.equal(d.live[0].warn, true);
+  const facts = Object.fromEntries(d.facts.map((f) => [f.k, f]));
+  assert.equal(facts.Battery.v, '15% · on battery · ~1 h 15 min left');
+  assert.equal(facts.Battery.warn, true);
+  assert.equal(facts.Display.v, '1920×1080 · 300 Hz');
+  assert.equal(facts.Network.v, 'Wired · 1000 Mbps link');
+  assert.equal(facts['Up for'].v, '17 days');
+  assert.equal(facts['Up for'].warn, true);
+  assert.equal(facts.Restart.warn, true);
+});
+
+test('machineDetail: trends get arrows; storage health is Healthy or flagged', () => {
+  const d = machineDetail({ detail: { storage: [{ name: 's', media: 'SSD', bus: 'NVMe', health: 'Healthy', sizeGB: 477 }, { name: 'h', health: 'Warning' }] },
+    trends: [{ dir: 'down', bad: true, text: 'fell' }, { dir: 'flat', text: 'held' }, { text: '' }] });
+  assert.deepEqual(d.trends.map((t) => t.arrow + t.text), ['↓fell', '→held']);
+  assert.deepEqual(d.storage.map((s) => [s.sub, s.ok]), [['SSD · NVMe · 477 GB', true], ['', false]]);
+});
+
+test('machine() exposes the panels as DETAIL', () => {
+  assert.deepEqual(machine({ organs: [] }).DETAIL.ram, []);
 });

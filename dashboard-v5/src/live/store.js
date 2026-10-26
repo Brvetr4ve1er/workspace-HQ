@@ -71,7 +71,7 @@ export function createStore(DATA, hq) {
     AUTOS: auto.AUTOS, INTERACTIVE: auto.INTERACTIVE, autoCounts: auto.counts,
     LIBRARY: auto.LIBRARY, SCHEDULED: auto.SCHEDULED, INITIAL_RUNS: auto.RUNS, autoTotal: auto.total,
     get ISSUES() { return mach().ISSUES; }, get VITALS() { return mach().VITALS; },
-    get pcScannedAt() { return mach().scannedAt; }, get pcHost() { return mach().host; },
+    get pcScannedAt() { return mach().scannedAt; }, get pcHost() { return mach().host; }, get MACHINE() { return mach().DETAIL; },
     get CLUTTER() { return A.clutter(at(0).inventory); },
     get VAULTS() { return A.vaults(at(0).inventory); },
     get SITES() { return A.sites(at(0).browser); },

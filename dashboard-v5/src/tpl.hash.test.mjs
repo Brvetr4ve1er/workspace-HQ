@@ -37,9 +37,10 @@ import tpl from './app.tpl.js';
 // 2026-10-25 P1 prompt library: Claude › Prompts Library block (claude.tpl.js) + project-page "Run a prompt" (+5622 chars / +5639 bytes)
 // 2026-10-25 P2 prompt harvest: Library|Candidates toggle + Candidates list (claude.tpl.js) + Promote dialog (extras.tpl.js) (+8724 chars / +8738 bytes)
 // 2026-10-25 P3 prompt runs + packs: run modal + pack dialog (extras.tpl.js), pack buttons (claude.tpl.js) (+9193 chars / +9219 bytes)
-const SHA256 = 'c01af011c72e4ff0ce7effed91e007df1e9705b699b562818768c6d733808407';
-const LENGTH = 261680;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 262177;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-26 PC health detail: System › Machine panels (system.tpl.js) — memory/processor users, disk breakdown with Open/Copy, graphics + live stats, power & system, drives, trends, startup, not-readable list (+9890 chars / +9898 bytes)
+const SHA256 = '711852d7372b241202a95828c6786d7506ebc967430d056d074313fb4e7dcd6e';
+const LENGTH = 271570;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 272075;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
