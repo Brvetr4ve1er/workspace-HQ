@@ -267,3 +267,16 @@ for history. A dismissed quest is never re-raised. No shape change: `reopened_fr
 string field on quest objects. Also: `collector/enrich.mjs` now launches Claude through the real
 binary (or the npm shim via a shell) — Node ≥ 20.12 refused the `.cmd` shim, so every scan since
 August carried the 2026-08-10 enrichment forward; the default model is the CLI alias `sonnet`.
+
+## 2026-10-26 · struct · pc-health.json says more (additive)
+`data/pc-health.json` (gitignored sidecar, `collector/pc-health.mjs` → shaping in `collector/lib/pc-health.mjs`):
+- `organs[gpu].value` is now the real VRAM of the biggest GPU (display-class registry `qwMemorySize`, or nvidia-smi's
+  total); WMI's 32-bit `AdapterRAM` capped every card at ~4 GB. Fix commands and their `danger` levels are unchanged
+  (main.js `hq:health-fix` still whitelists only `danger:'safe'`); the disk organ gains one safe fix (Storage settings).
+- New optional organ `battery` (`value` = %, only when Windows reports a battery).
+- New optional `detail`: `{ gpus[], gpuLive|null, topRam[], topCpu[] (share of the whole CPU), hogs|null {at, partial,
+  items[{path, label, gb}], fresh}, recycleGB, storage[], battery|null, power{plan}, network|null, displays[],
+  rebootPending, startupApps[], uptimeHrs, unreadable[] }` and `trends[{id, dir, bad, text}]` (only what the history backs).
+- `host` gains `plugged`, `gpu`, `vramGB`. `data/pc-health-history.json` keeps 96 samples (+ `gpuTempC`, `battery`).
+- New gitignored cache `data/pc-health-disk.json`: the folder-size breakdown, re-measured at most every 6 h.
+Older sidecars without `detail`/`trends` stay valid: every consumer treats them as absent.
