@@ -249,7 +249,7 @@ function createFake(opts) {
       stat: ' src/a.js | 2 +-', envHits: ['sub/.env'], branch: 'main',
     })],
     ['logDecision', WRITE], ['learn', WRITE], ['archiveProject', WRITE], ['reviveProject', WRITE], ['markQuestDone', WRITE], ['actedOn', WRITE],
-    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })],
+    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true],
     ['getSocial', () => ({ accounts: { accounts: [] }, outbox: { actions: [] }, inbox: { events: [] } })],
     ['getCanvas', () => []], ['canvasAdd', WRITE], ['onCanvas', 'on:hq:canvas'],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],

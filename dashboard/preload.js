@@ -115,6 +115,7 @@ contextBridge.exposeInMainWorld('hq', {
   // M2: MED-BAY — live PC-health scan + whitelisted safe fix runner
   healthScan: () => ipcRenderer.invoke('hq:health-scan'),
   healthFix: (command) => ipcRenderer.invoke('hq:health-fix', command),
+  pcOpenFolder: (p) => ipcRenderer.invoke('hq:pc-open-folder', p),   // only a folder listed in the current disk breakdown
   // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
   getSocial: () => ipcRenderer.invoke('hq:social-read'),
 
