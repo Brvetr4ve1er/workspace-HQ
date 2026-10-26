@@ -133,3 +133,36 @@ test('claudeSection: never throws; a malformed Hub answer is an honest note, not
   assert.equal(ok.text.length, 500);
   assert.deepEqual(ok.cites, ['chat Release planning, 2026-10-01']);
 });
+
+// ---- PC health in Ask (2026-10-26): real VRAM + detail lines when the sidecar has `detail`; old sidecars still omit VRAM
+test('health: a new sidecar gives the real VRAM, what uses the machine, biggest folders and trends', async () => {
+  const w = workspace();
+  try {
+    fs.writeFileSync(path.join(w.dataDir, 'pc-health.json'), JSON.stringify({
+      scanned_at: '2026-10-26T10:00:00',
+      organs: [{ id: 'gpu', label: 'Graphics', value: 8, unit: 'GB VRAM', status: 'grace', diagnosis: 'Placeholder dGPU · 8 GB' }],
+      detail: { topRam: [{ name: 'app-a', mb: 3072 }], hogs: { partial: true, items: [{ label: 'Videos', gb: 50 }] }, gpuLive: { tempC: 50, loadPct: 3 }, unreadable: ['CPU temperature'] },
+      trends: [{ text: 'Disk free fell 9.6 GB over this week' }],
+    }));
+    const r = await ctx.assemble({ dataDir: w.dataDir, vaultDir: w.vaultDir, include: { health: true }, now: NOW });
+    const text = typeof r === 'string' ? r : r.text;
+    assert.match(text, /Graphics: 8 GB VRAM/);
+    assert.doesNotMatch(text, /VRAM figure omitted/);
+    assert.match(text, /Using the most memory: app-a 3\.0 GB/);
+    assert.match(text, /Biggest folders: Videos 50 GB \(partial list\)/);
+    assert.match(text, /GPU now: 50 °C, 3% load/);
+    assert.match(text, /Not measurable without admin: CPU temperature/);
+    assert.match(text, /Trend: Disk free fell 9\.6 GB/);
+  } finally { w.cleanup(); }
+});
+
+test('health: an old sidecar (no detail) still omits the capped VRAM figure', async () => {
+  const w = workspace();
+  try {
+    fs.writeFileSync(path.join(w.dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-10-05T10:00:00', organs: [{ id: 'gpu', label: 'Graphics', value: 4, unit: 'GB VRAM', status: 'grace' }] }));
+    const r = await ctx.assemble({ dataDir: w.dataDir, vaultDir: w.vaultDir, include: { health: true }, now: NOW });
+    const text = typeof r === 'string' ? r : r.text;
+    assert.match(text, /VRAM figure omitted/);
+    assert.doesNotMatch(text, /4 GB VRAM/);
+  } finally { w.cleanup(); }
+});

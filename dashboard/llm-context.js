@@ -136,16 +136,27 @@ function healthSection(ph) {
   for (const o of ph.organs) {
     if (!o || typeof o !== 'object') continue;
     const status = ORGAN_STATUS[o.status] || o.status || '?';
-    if (o.id === 'gpu') {
-      // The collector reads VRAM through WMI's 32-bit AdapterRAM, which caps at
-      // 4 GB — the figure is known-wrong on this card (structure-lane fix
-      // pending), so the model never gets to repeat it as fact.
+    if (o.id === 'gpu' && !ph.detail) {
+      // A sidecar from before 2026-10-26 read VRAM through WMI's 32-bit AdapterRAM,
+      // which caps at 4 GB — known-wrong, so the model never gets to repeat it as fact.
+      // Newer sidecars (with `detail`) read the real size from the registry / nvidia-smi.
       out.push(`- ${o.label || 'Graphics'}: ${status}; VRAM figure omitted (the collector under-reports it)`);
       continue;
     }
     const val = o.value != null ? `${o.value}${o.unit ? ' ' + o.unit : ''}` : 'n/a';
     out.push(`- ${o.label || o.id}: ${val} — ${status}${o.diagnosis ? ` — ${line(o.diagnosis, 140)}` : ''}`);
   }
+  // what is using the machine, the biggest folders and the trends (pc-health detail, 2026-10-26)
+  const d = ph.detail && typeof ph.detail === 'object' ? ph.detail : null;
+  if (d) {
+    const ram = (Array.isArray(d.topRam) ? d.topRam : []).filter((p) => p && p.name && typeof p.mb === 'number').slice(0, 5);
+    if (ram.length) out.push('- Using the most memory: ' + ram.map((p) => `${p.name} ${(p.mb / 1024).toFixed(1)} GB`).join(', '));
+    const hogs = d.hogs && Array.isArray(d.hogs.items) ? d.hogs.items.filter((h) => h && typeof h.gb === 'number').slice(0, 6) : [];
+    if (hogs.length) out.push('- Biggest folders: ' + hogs.map((h) => `${h.label || h.path} ${h.gb} GB`).join(', ') + (d.hogs.partial ? ' (partial list)' : ''));
+    if (d.gpuLive && typeof d.gpuLive.tempC === 'number') out.push(`- GPU now: ${d.gpuLive.tempC} °C, ${d.gpuLive.loadPct ?? '?'}% load`);
+    if (Array.isArray(d.unreadable) && d.unreadable.length) out.push('- Not measurable without admin: ' + d.unreadable.join(', '));
+  }
+  for (const t of Array.isArray(ph.trends) ? ph.trends : []) if (t && t.text) out.push('- Trend: ' + line(t.text, 140));
   return out.join('\n');
 }
 
