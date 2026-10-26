@@ -19,7 +19,7 @@ DONE: all 8 features built, reviewed and pushed (Claude Hub H2–H5 live since 2
   are now committed: 9432c0e run-scan.ps1 (-NoEnrich nightly), 187c7f9 data/quest-overrides.json, b7ffa0b the other
   session's draft spec 2026-10-25-real-workspace-hq-data-design.md (still DRAFT, awaiting owner approval).
 IN-FLIGHT: the owner's app (PID 39864, launched by the owner 2026-10-25 19:25, apparently elevated) runs mid-build code;
-  toolsollback.ps1 cannot see an elevated instance (empty CommandLine) and the relaunch quit as second-launch. Owner:
+  tools\rollback.ps1 cannot see an elevated instance (empty CommandLine) and the relaunch quit as second-launch. Owner:
   quit from the tray, then relaunch (or ask the controller). First start migrates data/claude/hub.sqlite to schema 2.
 ASKS: struct lane — review 9432c0e / 187c7f9 (committed for you, unchanged content).
 BREAKS: hub.sqlite schema 2 (additive; pre-H6 Hub code refuses a schema-2 db). Bridge extension needs a manual reload.
