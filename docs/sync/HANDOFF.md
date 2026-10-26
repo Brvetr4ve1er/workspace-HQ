@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-26 · FROM frontend (data overhaul Fronts A, B, D3 — owner: "keep going with the rest"; struct-lane edits owner-authorized) · main @ 4b859b0
+DONE: Freshness (A) — b28686a struct: pipeline ends with a `bake` step (dashboard/build-data.mjs), so a closed app reopens
+  on the newest scan; run-scan.ps1 enriches at most once a day (skips when latest.json says today is already enriched;
+  -NoEnrich still forces offline). 19c85cd fe: top bar "· N days old" (orange) when the newest scan is ≥ 2 days old +
+  tooltip with scan / estimate ages; new dashboard/login-item.js — the unpackaged app registers itself to start at login
+  hidden (never from a --user-data-dir / --selftest / HQ_V5_PROFILE / HQ_NO_LOGIN_ITEM instance); main logs a failed bake.
+  Own repos (B) — 65a8d68 CONTRACT, 660c7e1 struct: collector finds git repos under root + discover_roots (~/Desktop),
+  ≤3 deep, owned by owner_logins / no remote / adopt → scored projects with `discovered`; first run: 15 new (24 total),
+  collector ~40 s. bfa6361 fe: new dashboard/project-paths.js — main + session-api accept a path outside Documents only
+  when it is exactly a tracked project's path in latest.json; project page says "found automatically".
+  Accounts (D3) — 30f1704 contracts, 60be33c struct collector/accounts.mjs → gitignored data/accounts.json (Vercel via
+  `vercel api`, Supabase via `supabase projects list`; owner's CLI logins), 4b859b0 fe Projects › Vercel & Supabase
+  (hq:accounts-refresh, hq:accounts-open = listed vercel.com / *.vercel.app / supabase.com links only).
+  Suites: collector/lib 59, dashboard 531, v5 425; selftest 2660 combos 0/0/0; both new tabs checked on real data.
+IN-FLIGHT: none. Not built: remote-only GitHub repos as projects (they show in Projects › GitHub only); Comet chats (no
+  export exists); claude.ai / ChatGPT chats were already built (Claude Hub import + drop folder) and wait on the owner's exports.
+ASKS: struct lane — review b28686a, 660c7e1, 60be33c (collector/, run-*.ps1 are yours).
+BREAKS: projects[] can now hold paths outside Documents (absolute, forward slashes) + optional `discovered`; new sidecar
+  data/accounts.json; pipeline steps `accounts`, `bake`; IPC hq:accounts-refresh / hq:accounts-open; sub projects/accounts;
+  the app writes a Windows login item on start. All additive.
+
 ## 2026-10-26 · FROM frontend (GitHub view — the data-overhaul spec's Front C; struct-lane edit owner-authorized) · main @ 53e23e5
 DONE: owner: "I don't see any of the GitHub data" → "start building the GitHub part" (gh already signed in).
   1580183 struct: new collector/github.mjs + pure collector/lib/github.mjs (7 tests) — two read-only GraphQL calls through
