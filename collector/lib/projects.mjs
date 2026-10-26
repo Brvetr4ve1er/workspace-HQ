@@ -144,6 +144,7 @@ export function buildProject(rp, { prevProj, enrichProj, config }) {
 
   return {
     id: rp.id, name: rp.name, kind: 'product', path: rp.path, stack: rp.stack, dev_cmd: rp.dev_cmd, canonical_branch: rp.canonical_branch,
+    ...(rp.discovered ? { discovered: rp.discovered } : {}),   // found by own-repo discovery: 'owner' | 'no-remote' | 'adopted' (CONTRACT 2026-10-26)
     completion: { pct: completionPct, basis: completionBasis, delta: completionPct - (prevProj.get(rp.id)?.completion?.pct ?? completionPct) },
     level: lv.level, xp: Math.max(0, score), xp_delta: 0, xp_breakdown: breakdown,
     activity: {

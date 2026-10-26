@@ -19,7 +19,7 @@ const rel = (root, abs) => path.relative(root, abs).replace(/\\/g, '/');
 function readJson(abs) { try { return JSON.parse(fs.readFileSync(abs, 'utf8')); } catch { return null; } }
 
 // Cheap stack guess from marker files — facts, not judgments.
-function stackMarkers(abs) {
+export function stackMarkers(abs) {
   const has = (f) => fs.existsSync(path.join(abs, f));
   const stack = [];
   const pkg = readJson(path.join(abs, 'package.json'));
@@ -171,4 +171,62 @@ export function findProjectNote(vaultRoot, dirs, projectName) {
     }
   }
   return null;
+}
+
+// ---- own-repo auto-discovery (data overhaul Front B) ----------------------------------------
+// A git repo anywhere under the discovery roots (≤ maxDepth levels) becomes a tracked project
+// when it is the owner's: its GitHub remote owner is one of ownerLogins, or it has no remote at
+// all (local-only work), or its path is on the adopt list. Third-party clones stay inventory.
+// Never descends into a repo (the innermost .git is the project), node_modules, dot-folders or
+// pruned names; a worktree / submodule (.git is a FILE) is not a project of its own.
+
+// "github.com/owner/repo", "https://…", "git@github.com:owner/repo.git" → "owner" (lower case); else null
+export function remoteOwner(remote) {
+  const m = String(remote || '').match(/github\.com[:/]+([^/\s:]+)\/[^/\s]+/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+// a stable, readable id from the folder name; a clash with a taken id gets the parent's name, then a number
+export function autoId(abs, taken) {
+  const slug = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
+  const base = slug(path.basename(abs));
+  const cands = [base, slug(path.basename(path.dirname(abs))) + '-' + base];
+  for (const c of cands) if (!taken.has(c)) { taken.add(c); return c; }
+  for (let i = 2; ; i++) { const c = base + '-' + i; if (!taken.has(c)) { taken.add(c); return c; } }
+}
+
+// roots: [{ abs, ignore?: Set<top-level name> }] · skip: Set of norm()'d absolute paths already tracked
+// remoteOf(abs) → origin URL or null (injected: the collector passes its git helper)
+export function findOwnRepos({ roots, maxDepth = 3, shouldPrune = () => false, skip = new Set(), remoteOf, ownerLogins = [], adopt = [] }) {
+  const owners = new Set(ownerLogins.map((s) => String(s).toLowerCase()));
+  const adopted = new Set(adopt.map((p) => norm(p)));
+  const found = [], seen = new Set();
+  const consider = (abs) => {
+    const key = norm(abs);
+    if (seen.has(key) || skip.has(key)) return;
+    seen.add(key);
+    const remote = remoteOf(abs) || null;
+    const owner = remoteOwner(remote);
+    const reason = adopted.has(key) ? 'adopted' : !remote ? 'no-remote' : owner && owners.has(owner) ? 'owner' : null;
+    if (reason) found.push({ abs, remote, reason });
+  };
+  for (const root of roots) {
+    const stack = [[root.abs, 1]];
+    while (stack.length) {
+      const [dir, depth] = stack.pop();
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        if (!e.isDirectory() || e.name.startsWith('.') || e.name === 'node_modules' || shouldPrune(e.name)) continue;
+        if (depth === 1 && root.ignore && root.ignore.has(e.name)) continue;
+        const abs = path.join(dir, e.name);
+        if (skip.has(norm(abs))) continue;   // a tracked folder (product / vault / clone) is neither a candidate nor searched inside
+        let gitStat = null;
+        try { gitStat = fs.statSync(path.join(abs, '.git')); } catch { /* not a repo */ }
+        if (gitStat) { if (gitStat.isDirectory()) consider(abs); continue; }
+        if (depth < maxDepth) stack.push([abs, depth + 1]);
+      }
+    }
+  }
+  return found.sort((a, b) => norm(a.abs).localeCompare(norm(b.abs)));
 }

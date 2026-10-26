@@ -11,7 +11,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { describeFolder, looseFiles, detectVaultPaths, mergeVaults } from './lib/discovery.mjs';
+import { describeFolder, looseFiles, detectVaultPaths, mergeVaults, findOwnRepos, autoId, stackMarkers } from './lib/discovery.mjs';
+import os from 'node:os';
 
 const COLLECTOR_VERSION = '1.0.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -296,7 +297,7 @@ function reclaimable(absPath) {
 
 // ---- main ----
 function collectProduct(p) {
-  const resolved = resolveGlob(p.path);
+  const resolved = p.abs ? [p.abs] : resolveGlob(p.path);   // auto-discovered projects carry their absolute path
   const abs = resolved[0] || path.join(ROOT, p.path);
   const exists = fs.existsSync(abs);
   if (!exists) return { id: p.id, name: p.name, path: p.path, missing: true };
@@ -310,7 +311,9 @@ function collectProduct(p) {
   return {
     id: p.id,
     name: p.name,
-    path: path.relative(ROOT, abs).replace(/\\/g, '/'),
+    // relative to the root as before; a project outside it (Desktop) keeps its absolute path
+    path: (() => { const r = path.relative(ROOT, abs); return r.startsWith('..') || path.isAbsolute(r) ? abs.replace(/\\/g, '/') : r.replace(/\\/g, '/'); })(),
+    ...(p.discovered ? { discovered: p.discovered } : {}),
     stack: p.stack || [],
     dev_cmd: p.dev_cmd || null,
     canonical_branch: p.canonical_branch || 'main',
@@ -359,6 +362,35 @@ function main() {
     if (r.missing) missing_paths.push({ kind: 'product', name: p.name, path: p.path });
   }
 
+  // Own repos become projects on their own (data overhaul Front B, CONTRACT 2026-10-26): every git
+  // repo under the root + discover_roots whose GitHub owner is in owner_logins, that has no remote
+  // (local-only work), or that is on the adopt list. Configured products / vaults / clones and the
+  // ignore list are respected; third-party clones stay inventory.
+  const normAbs = (p) => path.resolve(p).replace(/\\/g, '/').toLowerCase();
+  const skipAbs = new Set([
+    ...cfg.products.flatMap((p) => resolveGlob(p.path)),
+    ...cfg.vaults.map((v) => path.join(ROOT, v.path)),
+    ...cfg.clones.flatMap((c) => resolveGlob(c.path)),
+  ].map(normAbs));
+  const extraRoots = (cfg.discover_roots || []).map((r) => r.replace(/^~(?=$|[\\/])/, os.homedir())).filter((r) => fs.existsSync(r) && normAbs(r) !== normAbs(ROOT));
+  const takenIds = new Set(out.products.map((p) => p.id));
+  const own = findOwnRepos({
+    roots: [{ abs: ROOT, ignore: new Set(cfg.ignore) }, ...extraRoots.map((abs) => ({ abs }))],
+    maxDepth: cfg.discover_depth || 3, shouldPrune, skip: skipAbs,
+    remoteOf: (abs) => git(abs, ['config', '--get', 'remote.origin.url']),
+    ownerLogins: cfg.owner_logins || [], adopt: (cfg.adopt || []).map((p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))),
+  });
+  for (const f of own) {
+    let pkg = null;
+    try { pkg = JSON.parse(fs.readFileSync(path.join(f.abs, 'package.json'), 'utf8')); } catch { /* not a Node project */ }
+    // a generic folder name ("theme", "app") reads better with its parent: "AMANTCOM-Shopify theme"
+    const base = path.basename(f.abs), generic = /^(app|apps|client|frontend|backend|server|site|src|theme|web|www)$/i.test(base);
+    const name = generic ? path.basename(path.dirname(f.abs)) + ' ' + base : base;
+    const r = collectProduct({ id: autoId(generic ? path.dirname(f.abs) + '-' + base : f.abs, takenIds), name, path: f.abs, abs: f.abs, discovered: f.reason,
+      stack: stackMarkers(f.abs), dev_cmd: pkg && pkg.scripts && pkg.scripts.dev ? 'npm run dev' : null });
+    if (!r.missing) out.products.push(r);
+  }
+
   // Vaults: configured ones plus every Obsidian vault Obsidian itself registered or that sits
   // under the root. Configured entries win on name/role; the same path is never listed twice.
   const registryFile = cfg.obsidian_registry || path.join(process.env.APPDATA || '', 'obsidian', 'obsidian.json');
@@ -398,6 +430,7 @@ function main() {
     ...cfg.clones.map((c) => c.path.split('/')[0]),
   ]);
   for (const v of out.vaults) tracked.add(String(v.path).split('/')[0]);   // auto-detected vaults are tracked too
+  for (const p of out.products) if (p.discovered && !p.path.includes('/')) tracked.add(p.path);   // a top-level own repo is a project now, not a discovered folder
   const ignoredSet = new Set(cfg.ignore);
   out.ignored = [];
   out.loose_files = looseFiles(ROOT);

@@ -1,6 +1,11 @@
 {
   "_note": "Classification + scan config for the WorkspaceHQ deterministic collector. Edit this to add/retire projects without touching collector code. Paths are relative to root; a trailing/embedded * is glob-resolved.",
   "root": "C:/Users/ROG STRIX/Documents",
+  "_discover_note": "Own repos become projects automatically: a git repo under root or a discover_roots folder (up to discover_depth levels) whose GitHub owner is in owner_logins, or that has no remote, or that is listed in adopt (paths, relative to root or absolute). The ignore list, products, vaults and clones are respected.",
+  "discover_roots": ["~/Desktop"],
+  "discover_depth": 3,
+  "owner_logins": ["Brvetr4ve1er"],
+  "adopt": [],
   "ignore": ["My Music", "My Pictures", "My Videos", "My Games", ".claude", ".workspace-scan", "workspace hq", "cursor", "alliance travel.worktrees", "Assassin's Creed Black Flag Resynced", "at_hero_backup", "Codex", "Criterion Games", "docs", "ilyes", "Juggernaut-XL-v9", "Mirrors Edge Catalyst", "omnidownloader", "playground"],
   "prune_dirs": ["node_modules", ".venv", "venv", ".next", "dist", "build", ".git", "tessdata", "__pycache__", ".turbo", "coverage", "vendor", ".cache", "out", ".svelte-kit"],
   "prune_dir_patterns": ["chroma", "chromadb", ".chroma"],
