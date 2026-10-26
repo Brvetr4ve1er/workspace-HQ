@@ -42,6 +42,8 @@ $steps += @{ name = 'pc-health'; args = @((Join-Path $collector 'pc-health.mjs')
 # GitHub account snapshot through the owner's own gh login into data/github.json (gitignored).
 # Optional — signed out / offline writes an honest state, never blocks the scan.
 $steps += @{ name = 'github'; args = @((Join-Path $collector 'github.mjs')); optional = $true }
+# Vercel + Supabase snapshot through the owner's own CLI logins into data/accounts.json (gitignored). Optional.
+$steps += @{ name = 'accounts'; args = @((Join-Path $collector 'accounts.mjs')); optional = $true }
 if (-not $NoEnrich) { $steps += @{ name = 'enrich'; args = @((Join-Path $collector 'enrich.mjs'), '--reports-dir', $ReportsDir); optional = $true } }
 $steps += @{ name = 'assemble'; args = @((Join-Path $collector 'assemble.mjs'), '--date', $Date, '--reports-dir', $ReportsDir) }
 $steps += @{ name = 'render';   args = @((Join-Path $collector 'render.mjs'), '--in', $latest, '--out', $mdOut) }
