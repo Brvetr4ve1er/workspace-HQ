@@ -311,3 +311,17 @@ file) is not a project. Third-party clones stay inventory.
 - Main accepts an absolute project path outside Documents only when it is exactly a tracked project's path in the
   current latest.json (`dashboard/project-paths.js`, used by main.js `resolveProjectPath` and session-api.js).
 - The first scan with this on found 15 own repos (24 projects); the collector takes ~40 s instead of ~15 s.
+
+## 2026-10-26 · struct · new sidecar data/accounts.json — Vercel + Supabase (additive, owner-authorized — Front D3)
+`data/accounts.json` (gitignored — private project names; `collector/accounts.mjs` → shaping in `collector/lib/accounts.mjs`,
+optional pipeline step after `github`). Read-only through the owner's own CLI logins, no stored token: Vercel = `vercel api`
+GETs (`/v9/projects`, `/v6/deployments`, `/v2/user`, `/v2/teams`), Supabase = `supabase projects list -o json`. Each
+account is reused when younger than 10 min (`--max-age=<s>`).
+- `{ v:1, vercel, supabase }`, each either `{ state:'ok', at, …, totals, projects[] }` or `{ state:'no-cli'|'signed-out'|'error',
+  at, error }` (a failure keeps the last good snapshot with `stale:true, staleReason, checkedAt`).
+- vercel ok: `{ user, partial, errors[], totals{projects, prodFailing, building}, projects[{name, framework, repo:'owner/name'|null,
+  dashboard, prod|null, latest|null, updatedAt}], deploys[] }`; a deploy is `{project, state:'ready'|'error'|'building'|'queued'|
+  'initializing'|'canceled'|'blocked'|'unknown', target, url, at, commit, branch}`; deploys = 20 newest. prodFailing = production
+  deploy in error or blocked.
+- supabase ok: `{ totals{projects, unhealthy}, projects[{name, ref, region, status, createdAt, dashboard}] }`.
+- `dashboard/build-data.mjs` bakes it as `DATA.accounts` (null when absent).

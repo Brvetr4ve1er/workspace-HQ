@@ -493,6 +493,15 @@ Additive only. New file `dashboard/github-view.js` (one hook line in `main.js`).
 | `githubRefresh()` | `hq:github-refresh` (invoke) | Runs `collector/github.mjs --max-age=60` (one run at a time; a second call while one runs waits for it), then answers the current `data/github.json` object (CONTRACT.md 2026-10-26), or `{error}` when the run failed and no sidecar exists. |
 | `githubOpen(url)` | `hq:github-open` (invoke) | `url` must equal (verbatim) a `repos[].url`, `waiting[].url`, `mine[].url` or `issues[].url` in the CURRENT `data/github.json`, be `https:` and have host exactly `github.com`; main then calls `shell.openExternal`. Answers `true` or `{error}` (`refused: …`). Same trust model as `hq:pc-open-folder`. |
 
+## 2026-10-26 — Connected accounts (Projects › Accounts: Vercel + Supabase)
+
+Additive only. New file `dashboard/accounts-view.js` (one hook line in `main.js`).
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `accountsRefresh()` | `hq:accounts-refresh` (invoke) | Runs `collector/accounts.mjs --max-age=60` (one run at a time), then answers the current `data/accounts.json` object (CONTRACT.md 2026-10-26), or `{error}` when the run failed and no sidecar exists. |
+| `accountsOpen(url)` | `hq:accounts-open` (invoke) | `url` must equal (verbatim) a project `dashboard` / `prod.url` / `latest.url`, a `deploys[].url` or a Supabase `dashboard` in the CURRENT `data/accounts.json`, be `https:` and have host `vercel.com`, `supabase.com` or `<one label>.vercel.app`; main then calls `shell.openExternal`. Answers `true` or `{error}` (`refused: …`). |
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

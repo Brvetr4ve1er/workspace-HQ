@@ -81,6 +81,8 @@ data/pc-health-history.json
 data/pc-health-disk.json
 # GitHub account snapshot (collector/github.mjs) — holds private repo names and PR titles; never commit
 data/github.json
+# Vercel / Supabase account snapshot (collector/accounts.mjs) — private project names; never commit
+data/accounts.json
 
 # trailer render tool: renders, masters, stills (tools/trailer/out) and the patched work copy + Electron profile (tools/trailer/.work)
 tools/trailer/out/
