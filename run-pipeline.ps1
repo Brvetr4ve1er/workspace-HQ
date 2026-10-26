@@ -50,6 +50,10 @@ $steps += @{ name = 'render';   args = @((Join-Path $collector 'render.mjs'), '-
 if ($Weekly -or (Get-Date).DayOfWeek -eq 'Sunday') {
   $steps += @{ name = 'weekly-narrator'; args = @((Join-Path $collector 'weekly-narrator.mjs'), '--reports-dir', $ReportsDir); optional = $true }
 }
+# Re-bake the app's data bundle (dashboard/data.js) so the window shows this scan even when the
+# app was closed during it — before, only the running app re-baked, and a closed app reopened on
+# days-old data. Optional: a failed bake leaves the previous bundle, never fails the scan.
+$steps += @{ name = 'bake'; args = @((Join-Path $scanDir 'dashboard\build-data.mjs')); optional = $true }
 
 foreach ($s in $steps) {
   Log "-> $($s.name)"

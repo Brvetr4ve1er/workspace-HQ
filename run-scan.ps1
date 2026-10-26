@@ -1,10 +1,14 @@
 # Nightly workspace scan — launched by Windows Task Scheduler.
-# Thin shim over the deterministic WorkspaceHQ pipeline (collector -> assemble ->
-# render). No LLM and no --dangerously-skip-permissions: this is pure local Node
-# over the filesystem + git, so it is safe to run fully unattended.
+# Thin shim over the WorkspaceHQ pipeline (collector -> enrich -> assemble -> render -> bake).
+# No --dangerously-skip-permissions anywhere: the pipeline is local Node over the filesystem
+# + git, plus at most one tool-less `claude -p` enrichment call a day, so it is safe unattended.
 #
-# (The old headless-Claude approach was retired 2026-05-27. An optional LLM
-#  enrichment step can be re-added between assemble and render via scan-prompt.md.)
+# Enrichment (completion %, insights, roadmap) runs at most once a day: the nightly scan
+# enriches unless a scan already enriched today (an in-app scan). Before 2026-10-26 the
+# nightly path never enriched, so those fields sat carried forward for weeks (data overhaul
+# Front A3). enrich.mjs no-ops cleanly when `claude` is missing; -NoEnrich still forces the
+# offline path:  .\run-scan.ps1 -NoEnrich
+param([switch]$NoEnrich)
 
 $ErrorActionPreference = 'Continue'
 $scanDir  = $PSScriptRoot   # project root; relocatable (was .workspace-scan)
@@ -15,7 +19,11 @@ if (-not (Test-Path $pipeline)) {
   exit 1
 }
 
-# Scheduled scans must stay deterministic and non-interactive. The manual
-# dashboard command can opt into enrichment; the unattended task never does.
-& $pipeline -Date (Get-Date -Format 'yyyy-MM-dd') -NoEnrich
+$today = Get-Date -Format 'yyyy-MM-dd'
+$enrichedToday = $false
+try {
+  $scan = (Get-Content -Raw -LiteralPath (Join-Path $scanDir 'data\latest.json') | ConvertFrom-Json).scan
+  $enrichedToday = ($scan.enrichment_scan_id -eq $today) -and ($scan.enrichment_age_days -eq 0)
+} catch { }
+if ($NoEnrich -or $enrichedToday) { & $pipeline -Date $today -NoEnrich } else { & $pipeline -Date $today }
 exit $LASTEXITCODE
