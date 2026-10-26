@@ -15,5 +15,7 @@ if (-not (Test-Path $pipeline)) {
   exit 1
 }
 
-& $pipeline -Date (Get-Date -Format 'yyyy-MM-dd')
+# Scheduled scans must stay deterministic and non-interactive. The manual
+# dashboard command can opt into enrichment; the unattended task never does.
+& $pipeline -Date (Get-Date -Format 'yyyy-MM-dd') -NoEnrich
 exit $LASTEXITCODE
