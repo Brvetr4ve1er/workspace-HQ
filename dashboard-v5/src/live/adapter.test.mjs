@@ -868,3 +868,21 @@ test('toProject: discovered is one of the known reasons, else null (data overhau
   assert.equal(toProject({ id: 'a', discovered: 'weird' }).discovered, null);
   assert.equal(toProject({ id: 'a' }).discovered, null);
 });
+
+// ---- connected accounts (data/accounts.json, CONTRACT 2026-10-26) ----
+import { accounts as acView } from './adapter.mjs';
+test('accounts view: vercel deploy rows, states, supabase status; junk and missing are honest', () => {
+  const now = Date.parse('2026-03-02T12:00:00Z');
+  const v = acView({ v: 1,
+    vercel: { state: 'ok', at: '2026-03-02T11:00:00Z', user: 'octo-owner', totals: { projects: 1, prodFailing: 1, building: 0 },
+      projects: [{ name: 'a', repo: 'o/a', dashboard: 'https://vercel.com/t/a', prod: { state: 'blocked', target: 'production', url: 'https://a.vercel.app', at: '2026-03-01T12:00:00Z' }, latest: null }, { name: '' }],
+      deploys: [{ state: 'weird', url: 'https://a2.vercel.app' }, {}] },
+    supabase: { state: 'ok', projects: [{ name: 'db', status: 'ACTIVE_HEALTHY' }] } }, now);
+  assert.deepEqual([v.vercel.state, v.vercel.when, v.vercel.projects.length], ['ok', '1h ago', 1]);
+  assert.deepEqual([v.vercel.projects[0].prod.state, v.vercel.projects[0].prod.bad, v.vercel.projects[0].prod.when, v.vercel.projects[0].latest], ['Blocked', true, '1d ago', null]);
+  assert.deepEqual(v.vercel.deploys.map((d) => [d.state, d.target]), [['Unknown', 'preview']]);
+  assert.deepEqual([v.supabase.projects[0].status, v.supabase.projects[0].ok], ['active healthy', true]);
+  const none = acView(null);
+  assert.deepEqual([none.vercel.state, none.supabase.state, none.vercel.projects.length], ['none', 'none', 0]);
+  assert.equal(acView({ vercel: { state: 'no-cli', error: 'x' } }).vercel.error, 'x');
+});

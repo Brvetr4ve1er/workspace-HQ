@@ -37,6 +37,7 @@ import { libraryLogic } from './logic/library.js';
 import { studioLogic } from './logic/studio.js';
 import { projectLogic } from './logic/project.js';
 import { githubLogic } from './logic/github.js';
+import { accountsLogic } from './logic/accounts.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -89,6 +90,8 @@ export class Component extends DCLogic {
       projSearch: '', projStatus: 'all',
       // Projects › GitHub (logic/github.js): Refresh running · repo list filter
       ghBusy: false, ghFilter: 'all',
+      // Projects › Vercel & Supabase (logic/accounts.js): Refresh running
+      acBusy: false,
       // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
       canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
       // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
@@ -394,5 +397,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic);
 Component.prototype.renderVals = renderVals;

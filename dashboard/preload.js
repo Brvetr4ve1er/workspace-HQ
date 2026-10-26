@@ -118,6 +118,8 @@ contextBridge.exposeInMainWorld('hq', {
   pcOpenFolder: (p) => ipcRenderer.invoke('hq:pc-open-folder', p),   // only a folder listed in the current disk breakdown
   githubRefresh: () => ipcRenderer.invoke('hq:github-refresh'),   // re-reads the account through the owner's gh login
   githubOpen: (u) => ipcRenderer.invoke('hq:github-open', u),   // only a github.com link listed in the current snapshot
+  accountsRefresh: () => ipcRenderer.invoke('hq:accounts-refresh'),   // re-reads Vercel + Supabase through the owner's CLI logins
+  accountsOpen: (u) => ipcRenderer.invoke('hq:accounts-open', u),   // only a Vercel / Supabase link listed in the current snapshot
   // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
   getSocial: () => ipcRenderer.invoke('hq:social-read'),
 

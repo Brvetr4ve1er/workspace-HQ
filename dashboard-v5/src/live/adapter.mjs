@@ -906,3 +906,35 @@ export function github(raw, now = Date.now()) {
     issues: arr(g.issues).filter((p) => p && typeof p === 'object' && ghStr(p.url)).map((p) => ({ ...pr(p), kind: 'issue' })),
   };
 }
+
+// ---- connected accounts: Vercel + Supabase (data/accounts.json, CONTRACT 2026-10-26) ----------
+// Pure view for Projects › Accounts. Each account is 'ok' or an honest state; an older bake
+// (no DATA.accounts) reads as 'none' for both.
+const VC_STATE = {
+  ready: { label: 'Ready', tone: 'var(--green)' }, error: { label: 'Error', tone: 'var(--red)' }, blocked: { label: 'Blocked', tone: 'var(--red)' },
+  building: { label: 'Building', tone: 'var(--blue)' }, queued: { label: 'Queued', tone: 'var(--blue)' }, initializing: { label: 'Starting', tone: 'var(--blue)' },
+  canceled: { label: 'Canceled', tone: 'var(--faint)' }, unknown: { label: 'Unknown', tone: 'var(--faint)' },
+};
+const acState = (a) => (['ok', 'no-cli', 'signed-out', 'error'].includes(obj(a).state) ? obj(a).state : 'none');
+export function accounts(raw, now = Date.now()) {
+  const r = obj(raw), v = obj(r.vercel), s = obj(r.supabase);
+  const dep = (d) => {
+    d = obj(d);
+    if (!ghStr(d.url) && !ghStr(d.state)) return null;
+    const st = VC_STATE[d.state] || VC_STATE.unknown;
+    return { state: st.label, tone: st.tone, bad: d.state === 'error' || d.state === 'blocked', url: ghStr(d.url), when: ghWhen(d.at, now),
+      target: ghStr(d.target) === 'production' ? 'production' : 'preview', commit: ghStr(d.commit), branch: ghStr(d.branch), project: ghStr(d.project) };
+  };
+  const vt = obj(v.totals), stt = obj(s.totals);
+  return {
+    vercel: { state: acState(v), user: ghStr(v.user), when: ghWhen(v.at, now), error: ghStr(v.error), stale: !!v.stale, staleReason: ghStr(v.staleReason), partial: !!v.partial,
+      totals: { projects: ghNum(vt.projects), prodFailing: ghNum(vt.prodFailing), building: ghNum(vt.building) },
+      projects: arr(v.projects).filter((p) => p && typeof p === 'object' && ghStr(p.name)).map((p) => ({ name: ghStr(p.name), framework: ghStr(p.framework), repo: ghStr(p.repo),
+        dashboard: ghStr(p.dashboard), prod: dep(p.prod), latest: dep(p.latest) })),
+      deploys: arr(v.deploys).map(dep).filter(Boolean) },
+    supabase: { state: acState(s), when: ghWhen(s.at, now), error: ghStr(s.error), stale: !!s.stale, staleReason: ghStr(s.staleReason),
+      totals: { projects: ghNum(stt.projects), unhealthy: ghNum(stt.unhealthy) },
+      projects: arr(s.projects).filter((p) => p && typeof p === 'object' && ghStr(p.name)).map((p) => ({ name: ghStr(p.name), region: ghStr(p.region),
+        status: ghStr(p.status).toLowerCase().replace(/_/g, ' '), ok: /^active/i.test(ghStr(p.status)), dashboard: ghStr(p.dashboard) })) },
+  };
+}

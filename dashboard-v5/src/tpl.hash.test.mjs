@@ -40,9 +40,10 @@ import tpl from './app.tpl.js';
 // 2026-10-26 PC health detail: System › Machine panels (system.tpl.js) — memory/processor users, disk breakdown with Open/Copy, graphics + live stats, power & system, drives, trends, startup, not-readable list (+9890 chars / +9898 bytes)
 // 2026-10-26 GitHub view: Projects › GitHub (projects.tpl.js) — account stats, waiting on you, your PRs, assigned issues, repo grid with CI / clone / Open / Copy (+10003 chars / +10011 bytes)
 // 2026-10-26 data freshness: top bar (shell.tpl.js) — scan time tooltip + an orange "N days old" badge when the newest scan is 2+ days old (+300 chars / +302 bytes)
-const SHA256 = '1ebba45c94f8424641c7a07fe01aa9391317c38df6817438c7b35dad6a37936d';
-const LENGTH = 281873;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 282388;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-26 connected accounts: Projects › Vercel & Supabase (projects.tpl.js) — Vercel projects with production / latest deploy, recent deploys, Supabase projects, connect cards (+9098 chars / +9109 bytes)
+const SHA256 = 'c71d7063f4518bf9643b6881e103633b0b3acb65f18dd6ff8cd0a89ce039e273';
+const LENGTH = 290971;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 291497;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

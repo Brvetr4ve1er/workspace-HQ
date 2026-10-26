@@ -1,4 +1,4 @@
-// Projects screen (v.projects): grid, map, archived, GitHub.
+// Projects screen (v.projects): grid, map, archived, GitHub, Vercel & Supabase.
 // Cut verbatim from lines 265-332 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 export default String.raw`        <sc-if value="{{ v.projects }}" hint-placeholder-val="{{ false }}">
@@ -121,6 +121,47 @@ export default String.raw`        <sc-if value="{{ v.projects }}" hint-placehold
                     </section>
                   </div>
                 </sc-if>
+              </div>
+            </sc-if>
+            <!-- v5: Projects › Vercel & Supabase (2026-10-26, data overhaul Front D3) — data/accounts.json through the owner's own CLI logins (read-only); Open asks main (hq:accounts-open), which opens only a Vercel / Supabase link listed in the snapshot -->
+            <sc-if value="{{ isAccounts }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:16px;max-width:980px">
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-size:19px">Vercel &amp; Supabase</span><span style="flex:1"></span><button type="button" onClick="{{ acRefresh }}" disabled="{{ acRefreshOff }}" title="{{ acRefreshTip }}" style="height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:var(--card);color:var(--text);font-family:var(--term);font-size:12px;cursor:pointer">{{ acRefreshLabel }}</button></div>
+                <section data-ac="vercel" style="display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;gap:10px;align-items:baseline"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">▲ Vercel</span><span style="font-size:12px;color:var(--faint)">{{ vcHead }}</span></div>
+                  <sc-if value="{{ vcNotOk }}" hint-placeholder-val="{{ false }}"><div style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--muted);line-height:1.6">{{ vcWhy }}</div></sc-if>
+                  <sc-if value="{{ vcStale }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--orange)">{{ vcStaleText }}</div></sc-if>
+                  <sc-if value="{{ vcOk }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;flex-direction:column;gap:12px">
+                      <div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ vcStats }}" as="s" hint-placeholder-count="3"><span style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;font-size:13px"><span style="color:var(--muted)">{{ s.k }}</span><span style="color:{{ s.color }}">{{ s.v }}</span></span></sc-for></div>
+                      <sc-if value="{{ vcNoProjects }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">No Vercel projects on this account.</div></sc-if>
+                      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px">
+                        <sc-for list="{{ vcProjects }}" as="p" hint-placeholder-count="3">
+                          <div style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;background:var(--card);border:1px solid var(--frame);border-radius:12px;min-width:0">
+                            <div style="display:flex;gap:8px;align-items:baseline"><span style="font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span><sc-if value="{{ p.hasDash }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ p.openDash }}" title="Open in the Vercel dashboard" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Dashboard</button></sc-if></div>
+                            <div style="font-size:12px;color:var(--faint)">{{ p.sub }}</div>
+                            <sc-if value="{{ p.hasProd }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:8px;align-items:center;font-size:12px"><span style="color:var(--muted)">Production</span><span style="color:{{ p.prodRow.tone }}">{{ p.prodRow.state }}</span><span style="flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ p.prodRow.commit }}">{{ p.prodRow.when }} · {{ p.prodRow.commit }}</span><button type="button" onClick="{{ p.prodRow.open }}" disabled="{{ !p.prodRow.url }}" title="Open this deploy" style="height:22px;padding:0 7px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button></div></sc-if>
+                            <sc-if value="{{ p.noProd }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--faint)">No production deploy yet</div></sc-if>
+                            <sc-if value="{{ p.latestDiffers }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:8px;align-items:center;font-size:12px"><span style="color:var(--muted)">Latest</span><span style="color:{{ p.latestRow.tone }}">{{ p.latestRow.state }}</span><span style="flex:1;min-width:0;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ p.latestRow.commit }}">{{ p.latestRow.target }} · {{ p.latestRow.branch }} · {{ p.latestRow.when }}</span><button type="button" onClick="{{ p.latestRow.open }}" disabled="{{ !p.latestRow.url }}" title="Open this deploy" style="height:22px;padding:0 7px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button></div></sc-if>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ vcHasDeploys }}" hint-placeholder-val="{{ true }}">
+                        <div style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                          <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Recent deploys</div>
+                          <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ vcDeploys }}" as="d" hint-placeholder-count="4"><div style="display:flex;gap:10px;align-items:center"><span style="width:70px;font-size:12px;color:{{ d.tone }}">{{ d.state }}</span><div style="flex:1;min-width:0"><div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.commit }}</div><div style="font-size:12px;color:var(--faint)">{{ d.meta }}</div></div><button type="button" onClick="{{ d.open }}" disabled="{{ !d.url }}" title="Open this deploy" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button><button type="button" onClick="{{ d.copy }}" disabled="{{ !d.url }}" title="Copy the deploy link" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--term)">Copy</button></div></sc-for></div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                </section>
+                <section data-ac="supabase" style="display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;gap:10px;align-items:baseline"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">◆ Supabase</span><span style="font-size:12px;color:var(--faint)">{{ sbHead }}</span></div>
+                  <sc-if value="{{ sbNotOk }}" hint-placeholder-val="{{ false }}"><div style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--muted);line-height:1.6">{{ sbWhy }}</div></sc-if>
+                  <sc-if value="{{ sbStale }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--orange)">{{ sbStaleText }}</div></sc-if>
+                  <sc-if value="{{ sbNoProjects }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">No Supabase projects on this account.</div></sc-if>
+                  <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ sbProjects }}" as="p" hint-placeholder-count="2"><div style="display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--card);border:1px solid var(--frame);border-radius:12px"><span style="width:7px;height:7px;background:{{ p.color }}"></span><span style="flex:1;min-width:0;font-size:14px">{{ p.name }}</span><span style="font-size:12px;color:var(--faint)">{{ p.region }}</span><span style="font-size:12px;color:{{ p.color }}">{{ p.status }}</span><sc-if value="{{ p.hasDash }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ p.open }}" title="Open in the Supabase dashboard" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Dashboard</button></sc-if></div></sc-for></div>
+                </section>
               </div>
             </sc-if>
           </div>

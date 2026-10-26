@@ -45,6 +45,7 @@ export function createStore(DATA, hq) {
     llm: null, casts: {}, recording: null,
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
+    accounts: null,   // a fresher data/accounts.json than the baked DATA.accounts (refreshAccounts)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
     claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, docHits: null, doc: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
@@ -69,6 +70,12 @@ export function createStore(DATA, hq) {
     if (src !== ghSrc || !ghVal) { ghSrc = src; ghVal = A.github(src); }
     return ghVal;
   };
+  let acSrc, acVal;
+  const acc = () => {
+    const src = live.accounts || DATA.accounts;
+    if (src !== acSrc || !acVal) { acSrc = src; acVal = A.accounts(src); }
+    return acVal;
+  };
 
   const model = {
     ...C, fmtD: A.fmtD, fileUrl: A.fileUrl,
@@ -80,6 +87,7 @@ export function createStore(DATA, hq) {
     get ISSUES() { return mach().ISSUES; }, get VITALS() { return mach().VITALS; },
     get pcScannedAt() { return mach().scannedAt; }, get pcHost() { return mach().host; }, get MACHINE() { return mach().DETAIL; },
     get GITHUB() { return gh(); },
+    get ACCOUNTS() { return acc(); },
     get CLUTTER() { return A.clutter(at(0).inventory); },
     get VAULTS() { return A.vaults(at(0).inventory); },
     get SITES() { return A.sites(at(0).browser); },
@@ -197,6 +205,13 @@ export function createStore(DATA, hq) {
   function refreshGithub(g) {
     if (!isObj(g) || typeof g.state !== 'string') return false;
     live.github = g;
+    emit();
+    return true;
+  }
+  // a fresh Vercel + Supabase snapshot (Projects › Accounts Refresh); junk or {error} keeps the baked one
+  function refreshAccounts(a) {
+    if (!isObj(a) || !isObj(a.vercel) || !isObj(a.supabase)) return false;
+    live.accounts = a;
     emit();
     return true;
   }
@@ -496,7 +511,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine, refreshGithub,
+    emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt, refreshCandidates,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, runPrompt, packImport, packExport,
   };

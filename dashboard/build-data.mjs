@@ -60,6 +60,7 @@ try {
 const optionalJson = (rel) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, rel), 'utf8')); } catch { return null; } };
 const pcHealth = optionalJson('../data/pc-health.json');
 const github = optionalJson('../data/github.json');   // GitHub account snapshot (collector/github.mjs; CONTRACT 2026-10-26)
+const accounts = optionalJson('../data/accounts.json');   // Vercel + Supabase snapshot (collector/accounts.mjs; CONTRACT 2026-10-26)
 const notebooklm = optionalJson('../data/notebooklm.json');
 let canvas = [];
 try {
@@ -70,7 +71,7 @@ try {
   }).filter(Boolean);
 } catch { /* no canvas dir yet */ }
 
-const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, actedOn, pcHealth, github, notebooklm, canvas, built_at: new Date().toISOString() };
+const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, actedOn, pcHealth, github, accounts, notebooklm, canvas, built_at: new Date().toISOString() };
 const out = path.join(__dirname, 'data.js');
 fs.writeFileSync(out, 'window.DATA = ' + JSON.stringify(data) + ';\n');
 console.log(`[build-data] ${scans.length} scan(s) -> ${out} (latest: ${data.latest?.scan.id || 'none'})`);

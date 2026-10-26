@@ -408,6 +408,23 @@ add('projects.github-failing-refreshing', { hq: GH_HQ, live: (L, store) => { sto
 add('projects.github-signed-out', { hq: GH_HQ, live: (L, store) => { store.refreshGithub({ v: 1, state: 'signed-out', at: '2026-10-05T09:30:00.000Z', error: 'Not signed in to GitHub — run: gh auth login' }); }, state: tabSub('projects', 'github') });
 add('projects.github-stale-partial', { hq: GH_HQ, live: (L, store) => { store.refreshGithub({ ...GH, stale: true, staleReason: 'repos: network', partial: true, waiting: [], totals: { ...GH.totals, waiting: null } }); }, state: tabSub('projects', 'github') });
 add('projects.github-none', { state: tabSub('projects', 'github') });
+// Projects › Vercel & Supabase (2026-10-26, Front D3): a placeholder data/accounts.json — both connected, not connected, stale + refreshing
+const DEP = (o) => ({ project: 'site-a', state: 'ready', target: 'production', url: 'https://site-a-x1.vercel.app', at: '2026-10-05T08:00:00.000Z', commit: 'placeholder commit', branch: 'main', ...o });
+const ACC = { v: 1,
+  vercel: { state: 'ok', at: '2026-10-05T09:30:00.000Z', user: 'octo-owner', partial: false, errors: [], totals: { projects: 2, prodFailing: 1, building: 1 },
+    projects: [
+      { name: 'site-a', framework: 'nextjs', repo: 'octo-owner/site-a', dashboard: 'https://vercel.com/octo-team/site-a', prod: DEP(), latest: DEP({ state: 'building', target: 'preview', url: 'https://site-a-x2.vercel.app', branch: 'feat' }), updatedAt: '2026-10-05T08:00:00.000Z' },
+      { name: 'site-b', framework: '', repo: null, dashboard: 'https://vercel.com/octo-team/site-b', prod: DEP({ project: 'site-b', state: 'blocked', url: 'https://site-b-y1.vercel.app' }), latest: DEP({ project: 'site-b', state: 'blocked', url: 'https://site-b-y1.vercel.app' }), updatedAt: '2026-10-01T08:00:00.000Z' },
+      { name: 'site-c', framework: '', repo: null, dashboard: '', prod: null, latest: null, updatedAt: '' },
+    ],
+    deploys: [DEP({ state: 'building', target: 'preview', url: 'https://site-a-x2.vercel.app', branch: 'feat' }), DEP({ project: 'site-b', state: 'error', url: '' })] },
+  supabase: { state: 'ok', at: '2026-10-05T09:30:00.000Z', totals: { projects: 2, unhealthy: 1 },
+    projects: [{ name: 'db-a', ref: 'abc', region: 'eu-west-1', status: 'active_healthy', createdAt: '', dashboard: 'https://supabase.com/dashboard/project/abc' }, { name: 'db-b', ref: 'def', region: 'us-east-1', status: 'inactive', createdAt: '', dashboard: '' }] } };
+const AC_HQ = { ...P3_HQ, accountsRefresh() {}, accountsOpen() {} };
+add('projects.accounts', { hq: AC_HQ, live: (L, store) => { store.refreshAccounts(ACC); }, state: tabSub('projects', 'accounts') });
+add('projects.accounts-not-connected', { hq: AC_HQ, live: (L, store) => { store.refreshAccounts({ v: 1, vercel: { state: 'signed-out', at: '2026-10-05T09:30:00.000Z', error: 'Not signed in' }, supabase: { state: 'no-cli', at: '2026-10-05T09:30:00.000Z', error: 'not installed' } }); }, state: tabSub('projects', 'accounts') });
+add('projects.accounts-stale-refreshing', { hq: AC_HQ, live: (L, store) => { store.refreshAccounts({ ...ACC, vercel: { ...ACC.vercel, stale: true, staleReason: 'network' }, supabase: { ...ACC.supabase, projects: [] } }); }, state: (c) => ({ ...tabSub('projects', 'accounts')(c), acBusy: true }) });
+add('projects.accounts-none', { state: tabSub('projects', 'accounts') });
 // data overhaul Front A2: the newest scan is days old (scans stopped landing) — the top bar says so
 add('shell.stale-data', { live: (L, store) => { Object.defineProperty(store.model, 'FRESH', { configurable: true, get: () => ({ days: 4, stale: true, estAge: 3, badge: '4 days old', note: 'Data from a scan 4 days ago · completion %, insights and roadmap are estimates from 3 days before that scan' }) }); } });
 add('system.all-fixed', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), fixed: ['organ-disk', 'organ-ram'] }) });
