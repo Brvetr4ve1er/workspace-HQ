@@ -473,6 +473,17 @@ Hub op (protocol, not IPC; main-only, the renderer cannot write usage): `promptU
 `true`; writer only (a reader throws `read-only hub (another WorkspaceHQ owns the index)`); `promptId` must match `prompt:<40 hex>`,
 `target` one of the four, `projectId`/`conversationId` strings ≤ 200 or absent; `at` is the Hub's clock (ISO).
 
+## 2026-10-26 — PC health: Open in Explorer for the disk breakdown
+
+Additive only. New file `dashboard/pc-health-open.js` (one hook line in `main.js`). Same trust model as `hq:health-fix`:
+the renderer cannot open an arbitrary path.
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `pcOpenFolder(path)` | `hq:pc-open-folder` (invoke) | `path` must equal (verbatim) one `detail.hogs.items[].path` in the CURRENT `data/pc-health.json` and still be an absolute, existing directory that is not a link; main then calls `shell.openPath` (opens Explorer, runs nothing). Answers `true` or `{error}` (`refused: …`, `… no longer exists …`, or the openPath error text). |
+
+`hq:health-scan` is unchanged in shape; the pc-health sidecar it returns gains additive `detail`, `trends` and a `battery` organ (CONTRACT.md 2026-10-26).
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
