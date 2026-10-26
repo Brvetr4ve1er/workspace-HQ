@@ -74,6 +74,8 @@ export function toProject(p) {
   const id = String(p.id || ''), name = String(p.name || p.id || '');
   return {
     id, name, path: String(p.path || ''),
+    // found by the scan's own-repo discovery (data overhaul Front B); null = configured by hand
+    discovered: ['owner', 'no-remote', 'adopted'].includes(p.discovered) ? p.discovered : null,
     stack: arr(p.stack).map(String),
     dirty: hasGit ? num(g.dirty) : null, ahead: num(g.ahead), behind: num(g.behind),
     secrets: num(rs.secrets_found), secretWhere: secretFlag ? String(secretFlag.location || secretFlag.detail || '') : '',

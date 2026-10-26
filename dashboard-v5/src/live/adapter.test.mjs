@@ -861,3 +861,10 @@ test('freshness: today, stale after STALE_DAYS, estimate age, unknown', () => {
   assert.equal(freshness('2026-03-09T02:00:00Z', null, now).stale, STALE_DAYS <= 1);
   assert.deepEqual([freshness(null, 1, now).days, freshness(null, 1, now).stale], [null, false]);
 });
+
+test('toProject: discovered is one of the known reasons, else null (data overhaul Front B)', () => {
+  assert.equal(toProject({ id: 'a', discovered: 'owner' }).discovered, 'owner');
+  assert.equal(toProject({ id: 'a', discovered: 'no-remote' }).discovered, 'no-remote');
+  assert.equal(toProject({ id: 'a', discovered: 'weird' }).discovered, null);
+  assert.equal(toProject({ id: 'a' }).discovered, null);
+});

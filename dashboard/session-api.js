@@ -49,16 +49,11 @@ const SESSION_TIMEOUT_MS = 15 * 60 * 1000;             // main-side constant (co
 const GIT_MAX_BUFFER = 10 * 1024 * 1024;               // big diffs exceed the 1MB spawnSync default
 const BASELINE_MAX = 100;                              // dispatch-time snapshots retained (FIFO); presence-sized, never persisted
 
-// Same acceptance rule as main.js resolveProjectPath: absolute paths pass
-// through, legacy relative paths join DOCS_ROOT, anything resolving outside
-// DOCS_ROOT (or not to it) is rejected → null.
-function containCwd(p) {
-  const s = String(p || '');
-  if (!s) return null;
-  const abs = path.resolve(path.isAbsolute(s) ? s : path.join(DOCS_ROOT, s.replace(/\//g, path.sep)));
-  const root = path.resolve(DOCS_ROOT);
-  return abs === root || abs.startsWith(root + path.sep) ? abs : null;
-}
+// Same acceptance rule as main.js resolveProjectPath (the shared dashboard/project-paths.js):
+// absolute paths pass through, legacy relative paths join DOCS_ROOT, anything resolving
+// outside DOCS_ROOT is rejected → null — unless it is exactly a tracked project's path in
+// the current data/latest.json (an own repo the scan found on the Desktop).
+const containCwd = require('./project-paths').createResolver({ docsRoot: DOCS_ROOT, readLatest: require('./project-paths').readLatestFrom(path.join(__dirname, '..', 'data')) });
 
 function defaultLabel(task) {
   const oneLine = String(task || '').replace(/\s+/g, ' ').trim();

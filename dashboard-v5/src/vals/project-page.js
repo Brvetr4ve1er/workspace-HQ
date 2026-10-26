@@ -92,7 +92,7 @@ function projectPage(p, { off, live, tasks, cantWrite, tabStyle, actText, viewed
   const jr = (S.journalAdds[p.id] || []).concat(notes, learned).slice(0, 30).map((j) => ({ kind: KIND[j.k][0], color: KIND[j.k][1], text: j.t, date: j.d }));
   const can = () => { if (!this.canWrite()) { this.denied(); return false; } return true; };
   return {
-    name: p.name, tag: H.ST[p.st].label, tone: H.ST[p.st].tone, color: H.ST[p.st].color, stack: p.stack.join(' · '), path: p.path, fresh: 'scanned ' + (live ? H.fmtD(H.dayAt(0)) + ' ' + S.lastScan : viewedLabel),
+    name: p.name, tag: H.ST[p.st].label, tone: H.ST[p.st].tone, color: H.ST[p.st].color, stack: p.stack.join(' · '), path: p.path, fresh: 'scanned ' + (live ? H.fmtD(H.dayAt(0)) + ' ' + S.lastScan : viewedLabel) + ({ owner: ' · found automatically: your GitHub repo', 'no-remote': ' · found automatically: a local-only repo', adopted: ' · adopted' }[p.discovered] || ''),
     back: () => this.setState({ route: null }), backLabel: (H.NAV.find((n) => n.id === S.tab) || H.NAV[0]).label,
     // each step reports what really happened; nothing is claimed before main answers
     resume: async () => {

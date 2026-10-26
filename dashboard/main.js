@@ -64,12 +64,9 @@ ipcMain.handle('hq:social-read', () => (bridge ? bridge.readSocial() : null));
 
 // Project paths in the data are already absolute (e.g. C:\Users\...\alliance travel);
 // only fall back to joining DOCS_ROOT for legacy relative paths. Reject anything that
-// escapes DOCS_ROOT after resolution.
-function resolveProjectPath(p) {
-  const s = String(p || '');
-  const abs = path.resolve(path.isAbsolute(s) ? s : path.join(DOCS_ROOT, s.replace(/\//g, path.sep)));
-  return abs.startsWith(path.resolve(DOCS_ROOT) + path.sep) || abs === path.resolve(DOCS_ROOT) ? abs : null;
-}
+// escapes DOCS_ROOT after resolution — unless it is exactly a tracked project's path in the
+// current latest.json (own repos the scan found on the Desktop; dashboard/project-paths.js).
+const resolveProjectPath = require('./project-paths').createResolver({ docsRoot: DOCS_ROOT, readLatest: require('./project-paths').readLatestFrom(DATA) });
 
 // ---- Phase 3: mirror drawer notes into per-project vault notes -------------
 // The app keeps data/project-notes.json as its display source, AND mirrors each
