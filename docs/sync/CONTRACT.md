@@ -280,3 +280,18 @@ August carried the 2026-08-10 enrichment forward; the default model is the CLI a
 - `host` gains `plugged`, `gpu`, `vramGB`. `data/pc-health-history.json` keeps 96 samples (+ `gpuTempC`, `battery`).
 - New gitignored cache `data/pc-health-disk.json`: the folder-size breakdown, re-measured at most every 6 h.
 Older sidecars without `detail`/`trends` stay valid: every consumer treats them as absent.
+
+## 2026-10-26 · struct · new sidecar data/github.json (additive, owner-authorized)
+`data/github.json` (gitignored — holds private repo names and PR titles; `collector/github.mjs` → shaping in
+`collector/lib/github.mjs`, optional pipeline step after pc-health). Read-only, through the owner's own `gh` login
+(no stored token); two GraphQL calls; a snapshot younger than 10 min is kept (`--max-age=<s>` overrides).
+- `{ v:1, state:'ok', at, login, partial, errors[], totals{repos, private, archived, stars, openPrs, openIssues,
+  ciFailing, cloned, waiting|null}, repos[{full, name, url, private, fork, archived, pushedAt, stars, forks, desc, lang,
+  openPrs, openIssues, branch, lastCommit{at,title}|null, ci:'success'|'failure'|'error'|'pending'|null, local:path|null}],
+  waiting[{kind:'review'|'assigned'|'on-your-repo', repo, number, title, url, updatedAt, author, draft, ci}],
+  mine[{kind:'mine', …same}], issues[{repo, number, title, url, updatedAt, author}] }` — lists capped at 30, newest first.
+- Failure: `{ v:1, state:'no-gh'|'signed-out'|'error', at, error }`; when a good snapshot exists it is kept instead,
+  with `stale:true, staleReason, checkedAt`. `partial:true` (+ `totals.waiting:null`) = the PR/issue search failed.
+- `local` = a clone found on this machine (scanned project paths + direct children of Documents and Desktop) whose
+  `origin` points at the repo. `latest.json` / `projects[]` are untouched (remote-only repos are Front B's job).
+- `dashboard/build-data.mjs` bakes it as `DATA.github` (null when absent).
