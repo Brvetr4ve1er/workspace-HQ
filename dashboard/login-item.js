@@ -13,8 +13,11 @@ function loginItemPlan({ isPackaged, argv = [], execPath, appPath, env = {} }) {
   if (isTest) return null;
   if (isPackaged) return { openAtLogin: true, args: ['--hidden'] };
   if (!execPath || !appPath) return null;
-  return { openAtLogin: true, path: execPath, args: [appPath, '--hidden'] };
+  // Electron writes the Run entry as `path args…` verbatim, unquoted — and these paths hold spaces
+  // ("ROG STRIX", "workspace hq"), which Windows would split. Quote both.
+  return { openAtLogin: true, path: quote(execPath), args: [quote(appPath), '--hidden'] };
 }
+const quote = (s) => (/\s/.test(s) && !/^".*"$/.test(s) ? '"' + s + '"' : s);
 
 function init({ app, argv = process.argv, env = process.env, log = console }) {
   const plan = loginItemPlan({ isPackaged: app.isPackaged, argv, execPath: process.execPath, appPath: app.getAppPath(), env });

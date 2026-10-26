@@ -9,6 +9,11 @@ test('unpackaged: electron.exe + the app folder + --hidden', () => {
   assert.deepEqual(loginItemPlan({ isPackaged: false, argv: [EXE, '.', '--hidden'], execPath: EXE, appPath: APP }), { openAtLogin: true, path: EXE, args: [APP, '--hidden'] });
 });
 
+test('paths with spaces are quoted (Electron writes the Run entry unquoted)', () => {
+  const exe = 'C:/Users/Some One/hq/electron.exe', app = 'C:/Users/Some One/hq/dashboard';
+  assert.deepEqual(loginItemPlan({ isPackaged: false, argv: [exe, '.'], execPath: exe, appPath: app }), { openAtLogin: true, path: '"' + exe + '"', args: ['"' + app + '"', '--hidden'] });
+});
+
 test('packaged: the app itself with --hidden', () => {
   assert.deepEqual(loginItemPlan({ isPackaged: true, argv: ['hq.exe'], execPath: 'hq.exe', appPath: 'x' }), { openAtLogin: true, args: ['--hidden'] });
 });
