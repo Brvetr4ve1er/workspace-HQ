@@ -78,6 +78,7 @@ Understand-Anything/
 # pc-health vitals + rolling history (runtime, machine-specific, regenerated each scan)
 data/pc-health.json
 data/pc-health-history.json
+data/pc-health-disk.json
 
 # trailer render tool: renders, masters, stills (tools/trailer/out) and the patched work copy + Electron profile (tools/trailer/.work)
 tools/trailer/out/
