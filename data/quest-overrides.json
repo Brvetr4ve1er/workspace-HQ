@@ -18,5 +18,53 @@
   "q-almaflowclim-remote": {
     "status": "done",
     "completed": "2026-07-20"
+  },
+  "sq-crucix-secrets": {
+    "status": "done",
+    "completed": "2026-07-26"
+  },
+  "q-alliance-travel-commit-dirty": {
+    "status": "done",
+    "completed": "2026-07-30"
+  },
+  "q-hamma-sat-remote": {
+    "status": "done",
+    "completed": "2026-10-03"
+  },
+  "q-intel-scraper-remote": {
+    "status": "done",
+    "completed": "2026-10-03"
+  },
+  "q-doctor-cherfia-clinic-push": {
+    "status": "done",
+    "completed": "2026-10-03"
+  },
+  "sq-almaflowclim-llm-no-remote-backup": {
+    "status": "done",
+    "completed": "2026-10-03"
+  },
+  "sq-bruns-logistics-llm-uncommitted-work": {
+    "status": "done",
+    "completed": "2026-10-03"
+  },
+  "sq-hamma-sat-llm-no-remote-backup": {
+    "status": "done",
+    "completed": "2026-10-03"
+  },
+  "sq-alliance-travel-llm-uncommitted-work": {
+    "status": "done",
+    "completed": "2026-10-12"
+  },
+  "q-doctor-cherfia-clinic-push-r2": {
+    "status": "done",
+    "completed": "2026-10-22"
+  },
+  "q-almaflowclim-remote-r2": {
+    "status": "done",
+    "completed": "2026-10-22"
+  },
+  "q-alliance-travel-commit-dirty-r2": {
+    "status": "done",
+    "completed": "2026-10-24"
   }
 }
