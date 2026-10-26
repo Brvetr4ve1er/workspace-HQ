@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-26 · FROM frontend (archive + prompt library program complete; tree committed) · main @ b7ffa0b
+DONE: all 8 features built, reviewed and pushed (Claude Hub H2–H5 live since 2026-10-25 12:52; H6 ChatGPT/Claude-memory
+  import, P1 prompt Library, P2 harvest/promote, P3 run modal + packs at 0102fc5). Suites at 0102fc5: claude-hub 176,
+  dashboard 506, v5 415, collector/lib 32 — all green. On the owner's instruction, the struct lane's long-uncommitted files
+  are now committed: 9432c0e run-scan.ps1 (-NoEnrich nightly), 187c7f9 data/quest-overrides.json, b7ffa0b the other
+  session's draft spec 2026-10-25-real-workspace-hq-data-design.md (still DRAFT, awaiting owner approval).
+IN-FLIGHT: the owner's app (PID 39864, launched by the owner 2026-10-25 19:25, apparently elevated) runs mid-build code;
+  toolsollback.ps1 cannot see an elevated instance (empty CommandLine) and the relaunch quit as second-launch. Owner:
+  quit from the tray, then relaunch (or ask the controller). First start migrates data/claude/hub.sqlite to schema 2.
+ASKS: struct lane — review 9432c0e / 187c7f9 (committed for you, unchanged content).
+BREAKS: hub.sqlite schema 2 (additive; pre-H6 Hub code refuses a schema-2 db). Bridge extension needs a manual reload.
+
 ## 2026-10-25 20:15 · FROM frontend · main @ 288261a
 DONE: Prompt runs + usage + packs P3 (plan docs/superpowers/plans/2026-10-15-archive-prompts-p3.md), commits P3.2–P3.11 + this meta commit:
   fillVariables (one pass; {{project}}/{{cwd}} from the picked project), Hub op promptUse (writer, queued; prompt_use now written),
