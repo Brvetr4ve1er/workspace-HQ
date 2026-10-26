@@ -847,3 +847,43 @@ export function packView(pack) {
     doneText: done, error: pack.phase === 'error' ? String(pack.error || 'the pack could not be read') : null,
   };
 }
+
+// ---- GitHub (data/github.json, CONTRACT 2026-10-26) ---------------------------------------
+// Pure view of the GitHub sidecar for Projects › GitHub. Defensive: an older bake (no
+// DATA.github) or junk reads as state 'none'. Counts come from the sidecar, never invented.
+const GH_CI = {
+  success: { label: 'CI passing', tone: 'var(--green)' }, failure: { label: 'CI failing', tone: 'var(--red)' },
+  error: { label: 'CI error', tone: 'var(--red)' }, pending: { label: 'CI running', tone: 'var(--blue)' },
+};
+const GH_KIND = { review: 'review requested', assigned: 'assigned to you', 'on-your-repo': 'on your repo', mine: 'yours' };
+const ghStr = (v) => (typeof v === 'string' ? v : '');
+const ghNum = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+const ghWhen = (s, now) => { const t = at2ms(s); return t === null ? '' : ago(t, now); };
+export function github(raw, now = Date.now()) {
+  const g = obj(raw);
+  const state = ['ok', 'signed-out', 'no-gh', 'error'].includes(g.state) ? g.state : 'none';
+  const pr = (p) => {
+    const c = GH_CI[p.ci] || null;
+    return { title: ghStr(p.title), url: ghStr(p.url), repo: ghStr(p.repo), num: '#' + ghNum(p.number), kind: GH_KIND[p.kind] || '',
+      who: ghStr(p.author), when: ghWhen(p.updatedAt, now), draft: !!p.draft, ci: c ? c.label : '', ciTone: c ? c.tone : 'var(--faint)' };
+  };
+  const repos = arr(g.repos).filter((r) => r && typeof r === 'object' && ghStr(r.url)).map((r) => {
+    const c = GH_CI[r.ci] || null, local = ghStr(r.local);
+    return { name: ghStr(r.name) || ghStr(r.full), full: ghStr(r.full), url: ghStr(r.url), desc: ghStr(r.desc), lang: ghStr(r.lang),
+      private: !!r.private, archived: !!r.archived, fork: !!r.fork, stars: ghNum(r.stars), prs: ghNum(r.openPrs), issues: ghNum(r.openIssues),
+      ci: c ? c.label : 'no CI', ciTone: c ? c.tone : 'var(--faint)', ciBad: r.ci === 'failure' || r.ci === 'error',
+      pushed: ghWhen(r.pushedAt, now), commit: ghStr(obj(r.lastCommit).title), local, cloned: !!local };
+  });
+  const t = obj(g.totals);
+  return {
+    state, login: ghStr(g.login), at: ghStr(g.at), when: ghWhen(g.at, now), error: ghStr(g.error),
+    stale: !!g.stale, staleReason: ghStr(g.staleReason), partial: !!g.partial,
+    totals: { repos: ghNum(t.repos) || repos.length, private: ghNum(t.private), archived: ghNum(t.archived), stars: ghNum(t.stars),
+      openPrs: ghNum(t.openPrs), openIssues: ghNum(t.openIssues), ciFailing: ghNum(t.ciFailing), cloned: ghNum(t.cloned),
+      waiting: Number.isInteger(t.waiting) ? t.waiting : null },
+    repos,
+    waiting: arr(g.waiting).filter((p) => p && typeof p === 'object' && ghStr(p.url)).map(pr),
+    mine: arr(g.mine).filter((p) => p && typeof p === 'object' && ghStr(p.url)).map(pr),
+    issues: arr(g.issues).filter((p) => p && typeof p === 'object' && ghStr(p.url)).map((p) => ({ ...pr(p), kind: 'issue' })),
+  };
+}

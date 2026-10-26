@@ -1,4 +1,4 @@
-// Projects screen (v.projects): grid, map, archived.
+// Projects screen (v.projects): grid, map, archived, GitHub.
 // Cut verbatim from lines 265-332 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 export default String.raw`        <sc-if value="{{ v.projects }}" hint-placeholder-val="{{ false }}">
@@ -70,6 +70,57 @@ export default String.raw`        <sc-if value="{{ v.projects }}" hint-placehold
                   </div>
                 </sc-for>
                 <sc-if value="{{ noArchived }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:var(--muted)">Nothing archived. Archive a project from its page (⋯ menu) — it’s reversible.</div></sc-if>
+              </div>
+            </sc-if>
+            <!-- v5: Projects › GitHub (2026-10-26) — the owner's account from data/github.json (read-only, through their own gh login); Open asks main (hq:github-open), which opens only a github.com link listed in the snapshot -->
+            <sc-if value="{{ isGithub }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:16px;max-width:980px">
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-size:19px">GitHub</span><span style="font-family:var(--term);font-size:13px;color:var(--muted)">{{ ghLogin }}</span><span style="font-size:12px;color:var(--faint)">{{ ghWhen }}</span><span style="flex:1"></span><button type="button" onClick="{{ ghRefresh }}" disabled="{{ ghRefreshOff }}" title="{{ ghRefreshTip }}" style="height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:var(--card);color:var(--text);font-family:var(--term);font-size:12px;cursor:pointer">{{ ghRefreshLabel }}</button></div>
+                <sc-if value="{{ ghNotOk }}" hint-placeholder-val="{{ false }}"><div data-gh="connect" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--muted);line-height:1.6">{{ ghWhy }}</div></sc-if>
+                <sc-if value="{{ ghStale }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--orange)">{{ ghStaleText }}</div></sc-if>
+                <sc-if value="{{ ghPartial }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--orange)">{{ ghPartialText }}</div></sc-if>
+                <sc-if value="{{ ghOk }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:16px">
+                    <div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ ghStats }}" as="s" hint-placeholder-count="5"><span style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;font-size:13px"><span style="color:var(--muted)">{{ s.k }}</span><span style="color:{{ s.color }}">{{ s.v }}</span></span></sc-for></div>
+                    <section data-gh="waiting" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                      <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Waiting on you</div>
+                      <sc-if value="{{ ghNoWaiting }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--faint)">Nothing waiting — no review requests, assigned pull requests or open pull requests from others on your repos.</div></sc-if>
+                      <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ ghWaiting }}" as="p" hint-placeholder-count="3"><div style="display:flex;gap:10px;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.title }}</div><div style="font-size:12px;color:var(--faint)">{{ p.meta }} · <span style="color:var(--gold)">{{ p.tag }}</span> <span style="color:{{ p.ciTone }}">{{ p.ci }}</span></div></div><button type="button" onClick="{{ p.open }}" title="Open on GitHub" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button><button type="button" onClick="{{ p.copy }}" title="Copy the link" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--term)">Copy</button></div></sc-for></div>
+                      <div style="font-size:12px;color:var(--faint)">{{ ghWaitingMore }}</div>
+                    </section>
+                    <sc-if value="{{ ghHasMine }}" hint-placeholder-val="{{ true }}">
+                      <section data-gh="mine" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                        <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Your open pull requests</div>
+                        <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ ghMine }}" as="p" hint-placeholder-count="2"><div style="display:flex;gap:10px;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.title }}</div><div style="font-size:12px;color:var(--faint)">{{ p.meta }} <span style="color:{{ p.ciTone }}">{{ p.ci }}</span></div></div><button type="button" onClick="{{ p.open }}" title="Open on GitHub" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button><button type="button" onClick="{{ p.copy }}" title="Copy the link" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--term)">Copy</button></div></sc-for></div>
+                        <div style="font-size:12px;color:var(--faint)">{{ ghMineMore }}</div>
+                      </section>
+                    </sc-if>
+                    <sc-if value="{{ ghHasIssues }}" hint-placeholder-val="{{ false }}">
+                      <section data-gh="issues" style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
+                        <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:10px">Issues assigned to you</div>
+                        <div style="display:flex;flex-direction:column;gap:8px"><sc-for list="{{ ghIssues }}" as="p" hint-placeholder-count="2"><div style="display:flex;gap:10px;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.title }}</div><div style="font-size:12px;color:var(--faint)">{{ p.meta }}</div></div><button type="button" onClick="{{ p.open }}" title="Open on GitHub" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button></div></sc-for></div>
+                        <div style="font-size:12px;color:var(--faint)">{{ ghIssuesMore }}</div>
+                      </section>
+                    </sc-if>
+                    <section data-gh="repos">
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--faint);margin-right:6px">Repos</span><sc-for list="{{ ghFilters }}" as="f" hint-placeholder-count="5"><button type="button" onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }}</button></sc-for></div>
+                      <sc-if value="{{ ghNoRepoMatch }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted);margin-bottom:10px">No repo matches this filter.</div></sc-if>
+                      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px">
+                        <sc-for list="{{ ghRepos }}" as="r" hint-placeholder-count="6">
+                          <div style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;background:var(--card);border:1px solid var(--frame);border-radius:12px;min-width:0">
+                            <div style="display:flex;gap:8px;align-items:baseline"><span style="font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.full }}">{{ r.name }}</span><span style="font-size:11px;white-space:nowrap;color:{{ r.ciTone }}">{{ r.ci }}</span></div>
+                            <div style="font-size:12px;color:var(--faint)">{{ r.tags }}</div>
+                            <div style="font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.desc }}">{{ r.desc }}</div>
+                            <div style="font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.commit }}">Pushed {{ r.pushed }} · {{ r.commit }}</div>
+                            <div style="font-size:12px;color:var(--muted)">{{ r.counts }}</div>
+                            <div style="display:flex;gap:8px;align-items:center"><span style="flex:1;min-width:0;font-size:11px;color:{{ r.whereColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.where }}">{{ r.where }}</span><button type="button" onClick="{{ r.open }}" title="Open on GitHub" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer;font-family:var(--term)">Open</button><button type="button" onClick="{{ r.copy }}" title="Copy the link" style="height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--term)">Copy</button></div>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ ghHasArchived }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--faint);margin-top:10px">{{ ghArchivedNote }}</div></sc-if>
+                    </section>
+                  </div>
+                </sc-if>
               </div>
             </sc-if>
           </div>

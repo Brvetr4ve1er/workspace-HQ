@@ -1599,6 +1599,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./claude-imports').init({ ipcMain, send: castSend, dataDir: DATA });   // AI archive H6: imports drop folder watcher (asks once in v5; never writes the folder)
     require('./claude-prompts').init({ ipcMain, app, shell, vaultDir: VAULT, hub: claudeHub, chat: claudeChatEngine, getProjects: studioProjects, launch: launchClaudeTerminal, clipboard: require('electron').clipboard, dialog, getWin: () => win });   // Prompt library P1–P3 (spec 2026-10-15 §6.4): status, open, promote, run, packs
     require('./pc-health-open').init({ ipcMain, shell, dataDir: DATA });   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
+    require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });   // Projects › GitHub: refresh through the owner's gh login + open a listed github.com link (hq:github-refresh, hq:github-open)   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();

@@ -116,6 +116,8 @@ contextBridge.exposeInMainWorld('hq', {
   healthScan: () => ipcRenderer.invoke('hq:health-scan'),
   healthFix: (command) => ipcRenderer.invoke('hq:health-fix', command),
   pcOpenFolder: (p) => ipcRenderer.invoke('hq:pc-open-folder', p),   // only a folder listed in the current disk breakdown
+  githubRefresh: () => ipcRenderer.invoke('hq:github-refresh'),   // re-reads the account through the owner's gh login
+  githubOpen: (u) => ipcRenderer.invoke('hq:github-open', u),   // only a github.com link listed in the current snapshot
   // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
   getSocial: () => ipcRenderer.invoke('hq:social-read'),
 

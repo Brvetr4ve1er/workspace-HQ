@@ -818,3 +818,34 @@ test('machineDetail: trends get arrows; storage health is Healthy or flagged', (
 test('machine() exposes the panels as DETAIL', () => {
   assert.deepEqual(machine({ organs: [] }).DETAIL.ram, []);
 });
+
+// ---- GitHub view (data/github.json, CONTRACT 2026-10-26) ----
+import { github as ghView } from './adapter.mjs';
+const GH_NOW = Date.parse('2026-03-02T12:00:00Z');
+const GH_RAW = { v: 1, state: 'ok', at: '2026-03-02T11:00:00Z', login: 'octo-owner', partial: false,
+  totals: { repos: 2, private: 1, archived: 0, stars: 1, openPrs: 1, openIssues: 0, ciFailing: 1, cloned: 1, waiting: 1 },
+  repos: [{ full: 'octo-owner/alpha', name: 'alpha', url: 'https://github.com/octo-owner/alpha', private: true, openPrs: 1, openIssues: 0, stars: 1, ci: 'failure', pushedAt: '2026-03-01T12:00:00Z', lastCommit: { title: 'placeholder' }, local: 'C:/dev/alpha' },
+    { name: 'no-url' }, null],
+  waiting: [{ kind: 'review', repo: 'other/x', number: 4, title: 'Placeholder', url: 'https://github.com/other/x/pull/4', updatedAt: '2026-03-02T09:00:00Z', author: 'someone', draft: true, ci: 'expected' }, { title: 'no url' }],
+  mine: 'junk', issues: [{ repo: 'other/x', number: 9, title: 'Issue', url: 'https://github.com/other/x/issues/9', updatedAt: '2026-03-01T12:00:00Z' }] };
+
+test('github view: rows keep only linkable entries, CI labels, clone place, ages', () => {
+  const v = ghView(GH_RAW, GH_NOW);
+  assert.equal(v.state, 'ok'); assert.equal(v.when, '1h ago'); assert.equal(v.login, 'octo-owner');
+  assert.equal(v.repos.length, 1);
+  assert.deepEqual([v.repos[0].ci, v.repos[0].ciBad, v.repos[0].cloned, v.repos[0].pushed, v.repos[0].prs], ['CI failing', true, true, '1d ago', 1]);
+  assert.equal(v.waiting.length, 1);
+  assert.deepEqual([v.waiting[0].num, v.waiting[0].kind, v.waiting[0].when, v.waiting[0].ci, v.waiting[0].draft], ['#4', 'review requested', '3h ago', '', true]);
+  assert.deepEqual(v.mine, []);
+  assert.equal(v.issues[0].kind, 'issue');
+  assert.equal(v.totals.waiting, 1);
+});
+
+test('github view: missing, junk and failure states are honest', () => {
+  assert.equal(ghView(null).state, 'none');
+  assert.equal(ghView({ state: 'weird' }).state, 'none');
+  const s = ghView({ v: 1, state: 'signed-out', at: '2026-03-02T11:00:00Z', error: 'run gh auth login' }, GH_NOW);
+  assert.deepEqual([s.state, s.error, s.repos.length, s.totals.repos, s.totals.waiting], ['signed-out', 'run gh auth login', 0, 0, null]);
+  const p = ghView({ ...GH_RAW, stale: true, staleReason: 'network', partial: true, totals: { ...GH_RAW.totals, waiting: null } }, GH_NOW);
+  assert.deepEqual([p.stale, p.staleReason, p.partial, p.totals.waiting], [true, 'network', true, null]);
+});

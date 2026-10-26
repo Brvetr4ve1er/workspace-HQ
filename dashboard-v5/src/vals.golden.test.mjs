@@ -388,6 +388,26 @@ const DETAIL_PC = { ...FRESH_PC, detail: {
   unreadable: ['CPU temperature', 'Battery wear'],
 }, trends: [{ id: 'disk', dir: 'down', bad: true, text: 'Disk free fell 9.6 GB over this week (49.6 → 40 GB)' }, { id: 'ram', dir: 'flat', bad: false, text: 'RAM averaged 75% across the last 3 checks (peak 80%)' }] };
 add('system.machine-detail', { hq: { ...P3_HQ, pcOpenFolder() {} }, live: (L, store) => { store.refreshMachine(DETAIL_PC); }, state: tabSub('system', 'machine') });
+// Projects › GitHub (2026-10-26): a placeholder account snapshot (data/github.json), Refresh running, signed out, stale + partial
+const GH = { v: 1, state: 'ok', at: '2026-10-05T09:30:00.000Z', login: 'octo-owner', partial: false, errors: [],
+  totals: { repos: 3, private: 1, archived: 1, stars: 3, openPrs: 2, openIssues: 1, ciFailing: 1, cloned: 1, waiting: 2 },
+  repos: [
+    { full: 'octo-owner/alpha', name: 'alpha', url: 'https://github.com/octo-owner/alpha', private: false, fork: false, archived: false, pushedAt: '2026-10-05T08:00:00Z', stars: 3, forks: 0, desc: 'Placeholder repo', lang: 'JavaScript', openPrs: 2, openIssues: 1, branch: 'main', lastCommit: { at: '2026-10-05T08:00:00Z', title: 'placeholder commit' }, ci: 'failure', local: 'C:/dev/alpha' },
+    { full: 'octo-owner/beta', name: 'beta', url: 'https://github.com/octo-owner/beta', private: true, fork: true, archived: false, pushedAt: '2026-09-20T08:00:00Z', stars: 0, forks: 0, desc: '', lang: '', openPrs: 0, openIssues: 0, branch: 'main', lastCommit: null, ci: null, local: null },
+    { full: 'octo-owner/gamma', name: 'gamma', url: 'https://github.com/octo-owner/gamma', private: false, fork: false, archived: true, pushedAt: '2025-01-01T00:00:00Z', stars: 0, forks: 0, desc: '', lang: 'Go', openPrs: 0, openIssues: 0, branch: 'main', lastCommit: null, ci: 'success', local: null },
+  ],
+  waiting: [
+    { kind: 'review', repo: 'other/x', number: 4, title: 'Placeholder review', url: 'https://github.com/other/x/pull/4', updatedAt: '2026-10-05T07:00:00Z', author: 'someone', draft: false, ci: 'pending' },
+    { kind: 'on-your-repo', repo: 'octo-owner/alpha', number: 7, title: 'Placeholder bump', url: 'https://github.com/octo-owner/alpha/pull/7', updatedAt: '2026-10-01T07:00:00Z', author: 'a-bot', draft: true, ci: 'failure' },
+  ],
+  mine: [{ kind: 'mine', repo: 'octo-owner/alpha', number: 8, title: 'Placeholder feature', url: 'https://github.com/octo-owner/alpha/pull/8', updatedAt: '2026-10-04T07:00:00Z', author: 'octo-owner', draft: false, ci: 'success' }],
+  issues: [{ repo: 'other/x', number: 9, title: 'Placeholder issue', url: 'https://github.com/other/x/issues/9', updatedAt: '2026-10-03T07:00:00Z', author: 'someone' }] };
+const GH_HQ = { ...P3_HQ, githubRefresh() {}, githubOpen() {} };
+add('projects.github', { hq: GH_HQ, live: (L, store) => { store.refreshGithub(GH); }, state: tabSub('projects', 'github') });
+add('projects.github-failing-refreshing', { hq: GH_HQ, live: (L, store) => { store.refreshGithub(GH); }, state: (c) => ({ ...tabSub('projects', 'github')(c), ghFilter: 'failing', ghBusy: true }) });
+add('projects.github-signed-out', { hq: GH_HQ, live: (L, store) => { store.refreshGithub({ v: 1, state: 'signed-out', at: '2026-10-05T09:30:00.000Z', error: 'Not signed in to GitHub — run: gh auth login' }); }, state: tabSub('projects', 'github') });
+add('projects.github-stale-partial', { hq: GH_HQ, live: (L, store) => { store.refreshGithub({ ...GH, stale: true, staleReason: 'repos: network', partial: true, waiting: [], totals: { ...GH.totals, waiting: null } }); }, state: tabSub('projects', 'github') });
+add('projects.github-none', { state: tabSub('projects', 'github') });
 add('system.all-fixed', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'machine')(c), fixed: ['organ-disk', 'organ-ram'] }) });
 add('system.clutter-saves', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), sysSaves: { 'Clean up: Project A copy ↔ Project A': 'saving', 'Clean up: notes ↔ notes-old': 'noted', 'Clean up: x ↔ y': 'failed' } }) });
 add('system.clutter-past', { hq: P3_HQ, state: (c) => ({ ...tabSub('system', 'clutter')(c), snapOffset: 1 }) });

@@ -44,6 +44,7 @@ export function createStore(DATA, hq) {
     canvasBoards: A.canvasBoards(DATA.canvas),   // raw boards [{name, nodes, edges}] (Canvas "＋ Note" board picker)
     llm: null, casts: {}, recording: null,
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
+    github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
     scan: null,       // {state:'idle'|'running'|'done'|'failed', startedAt, endedAt, code, error?}
     uiPrefs: null,    // {theme, resolved, reduceMotion} shared by every window
     claudeLib: { projects: null, convs: null, convsMore: false, filters: {}, q: '', hits: null, docHits: null, doc: null, noTerms: false, thread: null, stats: null, byHq: {}, pageErr: {}, statsErr: null, error: null, busy: false },   // Claude library (H2): Hub rows, raw; vals map them via adapter hub*()
@@ -62,6 +63,12 @@ export function createStore(DATA, hq) {
     if (src !== machSrc || !machVal) { machSrc = src; machVal = A.machine(src); }
     return machVal;
   };
+  let ghSrc, ghVal;
+  const gh = () => {
+    const src = live.github || DATA.github;
+    if (src !== ghSrc || !ghVal) { ghSrc = src; ghVal = A.github(src); }
+    return ghVal;
+  };
 
   const model = {
     ...C, fmtD: A.fmtD, fileUrl: A.fileUrl,
@@ -72,6 +79,7 @@ export function createStore(DATA, hq) {
     LIBRARY: auto.LIBRARY, SCHEDULED: auto.SCHEDULED, INITIAL_RUNS: auto.RUNS, autoTotal: auto.total,
     get ISSUES() { return mach().ISSUES; }, get VITALS() { return mach().VITALS; },
     get pcScannedAt() { return mach().scannedAt; }, get pcHost() { return mach().host; }, get MACHINE() { return mach().DETAIL; },
+    get GITHUB() { return gh(); },
     get CLUTTER() { return A.clutter(at(0).inventory); },
     get VAULTS() { return A.vaults(at(0).inventory); },
     get SITES() { return A.sites(at(0).browser); },
@@ -183,6 +191,13 @@ export function createStore(DATA, hq) {
   function refreshMachine(pcHealth) {
     live.pcHealth = isObj(pcHealth) ? pcHealth : null;
     emit();
+  }
+  // a fresh GitHub snapshot (Projects › GitHub Refresh); junk or {error} keeps the baked one
+  function refreshGithub(g) {
+    if (!isObj(g) || typeof g.state !== 'string') return false;
+    live.github = g;
+    emit();
+    return true;
   }
 
   // hq:live-state → what was running before this window (re)loaded
@@ -480,7 +495,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine,
+    emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine, refreshGithub,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt, refreshCandidates,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, runPrompt, packImport, packExport,
   };

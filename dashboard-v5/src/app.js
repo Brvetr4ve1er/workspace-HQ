@@ -36,6 +36,7 @@ import { systemLogic } from './logic/system.js';
 import { libraryLogic } from './logic/library.js';
 import { studioLogic } from './logic/studio.js';
 import { projectLogic } from './logic/project.js';
+import { githubLogic } from './logic/github.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -86,6 +87,8 @@ export class Component extends DCLogic {
       libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false,
       // Projects grid (vals/projects.js): search + status chip, this session only
       projSearch: '', projStatus: 'all',
+      // Projects › GitHub (logic/github.js): Refresh running · repo list filter
+      ghBusy: false, ghFilter: 'all',
       // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
       canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
       // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
@@ -391,5 +394,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic);
 Component.prototype.renderVals = renderVals;
