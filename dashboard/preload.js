@@ -72,7 +72,9 @@ contextBridge.exposeInMainWorld('hq', {
     open: (rel, how) => ipcRenderer.invoke('hq:social-vault:open', rel, how),
     save: (req) => ipcRenderer.invoke('hq:social-vault:save', req),
   },
-  socialOpenSite: (platform) => ipcRenderer.invoke('hq:social-open-site', platform),   // a listed platform's home page, to sign in there
+  socialOpenSite: (platform) => ipcRenderer.invoke('hq:social-open-site', platform),
+  socialCancel: (id) => ipcRenderer.invoke('hq:social-cancel', id),
+  vaultOpen: (name, how) => ipcRenderer.invoke('hq:vault-open', name, how),   // Life › Notes: 'open' | 'search' in Obsidian, a scanned vault only   // Social › Inbox Discard: staged → canceled only (never publishes)   // a listed platform's home page, to sign in there
   // Prompt library P1: status (folder there? Obsidian installed?) + open a prompt note (main finds the file itself)
   claudePrompts: {
     status: () => ipcRenderer.invoke('hq:claude-prompts:status'),

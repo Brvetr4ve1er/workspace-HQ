@@ -103,3 +103,27 @@ test('openSite: only the listed platform literals; Mastodon and junk are refused
   assert.equal(d.calls.length, 0);
   assert.deepEqual(logs, ['[dry-open] site https://www.youtube.com/']);
 });
+
+test('cancel (Inbox Discard): staged → canceled only; sending / sent / unknown refused and the file left byte-identical', () => {
+  const { createCancel } = require('./social-tab.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-social-discard-'));
+  fs.mkdirSync(path.join(dir, 'social'));
+  const file = path.join(dir, 'social', 'outbox.json');
+  const seed = { updated: '2026-01-01T00:00:00.000Z', actions: [
+    { id: 'a-staged', platform: 'bluesky', op: 'post', text: 'placeholder', status: 'staged' },
+    { id: 'a-sending', platform: 'bluesky', op: 'post', text: 'placeholder', status: 'sending' },
+    { id: 'a-sent', platform: 'bluesky', op: 'post', text: 'placeholder', status: 'sent' }] };
+  fs.writeFileSync(file, JSON.stringify(seed, null, 2));
+  const cancel = createCancel(dir);
+  const before = fs.readFileSync(file, 'utf8');
+  assert.deepEqual(cancel('a-sending'), { error: 'already publishing', status: 'sending' });
+  assert.deepEqual(cancel('a-sent'), { error: 'not staged', status: 'sent' });
+  assert.deepEqual(cancel('nope'), { error: 'unknown action id', status: undefined });
+  assert.deepEqual(cancel(''), { error: 'id required', status: undefined });
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'refusals leave the file untouched');
+  assert.deepEqual(cancel('a-staged'), { ok: true, id: 'a-staged', status: 'canceled' });
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.deepEqual(after.actions.map((a) => a.status), ['canceled', 'sending', 'sent']);
+  assert.ok(after.actions[0].canceled_at && !after.actions[0].sent_at && !after.actions[0].result);
+  assert.deepEqual(cancel('a-staged'), { error: 'not staged', status: 'canceled' }, 'a second click finds it already canceled');
+});

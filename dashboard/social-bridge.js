@@ -253,19 +253,8 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
     if (!authed) { send(403, { ok: false, error: 'forbidden' }); return true; }
     readBody(req, (err, body) => {
       if (err) { send(err === 'too big' ? 413 : 400, { ok: false, error: String(err) }); return; }
-      const id = clamp(String((body && body.id) || ''), 80);
-      if (!id) { send(400, { ok: false, error: 'id required' }); return; }
-      const d = readJsonOr(outboxFile, { actions: [] });
-      const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
-      if (!a) { send(404, { ok: false, error: 'unknown action id' }); return; }
-      if (a.status === 'sending') { send(409, { ok: false, error: 'already publishing', id, status: a.status }); return; }
-      if (a.status !== 'staged') { send(409, { ok: false, error: 'not staged', id, status: a.status }); return; }
-      a.status = 'canceled';
-      a.canceled_at = new Date().toISOString();
-      d.updated = a.canceled_at;
-      try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
-      catch (e) { send(500, { ok: false, error: 'write failed: ' + String((e && e.code) || e) }); return; }
-      send(200, { ok: true, id, status: 'canceled' });
+      const r = cancelStaged(outboxFile, body && body.id);
+      send(r.code, r.body);
     });
     return true;
   }
@@ -293,6 +282,26 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
   return false;
 }
 
+// The ONE staged → canceled rule (CONTRACT.md "cancel never publishes" + 2026-10-27 amendment). Used by the popup's
+// POST /social/outbox/cancel and WorkspaceHQ's Social › Inbox Discard (hq:social-cancel, dashboard/social-tab.js).
+// Synchronous on purpose (see ATOMICITY above): read, check, flip, write in one turn of the event loop.
+// → { code, body } with the HTTP status the relay answers; anything not staged leaves the file untouched.
+function cancelStaged(outboxFile, rawId) {
+  const id = clamp(String(rawId || ''), 80);
+  if (!id) return { code: 400, body: { ok: false, error: 'id required' } };
+  const d = readJsonOr(outboxFile, { actions: [] });
+  const a = (Array.isArray(d.actions) ? d.actions : []).find((x) => x && x.id === id);
+  if (!a) return { code: 404, body: { ok: false, error: 'unknown action id' } };
+  if (a.status === 'sending') return { code: 409, body: { ok: false, error: 'already publishing', id, status: a.status } };
+  if (a.status !== 'staged') return { code: 409, body: { ok: false, error: 'not staged', id, status: a.status } };
+  a.status = 'canceled';
+  a.canceled_at = new Date().toISOString();
+  d.updated = a.canceled_at;
+  try { writeAtomic(outboxFile, JSON.stringify(d, null, 2)); }
+  catch (e) { return { code: 500, body: { ok: false, error: 'write failed: ' + String((e && e.code) || e) } }; }
+  return { code: 200, body: { ok: true, id, status: 'canceled' } };
+}
+
 // Bounded body reader — accumulate raw chunks, decode once (multibyte-safe).
 function readBody(req, cb) {
   const chunks = []; let size = 0, tooBig = false;
@@ -305,4 +314,4 @@ function readBody(req, cb) {
   req.on('error', () => cb('read error'));
 }
 
-module.exports = { socialTendril, handleRoute, contentHash, CLAIM_STALE_MIN };
+module.exports = { socialTendril, handleRoute, contentHash, cancelStaged, CLAIM_STALE_MIN };

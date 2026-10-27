@@ -4,12 +4,14 @@
 //   open(rel, how)     only a note a fresh list() returned; Obsidian (obsidian://open, vault = the vault folder's basename) or the file
 //   save({title,body}) ONE new note in 30_Areas/Social/, only after the owner pressed Save; never over an existing note
 //   openSite(platform) one of the SITES literals below in the default browser (where the owner signs in); nothing else
+//   cancel(id)         Inbox Discard: social-bridge.js cancelStaged — staged → canceled only, never publishes
 // Env HQ_VAULT_DIR overrides the vault folder (second-instance gates); tests pass vaultDir directly.
 'use strict';
 
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { safeSegment, writeNoteAtomic } = require('./claude-vault');
+const { cancelStaged } = require('./social-bridge');
 
 const SOCIAL_REL = ['30_Areas', 'Social'];
 const INBOX_REL = ['00_Inbox'];
@@ -148,7 +150,13 @@ function createSocialVault({ vaultDir, openExternal, openPath, protocolName = ()
   return { list, open, save, openSite };
 }
 
-function init({ ipcMain, app, shell, vaultDir, log = () => {} }) {
+// Inbox Discard → {ok, id, status:'canceled'} or {error} (the relay's HTTP code stays on the relay)
+function createCancel(dataDir) {
+  const outboxFile = path.join(dataDir, 'social', 'outbox.json');
+  return (id) => { const r = cancelStaged(outboxFile, id); return r.body.ok ? r.body : { error: r.body.error, status: r.body.status }; };
+}
+
+function init({ ipcMain, app, shell, vaultDir, dataDir, log = () => {} }) {
   const v = createSocialVault({
     vaultDir: process.env.HQ_VAULT_DIR || vaultDir, env: process.env, log,
     openExternal: (u) => shell.openExternal(u), openPath: (p) => shell.openPath(p),
@@ -158,7 +166,9 @@ function init({ ipcMain, app, shell, vaultDir, log = () => {} }) {
   ipcMain.handle('hq:social-vault:open', (_e, rel, how) => v.open(rel, how));
   ipcMain.handle('hq:social-vault:save', (_e, req) => v.save(req));
   ipcMain.handle('hq:social-open-site', (_e, platform) => v.openSite(platform));
+  const cancel = createCancel(dataDir);
+  ipcMain.handle('hq:social-cancel', (_e, id) => { const r = cancel(id); if (r.ok) log('[social] discarded staged ' + r.id); return r; });
   return v;
 }
 
-module.exports = { SOCIAL_REL, TITLE_MAX, BODY_MAX, SITES, createSocialVault, init };
+module.exports = { SOCIAL_REL, TITLE_MAX, BODY_MAX, SITES, createSocialVault, createCancel, init };
