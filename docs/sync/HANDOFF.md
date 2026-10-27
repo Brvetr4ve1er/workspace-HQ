@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-27 · FROM frontend (canvas ＋ Board + Clear board — owner: "build clear board and create board too") · main
+DONE: eb74355 meta: IPC-CONTRACT rows hq:canvas-create, hq:canvas-clear. e69f5af fe main: canvas-ops.js gains both
+  (create: empty board, case-insensitive no-overwrite, wx; clear: nodes + edges to removed.jsonl first, file and other
+  keys kept); MCP hq_canvas_create / hq_canvas_clear; preload canvasCreate / canvasClear. Renderer: ＋ Board form (taken
+  name refused, Enter creates, becomes ＋ Note's pick), board list with card counts + two-click Clear (pins on that board
+  drop). tpl hash +3572; gate canvas-board-create-clear. Suites: dashboard + hub green, v5 439, mcp 6, selftest 2888
+  0/0/0, cdp-gate 39/39 (sweep 531 buttons, 37 screens). Brief §11.1 canvas bullet updated.
+IN-FLIGHT: none. ASKS: none.
+BREAKS: main.js: only the canvas-ops hook line's comment changed. Additive IPC + two MCP tools.
+
 ## 2026-10-27 · FROM frontend (canvas Pin / Remove + stat card PNG — owner: "build the stat card export and canvas pin/remove too") · main @ dcacae2
 DONE: 27057be meta: IPC-CONTRACT rows hq:canvas-remove, hq:stat-card-save (Pin to Home = per-PC prefs, no channel).
   d964524 fe main: new dashboard/canvas-ops.js (one node + its edges, a copy appended to data/canvas/removed.jsonl first)

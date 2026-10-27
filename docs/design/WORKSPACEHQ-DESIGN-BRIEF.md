@@ -2415,7 +2415,7 @@ Whichever you pick: red badges only for "needs you" (TASKS open count, SYSTEM cr
 
 The owner kept the daily-use controls and cut the rest on purpose. Each cut below is something the Claude Design build (or this brief) shows that v5 does not do, with the reason. v3 stays on disk as the rollback (`data/.ui-version` = `v3`).
 
-- ~~**Canvas pin / remove**~~ — wired 2026-10-27: Pin to Home is per-PC (`whq3-prefs.canvasPins`, Home › Pinned from canvas); Remove asks once, then `hq:canvas-remove` drops the node and its edges, keeping a copy in `data/canvas/removed.jsonl` (MCP mirror: `hq_canvas_remove`). Clear / create-board are still not built.
+- ~~**Canvas pin / remove**~~ — wired 2026-10-27: Pin to Home is per-PC (`whq3-prefs.canvasPins`, Home › Pinned from canvas); Remove asks once, then `hq:canvas-remove` drops the node and its edges, keeping a copy in `data/canvas/removed.jsonl` (MCP mirror: `hq_canvas_remove`). ＋ Board (`hq:canvas-create`) and Clear board (`hq:canvas-clear`, a copy in `removed.jsonl`) followed the same day, MCP mirrors `hq_canvas_create` / `hq_canvas_clear`.
 - ~~**Vault open / search**~~ — wired 2026-10-27: Life › Notes Open in Obsidian / Search (`hq:vault-open`, a scanned vault Obsidian has registered).
 - ~~**Stat-card export**~~ — wired 2026-10-27: the renderer draws a 1200×630 PNG of the level and measured stats; `hq:stat-card-save` picks the path (Settings › Export and the level-up card).
 - **Per-file staging:** `do-commit` stages everything (`git add -A`) after main's `.env` guard has checked the whole change set (`hq.commitPreview`). Ticking files would need a staging IPC and a second guard path, so the commit sheet lists every file it will commit.
