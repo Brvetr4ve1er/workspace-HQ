@@ -502,6 +502,25 @@ Additive only. New file `dashboard/accounts-view.js` (one hook line in `main.js`
 | `accountsRefresh()` | `hq:accounts-refresh` (invoke) | Runs `collector/accounts.mjs --max-age=60` (one run at a time), then answers the current `data/accounts.json` object (CONTRACT.md 2026-10-26), or `{error}` when the run failed and no sidecar exists. |
 | `accountsOpen(url)` | `hq:accounts-open` (invoke) | `url` must equal (verbatim) a project `dashboard` / `prod.url` / `latest.url`, a `deploys[].url` or a Supabase `dashboard` in the CURRENT `data/accounts.json`, be `https:` and have host `vercel.com`, `supabase.com` or `<one label>.vercel.app`; main then calls `shell.openExternal`. Answers `true` or `{error}` (`refused: …`). |
 
+## 2026-10-27 — Instagram / Facebook data exports in the Claude Hub (no new channel)
+
+Additive only, no schema change (still 2). Hub: new `dashboard/claude-hub/ingest-meta.mjs` + op `importMeta({zipPath, expect?})`;
+main: `dashboard/claude-import.js` / `dashboard/claude-imports.js` (no new `main.js` line).
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `claudeHub.importExport(kind?, opts?)` | `hq:claude-hub:import` (invoke) | `kind` gains `'instagram'\|'facebook'\|'meta'` (meta = either). Detection by entry names: `instagram_profile_information.(html\|json)` ⇒ Instagram; `profile_information.(json\|html)` + `your_friends.*` or `messenger_active_status_settings.*` ⇒ Facebook. Routed to the Hub op `importMeta` with `expect`; the other network is refused ("That is a Facebook export, not an Instagram export"). → `{started, file, kind:'instagram'\|'facebook'}`. The no-export refusal now reads `Not a ChatGPT, claude.ai, Instagram or Facebook export (looked for conversations.json or a profile information file)` |
+| `claudeHub.on(cb)` / `claudeHub.health()` | `hq:claude-hub:event` / `hq:claude-hub:health` | import `progress.source` is `'meta'` while running and `'instagram'\|'facebook'` on `done` (and in `lastImport.source`); new phase `documents`. Report `{source, format:'html'\|'json', owner:boolean, conversations{seen,imported,unchanged,forgotten,skipped}, messages{imported,skipped,empty}, documents{imported,unchanged,removed,categories[]}, skippedFiles{sensitive,other}, truncated}` — counts and category labels only |
+| `claudeImports.on(cb)` / `pending()` | `hq:claude-imports:event` / `:pending` | `kind` may be `'instagram'\|'facebook'` |
+| `claudeHub.conversations / search / conversation` | (H2 channels) | new sources `instagram` / `facebook`, ids `instagram:<thread folder>` / `facebook:<thread folder>`, projects `instagram:dms` ("Instagram DMs") / `facebook:messenger` ("Facebook Messenger"). The owner's lines are role `user`; everyone else's are role **`other`** with the sender's name in `tool_name`. **Unfiltered** conversation / project lists and `stats` leave these two sources out (people, not AI chats); `source:'instagram'\|'facebook'` lists them. Never continued (read-only) |
+| `claudeHub.documents(opts?)` | `hq:claude-hub:documents` | new document source `social`: ids `social:<instagram\|facebook>:<kind>:…`, `meta:{origin, kind}`, chunks of ≤ 100 records (posts, comments, likes + a "most frequent accounts" tally, saved, connections, interests, ads, searches, profile whitelist) |
+| `hq:llm:chat` | (H5 row) | `req.include` gains the 8th key `social` (default off): main asks `contextFor({query, budgetChars, scope:'social'})`; section `{id:'social', label:'Instagram & Facebook', chars, clipped, cites, note?}`; it has its own 3 000-char reserve, assembled after `claude` |
+
+Never read, whatever was asked: `security_and_login_information/`, passwords, payments / checkout, ID verification, location
+and locations of interest, devices, cookies, uploaded / synced contacts, off-Meta activity, targeting categories, message
+attachment pages. Profile = a whitelist (name, username, bio, website, pronouns, city, hometown, education, work, pages);
+post metadata rows (device ids, coordinates, file sizes, camera fields) are dropped. Text only: media entries are never read.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
