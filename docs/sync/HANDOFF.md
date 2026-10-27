@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-27 · FROM frontend (Social tab — owner: "a social media tab … to connect my socials … its own vault, VEEMO CORTEX"; skipped the questions) · main @ d68c9da
+DONE: a2d02c0 meta: IPC-CONTRACT "Social tab" section + CLAUDE.md facts line. 07335e2 fe: new dashboard/social-tab.js (5 tests) —
+  hq:social-vault:list/open/save (VEEMO CORTEX 30_Areas/Social ≤2 deep + 00_Inbox/Social *.md; open only a listed note; save
+  ONE new note on the owner's Save, atomic, never over one) + hq:social-open-site (8 fixed home URLs; Mastodon refused); Hub
+  op socialSummary (hq:claude-hub:social-summary, counts only) + listDocuments origin/kind filters. 9ba38b1 fe: v5 Social tab
+  (10th destination after Life; key 9, Studio → key 0): Accounts / Inbox (= Life › Social moved unchanged) / Archive / Vault;
+  saved life/social subs + deep links land on social/inbox. d68c9da fe: its rail icon. Goldens attributed (nav/moreNav/v/keys
+  everywhere, palGroups, Life subTabs/screenSub, isSocial gone, so* added, 11 new scenarios); tpl hash +20309.
+  Suites: dashboard 728, v5 434, selftest 2888 combos 0/0/0. Checked in a second hidden instance (own profile, HQ_DRY_LAUNCH):
+  real vault lists the 3 inbox notes; on a copy of the trial Instagram index the Archive shows 62 DM chats / 13 kinds, a kind
+  opens, search answers. App restarted (rollback.ps1 v5).
+IN-FLIGHT: none. The owner's own Instagram / Facebook import (button on Social › Accounts / Archive) and signing in to the
+  platforms in Chrome with the extension running (nothing is registered yet: data/social/accounts.json doesn't exist).
+ASKS: none.
+BREAKS: main.js:1598 one hook line (require('./social-tab')); preload + socialVault.*, socialOpenSite, claudeHub.socialSummary;
+  SUBS.life loses 'social' (sub + golden scenario tab.life.social / live.life-social gone); NAV gains 'social' (digit keys:
+  0 = 10th). All additive on the main side.
+
 ## 2026-10-27 · FROM frontend (Instagram / Facebook exports as context — owner: "add them as context", scope: everything, app + vault) · main @ 37441df
 DONE: fcb9dfb meta: IPC-CONTRACT section + CLAUDE.md facts line. 37441df fe: new dashboard/claude-hub/ingest-meta.mjs (Instagram
   HTML / Facebook JSON, text entries only via new unzip.mjs readEntry, Meta mojibake repaired, SENSITIVE folders never read,
