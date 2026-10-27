@@ -73,7 +73,7 @@ export class Component extends DCLogic {
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
       vw: window.innerWidth, completed: [], recentDone: [], dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
-      canvasPins: Array.isArray(P.canvasPins) ? P.canvasPins.filter((k) => typeof k === 'string') : [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false,   // Canvas Pin to Home (per-PC) / Remove, stat card PNG
+      canvasPins: Array.isArray(P.canvasPins) ? P.canvasPins.filter((k) => typeof k === 'string') : [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false, canvasBoardOpen: false, canvasBoardDraft: '', canvasCreating: false, canvasClearAsk: null, canvasClearing: null,   // Canvas Pin to Home (per-PC) / Remove, stat card PNG
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
       scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: [], askDraft: '',
       runsOpen: false, localRuns: [], expandedRun: null, settingsOpen: false, cheatOpen: false, ambientOverlay: false, moreOpen: false,

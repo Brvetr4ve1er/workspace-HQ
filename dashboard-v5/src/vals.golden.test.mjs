@@ -501,6 +501,10 @@ add('overlay.lightbox-thumb-only', { live: (L) => { L.captures = A.captures(CAPT
 add('claude.canvas-note', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasBoard: 'Board One' }) });
 add('claude.canvas-note-saving', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasSaving: true }) });
 add('claude.canvas-pinned-remove-ask', { hq: { ...P3_HQ, canvasRemove() {} }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasPins: ['Board One/n1', 'Board One/gone'], canvasRemoveAsk: 'Board One/n2' }) });   // Pinned ✓ + Remove's second-click state
+const BOARD_HQ = { ...P3_HQ, canvasCreate() {}, canvasClear() {} };
+add('claude.canvas-board-form', { hq: BOARD_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasBoardOpen: true, canvasBoardDraft: 'board one' }) });   // a taken name (case-insensitive) says so
+add('claude.canvas-board-creating', { hq: BOARD_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasBoardOpen: true, canvasBoardDraft: 'Fresh board', canvasCreating: true }) });
+add('claude.canvas-clear-ask', { hq: BOARD_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasClearAsk: 'Board One' }) });   // Clear's second-click state
 add('home.canvas-pins', { state: () => ({ tab: 'home', canvasPins: ['Board One/n2', 'Board One/gone', 'Board One/n1'] }) });   // Home › Pinned from canvas (a gone pin drops)
 add('overlay.stat-card-saving', { hq: { statCardSave() {} }, state: { settingsOpen: true, statCardSaving: true } });
 add('claude.canvas-note-nobridge',{ state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });

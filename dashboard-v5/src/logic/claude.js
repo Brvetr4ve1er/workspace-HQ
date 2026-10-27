@@ -29,7 +29,7 @@ export const claudeLogic = {
   canvasNoteReason() {
     if (!this.hq || !this.hq.canvasAdd) return NO_BRIDGE;
     if (!this.canWrite()) return this.writeReason() || NO_BRIDGE;
-    if (!this.canvasBoardPick()) return 'No canvas boards yet — add a .canvas file in data\\canvas\\ and it appears here';
+    if (!this.canvasBoardPick()) return 'No canvas boards yet — make one with ＋ Board';
     return '';
   },
   toggleCanvasNote() {

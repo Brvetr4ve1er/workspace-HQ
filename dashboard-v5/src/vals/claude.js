@@ -1,5 +1,6 @@
 // Claude render values: sessions, session detail, composer, canvas.
 import { pinKey } from '../logic/canvas-pins.mjs';
+import { CANVAS_NAME_RE } from '../logic/claude.js';
 // Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
 
 export function claudeVals(ctx) {
@@ -23,6 +24,15 @@ export function claudeVals(ctx) {
     return { pin: () => this.canvasPinToggle(w), pinLabel: pinned ? 'Pinned ✓' : 'Pin to Home', pinPressed: pinned ? 'true' : 'false', pinTip: !key ? 'This card has no id' : pinned ? 'Unpin it from Home (this PC only)' : 'Show this card on Home (this PC only)',
       remove: () => this.canvasRemove(w), removeLabel: busy ? 'Removing…' : ask ? 'Remove for good?' : 'Remove', removeOff: !key || !!removeWhy || !!S.canvasRemoving,
       removeTip: !key ? 'This card has no id' : removeWhy || (ask ? 'Click again to remove it from ' + w.board + ' (a copy is kept in removed.jsonl)' : 'Remove this card from ' + w.board) }; };
+  // ＋ Board and the board list with Clear (two clicks): logic/canvas.js
+  const boardWhy = this.canvasBoardWhy(), boardDraft = typeof S.canvasBoardDraft === 'string' ? S.canvasBoardDraft : '', boardNameWhy = this.canvasBoardNameWhy(boardDraft);
+  const boardOpen = !!S.canvasBoardOpen && !boardWhy;
+  const boardRows = (Array.isArray(LIVE.canvasBoards) ? LIVE.canvasBoards : []).filter((b) => CANVAS_NAME_RE.test(b.name)).map((b) => {
+    const n = b.nodes.length, ask = S.canvasClearAsk === b.name, busy = S.canvasClearing === b.name;
+    return { name: b.name, count: n + ' card' + (n === 1 ? '' : 's'), clear: () => this.canvasClear(b.name, n),
+      clearLabel: busy ? 'Clearing…' : ask ? 'Clear ' + n + ' card' + (n === 1 ? '' : 's') + '?' : 'Clear', clearOff: !n || !!boardWhy || !!S.canvasClearing,
+      clearTip: boardWhy || (!n ? 'Already empty' : ask ? 'Click again to empty ' + b.name + ' (a copy of every card is kept in removed.jsonl)' : 'Empty this board') };
+  });
   const canvas = H.CANVAS.map((w) => ({ title: w.title, board: w.board, isStat: w.type === 'stat', isList: w.type === 'list', isNote: w.type === 'note', value: w.value, note: w.note || 'board · ' + w.board, items: w.items || [], body: w.body, color: TONE[w.tone], span: w.wide ? 'span 2' : 'span 1', ...canvasActs(w) }));
   // ＋ Note (Phase 3 P5): board picker + text → hq.canvasAdd (logic/claude.js)
   const boardNames = this.canvasBoardNames(), board = this.canvasBoardPick(), noteWhy = this.canvasNoteReason();
@@ -33,6 +43,10 @@ export function claudeVals(ctx) {
     isSessions: sub === 'sessions', isCanvas: sub === 'canvas', sessions, hasSessions: sessions.length > 0, sessionDetail: sessionDetail || {}, hasDetail: !!sessionDetail, composer: S.composer, onComposer: (e) => this.setState({ composer: e.target.value }), startSession: () => this.startSession(), composerProjs, canvas, hasCanvas: canvas.length > 0, noCanvas: canvas.length === 0,
     // Run needs a project picked (sendClaude clears it for a task without one)
     cantStartSession: cantWrite || !this.proj(S.composerProj),
+    toggleCanvasBoard: () => this.toggleCanvasBoard(), cantCanvasBoard: !!boardWhy, canvasBoardTip: boardWhy || 'Make a new, empty canvas board', canvasBoardOpen: boardOpen, canvasBoardExpanded: boardOpen ? 'true' : 'false',
+    canvasBoardDraft: boardDraft, onCanvasBoardDraft: (e) => this.setState({ canvasBoardDraft: e.target.value }), canvasBoardKey: (e) => this.canvasBoardKey(e), createCanvasBoard: () => this.createCanvasBoard(),
+    cantCreateBoard: !!boardNameWhy || !!S.canvasCreating, createBoardLabel: S.canvasCreating ? 'Creating…' : 'Create', boardNameHint: boardDraft.trim() ? boardNameWhy : '', hasBoardNameHint: !!(boardDraft.trim() && boardNameWhy),
+    boardRows, hasBoardRows: boardRows.length > 0,
     toggleCanvasNote: () => this.toggleCanvasNote(), cantCanvasNote: !!noteWhy, canvasNoteTip: noteWhy || 'Add a text note to one of your canvas boards',
     canvasNoteOpen: noteOpen, canvasNoteExpanded: noteOpen ? 'true' : 'false', canvasBoardChips,
     canvasDraft: draft, onCanvasDraft: (e) => this.setState({ canvasDraft: e.target.value }), canvasDraftKey: (e) => this.canvasDraftKey(e), addCanvasNote: () => this.addCanvasNote(),
