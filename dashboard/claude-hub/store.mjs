@@ -345,7 +345,7 @@ function api(db) {
       if (!m) return [];
       const w = ['message_fts MATCH ?', 'c.forgotten = 0'], a = [m];
       if (projectId) { w.push('c.project_id = ?'); a.push(projectId); }
-      if (source) { w.push('c.source = ?'); a.push(source); }
+      if (source) { w.push('c.source = ?'); a.push(source); } else w.push(NOT_PEOPLE);   // like the unfiltered list
       a.push(Math.max(1, Math.min(50, Number(limit) || 30)));
       // No try/catch on purpose: ftsQuery() only emits quoted prefix terms, so a malformed MATCH is unreachable, and
       // anything that does throw here (locked db after busy_timeout, corrupt db, closed handle) must surface as an

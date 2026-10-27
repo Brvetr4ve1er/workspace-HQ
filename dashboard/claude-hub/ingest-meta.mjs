@@ -284,7 +284,8 @@ function igRecords(html) {
     const dated = b.rows.find(([, v]) => igDate(v));
     const at = igDate(b.date) || (dated ? igDate(dated[1]) : null);
     const rows = b.rows.filter(([k, v]) => keepRow(k, v) && !igDate(v)).map(([k, v]) => (k ? k + ': ' + v : v));
-    const body = [b.title, ...rows, b.body].filter(Boolean).join(' · ') || b.links[0] || '';
+    const own = b.body.replace(/(\[(?:photo|video|audio)\])\s*Click for (?:photo|video|audio)\s*:?/gi, '$1').trim();   // the export's link captions
+    const body = [b.title, ...rows, own].filter(Boolean).join(' · ') || b.links[0] || '';
     const who = (b.rows.find(([k]) => /^username$/i.test(k)) || b.rows.find(([k]) => /^(media owner|owner|name)$/i.test(k)) || [])[1] || b.title || null;
     return body ? { at, line: one((at ? day(at) + ' · ' : '') + body, 1500), who: who ? one(who, 80) : null } : null;
   }).filter(Boolean);

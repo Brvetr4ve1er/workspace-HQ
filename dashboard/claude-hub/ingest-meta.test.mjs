@@ -127,6 +127,8 @@ test('people are not AI chats: unfiltered chat / project lists and stats leave I
   writeFacebookZip(zip);
   await importMetaFile(store, zip);
   assert.equal(store.listConversations({}).length, 0);
+  assert.equal(store.search({ q: 'lantern' }).length, 0, 'search with no source matches the unfiltered list');
+  assert.ok(store.search({ q: 'lantern', source: 'facebook' }).length > 0);
   assert.equal(store.listConversations({ source: 'facebook' }).length, 1);
   assert.equal(store.listProjects({}).length, 0);
   assert.equal(store.listProjects({ source: 'facebook' }).length, 1);
