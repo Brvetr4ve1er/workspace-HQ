@@ -27,6 +27,7 @@
 'use strict';
 
 const WRITE = 'write', SEND = 'send';
+const NL = String.fromCharCode(10);
 
 // P2 harvest candidates (placeholder text; reasons are the Hub's own wording)
 const FAKE_CANDIDATES = [
@@ -253,9 +254,12 @@ function createFake(opts) {
       stat: ' src/a.js | 2 +-', envHits: ['sub/.env'], branch: 'main',
     })],
     ['logDecision', WRITE], ['learn', WRITE], ['archiveProject', WRITE], ['reviveProject', WRITE], ['markQuestDone', WRITE], ['actedOn', WRITE],
-    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true], ['socialOpenSite', () => ({ ok: true })], ['socialCancel', (id) => ({ ok: true, id, status: 'canceled' })], ['vaultOpen', (name, how) => ({ ok: true, how })],
+    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true], ['socialOpenSite', () => ({ ok: true })], ['socialCancel', (id) => ({ ok: true, id, status: 'canceled' })], ['vaultOpen', (name, how) => ({ ok: true, how })], ['statCardSave', () => ({ ok: true, path: 'C:/fake/stat-card.png' })],
     ['getSocial', () => ({ accounts: { accounts: [] }, outbox: { actions: [] }, inbox: { events: [] } })],
-    ['getCanvas', () => []], ['canvasAdd', WRITE], ['onCanvas', 'on:hq:canvas'],
+    // two placeholder boards so the button sweep reaches canvas Pin / Remove (a list card and a note card)
+    ['getCanvas', () => [{ name: 'Ideas', nodes: [{ id: 'n-fake-1', type: 'text', text: ['Example list', '- first point', '- second point'].join(NL), x: 0, y: 0 }], edges: [] },
+      { name: 'Notes', nodes: [{ id: 'n-fake-2', type: 'text', text: ['Example note', 'A placeholder card for the gates.'].join(NL), x: 0, y: 0 }], edges: [] }]],
+    ['canvasAdd', WRITE], ['canvasRemove', (board, id) => ({ ok: true, board, id, edges: 0 })], ['onCanvas', 'on:hq:canvas'],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],
     ['sessionDiff', () => ({ files: [], stat: '' })], ['onSessionOutput', 'on:hq:session-output'], ['onClaudeSessions', 'on:hq:claude-sessions'],
     ['devStart', WRITE], ['devStop', WRITE], ['saveNote', WRITE], ['onDevStatus', 'on:hq:dev-status'],

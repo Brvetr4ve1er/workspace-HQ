@@ -43,8 +43,10 @@
 //   prompts-pack-import — plan lists rows + kept/skipped, one confirm writes, done report; export toast
 // Social tab + every-button scenarios (2026-10-27; same rules):
 //   social-discard — Inbox Discard asks once, the second click calls socialCancel(id); "already publishing" said in words
-//   button-sweep — clicks every visible button on every screen from a clean one; fails on errors, "isn't wired" (bar the
-//     brief §11.1 cuts) and clicks that change nothing. Long (~6 min): has its own TIMEOUT below; not part of a quick run.
+//   canvas-pin-remove — Pin to Home shows the card on Home across a reload; Remove asks once, then canvasRemove(board, id)
+//   stat-card-save — Settings › Save stat card PNG hands a 1200×630 PNG to statCardSave; cancel is silent, errors in words
+//   button-sweep — clicks every visible button on every screen from a clean one; fails on errors, "isn't wired" (bar any
+//     KNOWN_CUTS; none left) and clicks that change nothing. Long (~6 min): has its own TIMEOUT below; not part of a quick run.
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -140,7 +142,8 @@ async function fresh(t) {
     vault: null, whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
     clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, prView: 'library', hcSel: [], promote: null,
     ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
-    projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null });
+    projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null,
+    canvasPins: [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false });
     if (L.store && L.store.live) L.store.live.candidates = { rows: null, pooled: null, capped: null, hidden: 0, error: null, busy: false, loaded: false };
     return true; })()`);
   await t.sleep(80);
@@ -1532,6 +1535,86 @@ const SCENARIOS = {
     return out;
   },
 
+  // Claude › Canvas Pin to Home + Remove (IPC-CONTRACT 2026-10-27): Pin shows the card on Home and survives a reload
+  // (whq3-prefs.canvasPins); Unpin on Home drops it; Remove asks first, the second click calls hq.canvasRemove once with
+  // (board, node id) and a pinned card leaves Home; main's refusal is said in words.
+  async 'canvas-pin-remove'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const BOARDS = [{ name: 'Gate Board', nodes: [{ id: 'gp-1', type: 'text', text: 'Gate card one\nA placeholder body.', x: 0, y: 0 }, { id: 'gp-2', type: 'text', text: 'Gate card two\nAnother placeholder.', x: 0, y: 0 }] }];
+    const card = (title) => `[...document.querySelectorAll('main div')].find((d) => d.firstElementChild && d.firstElementChild.textContent.trim().startsWith(${JSON.stringify(title)}) && d.querySelector('button[aria-pressed]'))`;
+    const btn = (title, re) => `[...(${card(title)} || document).querySelectorAll('button')].find((b) => ${re}.test(b.textContent.trim()))`;
+    const home = `[...document.querySelectorAll('section')].find((s) => /pinned from canvas/i.test(s.textContent))`;
+    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
+    const prefs = () => t.evaluate(`(() => { try { return JSON.parse(localStorage.getItem('whq3-prefs') || '{}').canvasPins || null; } catch (e) { return 'unreadable'; } })()`);
+    const before = await t.evaluate(`localStorage.getItem('whq3-prefs')`);
+    try {
+      await t.evaluate(`hqFake.set('getCanvas', ${JSON.stringify(BOARDS)}, { persist: true })`);
+      if (!await reloadReady(t)) return ['the page did not come back after the reload'];
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ canvasPins: [] }); WHQ.app.logic.go('claude', 'canvas'); return true; })()`);
+      if (!await t.waitFor(`!!(${btn('Gate card one', '/^Pin to Home$/')})`, 4000)) return ['no Pin to Home on the Gate card'];
+      await t.evaluate(`${btn('Gate card one', '/^Pin to Home$/')}.click()`);
+      if (!await t.waitFor(`!!(${btn('Gate card one', '/^Pinned ✓$/')}) && ${btn('Gate card one', '/^Pinned ✓$/')}.getAttribute('aria-pressed') === 'true'`, 2000)) out.push('Pin did not turn into "Pinned ✓" (aria-pressed true)');
+      if (JSON.stringify(await prefs()) !== '["Gate Board/gp-1"]') out.push('whq3-prefs.canvasPins = ' + JSON.stringify(await prefs()));
+      if (!await reloadReady(t)) return out.concat(['the page did not come back after the second reload']);
+      await t.evaluate(`(() => { WHQ.app.logic.go('home'); return true; })()`);
+      if (!await t.waitFor(`!!(${home}) && ${home}.textContent.includes('Gate card one') && !${home}.textContent.includes('Gate card two')`, 4000)) out.push('Home does not show the pinned card after a reload');
+      // Remove: the first click asks, the second removes, the pin goes with it
+      await t.evaluate(`(() => { WHQ.app.logic.go('claude', 'canvas'); return true; })()`);
+      if (!await t.waitFor(`!!(${btn('Gate card one', '/^Remove$/')})`, 4000)) return out.concat(['no Remove on the Gate card']);
+      await t.evaluate(`${btn('Gate card one', '/^Remove$/')}.click()`);
+      await t.sleep(150);
+      if (await t.evaluate(`hqFake.calls('canvasRemove').length`) !== 0) out.push('the first Remove click already removed');
+      if (!await t.evaluate(`!!(${btn('Gate card one', '/^Remove for good\\?$/')})`)) out.push('the first Remove click did not ask');
+      await t.evaluate(`${btn('Gate card one', '/^Remove for good\\?$/')}.click()`);
+      if (!await t.waitFor(`hqFake.calls('canvasRemove').length === 1`, 3000)) return out.concat(['the second click did not call hq.canvasRemove']);
+      const args = await t.evaluate(`hqFake.calls('canvasRemove')[0].args`);
+      if (JSON.stringify(args) !== '["Gate Board","gp-1"]') out.push('canvasRemove got ' + JSON.stringify(args));
+      if (!await t.waitFor(toast('Removed from Gate Board · a copy is kept in data\\canvas\\removed.jsonl'), 2000)) out.push('no "Removed from Gate Board" toast');
+      if (JSON.stringify(await t.evaluate(`WHQ.app.logic.state.canvasPins`)) !== '[]') out.push('the removed card is still pinned');
+      // main refuses
+      await t.evaluate(`(() => { hqFake.set('canvasRemove', { error: 'unknown node' }); WHQ.app.logic.setState({ toasts: [] }); return true; })()`);
+      await t.evaluate(`${btn('Gate card two', '/^Remove$/')}.click()`); await t.sleep(100); await t.evaluate(`${btn('Gate card two', '/^Remove for good\\?$/')}.click()`);
+      if (!await t.waitFor(toast('Not removed · unknown node'), 2000)) out.push("main's refusal was not said in words");
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`(() => { if (${JSON.stringify(before)} == null) localStorage.removeItem('whq3-prefs'); else localStorage.setItem('whq3-prefs', ${JSON.stringify(before)}); hqFake.reset(true); return true; })()`).catch(() => {});
+      await reloadReady(t).catch(() => {});
+    }
+    return out;
+  },
+
+  // Save stat card PNG (IPC-CONTRACT 2026-10-27): Settings › Export draws a 1200×630 PNG and hands it to hq.statCardSave
+  // once; a cancelled dialog says nothing; main's refusal is said in words.
+  async 'stat-card-save'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const BTN = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save stat card PNG')`;
+    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
+    try {
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ settingsOpen: true }); return true; })()`);
+      if (!await t.waitFor(`!!(${BTN})`, 3000)) return ['no Save stat card PNG button in Settings'];
+      await t.evaluate(`${BTN}.click()`);
+      if (!await t.waitFor(`hqFake.calls('statCardSave').length === 1`, 5000)) return ['the click did not call hq.statCardSave'];
+      const png = await t.evaluate(`(async () => { const u = hqFake.calls('statCardSave')[0].args[0]; if (typeof u !== 'string' || !u.startsWith('data:image/png;base64,')) return { bad: String(u).slice(0, 40) };
+        const img = new Image(); img.src = u; await img.decode(); return { w: img.naturalWidth, h: img.naturalHeight, kb: Math.round(u.length / 1024) }; })()`);
+      if (png.bad != null) out.push('statCardSave got ' + png.bad);
+      else if (png.w !== 1200 || png.h !== 630) out.push('the card is ' + png.w + '×' + png.h + ', want 1200×630');
+      if (!await t.waitFor(toast('Stat card saved · C:/fake/stat-card.png'), 2000)) out.push('no "Stat card saved" toast');
+      await t.evaluate(`(() => { hqFake.set('statCardSave', { ok: false, canceled: true }); WHQ.app.logic.setState({ toasts: [] }); return true; })()`);
+      await t.evaluate(`${BTN}.click()`);
+      await t.waitFor(`hqFake.calls('statCardSave').length === 2`, 5000); await t.sleep(200);
+      if (await t.evaluate(`WHQ.app.logic.state.toasts.length`) !== 0) out.push('a cancelled dialog toasted');
+      await t.evaluate(`(() => { hqFake.set('statCardSave', { error: 'write failed: EACCES' }); return true; })()`);
+      await t.evaluate(`${BTN}.click()`);
+      if (!await t.waitFor(toast('Stat card not saved · write failed: EACCES'), 4000)) out.push("main's refusal was not said in words");
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`hqFake.reset(true)`).catch(() => {});
+    }
+    return out;
+  },
+
   // Every button, every screen (2026-10-27, owner: "test for other broken buttons"). Needs --preload=fake: each click
   // lands on the recording fake, never on the PC. For each tab × sub, a project page and the overlays, every visible,
   // enabled <button> is clicked once from a clean screen (buttons outside <main> once per run). A click is
@@ -1541,7 +1624,7 @@ const SCENARIOS = {
   // The clipboard and window.open are stubbed for the run; project names are masked in what it prints.
   async 'button-sweep'(t) {
     const pre = await fresh(t); if (pre) return pre;
-    const KNOWN_CUTS = [/^Pinning canvas cards/, /^Removing canvas cards/, /^Exporting the stat card/];
+    const KNOWN_CUTS = [];   // none left: canvas Pin / Remove and the stat card were wired 2026-10-27
     const views = await t.evaluate(`(() => { const M = WHQ.app.logic.M, v = [];
       const p = (M.P0[0] || {}).id; if (p) v.push({ name: 'project-page', tab: 'projects', sub: 'grid', project: p });   // first: the global buttons are tried away from Home
       for (const n of M.NAV) for (const s of (M.SUBS[n.id] || [[null]])) v.push({ name: n.id + (s[0] ? '/' + s[0] : ''), tab: n.id, sub: s[0] });
