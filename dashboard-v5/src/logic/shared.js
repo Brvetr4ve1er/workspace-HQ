@@ -63,6 +63,13 @@ export function restoreSnapOffset(saved, M) {
   return 0;
 }
 
+// a remembered sub-tab this build no longer has (e.g. life › social, moved to its own tab 2026-10-27) → that tab's first sub
+export function validSubs(M, sub) {
+  const out = Object.assign({}, sub);
+  for (const k of Object.keys(out)) { const list = M.SUBS[k]; if (list && list.length && !list.some((s) => s[0] === out[k])) out[k] = list[0][0]; }
+  return out;
+}
+
 // <html data-hq-reduce="1"> while Reduce motion is on; the custom elements
 // (src/elements/hq-v3.js) read it next to prefers-reduced-motion.
 export function setReduceFlag(on) {

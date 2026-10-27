@@ -34,7 +34,7 @@ export function homeVals(ctx) {
   return {
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // home
-    home, goTasksIdeas: () => this.go('tasks', 'ideas'), goProjects: () => this.go('projects', 'grid'), goSocial: () => this.go('life', 'social'),
+    home, goTasksIdeas: () => this.go('tasks', 'ideas'), goProjects: () => this.go('projects', 'grid'), goSocial: () => this.go('social', 'inbox'),
     runSuggest: () => home.hasSuggest && this.askRun(suggest), toggleRecap: () => this.setState({ recapOpen: !S.recapOpen }), dismissRecap: () => this.setState({ recapDismissed: true }),
   };
 }

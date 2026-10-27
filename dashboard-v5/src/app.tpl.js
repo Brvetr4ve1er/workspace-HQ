@@ -17,6 +17,7 @@ import claude from './tpl/claude.tpl.js';
 import history from './tpl/history.tpl.js';
 import system from './tpl/system.tpl.js';
 import life from './tpl/life.tpl.js';
+import social from './tpl/social.tpl.js';   // v5 addition (2026-10-27): the Social tab, after Life
 import studio from './tpl/studio.tpl.js';
 import prompt from './tpl/prompt.tpl.js';
 import lightbox from './tpl/lightbox.tpl.js';
@@ -37,7 +38,7 @@ import extras from './tpl/extras.tpl.js';   // v5 additions (no design slice); e
 import toasts from './tpl/toasts.tpl.js';
 
 export default [
-  shell, home, projects, projectPage, tasks, automations, claude, history, system, life,
+  shell, home, projects, projectPage, tasks, automations, claude, history, system, life, social,
   studio, prompt, lightbox, ambient, navBottom, ovScrub, ovRuns, ovAsk, ovPalette, ovFocus,
   ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, extras, toasts,
 ].join('');

@@ -27,6 +27,7 @@ export const NAV = [
   { id: 'history', label: 'History', glyph: '◷' },
   { id: 'system', label: 'System', glyph: '▣' },
   { id: 'life', label: 'Life', glyph: '♥' },
+  { id: 'social', label: 'Social', glyph: '@' },
   { id: 'studio', label: 'Studio', glyph: '◉' },
 ];
 export const SUBS = {
@@ -36,8 +37,18 @@ export const SUBS = {
   claude: [['chats', 'Chats'], ['prompts', 'Prompts'], ['projects', 'Projects'], ['sessions', 'Sessions'], ['canvas', 'Canvas']],
   history: [['trends', 'Trends'], ['timeline', 'Timeline'], ['milestones', 'Milestones']],
   system: [['machine', 'Machine'], ['clutter', 'Workspace clutter']],
-  life: [['screen', 'Screen time'], ['social', 'Social'], ['notes', 'Notes']],
+  life: [['screen', 'Screen time'], ['notes', 'Notes']],
+  social: [['accounts', 'Accounts'], ['inbox', 'Inbox'], ['archive', 'Archive'], ['vault', 'Vault']],
 };
+// the platforms the browser extension reads (browser-bridge/social.js SOCIAL_ADAPTERS), in display order;
+// site = the home page main may open (dashboard/social-tab.js SITES; Mastodon has no fixed server)
+export const PLATFORMS = [
+  { id: 'instagram', label: 'Instagram', site: 'instagram.com' }, { id: 'facebook', label: 'Facebook', site: 'facebook.com' },
+  { id: 'x', label: 'X', site: 'x.com' }, { id: 'threads', label: 'Threads', site: 'threads.net' },
+  { id: 'linkedin', label: 'LinkedIn', site: 'linkedin.com' }, { id: 'youtube', label: 'YouTube', site: 'youtube.com' },
+  { id: 'reddit', label: 'Reddit', site: 'reddit.com' }, { id: 'bluesky', label: 'Bluesky', site: 'bsky.app' },
+  { id: 'mastodon', label: 'Mastodon', site: null },
+];
 export const ST = {
   risk: { label: 'At risk', color: 'var(--red)', tone: 'red', rank: 0 },
   care: { label: 'Needs care', color: 'var(--orange)', tone: 'orange', rank: 1 },
@@ -85,7 +96,7 @@ export const MILESTONES = [
 // during a recording it stops it. Ctrl Alt Shift R calls the same recToggle (its mic/system
 // audio options only apply when a source is passed, which a hotkey never does).
 export const HOTKEYS = [['Ctrl Alt G', 'Summon palette', 'ok'], ['Ctrl Alt X', 'Quick-run palette', 'ok'], ['Ctrl Alt S', 'Snip', 'ok'], ['Ctrl Alt Shift S', 'Snap the screen under the cursor (saved + copied)', 'ok'], ['Ctrl Alt R', 'Open recorder / stop', 'ok'], ['Ctrl Alt Shift R', 'Open recorder / stop (same as Ctrl Alt R)', 'ok'], ['Ctrl Alt L', 'Open Studio', 'ok']];
-export const KEYS = [['Ctrl K  or  /', 'Search & commands'], ['Tab (in search)', 'Switch Go / Ask'], ['1 – 9', 'Destinations'], ['F', 'Focus on the next action'], ['← →', 'Scrub snapshots'], ['Esc', 'Close the top overlay'], ['?', 'This sheet']];
+export const KEYS = [['Ctrl K  or  /', 'Search & commands'], ['Tab (in search)', 'Switch Go / Ask'], ['1 – 9, 0', 'Destinations'], ['F', 'Focus on the next action'], ['← →', 'Scrub snapshots'], ['Esc', 'Close the top overlay'], ['?', 'This sheet']];
 
 // automation categories: spellbook "schools" in plain words (brief §6.4c)
 export const SCHOOL = { divination: 'Analyze', conjuration: 'Generate', transmutation: 'Build', abjuration: 'Secure', evocation: 'Execute', illusion: 'Design', enchantment: 'Notify', restoration: 'Fix' };

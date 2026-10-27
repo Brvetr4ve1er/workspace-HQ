@@ -236,7 +236,8 @@ function richLive(L, store) {
 // ---- scenarios ---------------------------------------------------------------------------
 // { name, data: 'base'|'empty', hq, width, props, live(L, store), setup(c), state: patch | (c, M) => patch }
 // names are file-safe (GOLDEN_DUMP writes <name>.json): letters, digits, '.', '-'
-const TABS = ['home', 'projects', 'tasks', 'automations', 'claude', 'history', 'system', 'life', 'studio'];
+const SOCIAL_SUMMARY = { kinds: [{ origin: 'facebook', kind: 'interests', docs: 2, newest_ms: 5 }, { origin: 'instagram', kind: 'posts', docs: 3, newest_ms: 30 }, { origin: 'instagram', kind: 'likes', docs: 1, newest_ms: 20 }], dms: [{ origin: 'instagram', conversations: 4, messages: 120, last_at: '2026-10-02T10:00:00Z' }] };
+const TABS = ['home', 'projects', 'tasks', 'automations', 'claude', 'history', 'system', 'life', 'social', 'studio'];
 const DIAG = ['git', 'security', 'standing', 'insights', 'roadmap'];
 const SCEN = [];
 const add = (name, o = {}) => SCEN.push({ name, ...o });
@@ -350,7 +351,13 @@ add('overlay.lightbox', { live: (L) => { L.captures = A.captures(CAPTURE_ROWS); 
 add('live.home', { live: richLive, state: { tab: 'home' } });
 add('live.claude-sessions', { live: richLive, state: (c) => ({ ...tabSub('claude', 'sessions')(c), sessionSel: 'j1' }) });
 add('live.system', { live: richLive, state: tabSub('system', 'machine') });
-add('live.life-social', { live: richLive, state: tabSub('life', 'social') });
+add('live.social-inbox', { live: richLive, state: tabSub('social', 'inbox') });   // was live.life-social (Life › Social moved, 2026-10-27)
+add('live.social-accounts', { live: richLive, state: tabSub('social', 'accounts') });
+add('live.social-archive', { live: (L, store) => { richLive(L, store); L.claudeHub = { state: 'ready', role: 'writer' }; L.socialArchive = { summary: SOCIAL_SUMMARY, error: null, busy: false, sel: { origin: 'instagram', kind: 'posts' }, list: [{ id: 'social:instagram:posts:1', source: 'social', origin: 'instagram', title: 'Instagram · your posts (1–2)', mtime_ms: Date.parse('2026-10-01T00:00:00Z') }], listErr: null, q: 'placeholder', hits: [{ id: 'social:facebook:interests:1', source: 'social', origin: 'facebook', title: 'Facebook · pages', mtime_ms: Date.parse('2026-09-01T00:00:00Z'), snippet: 'a placeholder page' }], doc: { id: 'social:instagram:posts:1', source: 'social', title: 'Instagram · your posts (1–2)', text: ['line one', 'line two'].join(String.fromCharCode(10)), mtime_ms: Date.parse('2026-10-01T00:00:00Z'), meta: { origin: 'instagram', kind: 'posts' } } }; }, state: (c) => ({ ...tabSub('social', 'archive')(c), soQuery: 'placeholder', soSearched: true }) });
+add('social.archive-empty', { live: (L) => { L.claudeHub = { state: 'ready', role: 'writer' }; L.socialArchive = { summary: { kinds: [], dms: [] }, error: null, busy: false, sel: null, list: null, listErr: null, q: '', hits: null, doc: null }; }, state: tabSub('social', 'archive') });
+add('social.archive-hub-down', { live: (L) => { L.claudeHub = { state: 'no-node', node: 'v20.0.0' }; }, state: tabSub('social', 'archive') });
+add('live.social-vault', { hq: {}, live: (L) => { L.socialVault = { vault: 'Example Vault', folder: '30_Areas/Social', exists: true, obsidian: true, notes: [{ rel: '30_Areas/Social/Plan.md', name: 'Plan.md', title: 'Posting plan', mtime: Date.parse('2026-10-20T00:00:00Z'), size: 10, where: 'social' }, { rel: '00_Inbox/Social Profile — Example.md', name: 'Social Profile — Example.md', title: 'Social Profile — Example', mtime: Date.parse('2026-10-26T00:00:00Z'), size: 10, where: 'inbox' }], error: null, busy: false }; }, state: (c) => ({ ...tabSub('social', 'vault')(c), soTitle: 'A title', soBody: 'Some text' }) });
+add('social.vault-new', { live: (L) => { L.socialVault = { vault: 'Example Vault', folder: '30_Areas/Social', exists: false, obsidian: false, notes: [], error: null, busy: false }; }, state: tabSub('social', 'vault') });
 add('live.studio-rec', { live: richLive, state: { tab: 'studio', studioFilter: 'rec' } });
 add('live.runs', { live: richLive, state: { runsOpen: true, expandedRun: 'k1' } });
 // an (inert) bridge object: the writable branches (nothing on it is called while rendering)

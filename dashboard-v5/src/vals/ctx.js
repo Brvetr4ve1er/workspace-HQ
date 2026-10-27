@@ -19,7 +19,7 @@ export function makeCtx() {
   const v = Object.assign(v0, {
     home: ok && !onPage && S.tab === 'home', projects: ok && !onPage && S.tab === 'projects', project: ok && onPage, tasks: ok && !onPage && S.tab === 'tasks',
     automations: ok && !onPage && S.tab === 'automations', claude: ok && !onPage && S.tab === 'claude', history: ok && !onPage && S.tab === 'history',
-    system: ok && !onPage && S.tab === 'system', life: ok && !onPage && S.tab === 'life', studio: ok && !onPage && S.tab === 'studio',
+    system: ok && !onPage && S.tab === 'system', life: ok && !onPage && S.tab === 'life', social: ok && !onPage && S.tab === 'social', studio: ok && !onPage && S.tab === 'studio',
   });
   v.stdHeader = ok && !onPage && S.tab !== 'home';
   const sub = S.sub[S.tab];

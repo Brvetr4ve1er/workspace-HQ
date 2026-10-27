@@ -3,7 +3,8 @@
 // data-hq-reduce flag.   node --test dashboard-v5/src/logic/shared.test.mjs
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { planUiSeed, readV3Prefs, mirrorV3Theme, fromV3Theme, setReduceFlag, placeSnapId, restoreSnapOffset } from './shared.js';
+import { planUiSeed, readV3Prefs, mirrorV3Theme, fromV3Theme, setReduceFlag, placeSnapId, restoreSnapOffset, validSubs } from './shared.js';
+import { SUBS } from '../live/catalog.mjs';
 
 function memStorage() {
   const m = new Map();
@@ -115,4 +116,9 @@ test('a past scan is found by id after a scan lands; gone → live; no id → cl
   assert.equal(restoreSnapOffset({ snapOffset: 9 }, after), 2);
   assert.equal(restoreSnapOffset({}, after), 0);
   assert.equal(restoreSnapOffset(null, after), 0);
+});
+
+test('validSubs: a remembered sub this build lost falls back to the first one; known subs and unknown tabs stay', () => {
+  const out = validSubs({ SUBS }, { life: 'social', social: 'vault', claude: 'chats', projects: 'nope', gone: 'x' });
+  assert.deepEqual(out, { life: 'screen', social: 'vault', claude: 'chats', projects: 'grid', gone: 'x' });
 });

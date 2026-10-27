@@ -524,7 +524,16 @@ export function social(payload) {
   const handle = (pl) => { const a = accounts.find((x) => x.platform === pl); return a ? '@' + String(a.handle).replace(/^@/, '') : pl; };
   const POSTS = arr(obj(p.outbox).actions).filter((a) => a.status === 'staged').map((a) => ({ id: String(a.id), handle: handle(a.platform), text: String(a.text || ''), where: String(a.platform), staged: a.staged_at ? fmtD(new Date(Date.parse(a.staged_at))) : '' }));
   const MENTIONS = arr(obj(p.inbox).events).filter((e) => e.kind === 'mention').slice(-12).reverse().map((e) => ({ who: String(e.author || '?'), text: String(e.text || ''), when: e.ts ? ago(Date.parse(e.ts)) : '', reply: true, url: e.url ? String(e.url) : null }));
-  return { POSTS, MENTIONS, connected: accounts.length > 0 };
+  // Social › Accounts: what the extension registered (POST /social/accounts, a snapshot) + what it read per platform (inbox, 7 days)
+  const ACCOUNTS = accounts.map((a) => ({ platform: String(a.platform || ''), handle: String(a.handle || ''), display: String(a.display || ''), since: a.connected_at ? ago(Date.parse(a.connected_at)) : '' })).filter((a) => a.platform);
+  const ACTIVITY = {};
+  for (const e of arr(obj(p.inbox).events)) {
+    const pl = String(e.platform || ''); if (!pl) continue;
+    const t = Date.parse(e.ts || '') || 0, A = ACTIVITY[pl] || (ACTIVITY[pl] = { events: 0, mentions: 0, lastMs: 0 });
+    A.events++; if (e.kind === 'mention') A.mentions++; if (t > A.lastMs) A.lastMs = t;
+  }
+  for (const pl of Object.keys(ACTIVITY)) ACTIVITY[pl].last = ACTIVITY[pl].lastMs ? ago(ACTIVITY[pl].lastMs) : '';
+  return { POSTS, MENTIONS, ACCOUNTS, ACTIVITY, connected: accounts.length > 0 };
 }
 
 // ---- Claude Hub library (spec 2026-10-13 §9). Hub rows arrive snake_case, exactly as the Hub returns them.

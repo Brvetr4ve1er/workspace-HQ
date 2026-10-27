@@ -8,14 +8,14 @@ export function shellVals(ctx) {
   const { S, H, LIVE, off, live, ps, cantWrite, writeReason, snap, viewedLabel, projects, open, unc, unp, sec, level, L, ambientDocked, v, ok, onPage, sub, subs, tabStyle, TR, rows, top, tierCount, TK } = ctx;
   const subTabs = subs.map(([id, label]) => ({ label, go: () => this.setSub(id), style: tabStyle(sub === id), sel: sub === id }));
   const runningSessions = LIVE.sessions.filter((x) => x.status === 'running').length;
-  const navBadge = { tasks: open.length ? [open.length, 'var(--red)'] : null, claude: runningSessions ? [runningSessions, 'var(--gold)'] : null, life: H.POSTS.length ? [H.POSTS.length, 'var(--red)'] : null };
+  const navBadge = { tasks: open.length ? [open.length, 'var(--red)'] : null, claude: runningSessions ? [runningSessions, 'var(--gold)'] : null, social: H.POSTS.length ? [H.POSTS.length, 'var(--red)'] : null };
   const GRP = { home: 'work', automations: 'automate', history: 'insight', life: 'life' };
   // current: null (not undefined) on the other tabs: an attribute bound to undefined counts as a
   // never-resolved hole (dc/runtime.js compileAttr); null just removes aria-current
   const nav = H.NAV.map((n, i) => {
     const a = S.tab === n.id && !onPage, b = navBadge[n.id];
     return Object.assign({}, n, {
-      digit: String(i + 1), delay: String(i * 45), group: GRP[n.id] || '', showGroup: !!GRP[n.id] && L.railLabels, showDivider: !!GRP[n.id] && !L.railLabels && i > 0, go: () => this.go(n.id), current: a ? 'page' : null, title: n.label + ' (' + (i + 1) + ')', hasBadge: !!b, badge: b ? b[0] : '',
+      digit: String((i + 1) % 10), delay: String(i * 45), group: GRP[n.id] || '', showGroup: !!GRP[n.id] && L.railLabels, showDivider: !!GRP[n.id] && !L.railLabels && i > 0, go: () => this.go(n.id), current: a ? 'page' : null, title: n.label + ' (' + ((i + 1) % 10) + ')', hasBadge: !!b, badge: b ? b[0] : '',
       badgeStyle: { fontFamily: 'var(--px)', fontSize: 10, padding: '3px 5px', background: b ? b[1] : 'none', color: b && b[1] === 'var(--gold)' ? '#3a2a00' : '#fff', marginLeft: L.railLabels ? 0 : -8, alignSelf: L.railLabels ? 'center' : 'flex-start' },
       style: { position: 'relative', display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: L.railLabels ? '0 12px 0 8px' : '0 6px', minWidth: L.railLabels ? 176 : 48, background: a ? 'var(--card)' : 'transparent', border: '1px solid ' + (a ? 'var(--frame)' : 'transparent'), boxShadow: a ? 'inset 4px 0 0 var(--gold), 0 0 0 2px var(--frame)' : 'none', color: a ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', fontFamily: 'var(--term)', fontSize: 14, textAlign: 'left', transition: 'background .12s, color .12s, transform .12s' },
     });
@@ -44,7 +44,8 @@ export function shellVals(ctx) {
     claude: runningSessions + ' running · uses Claude quota',
     history: 'trends, timeline and milestones · ' + H.N + ' snapshots',
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
-    life: 'screen time, social and notes',
+    life: 'screen time and notes',
+    social: (LIVE.social && Array.isArray(LIVE.social.ACCOUNTS) ? LIVE.social.ACCOUNTS.length : 0) + ' of ' + H.PLATFORMS.length + ' accounts connected · Instagram & Facebook archive · vault: ' + ((LIVE.socialVault && LIVE.socialVault.vault) || 'VEEMO CORTEX'),
     studio: H.CAPTURES.length + ' captures · Ctrl Alt S to snip, Ctrl Alt R opens the recorder',
   }[S.tab] || '';
   // ----- toasts -----

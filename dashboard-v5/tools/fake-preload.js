@@ -224,6 +224,7 @@ function createFake(opts) {
     }],
     // Prompt library P1: harness fixture only — the real Hub answers [] until P3 writes prompt_use rows
     ['claudeHub.promptStats', () => [{ prompt_id: 'prompt:' + 'a'.repeat(40), uses: 3, last_at: '2026-10-20T09:00:00.000Z' }]],
+    ['claudeHub.socialSummary', () => ({ kinds: [{ origin: 'instagram', kind: 'posts', docs: 2, newest_ms: Date.parse('2026-10-01T00:00:00.000Z') }], dms: [{ origin: 'instagram', conversations: 1, messages: 3, last_at: '2026-10-02T00:00:00.000Z' }] })],
     ['claudePrompts.status', () => ({ vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true })],
     ['claudePrompts.run', promptRun],
     ['claudePrompts.importPack', (req) => (req && req.planId
@@ -238,6 +239,9 @@ function createFake(opts) {
     ['claudeVault.preview', (id) => ({ path: 'C:\\fake-vault\\30_Areas\\Claude\\project-a\\2026-10-01 Fake release planning.md', rel: '30_Areas/Claude/project-a/2026-10-01 Fake release planning.md', exists: false, model: 'fake-model', basis: 4,
       markdown: '---\nsource: claude-code\nconversation: ' + JSON.stringify(String(id)) + '\nproject: "[[project-a]]"\ncreated: 2026-10-16\nchat_date: 2026-10-01\ntitle: "Fake release planning"\ndrafted_by: "local model fake-model, from 4 chat messages"\ntags: [claude]\n---\n\n# Fake release planning\n\nProject: [[project-a]] · chat of 2026-10-01\n\n## Summary\nThe fake release ships Friday.\n\n## Decisions\n- ship Friday\n\n## To-dos\n- [ ] tag\n\n## Links\n- none\n' })],
     ['claudeVault.save', WRITE],
+    ['socialVault.list', () => ({ vault: 'Fake Vault', folder: '30_Areas/Social', exists: true, obsidian: true, notes: [{ rel: '30_Areas/Social/Fake plan.md', name: 'Fake plan.md', title: 'Fake plan', mtime: Date.parse('2026-10-01T00:00:00.000Z'), size: 10, where: 'social' }] })],
+    ['socialVault.open', () => ({ ok: true, how: 'obsidian' })],
+    ['socialVault.save', () => ({ rel: '30_Areas/Social/Fake note.md' })],
     ['claudeImports.pending', () => ({ folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [], refused: [] })],
     ['claudeImports.dismiss', WRITE],
     ['claudeImports.on', 'on:hq:claude-imports:event'],
@@ -249,7 +253,7 @@ function createFake(opts) {
       stat: ' src/a.js | 2 +-', envHits: ['sub/.env'], branch: 'main',
     })],
     ['logDecision', WRITE], ['learn', WRITE], ['archiveProject', WRITE], ['reviveProject', WRITE], ['markQuestDone', WRITE], ['actedOn', WRITE],
-    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true],
+    ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true], ['socialOpenSite', () => ({ ok: true })],
     ['getSocial', () => ({ accounts: { accounts: [] }, outbox: { actions: [] }, inbox: { events: [] } })],
     ['getCanvas', () => []], ['canvasAdd', WRITE], ['onCanvas', 'on:hq:canvas'],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],

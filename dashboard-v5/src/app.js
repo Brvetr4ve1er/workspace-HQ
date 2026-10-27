@@ -13,7 +13,7 @@
 // are Component.prototype mixins in src/logic/*.js, renderVals() is built in
 // src/vals/*.js and the markup is src/tpl/*.tpl.js (joined by app.tpl.js).
 import { DCLogic, createRef } from './dc/runtime.js';
-import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY, THEMES, readV3Prefs, mirrorV3Theme, setReduceFlag, planUiSeed, placeSnapId, restoreSnapOffset } from './logic/shared.js';
+import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY, THEMES, readV3Prefs, mirrorV3Theme, setReduceFlag, planUiSeed, placeSnapId, restoreSnapOffset, validSubs } from './logic/shared.js';
 import { tasksLogic } from './logic/tasks.js';
 import { claudeLogic } from './logic/claude.js';
 import { claudeLibLogic, clPrefs } from './logic/claude-lib.js';
@@ -38,6 +38,7 @@ import { studioLogic } from './logic/studio.js';
 import { projectLogic } from './logic/project.js';
 import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
+import { socialLogic } from './logic/social.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -63,7 +64,7 @@ export class Component extends DCLogic {
     setReduceFlag(!!P.reduceMotion);
     return {
       tab: saved.tab || this.props.startTab || 'home',
-      sub: Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen' }, saved.sub || {}),
+      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', social: 'accounts' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
@@ -124,7 +125,7 @@ export class Component extends DCLogic {
     // live data → re-render; finished runs → one toast each; main's shared UI prefs → state
     this._offStore = this.store.on(() => { this.announceRuns(); this.followUiPrefs(); this.forceUpdate(); });
     this.store.start();
-    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); if (S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad(); }   // a cold start on Chats/Projects loads too; P1: the Library loads on arrival
+    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); if (S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad(); if (S.tab === 'social' && !S.route) this.socialLoad(); }   // a cold start on Chats/Projects loads too; P1: the Library loads on arrival
     this.followUiPrefs();
     if (this.hq && this.hq.studio && this.hq.studio.onOpenRealm) this._offRealm = this.hq.studio.onOpenRealm(() => this.go('studio'));   // Ctrl+Alt+L
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
@@ -162,7 +163,7 @@ export class Component extends DCLogic {
       if (!S.reduceMotion) this.mainRef.current.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' });
     }
     if (moved && S.tab === 'studio') this.store.refreshCaptures();
-    if (moved && S.tab === 'life') this.store.refreshSocial();
+    if (moved && S.tab === 'social' && !S.route) this.socialLoad();   // Social tab: the bridge snapshot + the open sub's data
     if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
     if (moved && S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad();   // P1: the Library loads on arrival
     if (moved && S.route && S.route.id) this.store.refreshClaudeForProject && this.store.refreshClaudeForProject(S.route.id);
@@ -346,6 +347,7 @@ export class Component extends DCLogic {
   // (dashboard/nav-bridge.js); a tab or sub-tab this build doesn't have is ignored.
   navigateTo(r) {
     if (!r || typeof r !== 'object') return;
+    if (r.tab === 'life' && r.sub === 'social') r = { ...r, tab: 'social', sub: 'inbox' };   // Life › Social moved to its own tab (2026-10-27)
     const M = this.M, tab = typeof r.tab === 'string' ? r.tab : '';
     if (!M.NAV.some((n) => n.id === tab)) return;
     const sub = (M.SUBS[tab] || []).some((s) => s[0] === r.sub) ? r.sub : undefined;
@@ -386,7 +388,7 @@ export class Component extends DCLogic {
     if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard || S.whatsNewOpen || S.vault) return;
     if (e.key === '/') { e.preventDefault(); this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); return; }
     if (e.key === '?') { this.setState({ cheatOpen: true }); return; }
-    if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) { this.go(this.M.NAV[+e.key - 1].id); return; }
+    if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) { const n = this.M.NAV[e.key === '0' ? 9 : +e.key - 1]; if (n) this.go(n.id); return; }   // 0 = the 10th destination
     if (e.key === 'f' || e.key === 'F') { this.toggleFocus(); return; }
     if (e.key === 'ArrowLeft') { this.setState((s) => ({ snapOffset: Math.min(this.M.maxOff, s.snapOffset + 1) })); return; }
     if (e.key === 'ArrowRight') { this.setState((s) => ({ snapOffset: Math.max(0, s.snapOffset - 1) })); return; }
@@ -397,5 +399,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic);
 Component.prototype.renderVals = renderVals;
