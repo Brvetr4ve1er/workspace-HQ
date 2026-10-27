@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-27 · FROM frontend (canvas Pin / Remove + stat card PNG — owner: "build the stat card export and canvas pin/remove too") · main @ dcacae2
+DONE: 27057be meta: IPC-CONTRACT rows hq:canvas-remove, hq:stat-card-save (Pin to Home = per-PC prefs, no channel).
+  d964524 fe main: new dashboard/canvas-ops.js (one node + its edges, a copy appended to data/canvas/removed.jsonl first)
+  + dashboard/stat-card.js (PNG check, save dialog / HQ_STAT_CARD_PATH); MCP hq_canvas_remove mirrors the rule; preload
+  canvasRemove / statCardSave. ae60eed fe v5: Pin to Home (whq3-prefs.canvasPins, max 6) + Home › Pinned from canvas;
+  Remove asks once; stat card drawn on a 1200×630 canvas from statCardStats (shared with the level-up card). tpl hash +2168.
+  dcacae2 fe: cdp-gate canvas-pin-remove + stat-card-save; button-sweep KNOWN_CUTS now empty (fake serves 2 boards).
+  Suites: dashboard green, v5 439, mcp 5, selftest 2888 combos 0/0/0, cdp-gate 38/38 (sweep 529 buttons, 37 screens).
+IN-FLIGHT: none. Brief §11.1: canvas pin/remove, vault open/search, stat-card export marked wired.
+ASKS: none. data/canvas/removed.jsonl is new (gitignored with data/canvas/); nothing reads it — it's the undo copy.
+BREAKS: main.js two new hook lines (canvas-ops, stat-card) after the vault-open line. Additive IPC + one MCP tool.
+
 ## 2026-10-27 · FROM frontend (Discard + every-button sweep — owner: "make the discard button work AND test for other broken buttons") · main @ 724ae26
 DONE: 97471e5 meta: CONTRACT amendment (a third cancel path, same rule) + IPC-CONTRACT rows hq:social-cancel, hq:vault-open.
   5d24851 fe main: social-bridge.js cancelStaged = THE staged → canceled rule (popup route now calls it; its 68 tests unchanged)

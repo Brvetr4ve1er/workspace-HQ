@@ -2415,9 +2415,9 @@ Whichever you pick: red badges only for "needs you" (TASKS open count, SYSTEM cr
 
 The owner kept the daily-use controls and cut the rest on purpose. Each cut below is something the Claude Design build (or this brief) shows that v5 does not do, with the reason. v3 stays on disk as the rollback (`data/.ui-version` = `v3`).
 
-- **Canvas pin / remove:** boards are append-only. Main has only `hq.canvasAdd` (v5's ＋ Note), and pin / remove / clear / create-board need new IPC plus an MCP mirror (§4.13, §12.6).
-- **Vault open / search:** the renderer can't open `obsidian://` links; that needs a scheme-restricted `openExternal` IPC (§12.6). v3's copy-a-search-link workaround wasn't carried over. Vault content still reaches Ask as an opt-in source.
-- **Stat-card export:** v3's PNG came from `fx.js`'s takeover canvas, and porting it needs a renderer-side image builder plus a save path. It isn't daily use, so Settings and the level-up card say "not wired in this version yet".
+- ~~**Canvas pin / remove**~~ — wired 2026-10-27: Pin to Home is per-PC (`whq3-prefs.canvasPins`, Home › Pinned from canvas); Remove asks once, then `hq:canvas-remove` drops the node and its edges, keeping a copy in `data/canvas/removed.jsonl` (MCP mirror: `hq_canvas_remove`). Clear / create-board are still not built.
+- ~~**Vault open / search**~~ — wired 2026-10-27: Life › Notes Open in Obsidian / Search (`hq:vault-open`, a scanned vault Obsidian has registered).
+- ~~**Stat-card export**~~ — wired 2026-10-27: the renderer draws a 1200×630 PNG of the level and measured stats; `hq:stat-card-save` picks the path (Settings › Export and the level-up card).
 - **Per-file staging:** `do-commit` stages everything (`git add -A`) after main's `.env` guard has checked the whole change set (`hq.commitPreview`). Ticking files would need a staging IPC and a second guard path, so the commit sheet lists every file it will commit.
 - **Add-project channel:** tracking a project means writing `collector/collector.config.json` (struct lane), and no channel does that. Onboarding prepares and copies the config entry for you to paste.
 - **Local idea dismiss:** side quests have no `dismissed` write path (§6.6, struct lane). v5's Hide is per-PC only (`whq3-prefs`) and says so ("the scan still tracks it"); v3, the mini HUD and the tray still show the idea.
