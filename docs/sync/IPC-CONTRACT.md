@@ -567,6 +567,17 @@ whose node is gone drops silently. The MCP server gains `hq_canvas_remove`, the 
 | `canvasRemove(board, id)` | `hq:canvas-remove` (invoke) | Only from the owner's second click on Remove in Claude › Canvas. `board` matches the `hq:canvas-add` name rule; `id` is a node id (1–120 chars). Drops that ONE node from `data/canvas/<board>.canvas` plus every edge whose `fromNode` / `toNode` is it (tmp + rename, the same serialization as add), and appends `{at, board, node, edges}` to `data/canvas/removed.jsonl` first, so a removal can be undone by hand. The board watcher pushes `hq:canvas`. → `{ok:true, board, id, edges:<n>}`, or `{error}`: `bad board name`, `node id required`, `no board named …`, `unknown node`, `write failed: …`. |
 | `statCardSave(dataUrl)` | `hq:stat-card-save` (invoke) | Only from the owner's click on Save stat card PNG (Settings › Export, the level-up card). `dataUrl` = `data:image/png;base64,…`, decoded ≤ 8 MB and starting with the PNG signature; the renderer draws it, main only picks the path (save dialog, default `Pictures\stat-card-YYYY-MM-DD.png`; `HQ_STAT_CARD_PATH` replaces the dialog for gates) and writes it. → `{ok:true, path}`, `{ok:false, canceled:true}`, or `{error}`: `not a PNG`, `too big`, `write failed: …`. |
 
+## 2026-10-27 — Claude › Canvas: ＋ Board and Clear board
+
+Additive only. Both live in `dashboard/canvas-ops.js` (its existing `main.js` hook line registers them). The MCP server
+gains `hq_canvas_create` and `hq_canvas_clear`, the same rules on the same files. A cleared board's pins drop from Home
+the way a removed card's do.
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `canvasCreate(board)` | `hq:canvas-create` (invoke) | Only from the owner's Create in Claude › Canvas ＋ Board. `board` follows the `hq:canvas-add` name rule; writes `data/canvas/<board>.canvas` = `{"nodes":[],"edges":[]}` (add's serialization) only if no board with that name exists (compared case-insensitively — Windows file names). → `{ok:true, board}`, or `{error}`: `bad board name`, `a board named … already exists`, `write failed: …`. |
+| `canvasClear(board)` | `hq:canvas-clear` (invoke) | Only from the owner's second click on Clear in the board list. Appends `{at, board, cleared:true, nodes, edges}` to `data/canvas/removed.jsonl` first, then rewrites the board with `nodes: []`, `edges: []` (every other key kept). The file stays, so the board stays listed. → `{ok:true, board, nodes:<n>, edges:<n>}`, or `{error}`: `bad board name`, `no board named …`, `write failed: …`. |
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
