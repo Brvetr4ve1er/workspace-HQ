@@ -279,6 +279,8 @@
     system: ['M7 7h10v10H7zm2 2v6h6V9z', 'M9 2h2v4H9zM13 2h2v4h-2zM9 18h2v4H9zM13 18h2v4h-2zM2 9h4v2H2zM2 13h4v2H2zM18 9h4v2h-4zM18 13h4v2h-4z'],
     life: ['M12 21s-8.5-5.3-8.5-11.2A4.8 4.8 0 0 1 12 6.6a4.8 4.8 0 0 1 8.5 3.2C20.5 15.7 12 21 12 21z'],
     studio: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16z', 'M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z'],
+    // v5 (2026-10-27) Social tab: three linked nodes (a share graph)
+    social: ['M18 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M6 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M18 16a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M7.6 10.4 16.4 5.3l1 1.7-8.8 5.1z', 'M8.6 11.9 17.4 17l-1 1.7-8.8-5.1z'],
     search: ['M10 3a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 10 3zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10z'],
     focus: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
     activity: ['M2 11h4l3-7 5 16 3-9h5v2h-3.6L14 21 9 5l-1.7 4H2z'],
@@ -299,6 +301,7 @@
     system: p => p[1] && p[1].animate([{ opacity: 1 }, { opacity: .25 }, { opacity: 1 }], { duration: 420, iterations: 2 }),
     life: p => p[0].animate([{ transform: 'scale(1)' }, { transform: 'scale(1.22)' }, { transform: 'scale(.95)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 620 }),
     studio: p => p[1] && p[1].animate([{ transform: 'scale(1)' }, { transform: 'scale(.4)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'cubic-bezier(.3,1.5,.5,1)' }),
+    social: p => p.slice(0, 3).forEach((e, i) => e.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 320, delay: i * 70 })),
     settings: p => p[0].animate([{ transform: 'rotate(0)' }, { transform: 'rotate(120deg)' }], { duration: 560, easing: 'cubic-bezier(.3,1.4,.5,1)' }),
     scan: p => p.forEach(e => e.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], { duration: 600, easing: 'ease-in-out' })),
     bell: p => p[0].animate([{ transform: 'rotate(0)' }, { transform: 'rotate(14deg)' }, { transform: 'rotate(-12deg)' }, { transform: 'rotate(6deg)' }, { transform: 'rotate(0)' }], { duration: 520 }),

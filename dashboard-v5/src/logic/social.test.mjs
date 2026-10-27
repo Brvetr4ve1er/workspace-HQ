@@ -54,3 +54,9 @@ test('PLATFORMS are exactly the extension adapters; Social is a tab with four su
   assert.ok(!SUBS.life.some((s) => s[0] === 'social'));
   assert.ok(NAV.length <= 10, 'digits 1–9 and 0 reach every destination');
 });
+
+test('every destination has its own rail icon (an unknown name falls back to the Home house)', () => {
+  const src = fs.readFileSync(new URL('../elements/hq-v3.js', import.meta.url), 'utf8');
+  const icons = /const I = \{([\s\S]*?)\r?\n  \};/.exec(src)[1];
+  for (const n of NAV) assert.match(icons, new RegExp('^ {4}' + n.id + ': \\[', 'm'), n.id);
+});
