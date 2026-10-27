@@ -277,6 +277,37 @@ const TOOLS = [
     },
   },
   {
+    name: 'hq_canvas_remove',
+    description: 'Remove ONE node (and every edge touching it) from a canvas board. Only when the user asks to remove that card. The node and its edges are appended to data/canvas/removed.jsonl first, so it can be put back by hand. Use hq_canvas_read for node ids.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'board name' },
+        id: { type: 'string', maxLength: 120, description: 'node id (from hq_canvas_read)' },
+      },
+      required: ['name', 'id'],
+      additionalProperties: false,
+    },
+    run(args) {
+      const name = String(args.name || '');
+      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
+      const id = typeof args.id === 'string' ? args.id : '';
+      if (!id || id.length > 120) throw new ToolError('node id required');
+      const file = confined('canvas', `${name}.canvas`);
+      // From here down: the same rule as dashboard/canvas-ops.js (hq:canvas-remove).
+      const b = readJson(file, null);
+      if (!b || !Array.isArray(b.nodes)) throw new ToolError(`no board named "${name}"`);
+      const node = b.nodes.find((n) => n && String(n.id) === id);
+      if (!node) throw new ToolError('unknown node');
+      const edges = Array.isArray(b.edges) ? b.edges : [];
+      const touches = (e) => e && (String(e.fromNode) === id || String(e.toNode) === id);
+      const gone = edges.filter(touches);
+      fs.appendFileSync(confined('canvas', 'removed.jsonl'), JSON.stringify({ at: new Date().toISOString(), board: name, node, edges: gone }) + '\n');
+      writeAtomic(file, JSON.stringify({ ...b, nodes: b.nodes.filter((n) => n !== node), edges: edges.filter((e) => !touches(e)) }, null, 1));
+      return { ok: true, board: name, id, edges: gone.length };
+    },
+  },
+  {
     name: 'hq_scan_trigger',
     description: 'Fire-and-forget: start the collector (raw metrics pass, no LLM). Returns immediately; enrichment/assemble happen on the next app scan or relaunch. Job-id polling: deferred to v2.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
