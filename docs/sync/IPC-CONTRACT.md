@@ -521,6 +521,23 @@ and locations of interest, devices, cookies, uploaded / synced contacts, off-Met
 attachment pages. Profile = a whitelist (name, username, bio, website, pronouns, city, hometown, education, work, pages);
 post metadata rows (device ids, coordinates, file sizes, camera fields) are dropped. Text only: media entries are never read.
 
+## 2026-10-27 — Social tab (top-level; its vault is VEEMO CORTEX)
+
+Additive only. New file `dashboard/social-tab.js` (one hook line in `main.js`). The tab's Accounts / Inbox read the existing
+`hq:social-read` (browser-extension bridge); its Archive reads the existing Hub channels (`projects` / `documents` / `document`
+with `source:'instagram'|'facebook'|'social'`). Life › Social moves here (the sub leaves Life; a deep link to `life/social` lands on `social/inbox`).
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `socialVault.list()` | `hq:social-vault:list` (invoke) | → `{vault, folder:'30_Areas/Social', exists, obsidian, notes:[{rel, name, title, mtime, size, where:'social'\|'inbox'}]}` — every `.md` under `<vault>/30_Areas/Social/` (≤ 2 folders deep) plus `<vault>/00_Inbox/Social *.md`; newest first, ≤ 500; a file whose real path leaves the vault is skipped. Or `{error}`. Reads only. |
+| `socialVault.open(rel, how)` | `hq:social-vault:open` (invoke) | `rel` must be in a fresh `list()`; `how` = `'obsidian'` (only `obsidian://open?vault=<vault basename>&file=<rel without .md>`) or `'file'` (shell.openPath). `HQ_DRY_LAUNCH=1` logs `[dry-open]` instead. → `{ok, how}` or `{error}`. |
+| `socialVault.save({title, body})` | `hq:social-vault:save` (invoke) | Only from the owner's Save in Social › Vault. Writes ONE new note `<vault>/30_Areas/Social/<safe title>.md` (front matter `title`, `type: note`, `tags: [social]`, `created`, `source: WorkspaceHQ`), atomically, never over an existing note (`{error, exists:true}`). Title 1–60 chars, body ≤ 50 000. → `{rel}` or `{error}`. |
+| `claudeHub.socialSummary()` | `hq:claude-hub:social-summary` (invoke) | Hub op `socialSummary` (store.mjs, read-only, no schema change) → `{kinds:[{origin, kind, docs, newest_ms}], dms:[{origin, conversations, messages, last_at}]}` — counts only, no text. |
+| `claudeHub.documents(opts?)` | `hq:claude-hub:documents` | `opts` gains `origin` and `kind` (social documents' `meta.origin` / `meta.kind`), both optional filters; everything else unchanged. |
+| `socialOpenSite(platform)` | `hq:social-open-site` (invoke) | `platform` ∈ `bluesky reddit x linkedin instagram threads facebook youtube`; main opens that platform's fixed home URL (a literal in `social-tab.js`, e.g. `https://bsky.app/`) with `shell.openExternal` so the owner can sign in — the extension reads signed-in tabs every 5 min. Anything else (incl. `mastodon`, which has no fixed server) → `{error:'refused: …'}`. `HQ_DRY_LAUNCH=1` logs `[dry-open] site <url>`. → `{ok}`. |
+
+`HQ_VAULT_DIR` overrides the vault (gates); tests pass `vaultDir` directly.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
