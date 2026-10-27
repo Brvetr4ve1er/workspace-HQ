@@ -44,7 +44,8 @@
 // Social tab + every-button scenarios (2026-10-27; same rules):
 //   social-discard — Inbox Discard asks once, the second click calls socialCancel(id); "already publishing" said in words
 //   canvas-pin-remove — Pin to Home shows the card on Home across a reload; Remove asks once, then canvasRemove(board, id)
-//   stat-card-save — Settings › Save stat card PNG hands a 1200×630 PNG to statCardSave; cancel is silent, errors in words
+//   canvas-board-create-clear — ＋ Board refuses a taken name, Enter creates; Clear asks once, then canvasClear(name)
+//   stat-card-save —Settings › Save stat card PNG hands a 1200×630 PNG to statCardSave; cancel is silent, errors in words
 //   button-sweep — clicks every visible button on every screen from a clean one; fails on errors, "isn't wired" (bar any
 //     KNOWN_CUTS; none left) and clicks that change nothing. Long (~6 min): has its own TIMEOUT below; not part of a quick run.
 import fs from 'node:fs';
@@ -143,7 +144,7 @@ async function fresh(t) {
     clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, prView: 'library', hcSel: [], promote: null,
     ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
     projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null,
-    canvasPins: [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false });
+    canvasPins: [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false, canvasBoardOpen: false, canvasBoardDraft: '', canvasCreating: false, canvasClearAsk: null, canvasClearing: null });
     if (L.store && L.store.live) L.store.live.candidates = { rows: null, pooled: null, capped: null, hidden: 0, error: null, busy: false, loaded: false };
     return true; })()`);
   await t.sleep(80);
@@ -1579,6 +1580,61 @@ const SCENARIOS = {
       out.push(...t.errors());
     } finally {
       await t.evaluate(`(() => { if (${JSON.stringify(before)} == null) localStorage.removeItem('whq3-prefs'); else localStorage.setItem('whq3-prefs', ${JSON.stringify(before)}); hqFake.reset(true); return true; })()`).catch(() => {});
+      await reloadReady(t).catch(() => {});
+    }
+    return out;
+  },
+
+  // Claude › Canvas ＋ Board and Clear board (IPC-CONTRACT 2026-10-27): a taken name is refused in the form, Enter
+  // creates via canvasCreate(name) and ＋ Note picks the new board; Clear asks once, then canvasClear(name) and the
+  // board's pins drop; main's refusal is said in words.
+  async 'canvas-board-create-clear'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const BOARDS = [{ name: 'Gate Board', nodes: [{ id: 'gb-1', type: 'text', text: 'Gate card\nbody', x: 0, y: 0 }, { id: 'gb-2', type: 'text', text: 'Gate card two\nbody', x: 0, y: 0 }] }];
+    const byText = (re) => `[...document.querySelectorAll('main button')].find((b) => ${re}.test(b.textContent.trim()))`;
+    const INPUT = `document.querySelector('input[aria-label="New board name"]')`;
+    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
+    try {
+      await t.evaluate(`hqFake.set('getCanvas', ${JSON.stringify(BOARDS)}, { persist: true })`);
+      if (!await reloadReady(t)) return ['the page did not come back after the reload'];
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ canvasPins: ['Gate Board/gb-1'] }); WHQ.app.logic.go('claude', 'canvas'); return true; })()`);
+      if (!await t.waitFor(`!!(${byText('/^＋ Board$/')})`, 4000)) return ['no ＋ Board button on Claude › Canvas'];
+      await t.sleep(300);
+      await t.evaluate(`${byText('/^＋ Board$/')}.click()`);
+      if (!await t.waitFor(`!!${INPUT} && document.activeElement === ${INPUT}`, 3000)) out.push('the board name input did not open focused');
+      await t.type('gate board');
+      await t.sleep(150);
+      if (!await t.evaluate(`${byText('/^Create$/')}.disabled`)) out.push('Create is enabled for a taken name');
+      if (!await t.evaluate(`document.querySelector('main').textContent.includes('There is already a board called gate board')`)) out.push('no hint for a taken name');
+      await t.evaluate(`(() => { const i = ${INPUT}; i.select(); return true; })()`);
+      await t.type('Gate Fresh');
+      await t.press('Enter');
+      if (!await t.waitFor(`hqFake.calls('canvasCreate').length === 1`, 3000)) return out.concat(['Enter did not call hq.canvasCreate']);
+      if (JSON.stringify(await t.evaluate(`hqFake.calls('canvasCreate')[0].args`)) !== '["Gate Fresh"]') out.push('canvasCreate got ' + JSON.stringify(await t.evaluate(`hqFake.calls('canvasCreate')[0].args`)));
+      if (!await t.waitFor(toast('Board Gate Fresh created · add notes with ＋ Note'), 2000)) out.push('no "Board created" toast');
+      if (await t.evaluate(`!!${INPUT}`)) out.push('the board form stayed open after Create');
+      await t.evaluate(`hqFake.emit('hq:canvas', ${JSON.stringify(BOARDS.concat([{ name: 'Gate Fresh', nodes: [], edges: [] }]))})`);
+      if (!await t.waitFor(`WHQ.app.logic.canvasBoardPick() === 'Gate Fresh'`, 2000)) out.push('＋ Note does not pick the new board');
+      if (!await t.waitFor(`!!(${byText('/^Clear$/')}) && [...document.querySelectorAll('main button')].filter((b) => b.textContent.trim() === 'Clear').some((b) => b.disabled)`, 2000)) out.push('the empty new board has no disabled Clear');
+      // Clear: the first click asks, the second clears, pins on that board drop
+      await t.evaluate(`[...document.querySelectorAll('main button')].find((b) => b.textContent.trim() === 'Clear' && !b.disabled).click()`);
+      await t.sleep(150);
+      if (await t.evaluate(`hqFake.calls('canvasClear').length`) !== 0) out.push('the first Clear click already cleared');
+      if (!await t.evaluate(`!!(${byText('/^Clear 2 cards\\?$/')})`)) out.push('the first Clear click did not ask "Clear 2 cards?"');
+      await t.evaluate(`${byText('/^Clear 2 cards\\?$/')}.click()`);
+      if (!await t.waitFor(`hqFake.calls('canvasClear').length === 1`, 3000)) return out.concat(['the second click did not call hq.canvasClear']);
+      if (JSON.stringify(await t.evaluate(`hqFake.calls('canvasClear')[0].args`)) !== '["Gate Board"]') out.push('canvasClear got ' + JSON.stringify(await t.evaluate(`hqFake.calls('canvasClear')[0].args`)));
+      if (!await t.waitFor(toast('Cleared Gate Board · 1 card copied to data\\canvas\\removed.jsonl'), 2000)) out.push('no "Cleared" toast');
+      if (JSON.stringify(await t.evaluate(`WHQ.app.logic.state.canvasPins`)) !== '[]') out.push('the cleared board is still pinned');
+      // main refuses
+      await t.evaluate(`(() => { hqFake.set('canvasClear', { error: 'no board named Gate Board' }); WHQ.app.logic.setState({ toasts: [] }); return true; })()`);
+      await t.evaluate(`[...document.querySelectorAll('main button')].find((b) => b.textContent.trim() === 'Clear' && !b.disabled).click()`); await t.sleep(100);
+      await t.evaluate(`${byText('/^Clear 2 cards\\?$/')}.click()`);
+      if (!await t.waitFor(toast('Not cleared · no board named Gate Board'), 2000)) out.push("main's refusal was not said in words");
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`hqFake.reset(true)`).catch(() => {});
       await reloadReady(t).catch(() => {});
     }
     return out;

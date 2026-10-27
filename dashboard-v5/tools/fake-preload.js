@@ -259,7 +259,7 @@ function createFake(opts) {
     // two placeholder boards so the button sweep reaches canvas Pin / Remove (a list card and a note card)
     ['getCanvas', () => [{ name: 'Ideas', nodes: [{ id: 'n-fake-1', type: 'text', text: ['Example list', '- first point', '- second point'].join(NL), x: 0, y: 0 }], edges: [] },
       { name: 'Notes', nodes: [{ id: 'n-fake-2', type: 'text', text: ['Example note', 'A placeholder card for the gates.'].join(NL), x: 0, y: 0 }], edges: [] }]],
-    ['canvasAdd', WRITE], ['canvasRemove', (board, id) => ({ ok: true, board, id, edges: 0 })], ['onCanvas', 'on:hq:canvas'],
+    ['canvasAdd', WRITE], ['canvasRemove', (board, id) => ({ ok: true, board, id, edges: 0 })], ['canvasCreate', (board) => ({ ok: true, board })], ['canvasClear', (board) => ({ ok: true, board, nodes: 1, edges: 0 })], ['onCanvas', 'on:hq:canvas'],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],
     ['sessionDiff', () => ({ files: [], stat: '' })], ['onSessionOutput', 'on:hq:session-output'], ['onClaudeSessions', 'on:hq:claude-sessions'],
     ['devStart', WRITE], ['devStop', WRITE], ['saveNote', WRITE], ['onDevStatus', 'on:hq:dev-status'],
