@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-27 · FROM frontend (Instagram / Facebook exports as context — owner: "add them as context", scope: everything, app + vault) · main @ 37441df
+DONE: fcb9dfb meta: IPC-CONTRACT section + CLAUDE.md facts line. 37441df fe: new dashboard/claude-hub/ingest-meta.mjs (Instagram
+  HTML / Facebook JSON, text entries only via new unzip.mjs readEntry, Meta mojibake repaired, SENSITIVE folders never read,
+  profile whitelist, post metadata rows dropped) → Hub op importMeta; DMs = sources instagram/facebook (others' lines role
+  'other', sender in tool_name; left out of unfiltered lists, stats and harvest; never continued) + 'social' documents
+  (chunks ≤100 records, tallies for likes/saved). Ask's 8th chip "Instagram & Facebook" (contextFor scope social, own
+  3000 reserve). Claude › Chats: import button (kind meta) + Instagram / Facebook filters; drop folder detects both.
+  Real exports checked on scratch dbs only: IG 62 threads / 38k msgs / 223 docs in 7 s; FB 302 threads / 3.4k msgs / 52 docs.
+  Suites: dashboard 721, v5 428, selftest 2660 combos 0/0/0; goldens attributed (askSources, clSrcChips, diImportMeta,
+  diMetaTip); tpl hash +463. App restarted (rollback.ps1 v5).
+IN-FLIGHT: the owner's own import (button in the app — I never write their hub.sqlite from a script); 3 vault notes drafted
+  in the session scratchpad, written to VEEMO CORTEX only on their yes.
+ASKS: none.
+BREAKS: no new channel, no schema change; hq:claude-hub:import kinds + instagram/facebook/meta; unfiltered listConversations /
+  listProjects / stats now exclude sources instagram/facebook; llm include key `social`. All additive.
+
 ## 2026-10-26 · FROM frontend (data overhaul Fronts A, B, D3 — owner: "keep going with the rest"; struct-lane edits owner-authorized) · main @ 4b859b0
 DONE: Freshness (A) — b28686a struct: pipeline ends with a `bake` step (dashboard/build-data.mjs), so a closed app reopens
   on the newest scan; run-scan.ps1 enriches at most once a day (skips when latest.json says today is already enriched;
