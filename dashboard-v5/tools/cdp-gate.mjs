@@ -41,6 +41,10 @@
 //   prompts-run-chat — modal gates Run on project + {{file}}; main sends the chat (page never does); turn streams to done in Chats
 //   prompts-run-copy — copy targets say the quota note, honest done status, a usage miss is said; Escape closes
 //   prompts-pack-import — plan lists rows + kept/skipped, one confirm writes, done report; export toast
+// Social tab + every-button scenarios (2026-10-27; same rules):
+//   social-discard — Inbox Discard asks once, the second click calls socialCancel(id); "already publishing" said in words
+//   button-sweep — clicks every visible button on every screen from a clean one; fails on errors, "isn't wired" (bar the
+//     brief §11.1 cuts) and clicks that change nothing. Long (~6 min): has its own TIMEOUT below; not part of a quick run.
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -543,7 +547,7 @@ const SCENARIOS = {
       const want3 = ['user:Placeholder question one', 'assistant:Fake answer from the fake model.', 'user:Placeholder question three'];
       if (JSON.stringify(sent3) !== JSON.stringify(want3)) out.push('the model got ' + JSON.stringify(sent3) + ', want only the finished pair + the new question');
       const inc = await t.evaluate(`hqFake.calls('llm.chat').at(-1).args[0].include`);
-      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
+      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":false,"social":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
       // 4. Retry on the stopped answer: that pair goes, the question is asked again at the end
       await t.evaluate(`${btn('Retry')}.click()`);
       if (!await t.waitFor(`${hist}.length === 3 && ${hist}[2].q === 'Placeholder question two' && ${hist}[2].a.status === 'done'`, 5000)) out.push('Retry did not re-ask the stopped question: ' + JSON.stringify(await t.evaluate(`${hist}.map((h) => h.q + '=' + h.a.status)`)));
@@ -602,7 +606,7 @@ const SCENARIOS = {
       if (st !== 'done,error,cancelled') out.push('loaded statuses ' + JSON.stringify(st) + ', want done,error,cancelled');
       if (s.h[1] && s.h[1].reason !== 'interrupted — the window reloaded') out.push('a pending answer did not load as "interrupted — the window reloaded"');
       if (s.h[2] && s.h[2].text !== 'A partial v3 answer') out.push('the stopped v3 answer lost its partial text');
-      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false,"claude":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
+      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false,"claude":false,"social":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
       // the panel shows them the way v3 does
       await t.evaluate(`WHQ.app.logic.setState({ askOpen: true })`);
       await t.sleep(150);
@@ -611,7 +615,7 @@ const SCENARIOS = {
           spans: [...a.querySelectorAll('span')].map((x) => x.textContent.trim()) }; })()`);
       if (!ui) out.push('the Ask panel did not open');
       else {
-        if (ui.chips !== 'false,true,true,true,false,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false,false');
+        if (ui.chips !== 'false,true,true,true,false,false,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false,false,false');   // 8 chips since Instagram & Facebook (2026-10-27)
         if (!ui.spans.includes('grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s')) out.push('no v3 meta line "grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s"');
         if (!ui.spans.includes('error — interrupted — the window reloaded')) out.push('no "error — interrupted — the window reloaded" meta line');
         if (!ui.spans.some((x) => x.startsWith('stopped · grounded in'))) out.push('no "stopped · …" meta line');
@@ -1217,7 +1221,7 @@ const SCENARIOS = {
         return [...a.querySelectorAll('[aria-label="Context sources"] button')].map((b) => b.textContent.trim() + '=' + b.getAttribute('aria-pressed')); })()`);
       const c0 = await chips();
       if (!c0) return ['the Ask panel did not open'];
-      if (c0.length !== 7 || c0[6] !== 'Claude history=false') out.push('chips ' + JSON.stringify(c0) + ', want 7 with "Claude history" off last');
+      if (c0.length !== 8 || c0[6] !== 'Claude history=false' || c0[7] !== 'Instagram & Facebook=false') out.push('chips ' + JSON.stringify(c0) + ', want 8: "Claude history" then "Instagram & Facebook", both off');
       await t.evaluate(`(() => { const a = document.querySelector('aside[aria-label="Ask"]'); [...a.querySelectorAll('[aria-label="Context sources"] button')][6].click(); return true; })()`);
       await t.sleep(100);
       const inc = await t.evaluate(`localStorage.getItem('hq-oracle-include')`);
@@ -1496,7 +1500,147 @@ const SCENARIOS = {
     if (!await t.waitFor(`document.body.textContent.includes('Exported 2 prompt notes to prompts-pack-2026-10-25.zip')`)) out.push('no export toast');
     return out.concat(t.errors());
   },
+  // Social › Inbox Discard (2026-10-27): the first click only asks, the second calls hq.socialCancel with that post's
+  // id and toasts; main's refusal ("already publishing") is said in plain words and nothing else is called.
+  async 'social-discard'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const POST = { outbox: { actions: [{ id: 'gate-post-1', platform: 'bluesky', op: 'post', text: 'Placeholder gate post', status: 'staged', staged_at: '2026-10-01T00:00:00Z' }] }, accounts: { accounts: [{ platform: 'bluesky', handle: 'placeholder.example' }] } };
+    const BTN = `document.querySelector('[data-so="discard"]')`;
+    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
+    try {
+      await t.evaluate(`hqFake.set('getSocial', ${JSON.stringify(POST)})`);
+      await t.evaluate(`(() => { WHQ.app.logic.go('social', 'inbox'); return true; })()`);
+      if (!await t.waitFor(`!!${BTN} && ${BTN}.textContent.trim() === 'Discard'`, 4000)) return ['no Discard button for the staged post'];
+      await t.evaluate(`${BTN}.click()`);
+      await t.sleep(150);
+      if (await t.evaluate(`hqFake.calls('socialCancel').length`) !== 0) out.push('the first click already canceled');
+      if (await t.evaluate(`${BTN}.textContent.trim()`) !== 'Discard for good?') out.push('the first click did not ask (label ' + JSON.stringify(await t.evaluate(`${BTN}.textContent.trim()`)) + ')');
+      await t.evaluate(`${BTN}.click()`);
+      if (!await t.waitFor(`hqFake.calls('socialCancel').length === 1`, 3000)) return out.concat(['the second click did not call hq.socialCancel']);
+      const args = await t.evaluate(`hqFake.calls('socialCancel')[0].args`);
+      if (JSON.stringify(args) !== '["gate-post-1"]') out.push('socialCancel got ' + JSON.stringify(args));
+      if (!await t.waitFor(toast('Discarded · it can never be sent'), 2000)) out.push('no "Discarded" toast');
+      // main refuses: a claimed post is already publishing
+      await t.evaluate(`(() => { hqFake.set('socialCancel', { error: 'already publishing', status: 'sending' }); WHQ.app.logic.setState({ toasts: [] }); return true; })()`);
+      await t.evaluate(`${BTN}.click()`); await t.sleep(100); await t.evaluate(`${BTN}.click()`);
+      if (!await t.waitFor(toast('It is already being published from the extension — too late to discard'), 2000)) out.push('no plain-words toast for "already publishing"');
+      out.push(...t.errors());
+    } finally {
+      await t.evaluate(`hqFake.reset(true)`).catch(() => {});
+    }
+    return out;
+  },
+
+  // Every button, every screen (2026-10-27, owner: "test for other broken buttons"). Needs --preload=fake: each click
+  // lands on the recording fake, never on the PC. For each tab × sub, a project page and the overlays, every visible,
+  // enabled <button> is clicked once from a clean screen (buttons outside <main> once per run). A click is
+  //   error      it threw, logged an error or rejected
+  //   not-wired  it toasted "… isn't wired in this version yet" (KNOWN_CUTS lists the deliberate ones: brief §11.1)
+  //   dead       nothing at all changed: no hq call, no state, no screen, no toast
+  // The clipboard and window.open are stubbed for the run; project names are masked in what it prints.
+  async 'button-sweep'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const KNOWN_CUTS = [/^Pinning canvas cards/, /^Removing canvas cards/, /^Exporting the stat card/];
+    const views = await t.evaluate(`(() => { const M = WHQ.app.logic.M, v = [];
+      const p = (M.P0[0] || {}).id; if (p) v.push({ name: 'project-page', tab: 'projects', sub: 'grid', project: p });   // first: the global buttons are tried away from Home
+      for (const n of M.NAV) for (const s of (M.SUBS[n.id] || [[null]])) v.push({ name: n.id + (s[0] ? '/' + s[0] : ''), tab: n.id, sub: s[0] });
+      for (const o of ['settingsOpen', 'cheatOpen', 'runsOpen', 'scrubOpen', 'askOpen', 'moreOpen', 'whatsNewOpen']) v.push({ name: 'overlay/' + o, tab: 'home', overlay: o });
+      return v; })()`);
+    // the clean screen every click starts from: this state and this localStorage (a filter chip persists its pick)
+    const base = await t.evaluate(`JSON.stringify({ state: JSON.stringify(WHQ.app.logic.state, (k, v) => (typeof v === 'function' ? undefined : v)), ls: JSON.stringify(Object.assign({}, localStorage)) })`);
+    // hooks for one page load (installed again after a reload)
+    const install = () => t.evaluate(`(() => { const b = JSON.parse(${JSON.stringify(base)}); window.__sweep = { errs: [], base: b.state, ls: b.ls };
+      const ce = console.error.bind(console); console.error = (...a) => { window.__sweep.errs.push(a.map(String).join(' ').slice(0, 200)); ce(...a); };
+      window.addEventListener('error', (e) => window.__sweep.errs.push('uncaught: ' + String(e.message).slice(0, 200)));
+      window.addEventListener('unhandledrejection', (e) => window.__sweep.errs.push('rejected: ' + String(e.reason && e.reason.message || e.reason).slice(0, 200)));
+      try { Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => {}, readText: async () => '' }, configurable: true }); } catch {}
+      window.open = () => null; return true; })()`);
+    await install();
+    const findings = [], seenGlobal = new Set();
+    let clicked = 0, skipped = 0, retried = 0;
+    // one screen: enumerate its buttons (or just `only`) and click each from a clean screen
+    const sweepView = (view, only) => t.evaluate(`(async (view, seenGlobal, only) => {
+        const L = WHQ.app.logic, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const names = [...L.M.P0, ...(L.M.at(0).archived || [])].map((p) => p.name).filter((n) => n && n.length > 2).sort((a, b) => b.length - a.length);
+        const mask = (s) => { let o = s; for (const n of names) o = o.split(n).join('‹project›'); return o; };
+        const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null, vault: null, promote: null, pack: null, run: null,
+          askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, whatsNewOpen: false, focus: null,
+          toasts: [], route: null, snapOffset: 0, soDiscardAsk: null, clOpen: false, ccOpen: false, canvasNoteOpen: false, pageMore: false };
+        const reset = async () => {
+          hqFake.reset(true);
+          localStorage.clear(); for (const [k, v] of Object.entries(JSON.parse(window.__sweep.ls))) localStorage.setItem(k, v);
+          L.setState(Object.assign(JSON.parse(window.__sweep.base), CLOSED)); await sleep(30);
+          L.go(view.tab, view.sub || undefined); await sleep(30);
+          if (view.project) { L.openProject(view.project); await sleep(30); }
+          if (view.overlay) { L.setState({ [view.overlay]: true }); }
+          await sleep(220);   // tab animation + store reads on arrival
+        };
+        const label = (b) => mask(((b.getAttribute('aria-label') || '') + ' ' + b.textContent).replace(/\\s+/g, ' ').trim()).slice(0, 80) || '(no label)';
+        const keyOf = (b) => (b.closest('main') ? 'main:' : 'global:') + label(b);
+        const visible = (b) => !!(b.offsetParent || b.getClientRects().length) && !b.disabled;
+        // the tab / filter you are already on (the design's active style): a click there rightly changes nothing
+        const selected = (b) => b.getAttribute('aria-pressed') === 'true' || b.getAttribute('aria-selected') === 'true' || !!b.getAttribute('aria-current') || /var\\(--gold\\) 14%|var\\(--accent-text\\)/.test(b.getAttribute('style') || '');
+        await reset();
+        const keys = only ? only.slice() : [], seen = new Set(); let off = 0;
+        if (!only) for (const b of document.querySelectorAll('#app button')) {
+          if (!visible(b)) { if (b.disabled) off++; continue; }
+          const k = keyOf(b); if (seen.has(k) || (k.startsWith('global:') && seenGlobal.includes(k))) continue;
+          if (view.overlay && k.startsWith('main:')) continue;   // the screen behind an overlay is swept on its own
+          seen.add(k); keys.push(k);
+        }
+        const out = [];
+        const snap = () => ({ calls: hqFake.calls().length, state: JSON.stringify(L.state, (k, v) => (k === 'now' || typeof v === 'function' ? undefined : v)),
+          dom: document.querySelector('#app').innerHTML, toasts: (L.state.toasts || []).map((x) => x.kind + ':' + x.text) });
+        for (const k of keys) {
+          await reset();
+          const b = [...document.querySelectorAll('#app button')].find((x) => visible(x) && keyOf(x) === k);
+          if (!b) { out.push({ key: k, cls: 'vanished' }); continue; }
+          window.__sweep.errs = [];
+          const wasSelected = selected(b), s0 = snap();
+          try { b.click(); } catch (e) { window.__sweep.errs.push('click threw: ' + e.message); }
+          await sleep(260);
+          const s1 = snap(), toasts = s1.toasts.filter((x) => !s0.toasts.includes(x));
+          const errs = window.__sweep.errs.slice();
+          const cls = errs.length ? 'error' : toasts.some((x) => /isn.t wired/.test(x)) ? 'not-wired'
+            : (s1.calls === s0.calls && s1.state === s0.state && s1.dom === s0.dom && !toasts.length) ? (wasSelected ? 'ok' : 'dead') : 'ok';
+          out.push({ key: k, cls, toasts: toasts.map(mask), errs, calls: hqFake.calls().slice(0, 4).map((c) => c.method) });
+        }
+        await reset();
+        return { out, off };
+      })(${JSON.stringify(view)}, ${JSON.stringify([...seenGlobal])}, ${JSON.stringify(only || null)})`);
+    for (const view of views) {
+      const r = await sweepView(view);
+      skipped += r.off;
+      const gone = [];
+      for (const o of r.out) {
+        if (o.key.startsWith('global:')) seenGlobal.add(o.key);
+        if (o.cls === 'vanished') { gone.push(o.key); continue; }
+        clicked++;
+        if (o.cls !== 'ok') findings.push({ view: view.name, ...o });
+      }
+      // an earlier click changed the store's live data (a fake Refresh / Re-examine / Import answer), so the button is
+      // not on the clean screen any more: try each once more on a freshly loaded page
+      for (const k of gone) {
+        retried++;
+        await reloadReady(t); await install();
+        const o = (await sweepView(view, [k])).out[0];
+        clicked++;
+        if (o.cls !== 'ok') findings.push({ view: view.name, ...o });
+      }
+      if (gone.length) { await reloadReady(t); await install(); }
+    }
+    await fresh(t);
+    const line = (f) => f.cls.padEnd(9) + ' ' + f.view.padEnd(22) + ' ' + f.key.replace(/^(main|global):/, '') + (f.toasts && f.toasts.length ? '  → ' + f.toasts.join(' | ') : '') + (f.errs && f.errs.length ? '  ! ' + f.errs.join(' | ') : '');
+    console.log('[button-sweep] ' + clicked + ' buttons clicked across ' + views.length + ' screens · ' + retried + ' retried on a fresh page · ' + skipped + ' disabled seen');
+    for (const f of findings) console.log('  ' + line(f));
+    const cut = (f) => f.cls === 'not-wired' && f.toasts.some((x) => KNOWN_CUTS.some((re) => re.test(x.replace(/^\w+:/, ''))));
+    return findings.filter((f) => !cut(f)).map(line);
+  },
 };
+
+// scenarios that need more than the default 90 s
+const TIMEOUT = { 'button-sweep': 900000 };
 
 // ---- runner --------------------------------------------------------------------
 const port = Number(arg('port', '9342'));
@@ -1518,7 +1662,7 @@ let failed = 0;
 for (const name of names) {
   const t0 = Date.now();
   let out;
-  try { out = await within(SCENARIOS[name](t), 90000, 'scenario ' + name); } catch (e) { out = ['threw: ' + e.message]; }
+  try { out = await within(SCENARIOS[name](t), TIMEOUT[name] || 90000, 'scenario ' + name); } catch (e) { out = ['threw: ' + e.message]; }
   const ms = Date.now() - t0;
   if (out.length) { failed++; console.log('FAIL ' + name + ' (' + ms + ' ms)\n  ' + out.join('\n  ')); }
   else console.log('PASS ' + name + ' (' + ms + ' ms)');
