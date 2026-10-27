@@ -5,7 +5,8 @@ import { FX } from './shared.js';
 export const journalLogic = {
   async addJournal() {
     if (!this.canWrite()) return this.denied();
-    const txt = this.state.journalDraft.trim(); const pid = this.state.route && this.state.route.id; if (!txt || !pid) return;
+    const txt = this.state.journalDraft.trim(); const pid = this.state.route && this.state.route.id; if (!pid) return;
+    if (!txt) { this.toast('info', 'Write something first'); return; }   // an empty Add said nothing (button sweep, 2026-10-27)
     const kind = this.state.journalKind;
     const fn = kind === 'learning' ? () => this.hq.learn(pid, txt) : kind === 'decision' ? () => this.hq.logDecision(pid, txt) : () => this.hq.saveNote(pid, txt);
     // main answers true once written and false when it couldn't (project not in the latest scan,

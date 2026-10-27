@@ -5,7 +5,7 @@ export function scrubVals(ctx) {
   // ----- scrub (time machine) -----
   const scrubSpan = this.span(90, 0), scrubSeries = scrubSpan.map((o) => ({ o, v: this.series('unc', o) }));
   const smax = Math.max(1, ...scrubSeries.map((x) => x.v));
-  const scrubBars = scrubSeries.map((x) => ({ h: 6 + Math.round(x.v / smax * 40), c: x.o === off ? 'var(--gold)' : x.o === 0 ? 'var(--green)' : 'var(--frame-hi)', title: H.fmtD(H.dayAt(x.o)) + ' · ' + x.v + ' uncommitted', go: () => this.setState({ snapOffset: x.o }) }));
+  const scrubBars = scrubSeries.map((x) => ({ h: 6 + Math.round(x.v / smax * 40), c: x.o === off ? 'var(--gold)' : x.o === 0 ? 'var(--green)' : 'var(--frame-hi)', title: H.fmtD(H.dayAt(x.o)) + ' · ' + x.v + ' uncommitted', on: x.o === off ? 'true' : 'false', go: () => this.setState({ snapOffset: x.o }) }));
   // offset 1 is the scan before the latest, which isn't necessarily yesterday's
   const quick = [['Live', 0], ['Previous scan', 1], ['7 scans ago', 7], ['30 scans ago', 30], ['Oldest', H.maxOff]].filter(([, o], i, a) => o <= H.maxOff && a.findIndex((x) => x[1] === o) === i);
   const scrubQuick = quick.map(([l, o]) => ({ label: l, go: () => this.setState({ snapOffset: o }), style: Object.assign(tabStyle(off === o), { height: 30, fontSize: 12, padding: '0 10px' }) }));

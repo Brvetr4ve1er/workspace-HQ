@@ -34,7 +34,7 @@ export default String.raw`        <sc-if value="{{ v.history }}" hint-placeholde
                   <section>
                     <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:8px;border-bottom:2px solid var(--frame)"><span style="font-size:18px">{{ w.w }}</span><span style="font-size:12px;color:var(--muted)">{{ w.stats }}</span></div>
                     <sc-for list="{{ w.ev }}" as="e" hint-placeholder-count="3">
-                      <button onClick="{{ e.open }}" style="width:100%;display:flex;gap:12px;align-items:center;padding:9px 4px;background:none;border:0;border-bottom:1px dashed var(--frame);color:var(--text);font-family:var(--term);font-size:13px;text-align:left;cursor:pointer" style-hover="background:var(--card)"><span style="width:22px;text-align:center;color:{{ e.color }}">{{ e.g }}</span><span style="flex:1">{{ e.t }}</span><span style="font-size:12px;color:var(--faint)">{{ e.d }}</span></button>
+                      <!-- v5: a timeline row with nowhere to go is disabled (button sweep 2026-10-27) --><button onClick="{{ e.open }}" disabled="{{ e.off }}" style="width:100%;display:flex;gap:12px;align-items:center;padding:9px 4px;background:none;border:0;border-bottom:1px dashed var(--frame);color:var(--text);font-family:var(--term);font-size:13px;text-align:left;cursor:pointer" style-hover="background:var(--card)"><span style="width:22px;text-align:center;color:{{ e.color }}">{{ e.g }}</span><span style="flex:1">{{ e.t }}</span><span style="font-size:12px;color:var(--faint)">{{ e.d }}</span></button>
                     </sc-for>
                     <div style="font-size:12px;color:var(--faint);padding:8px 4px">· {{ w.quiet }} collapsed</div>
                   </section>

@@ -46,7 +46,7 @@ export const askLogic = {
   // o.keepDraft: a starter prompt or a Retry leaves what is being typed alone (v3).
   async submitAsk(q, o) {
     q = (q || '').trim();
-    if (!q) { if (!this.state.askOpen) this.openAskPanel(); return; }
+    if (!q) { if (!this.state.askOpen) this.openAskPanel(); else this.toast('info', 'Type a question first'); return; }   // an empty Ask said nothing (button sweep 2026-10-27)
     const S = this.state;
     if (this.askBusy()) {
       this.setState({ askOpen: true, paletteOpen: false, askDraft: q, paletteQuery: '' });

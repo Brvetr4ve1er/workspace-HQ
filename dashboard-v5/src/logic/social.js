@@ -5,6 +5,8 @@
 //   soQuery    the Archive search box            soSearched  a search ran (shows Clear)
 //   soTitle    the Vault new-note title          soBody      the Vault new-note text
 //   soSaving   true while hq.socialVault.save runs
+//   soDiscardAsk  the staged post whose Discard was clicked once (the second click cancels it)
+//   soDiscarding  the staged post being canceled right now
 import { FX } from './shared.js';
 import { TITLE_MAX, BODY_MAX } from './social-limits.mjs';
 
@@ -23,6 +25,21 @@ export const socialLogic = {
     const r = await this.store.openSocialSite(platform);
     if (r && r.error) { this.toast('error', r.error); FX().sfx('error'); return; }
     this.toast('info', 'Opened in your browser — sign in there and keep a tab open; the extension reads it within 5 minutes', { ms: 6000 });
+  },
+  // Inbox: Discard asks once, then main flips the post staged → canceled (hq:social-cancel; never publishes)
+  async soDiscard(id) {
+    const S = this.state;
+    if (S.soDiscarding) return;
+    if (!this.canWrite() || !(this.hq && this.hq.socialCancel)) return this.denied(this.canWrite() ? SO_OFF : undefined);
+    if (S.soDiscardAsk !== id) { this.setState({ soDiscardAsk: id }); return; }
+    this.setState({ soDiscarding: id });
+    const r = await this.store.discardSocialPost(id);
+    this.setState({ soDiscarding: null, soDiscardAsk: null });
+    if (!r || r.error) {
+      const why = r && r.error === 'already publishing' ? 'It is already being published from the extension — too late to discard' : (r && r.error) || 'Discard failed';
+      this.toast('error', why); FX().sfx('error'); return;
+    }
+    this.toast('success', 'Discarded · it can never be sent');
   },
   // Archive: one network's kind of records (toggle), search, the open document
   soPick(origin, kind) {

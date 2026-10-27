@@ -43,9 +43,10 @@ import tpl from './app.tpl.js';
 // 2026-10-26 connected accounts: Projects › Vercel & Supabase (projects.tpl.js) — Vercel projects with production / latest deploy, recent deploys, Supabase projects, connect cards (+9098 chars / +9109 bytes)
 // 2026-10-27 Instagram / Facebook import: claude fragment, one line — an "Import Instagram / Facebook export" button after the ChatGPT one, with its <!-- v5: reason --> marker (+463 chars / +463 bytes, no line removed)
 // 2026-10-27 Social tab: new fragment social.tpl.js after life (Accounts, Inbox, Archive, Vault; each block with its <!-- v5: reason --> marker); life.tpl.js loses its Social block (moved unchanged into the Inbox) for a one-line marker (+20309 chars / +20339 bytes)
-const SHA256 = 'eed4e7407832035e39ed8d338b025db21639316f02e3893c7f9f6bad59b75460';
-const LENGTH = 311743;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 312299;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-27 button sweep fixes: social (Discard wired: data-so, disabled, title, label binding; Inbox marker), history (a timeline row with nowhere to go is disabled), home (momentum tabs aria-pressed), claude (Library | Candidates aria-selected), ov-scrub (snapshot bar aria-pressed); each with its <!-- v5: reason --> marker (+535 chars / +535 bytes)
+const SHA256 = 'c646bf993e45d6d381ecae4775dd5042f04c118a45276d8ac62995222a5aee95';
+const LENGTH = 312278;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 312834;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

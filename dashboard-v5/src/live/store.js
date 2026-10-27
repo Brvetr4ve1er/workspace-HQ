@@ -250,6 +250,11 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.socialVault || !hq.socialVault.save) return Promise.resolve({ error: 'Saving to the vault needs the WorkspaceHQ app' });
     return askHq(() => hq.socialVault.save(req)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
   }
+  // Inbox Discard: main cancels the staged post, then the bridge snapshot is read again (the post leaves the list)
+  function discardSocialPost(id) {
+    if (!hq || !hq.socialCancel) return Promise.resolve({ error: 'Discarding needs the WorkspaceHQ app' });
+    return askHq(() => hq.socialCancel(String(id))).then((r) => { refreshSocial(); return isObj(r) ? r : { error: 'no answer' }; });
+  }
   function openSocialSite(platform) {
     if (!hq || !hq.socialOpenSite) return Promise.resolve({ error: 'Opening a site needs the WorkspaceHQ app' });
     return askHq(() => hq.socialOpenSite(platform)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
@@ -587,6 +592,6 @@ export function createStore(DATA, hq) {
     emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt, refreshCandidates,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, runPrompt, packImport, packExport,
-    refreshSocialArchive, socialArchiveKind, searchSocialArchive, openSocialDoc, closeSocialDoc, refreshSocialVault, openSocialNote, saveSocialNote, openSocialSite,
+    refreshSocialArchive, socialArchiveKind, searchSocialArchive, openSocialDoc, closeSocialDoc, refreshSocialVault, openSocialNote, saveSocialNote, openSocialSite, discardSocialPost,
   };
 }

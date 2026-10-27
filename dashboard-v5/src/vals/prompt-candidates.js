@@ -16,7 +16,7 @@ export function candidatesVals(ctx) {
   return {
     isPrLib: !cand, isPrCand: cand,
     hcTabLib: () => this.hcView('library'), hcTabCand: () => this.hcView('candidates'),
-    hcLibStyle: cand ? TAB_OFF : TAB_ON, hcCandStyle: cand ? TAB_ON : TAB_OFF,
+    hcLibStyle: cand ? TAB_OFF : TAB_ON, hcCandStyle: cand ? TAB_ON : TAB_OFF, hcLibSel: cand ? 'false' : 'true', hcCandSel: cand ? 'true' : 'false',
     hcState: v.state, hcText: v.text, hcHasText: !!v.text, hcTextStyle: v.state === 'error' ? ERR : NOTE,
     hcRows: rows, hcHasRows: rows.length > 0, hcPoolNote: v.poolNote, hcHasPool: !!v.poolNote,
     hcSelText: S.hcSel.length ? `${S.hcSel.length} ticked` : 'Tick candidates to promote several at once',

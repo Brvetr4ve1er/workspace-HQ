@@ -66,7 +66,7 @@ export const claudeLogic = {
   },
   async startSession() {
     if (!this.canWrite()) return this.denied();
-    const txt = (this.state.composer || '').trim(); if (!txt) return;
+    const txt = (this.state.composer || '').trim(); if (!txt) { this.toast('info', 'Write what Claude should do first'); return; }   // an empty Run said nothing (button sweep 2026-10-27)
     const p = this.proj(this.state.composerProj);
     if (!p || !this.hq.sessionStart) return this.denied('Pick a project first');
     const r = await this.call(() => this.hq.sessionStart({ cwd: p.path, task: txt, label: txt.slice(0, 60) }), 'Session didn’t start');

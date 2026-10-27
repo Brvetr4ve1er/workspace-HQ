@@ -39,6 +39,7 @@ import { projectLogic } from './logic/project.js';
 import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
 import { socialLogic } from './logic/social.js';
+import { lifeLogic } from './logic/life.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -399,5 +400,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic, lifeLogic);
 Component.prototype.renderVals = renderVals;

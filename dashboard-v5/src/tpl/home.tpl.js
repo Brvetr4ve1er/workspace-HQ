@@ -112,7 +112,7 @@ export default String.raw`        <sc-if value="{{ v.home }}" hint-placeholder-v
               <aside style="flex:1 1 280px;min-width:0;display:flex;flex-direction:column;gap:20px">
                 <section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:16px">
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Trend</span><span style="flex:1"></span>
-                    <sc-for list="{{ home.momTabs }}" as="m" hint-placeholder-count="2"><button onClick="{{ m.go }}" style="{{ m.style }}">{{ m.label }}</button></sc-for>
+                    <!-- v5: momentum tabs say which one is on (aria-pressed) --><sc-for list="{{ home.momTabs }}" as="m" hint-placeholder-count="2"><button onClick="{{ m.go }}" aria-pressed="{{ m.on }}" style="{{ m.style }}">{{ m.label }}</button></sc-for>
                   </div>
                   <div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span style="font-size:36px;line-height:.9"><x-import component-from-global-scope="hq-roll" value="{{ home.mom.value }}" hint-size="auto,1em"></x-import></span><span style="font-size:13px;color:{{ home.mom.deltaColor }}">{{ home.mom.delta }}</span></div>
                   <div style="font-size:12px;color:var(--muted)">{{ home.mom.label }}</div>

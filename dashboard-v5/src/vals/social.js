@@ -82,7 +82,10 @@ export function socialVals(ctx) {
     soNoBridge: !hasBridge, soRefresh: () => this.socialLoad(),
     soArchHint: archHas ? '' : 'Instagram and Facebook can also come in as a full archive: download your information from Meta (HTML for Instagram, JSON for Facebook) and import the ZIP.',
     // Inbox (moved from Life › Social; same keys)
-    posts: H.POSTS.map((p) => ({ handle: p.handle, text: p.text, where: p.where, staged: p.staged, open: () => this.toast('info', 'Approve & send happens in the browser extension popup'), skip: () => this.notWired('Discarding a staged post from here') })),
+    posts: H.POSTS.map((p) => { const ask = S.soDiscardAsk === p.id, busy = S.soDiscarding === p.id;
+      return { handle: p.handle, text: p.text, where: p.where, staged: p.staged, open: () => this.toast('info', 'Approve & send happens in the browser extension popup'),
+        skip: () => this.soDiscard(p.id), skipLabel: busy ? 'Discarding…' : ask ? 'Discard for good?' : 'Discard', skipOff: cantWrite || busy,
+        skipTip: cantWrite ? writeReason : ask ? 'Click again: it is marked canceled and can never be sent' : 'Cancel this draft (asks once more; nothing is posted)' }; }),
     hasPosts: H.POSTS.length > 0, noPosts: H.POSTS.length === 0, mentions: H.MENTIONS, hasMentions: H.MENTIONS.length > 0, socialEmpty: !soc.connected,
     // Archive
     soArchBusy: !!arch.busy && !arch.summary, soArchErr: arch.error || '', soHasArchErr: !!arch.error,

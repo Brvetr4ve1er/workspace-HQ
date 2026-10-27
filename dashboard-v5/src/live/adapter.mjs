@@ -230,7 +230,7 @@ export function weeks(snaps, limit = 8) {
     w.xp0 = Math.min(w.xp0, s.account.xp); w.xp1 = Math.max(w.xp1, s.account.xp);
     if (!s.changes.length) w.quiet++;
     for (const c of s.changes) {
-      w.ev.push([c.g, c.t, fmtD(s.day), c.proj, c.c]);
+      w.ev.push([c.g, c.t, fmtD(s.day), c.proj, c.c, c.type]);
       if (c.type === 'quest_completed') w.tasks++;
       if (c.type === 'new_achievement') w.miles++;
     }
