@@ -107,6 +107,12 @@ On the extension side, `socialSend` re-reads the outbox before it publishes. It 
 app can't confirm either. So a post skipped or canceled while the popup was open can't
 be sent from a stale card. Pinned by `dashboard/social-cancel.test.mjs`.
 
+**Amendment (2026-10-27, Social tab) — a third cancel path, same rule.** WorkspaceHQ's Social › Inbox **Discard**
+(owner's second click) calls IPC `hq:social-cancel` (IPC-CONTRACT 2026-10-27), which runs the very same
+`cancelStaged(outboxFile, id)` as the popup route: only `staged → canceled` + `canceled_at`; anything else is refused and
+the file is left byte-identical. Main and the relay share one process and the function is synchronous, so a Discard and
+a popup claim/Skip serialize exactly like two relay requests.
+
 **Amendment (2026-10-06, clean-pass review contract-1) — a send that beats its cancel keeps
 its URL.** The re-read above is check-then-act: nothing moves the action out of `staged`
 while the adapter publishes, so a Skip (or `hq_social_cancel`) that lands during the

@@ -538,6 +538,24 @@ with `source:'instagram'|'facebook'|'social'`). Life › Social moves here (the 
 
 `HQ_VAULT_DIR` overrides the vault (gates); tests pass `vaultDir` directly.
 
+## 2026-10-27 — Social › Inbox: Discard a staged post
+
+Additive only. `dashboard/social-tab.js` gains the handler (same `main.js` hook line, which now also passes `dataDir`); the
+staged → canceled rule is ONE function, `cancelStaged(outboxFile, id)` in `dashboard/social-bridge.js`, shared with the
+popup's `POST /social/outbox/cancel` (CONTRACT.md "cancel never publishes" amendment).
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `socialCancel(id)` | `hq:social-cancel` (invoke) | Only from the owner's second click on Discard in Social › Inbox. Flips ONE `staged` action in `data/social/outbox.json` to `canceled` (+ `canceled_at`), synchronously; never publishes, never touches any other action. → `{ok:true, id, status:'canceled'}`, or `{error}`: `unknown action id`, `already publishing` (status `sending`), `not staged`, `id required`, `write failed: …`. |
+
+## 2026-10-27 — Life › Notes: Open in Obsidian / Search (were "isn't wired")
+
+Additive only. New file `dashboard/vault-open.js` (one hook line in `main.js`).
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `vaultOpen(name, how)` | `hq:vault-open` (invoke) | `name` must equal a `name` in the CURRENT `data/latest.json` `inventory.vaults`; its `path` (absolute, or relative to Documents) must be a vault Obsidian has registered (`%APPDATA%/obsidian/obsidian.json` `vaults{id:{path}}`, compared case-insensitively). `how` = `'open'` → `obsidian://open?vault=<that vault's id>`, `'search'` → `obsidian://search?vault=<id>`; nothing else is ever opened. `HQ_DRY_LAUNCH=1` logs `[dry-open]`. → `{ok, how}` or `{error}` (`refused: not a vault in the latest scan`, `Obsidian doesn't know this vault yet — …`, `Obsidian is not installed …`). |
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
