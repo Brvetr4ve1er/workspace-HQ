@@ -236,7 +236,7 @@ test('registerIpc maps every channel to its Hub op and shapes false into {error}
   const host = { health: async () => ({ state: 'ready' }), request: async (op, args, o) => { calls.push([op, args, o]); return op === 'link' ? false : op === 'forget' ? true : { op }; } };
   registerIpc({ handle: (ch, fn) => { h[ch] = fn; } }, host);
   assert.deepEqual(Object.keys(h).sort(), ['hq:claude-hub:conversation', 'hq:claude-hub:conversations', 'hq:claude-hub:document', 'hq:claude-hub:documents', 'hq:claude-hub:forget', 'hq:claude-hub:health', 'hq:claude-hub:hide-candidate',
-    'hq:claude-hub:link', 'hq:claude-hub:projects', 'hq:claude-hub:prompt-candidates', 'hq:claude-hub:prompt-stats', 'hq:claude-hub:reindex', 'hq:claude-hub:search', 'hq:claude-hub:stats']);
+    'hq:claude-hub:link', 'hq:claude-hub:projects', 'hq:claude-hub:prompt-candidates', 'hq:claude-hub:prompt-stats', 'hq:claude-hub:reindex', 'hq:claude-hub:search', 'hq:claude-hub:social-summary', 'hq:claude-hub:stats']);
   await h['hq:claude-hub:conversation']({}, 'code:s', { limit: 5, before: 'x', beforeId: 'y' });
   assert.deepEqual(calls.at(-1).slice(0, 2), ['getConversation', { limit: 5, before: 'x', beforeId: 'y', id: 'code:s' }]);
   await h['hq:claude-hub:search']({}, 'release', { limit: 5 });
@@ -286,6 +286,13 @@ test('P1: prompt-stats reaches the Hub op promptStats', async () => {
   registerIpc({ handle: (ch, fn) => { h[ch] = fn; } }, { health: async () => ({}), request: async (op, args) => { calls.push([op, args]); return []; } });
   assert.deepEqual(await h['hq:claude-hub:prompt-stats']({}, 'junk'), []);
   assert.deepEqual(calls.at(-1), ['promptStats', {}]);
+});
+
+test('Social tab: social-summary reaches the Hub op socialSummary with no arguments', async () => {
+  const h = {}, calls = [];
+  registerIpc({ handle: (ch, fn) => { h[ch] = fn; } }, { health: async () => ({}), request: async (op, args) => { calls.push([op, args]); return { kinds: [], dms: [] }; } });
+  assert.deepEqual(await h['hq:claude-hub:social-summary']({}, 'junk'), { kinds: [], dms: [] });
+  assert.deepEqual(calls.at(-1), ['socialSummary', {}]);
 });
 
 test('registerIpc: prompt-candidates (15 s, only limit passes) and hide-candidate (false -> {error})', async () => {

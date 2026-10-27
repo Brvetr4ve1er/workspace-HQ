@@ -152,6 +152,7 @@ function registerIpc(ipcMain, host) {
   h('hide-candidate', async (_e, key) => bool(await host.request('hideCandidate', { key: String(key || '').slice(0, 60) }), 'nothing to hide'));
   h('documents', (_e, o) => host.request('listDocuments', { ...obj(o) }));
   h('document', (_e, id) => host.request('getDocument', { id: String(id || '').slice(0, 300) }));
+  h('social-summary', () => host.request('socialSummary', {}));   // Social tab › Archive: counts per network and kind
   h('prompt-stats', () => host.request('promptStats', {}));   // P1: usage per prompt id (prompt_use, written from P3)
   h('reindex', () => host.request('reindex'));
 }

@@ -400,12 +400,15 @@ function api(db) {
     removeDocument: (id) => q('DELETE FROM document WHERE id = ?').run(id).changes > 0,
     removeDocuments: ({ source, idPrefix }) => q("DELETE FROM document WHERE source = ? AND substr(id, 1, length(?)) = ?").run(source, idPrefix, idPrefix).changes,
     documentStamps: (source) => new Map(q('SELECT id, path, mtime_ms, size FROM document WHERE source = ?').all(source).map((r) => [r.id, { path: r.path, mtime_ms: r.mtime_ms, size: r.size }])),
-    listDocuments({ source, projectId, q: query, limit = 50 } = {}) {
+    listDocuments({ source, projectId, origin, kind, q: query, limit = 50 } = {}) {
       const lim = Math.max(1, Math.min(200, Number(limit) || 50));
       const cols = "d.id, d.source, d.path, d.title, d.project_id, d.project_path, d.mtime_ms, d.size, CASE WHEN json_valid(d.meta) THEN json_extract(d.meta, '$.origin') END AS origin, d.meta AS meta_json, CASE WHEN d.source = 'prompt' THEN d.text END AS prompt_text";
       const w = [], a = [];
       if (source) { w.push('d.source = ?'); a.push(source); } else w.push("d.source <> 'history'");
       if (projectId) { w.push('d.project_id = ?'); a.push(projectId); }
+      // Social tab › Archive: one network / one kind of a social export (meta {origin, kind}, ingest-meta.mjs)
+      if (typeof origin === 'string' && origin) { w.push("json_valid(d.meta) AND json_extract(d.meta, '$.origin') = ?"); a.push(origin); }
+      if (typeof kind === 'string' && kind) { w.push("json_valid(d.meta) AND json_extract(d.meta, '$.kind') = ?"); a.push(kind); }
       if (query !== undefined && query !== null && String(query).trim() !== '') {
         const m = ftsQuery(query);
         if (!m) return [];
@@ -414,6 +417,14 @@ function api(db) {
           FROM document_fts JOIN document d ON d.rowid = document_fts.rowid WHERE document_fts MATCH ? AND ${w.join(' AND ')} ORDER BY rank LIMIT ?`).all(m, ...a, lim).map(docRow);
       }
       return q(`SELECT ${cols} FROM document d WHERE ${w.join(' AND ')} ORDER BY d.mtime_ms DESC, d.id DESC LIMIT ?`).all(...a, lim).map(docRow);
+    },
+    // Social tab › Archive: social documents per network and kind (counts only) + each network's DM chats
+    socialSummary() {
+      const kinds = q(`SELECT json_extract(meta, '$.origin') AS origin, json_extract(meta, '$.kind') AS kind, COUNT(*) AS docs, MAX(mtime_ms) AS newest_ms
+        FROM document WHERE source = 'social' AND json_valid(meta) GROUP BY origin, kind ORDER BY origin, docs DESC, kind`).all().map((r) => ({ ...r }));
+      const dms = q(`SELECT source AS origin, COUNT(*) AS conversations, SUM(message_count) AS messages, MAX(last_at) AS last_at FROM conversation
+        WHERE source IN ('instagram', 'facebook') AND forgotten = 0 AND message_count > 0 GROUP BY source`).all().map((r) => ({ ...r }));
+      return { kinds, dms };
     },
     addPromptUse(row) {
       const r = row && typeof row === 'object' ? row : {};

@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('hq', {
     documents: (opts) => ipcRenderer.invoke('hq:claude-hub:documents', opts),
     document: (id) => ipcRenderer.invoke('hq:claude-hub:document', id),
     promptStats: () => ipcRenderer.invoke('hq:claude-hub:prompt-stats'),
+    socialSummary: () => ipcRenderer.invoke('hq:claude-hub:social-summary'),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:claude-hub:event', handler);
@@ -65,6 +66,13 @@ contextBridge.exposeInMainWorld('hq', {
     preview: (conversationId) => ipcRenderer.invoke('hq:claude-vault:preview', conversationId),
     save: (req) => ipcRenderer.invoke('hq:claude-vault:save', req),
   },
+  // Social tab › Vault (VEEMO CORTEX): list 30_Areas/Social + 00_Inbox/Social *.md, open a listed note, save one new note on the owner's Save
+  socialVault: {
+    list: () => ipcRenderer.invoke('hq:social-vault:list'),
+    open: (rel, how) => ipcRenderer.invoke('hq:social-vault:open', rel, how),
+    save: (req) => ipcRenderer.invoke('hq:social-vault:save', req),
+  },
+  socialOpenSite: (platform) => ipcRenderer.invoke('hq:social-open-site', platform),   // a listed platform's home page, to sign in there
   // Prompt library P1: status (folder there? Obsidian installed?) + open a prompt note (main finds the file itself)
   claudePrompts: {
     status: () => ipcRenderer.invoke('hq:claude-prompts:status'),

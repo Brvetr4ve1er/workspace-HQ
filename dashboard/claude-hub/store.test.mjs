@@ -498,3 +498,26 @@ test('P3: addPromptUse validates and writes one row per call; promptStats counts
   assert.throws(() => s.addPromptUse(null), /promptUse: /);
   assert.equal(s.db.prepare('SELECT COUNT(*) AS c FROM prompt_use').get().c, 3, 'a refused row writes nothing');
 });
+
+test('Social tab: listDocuments filters by origin/kind; socialSummary counts docs per network+kind and DM chats', () => {
+  const s = openStore(tmpDb());
+  const doc = (id, origin, kind, ms) => s.upsertDocument({ id, source: 'social', title: id, text: 'placeholder ' + id, mtimeMs: ms, size: 1, meta: { origin, kind } });
+  doc('social:instagram:posts:1', 'instagram', 'posts', 10); doc('social:instagram:posts:2', 'instagram', 'posts', 30);
+  doc('social:instagram:likes:top', 'instagram', 'likes', 20); doc('social:facebook:posts:1', 'facebook', 'posts', 5);
+  s.upsertDocument({ id: 'memory:x', source: 'memory', title: 'm', text: 'placeholder', mtimeMs: 1, size: 1, meta: null });
+  assert.deepEqual(s.listDocuments({ source: 'social', origin: 'instagram' }).map((d) => d.id), ['social:instagram:posts:2', 'social:instagram:likes:top', 'social:instagram:posts:1']);
+  assert.deepEqual(s.listDocuments({ source: 'social', origin: 'instagram', kind: 'posts' }).map((d) => d.id), ['social:instagram:posts:2', 'social:instagram:posts:1']);
+  assert.deepEqual(s.listDocuments({ source: 'social', kind: 'posts', q: 'placeholder' }).map((d) => d.id).sort(), ['social:facebook:posts:1', 'social:instagram:posts:1', 'social:instagram:posts:2']);
+  s.upsertProject({ id: 'instagram:dms', source: 'instagram', key: 'dms', name: 'Instagram DMs', path: null });
+  s.ensureConversation({ id: 'instagram:t1', source: 'instagram', projectId: 'instagram:dms', nativeId: 't1' });
+  s.ensureConversation({ id: 'instagram:t2', source: 'instagram', projectId: 'instagram:dms', nativeId: 't2' });   // no messages: not counted
+  s.addMessages('instagram:t1', [{ id: 'instagram:m1', nativeId: 'm1', parentId: null, role: 'user', at: '2026-10-01T10:00:00Z', text: 'hi', toolName: null, isSidechain: false },
+    { id: 'instagram:m2', nativeId: 'm2', parentId: null, role: 'other', at: '2026-10-02T10:00:00Z', text: 'hey', toolName: 'Someone', isSidechain: false }]);
+  const sum = s.socialSummary();
+  assert.deepEqual(sum.kinds, [
+    { origin: 'facebook', kind: 'posts', docs: 1, newest_ms: 5 },
+    { origin: 'instagram', kind: 'posts', docs: 2, newest_ms: 30 },
+    { origin: 'instagram', kind: 'likes', docs: 1, newest_ms: 20 },
+  ]);
+  assert.deepEqual(sum.dms, [{ origin: 'instagram', conversations: 1, messages: 2, last_at: '2026-10-02T10:00:00Z' }]);
+});

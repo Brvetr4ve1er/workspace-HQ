@@ -450,6 +450,7 @@ function main() {
     },
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
+    socialSummary: () => { if (!store) throw new Error('the index is not open yet'); return store.socialSummary(); },
     // P3: one usage row per successful prompt run (main only). Writer + queue, like forget.
     promptUse: (a) => {
       if (!writer) notOwner();
