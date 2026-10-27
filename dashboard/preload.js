@@ -137,6 +137,8 @@ contextBridge.exposeInMainWorld('hq', {
   getCanvas: () => ipcRenderer.invoke('hq:canvas-read'),
   canvasAdd: (name, node) => ipcRenderer.invoke('hq:canvas-add', name, node),
   canvasRemove: (board, id) => ipcRenderer.invoke('hq:canvas-remove', board, id),   // one node + its edges; a copy goes to removed.jsonl
+  canvasCreate: (board) => ipcRenderer.invoke('hq:canvas-create', board),   // a new empty board, never over an existing one
+  canvasClear: (board) => ipcRenderer.invoke('hq:canvas-clear', board),   // every node + edge; a copy goes to removed.jsonl, the board stays
   onCanvas: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('hq:canvas', handler);

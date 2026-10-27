@@ -7,7 +7,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { createCanvasRemove } = require('./canvas-ops.js');
+const { createCanvasRemove, createCanvasCreate, createCanvasClear } = require('./canvas-ops.js');
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-canvas-ops-'));
@@ -52,4 +52,30 @@ test('a board without edges still works', () => {
   fs.writeFileSync(path.join(dir, 'Bare.canvas'), JSON.stringify({ nodes: [{ id: 'n1', type: 'text', text: 'x' }] }));
   assert.deepEqual(remove('Bare', 'n1'), { ok: true, board: 'Bare', id: 'n1', edges: 0 });
   assert.deepEqual(read(dir, 'Bare.canvas'), { nodes: [], edges: [] });
+});
+
+test('create writes an empty board, never over an existing one (case-insensitive)', () => {
+  const { dir } = setup();
+  const create = createCanvasCreate(dir);
+  assert.deepEqual(create('Plans'), { ok: true, board: 'Plans' });
+  assert.equal(fs.readFileSync(path.join(dir, 'Plans.canvas'), 'utf8'), JSON.stringify({ nodes: [], edges: [] }, null, 1));
+  assert.deepEqual(create('plans'), { error: 'a board named plans already exists' });
+  const before = fs.readFileSync(path.join(dir, 'Ideas.canvas'), 'utf8');
+  assert.deepEqual(create('Ideas'), { error: 'a board named Ideas already exists' });
+  assert.equal(fs.readFileSync(path.join(dir, 'Ideas.canvas'), 'utf8'), before);
+  for (const bad of ['', '../x', 'a.b', 'NUL', 'x'.repeat(65)]) assert.deepEqual(create(bad), { error: 'bad board name' }, bad);
+  const fresh = path.join(dir, 'new-dir');
+  assert.deepEqual(createCanvasCreate(fresh)('First'), { ok: true, board: 'First' });
+});
+
+test('clear logs every node and edge, then empties the board and keeps its other keys', () => {
+  const { dir } = setup();
+  const clear = createCanvasClear(dir, () => new Date('2026-01-02T03:04:05.000Z'));
+  const before = read(dir, 'Ideas.canvas');
+  assert.deepEqual(clear('Ideas'), { ok: true, board: 'Ideas', nodes: 3, edges: 3 });
+  assert.deepEqual(read(dir, 'Ideas.canvas'), { nodes: [], edges: [], extra: 'kept' });
+  const log = JSON.parse(fs.readFileSync(path.join(dir, 'removed.jsonl'), 'utf8').trim());
+  assert.deepEqual(log, { at: '2026-01-02T03:04:05.000Z', board: 'Ideas', cleared: true, nodes: before.nodes, edges: before.edges });
+  assert.deepEqual(clear('Nope'), { error: 'no board named Nope' });
+  assert.deepEqual(clear('../Ideas'), { error: 'bad board name' });
 });

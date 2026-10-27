@@ -308,6 +308,48 @@ const TOOLS = [
     },
   },
   {
+    name: 'hq_canvas_create',
+    description: 'Create a new, empty canvas board. Refuses if a board with that name exists (case-insensitive). Same rule as the app\'s ＋ Board (hq:canvas-create).',
+    inputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'board name — letters, digits, space, - and _ (max 64)' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    run(args) {
+      const name = String(args.name || '');
+      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
+      let have = [];
+      try { have = fs.readdirSync(confined('canvas')).filter((f) => f.endsWith('.canvas')).map((f) => f.slice(0, -7).toLowerCase()); } catch { /* no boards yet */ }
+      if (have.includes(name.toLowerCase())) throw new ToolError(`a board named "${name}" already exists`);
+      const file = confined('canvas', `${name}.canvas`);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ nodes: [], edges: [] }, null, 1), { flag: 'wx' });
+      return { ok: true, board: name };
+    },
+  },
+  {
+    name: 'hq_canvas_clear',
+    description: 'Empty a canvas board: every node and edge goes. Only when the user asks to clear that board. Everything removed is appended to data/canvas/removed.jsonl first; the board itself stays. Same rule as the app\'s Clear (hq:canvas-clear).',
+    inputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'board name' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    run(args) {
+      const name = String(args.name || '');
+      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
+      const file = confined('canvas', `${name}.canvas`);
+      const b = readJson(file, null);
+      if (!b || !Array.isArray(b.nodes)) throw new ToolError(`no board named "${name}"`);
+      const edges = Array.isArray(b.edges) ? b.edges : [];
+      fs.appendFileSync(confined('canvas', 'removed.jsonl'), JSON.stringify({ at: new Date().toISOString(), board: name, cleared: true, nodes: b.nodes, edges }) + '\n');
+      writeAtomic(file, JSON.stringify({ ...b, nodes: [], edges: [] }, null, 1));
+      return { ok: true, board: name, nodes: b.nodes.length, edges: edges.length };
+    },
+  },
+  {
     name: 'hq_scan_trigger',
     description: 'Fire-and-forget: start the collector (raw metrics pass, no LLM). Returns immediately; enrichment/assemble happen on the next app scan or relaunch. Job-id polling: deferred to v2.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },

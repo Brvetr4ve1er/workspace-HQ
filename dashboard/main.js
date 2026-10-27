@@ -1597,7 +1597,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./claude-prompts').init({ ipcMain, app, shell, vaultDir: VAULT, hub: claudeHub, chat: claudeChatEngine, getProjects: studioProjects, launch: launchClaudeTerminal, clipboard: require('electron').clipboard, dialog, getWin: () => win });   // Prompt library P1–P3 (spec 2026-10-15 §6.4): status, open, promote, run, packs
     require('./social-tab').init({ ipcMain, app, shell, vaultDir: VAULT, dataDir: DATA, log: (s) => console.log(s) });   // Social tab: VEEMO CORTEX social notes (hq:social-vault:list/open/save; writes only on the owner's Save) + hq:social-open-site (fixed platform URLs) + hq:social-cancel (Inbox Discard)
     require('./vault-open').init({ ipcMain, app, shell, dataDir: DATA, docsRoot: DOCS_ROOT, log: (s) => console.log(s) });   // Life › Notes: Open in Obsidian / Search for a scanned, Obsidian-registered vault (hq:vault-open)
-    require('./canvas-ops').init({ ipcMain, canvasDir: CANVAS_DIR });   // Claude › Canvas Remove: one node + its edges, a copy kept in removed.jsonl (hq:canvas-remove)
+    require('./canvas-ops').init({ ipcMain, canvasDir: CANVAS_DIR });   // Claude › Canvas Remove / ＋ Board / Clear board, removals copied to removed.jsonl (hq:canvas-remove, -create, -clear)
     require('./stat-card').init({ ipcMain, app, dialog, getWin: () => win });   // Save stat card PNG: the renderer draws, main picks the path (hq:stat-card-save)
     require('./pc-health-open').init({ ipcMain, shell, dataDir: DATA });   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });

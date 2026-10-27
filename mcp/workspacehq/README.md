@@ -21,6 +21,8 @@ Protocol: newline-delimited JSON-RPC 2.0 on stdin/stdout, MCP protocol version
 | `hq_canvas_read` | `{name?}` | No name: list boards in `data/canvas/` with node/edge counts. Named: full board JSON | live |
 | `hq_canvas_add` | `{name, text, x?, y?}` (text ≤2000) | Appends a text node (`280×120`, default position `40,40`) to `data/canvas/<name>.canvas`, creating the board if absent. Atomic write | **near-live** — the app fs-watches `data/canvas/` |
 | `hq_canvas_remove` | `{name, id}` | Removes one node and every edge touching it from `data/canvas/<name>.canvas`; the node and its edges are appended to `data/canvas/removed.jsonl` first. Same rule as the app's Remove (`hq:canvas-remove`). Atomic write | **near-live** |
+| `hq_canvas_create` | `{name}` | Creates an empty `data/canvas/<name>.canvas`; refuses an existing name (case-insensitive). Same rule as the app's ＋ Board | **near-live** |
+| `hq_canvas_clear` | `{name}` | Empties a board (nodes and edges); everything removed is appended to `data/canvas/removed.jsonl` first, the board stays. Same rule as the app's Clear | **near-live** |
 | `hq_scan_trigger` | — | Spawns `collector/collector.mjs` detached and returns `{started:true}` immediately | raw metrics only; assemble + enrichment on next app scan/relaunch |
 
 The social tools (`hq_social_status/_feed/_mentions/_metrics/_post/_reply/_outbox/_cancel`)

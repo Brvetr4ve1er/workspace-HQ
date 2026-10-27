@@ -109,3 +109,21 @@ test('hq_canvas_remove drops one node and its edges, logs it to removed.jsonl, a
   const log = JSON.parse(fs.readFileSync(path.join(dir, 'removed.jsonl'), 'utf8').trim());
   assert.deepEqual([log.board, log.node.id, log.edges.length], ['Ideas', 'a', 1]);
 });
+
+test('hq_canvas_create makes an empty board once; hq_canvas_clear empties one and logs it', async () => {
+  const dir = path.join(root, 'data', 'canvas');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'Full.canvas'), JSON.stringify({ nodes: [{ id: 'x', type: 'text', text: 'X' }], edges: [], keep: 1 }));
+  const r = await rpc([
+    { id: 8, method: 'tools/call', params: { name: 'hq_canvas_create', arguments: { name: 'Fresh' } } },
+    { id: 9, method: 'tools/call', params: { name: 'hq_canvas_create', arguments: { name: 'fresh' } } },
+    { id: 10, method: 'tools/call', params: { name: 'hq_canvas_clear', arguments: { name: 'Full' } } },
+  ]);
+  assert.deepEqual(toolResult(r[8]), { ok: true, board: 'Fresh' });
+  assert.equal(r[9].result.isError, true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'Fresh.canvas'), 'utf8')), { nodes: [], edges: [] });
+  assert.deepEqual(toolResult(r[10]), { ok: true, board: 'Full', nodes: 1, edges: 0 });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'Full.canvas'), 'utf8')), { nodes: [], edges: [], keep: 1 });
+  const last = fs.readFileSync(path.join(dir, 'removed.jsonl'), 'utf8').trim().split('\n').pop();
+  assert.equal(JSON.parse(last).cleared, true);
+});
