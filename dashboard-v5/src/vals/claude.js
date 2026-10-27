@@ -1,4 +1,5 @@
 // Claude render values: sessions, session detail, composer, canvas.
+import { pinKey } from '../logic/canvas-pins.mjs';
 // Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
 
 export function claudeVals(ctx) {
@@ -16,7 +17,13 @@ export function claudeVals(ctx) {
   const composerProjs = projects.map((p) => ({ label: p.name, go: () => this.setState({ composerProj: p.id }), style: Object.assign(tabStyle(S.composerProj === p.id), { height: 28, padding: '0 8px', fontSize: 12 }) }));
   const TONE = { orange: 'var(--orange)', gold: 'var(--gold)', blue: 'var(--blue)', green: 'var(--green)' };
   // board: which board the card is on (a note added with ＋ Note and one Claude pinned look the same on disk)
-  const canvas = H.CANVAS.map((w) => ({ title: w.title, board: w.board, isStat: w.type === 'stat', isList: w.type === 'list', isNote: w.type === 'note', value: w.value, note: w.note || 'board · ' + w.board, items: w.items || [], body: w.body, color: TONE[w.tone], span: w.wide ? 'span 2' : 'span 1', pin: () => this.notWired('Pinning canvas cards to Home'), remove: () => this.notWired('Removing canvas cards (boards are append-only for now)') }));
+  // Pin to Home (per-PC prefs) and Remove (two clicks → hq.canvasRemove): logic/canvas.js
+  const removeWhy = !this.hq || !this.hq.canvasRemove ? 'Unavailable — the bridge is offline' : cantWrite ? (this.writeReason() || 'Read-only right now') : '';
+  const canvasActs = (w) => { const key = pinKey(w), pinned = !!key && (S.canvasPins || []).includes(key), ask = !!key && S.canvasRemoveAsk === key, busy = !!key && S.canvasRemoving === key;
+    return { pin: () => this.canvasPinToggle(w), pinLabel: pinned ? 'Pinned ✓' : 'Pin to Home', pinPressed: pinned ? 'true' : 'false', pinTip: !key ? 'This card has no id' : pinned ? 'Unpin it from Home (this PC only)' : 'Show this card on Home (this PC only)',
+      remove: () => this.canvasRemove(w), removeLabel: busy ? 'Removing…' : ask ? 'Remove for good?' : 'Remove', removeOff: !key || !!removeWhy || !!S.canvasRemoving,
+      removeTip: !key ? 'This card has no id' : removeWhy || (ask ? 'Click again to remove it from ' + w.board + ' (a copy is kept in removed.jsonl)' : 'Remove this card from ' + w.board) }; };
+  const canvas = H.CANVAS.map((w) => ({ title: w.title, board: w.board, isStat: w.type === 'stat', isList: w.type === 'list', isNote: w.type === 'note', value: w.value, note: w.note || 'board · ' + w.board, items: w.items || [], body: w.body, color: TONE[w.tone], span: w.wide ? 'span 2' : 'span 1', ...canvasActs(w) }));
   // ＋ Note (Phase 3 P5): board picker + text → hq.canvasAdd (logic/claude.js)
   const boardNames = this.canvasBoardNames(), board = this.canvasBoardPick(), noteWhy = this.canvasNoteReason();
   const draft = typeof S.canvasDraft === 'string' ? S.canvasDraft : '';

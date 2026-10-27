@@ -1,4 +1,5 @@
-// Home render values: next task, portfolio rows, momentum, changes, weekly recap.
+// Home render values: next task, portfolio rows, momentum, changes, weekly recap, pinned canvas cards.
+import { pinnedWidgets } from '../logic/canvas-pins.mjs';
 
 export function homeVals(ctx) {
   const { S, H, LIVE, off, live, snap, viewedLabel, projects, open, tk, rows, rowOf, plural, top } = ctx;
@@ -13,6 +14,10 @@ export function homeVals(ctx) {
   // an automation that has run fine since that failure is skipped
   const failing = (a) => !!(a && a.last && !a.last.ok);
   const suggest = H.INITIAL_RUNS.filter((r) => r.status === 'failed').map((r) => H.AUTOS.find((a) => a.name === r.name)).find(failing) || null;
+  // canvas cards pinned from Claude › Canvas (per-PC); a pin whose card is gone just drops
+  const TONE = { orange: 'var(--orange)', gold: 'var(--gold)', blue: 'var(--blue)', green: 'var(--green)' };
+  const pins = pinnedWidgets(S.canvasPins, H.CANVAS).map((w) => ({ title: w.title, board: w.board, color: TONE[w.tone] || 'var(--muted)',
+    text: (w.type === 'list' ? (w.items || []).join(' · ') : String(w.body || '')).slice(0, 160), open: () => this.go('claude', 'canvas'), unpin: () => this.canvasPinToggle(w) }));
   const home = {
     greeting: live ? 'Today' : viewedLabel,
     sub: live ? this.greet() + ' · ' + H.DOW[new Date().getDay()] + ', ' + H.fmtD(new Date()) + ' · ' + (open.filter((t) => t.tier === 'red').length ? open.filter((t) => t.tier === 'red').length + ' critical' : 'nothing critical') : 'Read-only snapshot · the next action as it stood that day',
@@ -25,6 +30,7 @@ export function homeVals(ctx) {
     changes, hasChanges: changes.length > 0, noChanges: changes.length === 0, prevLabel: H.fmtD(H.dayAt(off + 1)),
     mom: { value: momVals[momVals.length - 1], delta: (md > 0 ? '▲ +' : md < 0 ? '▼ ' : '± ') + md, deltaColor: S.momentum === 'xp' ? (md > 0 ? 'var(--green)' : 'var(--faint)') : (md < 0 ? 'var(--green)' : md > 0 ? 'var(--orange)' : 'var(--faint)'), label: S.momentum === 'xp' ? 'Total XP · measured from completed work' : 'Uncommitted files · measured', pts: this.sparkPts(momVals, 280, 56), range: H.fmtD(H.dayAt(momSpan[0])) + ' → ' + viewedLabel + ' · based on ' + momVals.length + ' scans' },
     momTabs: [['unc', 'Uncommitted'], ['xp', 'XP']].map(([id, l]) => ({ label: l, on: S.momentum === id ? 'true' : 'false', go: () => this.setState({ momentum: id }), style: { height: 28, padding: '0 8px', fontFamily: 'var(--term)', fontSize: 12, cursor: 'pointer', background: S.momentum === id ? 'var(--ink)' : 'transparent', color: S.momentum === id ? 'var(--text)' : 'var(--muted)', border: '1px solid ' + (S.momentum === id ? 'var(--frame)' : 'transparent') } })),
+    pins, hasPins: pins.length > 0,
     social: LIVE.social.connected ? H.POSTS.length + ' post' + (H.POSTS.length === 1 ? '' : 's') + ' awaiting approval · ' + H.MENTIONS.length + ' recent mentions' : 'Social · connect accounts through the browser extension',
     showRecap: live && !!recap && !S.recapDismissed, recapOpen: S.recapOpen,
     recapRange: recap ? H.fmtD(new Date(recap.week_start + 'T12:00')) + ' – ' + H.fmtD(new Date(recap.week_end + 'T12:00')) : '', recapStats, recapAi: !!(recap && recap.ai_narrative),

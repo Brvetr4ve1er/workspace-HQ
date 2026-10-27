@@ -44,9 +44,10 @@ import tpl from './app.tpl.js';
 // 2026-10-27 Instagram / Facebook import: claude fragment, one line — an "Import Instagram / Facebook export" button after the ChatGPT one, with its <!-- v5: reason --> marker (+463 chars / +463 bytes, no line removed)
 // 2026-10-27 Social tab: new fragment social.tpl.js after life (Accounts, Inbox, Archive, Vault; each block with its <!-- v5: reason --> marker); life.tpl.js loses its Social block (moved unchanged into the Inbox) for a one-line marker (+20309 chars / +20339 bytes)
 // 2026-10-27 button sweep fixes: social (Discard wired: data-so, disabled, title, label binding; Inbox marker), history (a timeline row with nowhere to go is disabled), home (momentum tabs aria-pressed), claude (Library | Candidates aria-selected), ov-scrub (snapshot bar aria-pressed); each with its <!-- v5: reason --> marker (+535 chars / +535 bytes)
-const SHA256 = 'c646bf993e45d6d381ecae4775dd5042f04c118a45276d8ac62995222a5aee95';
-const LENGTH = 312278;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 312834;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-27 canvas pin / remove + stat card: claude (card Pin aria-pressed + title + label binding, Remove disabled + title + label binding), home (Pinned from canvas section), ov-settings (Save stat card PNG wired: disabled + label binding, the 'not wired' note replaced), ov-misc (level-up Save card: disabled + label binding); each with its <!-- v5: reason --> marker (+2168 chars / +2176 bytes)
+const SHA256 = 'f7c6e8a8fe5d5fce77fc4e4ac2bc2207f5e190be04c9b6b22a310b7a634f3db3';
+const LENGTH = 314446;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 315010;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

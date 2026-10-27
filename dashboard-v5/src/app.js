@@ -40,6 +40,8 @@ import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
 import { socialLogic } from './logic/social.js';
 import { lifeLogic } from './logic/life.js';
+import { canvasLogic } from './logic/canvas.js';
+import { statCardLogic } from './logic/stat-card.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -71,6 +73,7 @@ export class Component extends DCLogic {
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
       vw: window.innerWidth, completed: [], recentDone: [], dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
+      canvasPins: Array.isArray(P.canvasPins) ? P.canvasPins.filter((k) => typeof k === 'string') : [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false,   // Canvas Pin to Home (per-PC) / Remove, stat card PNG
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
       scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: [], askDraft: '',
       runsOpen: false, localRuns: [], expandedRun: null, settingsOpen: false, cheatOpen: false, ambientOverlay: false, moreOpen: false,
@@ -149,10 +152,10 @@ export class Component extends DCLogic {
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
-    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
+    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'canvasPins', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
       delete P.notifyMeasured;   // the Notifications switch was cut (Phase 2); drop what older builds saved
-      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
+      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, pinned: S.pinned, canvasPins: S.canvasPins, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
         recapSeen: S.recapDismissed && this.M.weeklyRecap ? this.M.weeklyRecap.week_end : P.recapSeen, sinceSeen: S.sinceDismissed ? this.M.at(0).id : P.sinceSeen }));
     }
     { const pr = this.projectsAt(0), sec = this.sum(pr, (p) => p.secrets), run = this.runningCount() > 0; FX().set({ level: this.M.levelOf(S.xp).l, mood: run ? 'busy' : sec > 0 ? 'nervous' : this.openTasks(0).length === 0 ? 'sleepy' : 'ok' }); }
@@ -400,5 +403,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic, lifeLogic);
+  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic, lifeLogic, canvasLogic, statCardLogic);
 Component.prototype.renderVals = renderVals;

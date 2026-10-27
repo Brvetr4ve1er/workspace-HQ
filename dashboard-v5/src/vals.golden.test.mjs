@@ -500,7 +500,10 @@ add('overlay.lightbox-thumb-only', { live: (L) => { L.captures = A.captures(CAPT
 // P5 Canvas ＋ Note: form open on the second board, saving, no bridge (disabled with the reason)
 add('claude.canvas-note', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasBoard: 'Board One' }) });
 add('claude.canvas-note-saving', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasSaving: true }) });
-add('claude.canvas-note-nobridge', { state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
+add('claude.canvas-pinned-remove-ask', { hq: { ...P3_HQ, canvasRemove() {} }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasPins: ['Board One/n1', 'Board One/gone'], canvasRemoveAsk: 'Board One/n2' }) });   // Pinned ✓ + Remove's second-click state
+add('home.canvas-pins', { state: () => ({ tab: 'home', canvasPins: ['Board One/n2', 'Board One/gone', 'Board One/n1'] }) });   // Home › Pinned from canvas (a gone pin drops)
+add('overlay.stat-card-saving', { hq: { statCardSave() {} }, state: { settingsOpen: true, statCardSaving: true } });
+add('claude.canvas-note-nobridge',{ state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
 add('claude.canvas-pushed-boards', { hq: P3_HQ, live: (L) => { L.canvasBoards = A.canvasBoards({ boards: [{ name: 'Board Two', nodes: [] }, { name: 'bad/name', nodes: [] }] }); }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
 // Prompt library P1 — Claude › Prompts › Library (spec 2026-10-15 §6.3)
 const PR_HQ = { claudeHub: { documents() {}, promptStats() {} }, claudePrompts: { status() {}, open() {} } };

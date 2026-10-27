@@ -5,8 +5,8 @@
 export function overlaysVals(ctx) {
   const { S, H, live, ps, snap, unc, TK } = ctx;
   // ----- level-up stat card (measured) -----
-  const wk = this.span(7, 0), uncThen = this.series('unc', wk[0]);
-  const lvl = S.levelUp ? { l: S.levelUp.l, t: S.levelUp.t, stats: [['Tasks done (all time)', String(snap.doneTasks.length + S.completed.length)], ['Commits, last ' + wk.length + ' scans', String(this.sum(wk, (o) => this.series('commits', o)))], ['Scan streak', snap.account.streak + (snap.account.streak === 1 ? ' day' : ' days')], ['Uncommitted, then → now', uncThen + ' → ' + unc]].map((s) => ({ k: s[0], v: s[1] })) } : {};
+  // the same measured stats the saved PNG shows (logic/stat-card.js)
+  const lvl = S.levelUp ? { l: S.levelUp.l, t: S.levelUp.t, stats: this.statCardStats() } : {};
   // ----- since last scan / notifications -----
   const latest = H.at(0);
   const since = latest.changes.slice(0, 6).map((c) => ({ g: c.g, t: c.t, c: c.c, open: c.proj ? () => this.openProject(c.proj) : () => this.go('history', 'timeline') }));
@@ -28,7 +28,7 @@ export function overlaysVals(ctx) {
     // (Since the F2 split, `out` is assembled from src/vals/*.js; the keys this note covers
     // that live in other files are marked there with a RECONSTRUCTED pointer.)
     hasSheet: !!S.sheet, sheet: S.sheet || {}, sheetDanger: !!(S.sheet && S.sheet.danger), sheetSafe: !!(S.sheet && !S.sheet.danger), cancelSheet: () => this.setState({ sheet: null }), sheetOk: () => this.sheetOk(),
-    exportCard: () => this.notWired('Exporting the stat card'),
+    exportCard: () => this.exportStatCard(), exportCardLabel: S.statCardSaving ? 'Saving…' : 'Save stat card PNG', exportCardOff: !!S.statCardSaving,
     hasLevel: !!S.levelUp, lvl, closeLevel: () => this.setState({ levelUp: null }),
   };
 }
