@@ -20,7 +20,7 @@ export function claudeChatVals(ctx) {
     ccRows: rows, ccHasRows: rows.length > 0,
     ccSend: () => this.ccSend(), ccCantSend: !cv.canSend, ccSendTip: cv.sendTip,
     ccStop: () => this.ccStop(), ccRunning: cv.running, ccQuota: cv.quota, ccClose: () => this.ccClose(),
-    ccContinue: () => this.ccContinue(), ccCanContinue: !!(thread && thread.conversation && thread.conversation.id),
+    ccContinue: () => this.ccContinue(), ccCanContinue: !!(thread && thread.conversation && thread.conversation.id) && !['instagram', 'facebook'].includes(thread.conversation.source),   // a DM is read-only
     ccShowPicks: cv.showPicks, ccIsWeb: cv.isWeb, ccWebNote: cv.webNote,
     ccContinueLabel: thread && thread.conversation && (thread.conversation.source === 'web' || thread.conversation.source === 'chatgpt') ? 'Continue in Claude Code' : 'Continue',
     ccOpenThread: () => this.ccOpenThread(), ccHasConv: !!cv.convId, ccSending: cv.sending,

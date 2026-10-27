@@ -12,6 +12,7 @@ import { makeClaudeHome, userLine, titleLine } from './__fixtures__/make-fixture
 import { zipFiles, exportJson } from './__fixtures__/make-export.mjs';
 import { makeDocsHome, historyLine } from './__fixtures__/make-docs.mjs';
 import { writeChatGPTZip } from './__fixtures__/make-chatgpt-export.mjs';
+import { writeFacebookZip } from './__fixtures__/make-meta-export.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
 import { acquireLock, resolveClaudeRoot, splitCommandLine, docsProblem } from './hub.mjs';
@@ -970,6 +971,26 @@ test('H6 importChatGPT: progress carries source chatgpt, lastImport records it, 
     assert.deepEqual((await h.req('importChatGPT', { zipPath: claude })).result, { started: true });
     assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'failed' && /claude\.ai export/.test(e.data.error))));
     assert.equal((await h.req('health')).result.lastImport.ok, false);
+  } finally { await h.stop(); }
+});
+
+test('importMeta: an Instagram or Facebook ZIP imports, lastImport names the network; expect refuses the other one', async () => {
+  const dir = tmp('hub-meta-');
+  const home = path.join(dir, '.claude'); fs.mkdirSync(path.join(home, 'projects'), { recursive: true });
+  const db = path.join(dir, 'hub.sqlite');
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_VAULT_DIR: path.join(dir, 'vault') }, db);
+  try {
+    await h.healthy();
+    assert.equal((await h.req('importMeta', { zipPath: 'relative.zip' })).ok, false);
+    const fb = path.join(dir, 'facebook.zip'); writeFacebookZip(fb);
+    assert.deepEqual((await h.req('importMeta', { zipPath: fb })).result, { started: true });
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'done' && e.data.source === 'facebook')));
+    const health = (await h.req('health')).result;
+    assert.equal(health.lastImport.source, 'facebook'); assert.equal(health.lastImport.report.conversations.imported, 1);
+    assert.equal((await h.req('listConversations', { source: 'facebook' })).result.length, 1);
+    assert.ok((await h.req('listDocuments', { source: 'social' })).result.length > 0);
+    assert.deepEqual((await h.req('importMeta', { zipPath: fb, expect: 'instagram' })).result, { started: true });
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'failed' && /not an Instagram export/.test(e.data.error))));
   } finally { await h.stop(); }
 });
 

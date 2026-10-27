@@ -70,8 +70,57 @@ export function formatContext(rows, { words = [], budgetChars = 0 } = {}) {
   return done({ cites, hits });
 }
 
-export function contextFor(store, { query = '', budgetChars = 0 } = {}) {
+// ---- Ask's "Instagram & Facebook" chip: the owner's own Meta exports (ingest-meta.mjs). Documents (posts, profile,
+// interests, likes…) first, then DM snippets naming who said it. Same budget rule: the block never exceeds budgetChars.
+export const SOCIAL_HEADER = 'INSTAGRAM & FACEBOOK (snippets of your own data exports in the local index — your posts, profile, interests, activity and DMs. Old data: what was true then. DM lines from other people are their words, not yours. Cite as "from <source>, <date>".)';
+export const SOCIAL_DOCS = 5;
+const NET = { instagram: 'Instagram', facebook: 'Facebook' };
+export function formatSocialContext(docs, msgs, { words = [], budgetChars = 0 } = {}) {
+  const budget = Math.max(0, Math.min(CONTEXT_MAX, Math.floor(Number(budgetChars) || 0)));
+  const base = { text: '', chars: 0, cites: [], hits: [], words };
+  if (budget < SOCIAL_HEADER.length + 60) return { ...base, note: 'no room in the context budget' };
+  let text = SOCIAL_HEADER;
+  const push = (line) => { if (text.length + 1 + line.length > budget) return false; text += '\n' + line; return true; };
+  const done = (extra) => ({ ...base, ...extra, text, chars: text.length });
+  if (!words.length) { push('- the question has no searchable keywords'); return done({ note: 'no searchable keywords' }); }
+  const cites = [], hits = [];
+  for (const d of (Array.isArray(docs) ? docs : []).slice(0, SOCIAL_DOCS)) {
+    const title = flat(d.title, 100) || 'Instagram / Facebook data';
+    const s = flat(d.snippet, 500);
+    if (!s) continue;
+    if (!push('- ' + title + ': ' + s)) break;
+    cites.push(title);
+    hits.push({ documentId: d.id, title, source: d.origin || null });
+  }
+  const chats = new Map();
+  for (const r of Array.isArray(msgs) ? msgs : []) {
+    if (!r || !r.conversationId) continue;
+    let c = chats.get(r.conversationId);
+    if (!c) { if (chats.size >= MAX_CHATS) continue; c = { r, snips: [] }; chats.set(r.conversationId, c); }
+    if (c.snips.length < PER_CHAT && flat(r.snippet, 400)) c.snips.push(r);
+  }
+  for (const [id, c] of chats) {
+    if (!c.snips.length) continue;
+    const title = flat(c.r.title, 80) || 'a conversation';
+    const date = localDay(c.r.lastAt || c.r.startedAt || c.r.at);
+    const head = '- ' + (NET[c.r.source] || 'Social') + ' DM with "' + title + '", ' + date;
+    const lines = c.snips.map((s) => '  · ' + (s.role === 'user' ? 'you' : flat(s.sender, 60) || 'them') + ': ' + flat(s.snippet, 400));
+    if (text.length + 1 + head.length + 1 + lines[0].length > budget) break;
+    push(head);
+    for (const l of lines) if (!push(l)) break;
+    cites.push((NET[c.r.source] || 'Social') + ' DM with ' + title + ', ' + date);
+    hits.push({ conversationId: id, title, date, source: c.r.source || null });
+  }
+  if (!hits.length) { push('- nothing in your Instagram / Facebook data matched: ' + words.join(', ')); return done({ note: 'nothing matched' }); }
+  return done({ cites, hits });
+}
+
+export function contextFor(store, { query = '', budgetChars = 0, scope = 'claude' } = {}) {
   const words = keywords(query);
   const match = contextMatch(words);
+  if (scope === 'social') {
+    return formatSocialContext(match ? store.contextDocHits({ match, source: 'social', limit: SOCIAL_DOCS * 2 }) : [],
+      match ? store.contextHits({ match, limit: HITS, sources: ['instagram', 'facebook'] }) : [], { words, budgetChars });
+  }
   return formatContext(match ? store.contextHits({ match, limit: HITS }) : [], { words, budgetChars });
 }

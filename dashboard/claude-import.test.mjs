@@ -62,7 +62,7 @@ test('H6: kind routing — chatgpt goes to importChatGPT, auto detects, a mismat
   assert.deepEqual(await r.run('auto'), { started: true, file: 'cl.zip', kind: 'claude' });
   assert.equal(r.calls[0][0], 'importExport');
   r = rig(async () => 'C:\\p\\x.zip', { started: true }, { readNames });
-  assert.deepEqual(await r.run('auto'), { error: 'Not a ChatGPT or claude.ai export (looked for conversations.json)' });
+  assert.deepEqual(await r.run('auto'), { error: 'Not a ChatGPT, claude.ai, Instagram or Facebook export (looked for conversations.json or a profile information file)' });
   assert.equal(r.calls.length, 0);
   r = rig(async () => 'C:\\p\\cl.zip', { started: true }, { readNames });
   assert.deepEqual(await r.run('chatgpt'), { error: 'That is a claude.ai export, not a ChatGPT export' }, 'an explicit kind is checked, not trusted');
@@ -72,6 +72,19 @@ test('H6: kind routing — chatgpt goes to importChatGPT, auto detects, a mismat
   assert.equal(r.calls.length, 0);
   r = rig(async () => 'C:\\p\\cl.zip', { started: true }, { readNames });
   assert.deepEqual(await r.run('nope'), { error: 'unknown import kind' });
+  assert.equal(r.calls.length, 0);
+});
+
+test('Instagram / Facebook: meta or the exact network routes to importMeta with expect; the other network is refused', async () => {
+  const names = { 'C:/p/ig.zip': ['instagram_profile_information.html'], 'C:/p/fb.zip': ['profile_information.json', 'your_friends.json'] };
+  const readNames = async (f) => names[f];
+  let r = rig(async () => 'C:/p/ig.zip', { started: true }, { readNames });
+  assert.deepEqual(await r.run('meta'), { started: true, file: 'ig.zip', kind: 'instagram' });
+  assert.deepEqual(r.calls[0].slice(0, 2), ['importMeta', { zipPath: 'C:/p/ig.zip', expect: 'instagram' }]);
+  r = rig(async () => 'C:/p/fb.zip', { started: true }, { readNames });
+  assert.deepEqual(await r.run('auto'), { started: true, file: 'fb.zip', kind: 'facebook' });
+  r = rig(async () => 'C:/p/fb.zip', { started: true }, { readNames });
+  assert.deepEqual(await r.run('instagram'), { error: 'That is a Facebook export, not an Instagram export' });
   assert.equal(r.calls.length, 0);
 });
 

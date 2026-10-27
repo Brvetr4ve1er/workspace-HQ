@@ -9,11 +9,14 @@ const { pathToFileURL } = require('url');
 
 const EVENT = 'hq:claude-imports:event';
 const FOLDER_NAME = 'WorkspaceHQ Imports';
-const NOT_EXPORT = 'Not a ChatGPT or claude.ai export (looked for conversations.json)';
+const NOT_EXPORT = 'Not a ChatGPT, claude.ai, Instagram or Facebook export (looked for conversations.json or a profile information file)';
 const importsDir = (env = process.env) => env.HQ_IMPORTS_DIR || path.join(os.homedir(), 'Documents', FOLDER_NAME);
 
 function detectExportKind(names) {
   const has = (n) => names.includes(n);
+  // Meta "Download your information" ZIPs (same markers as claude-hub/ingest-meta.mjs detectMetaOrigin, which re-checks)
+  if (has('instagram_profile_information.html') || has('instagram_profile_information.json')) return { kind: 'instagram', reason: null };
+  if ((has('profile_information.json') || has('profile_information.html')) && ['your_friends', 'messenger_active_status_settings'].some((b) => has(b + '.json') || has(b + '.html'))) return { kind: 'facebook', reason: null };
   if (!has('conversations.json')) return { kind: null, reason: NOT_EXPORT };
   if (has('user.json')) return { kind: 'chatgpt', reason: null };
   if (has('projects.json') || has('users.json')) return { kind: 'claude', reason: null };

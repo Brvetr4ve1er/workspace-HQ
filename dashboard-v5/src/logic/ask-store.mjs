@@ -36,9 +36,11 @@ export const SOURCES = [
   { id: 'browser', label: 'Browser', tip: 'Focus time by site, from the Bridge extension' },
   { id: 'vault', label: 'Vault', tip: 'Keyword search of your VEEMO CORTEX notes (read-only)' },
   { id: 'claude', label: 'Claude history', tip: 'Snippets of your past Claude chats from the local Claude Hub index (read-only)' },
+  // the owner's own Instagram / Facebook data exports, imported into the same local index (ingest-meta.mjs)
+  { id: 'social', label: 'Instagram & Facebook', tip: 'Snippets of your imported Instagram and Facebook data — posts, profile, interests, activity and DMs (local, read-only)' },
 ];
 export const V3_SOURCES = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault'];
-export const DEFAULT_INCLUDE = { scan: true, tasks: true, projects: true, health: false, browser: false, vault: false, claude: false };
+export const DEFAULT_INCLUDE = { scan: true, tasks: true, projects: true, health: false, browser: false, vault: false, claude: false, social: false };
 // v3's starter prompts (shown while the chat is empty)
 export const PROMPTS = [
   'What should I actually work on today?',
@@ -64,12 +66,13 @@ export function normInclude(o) {
   return out;
 }
 export const loadInclude = (storage) => normInclude(read(storage, LS_INCLUDE));
-// writes v3's six keys in v3's order; "claude" only while it is on (see the header)
+// writes v3's six keys in v3's order; "claude" / "social" only while on (see the header)
 export function saveInclude(storage, include) {
   const out = normInclude(include);
   const stored = {};
   for (const id of V3_SOURCES) stored[id] = out[id];
   if (out.claude) stored.claude = true;
+  if (out.social) stored.social = true;
   write(storage, LS_INCLUDE, stored);
   return out;
 }
@@ -151,8 +154,8 @@ export function metaLine(meta) {
   const used = (secs || []).filter((s) => s.chars > 0).map((s) => s.label + (s.clipped ? ' (trimmed)' : ''));
   const notes = (secs || []).filter((s) => s.note).map((s) => s.label + ': ' + s.note);
   // Claude history (H5): name the chats the answer could draw from, as the model was told to cite them
-  const claude = (secs || []).find((s) => s.id === 'claude' && s.chars > 0 && Array.isArray(s.cites));
-  const cites = claude ? claude.cites.filter((c) => typeof c === 'string' && c) : [];
+  const cites = (secs || []).filter((s) => (s.id === 'claude' || s.id === 'social') && s.chars > 0 && Array.isArray(s.cites))
+    .flatMap((s) => s.cites.filter((c) => typeof c === 'string' && c));
   const parts = [];
   if (meta.status === 'cancelled') parts.push('stopped');
   else if (meta.status === 'unavailable') parts.push('model offline — ' + (meta.reason || 'no runtime'));

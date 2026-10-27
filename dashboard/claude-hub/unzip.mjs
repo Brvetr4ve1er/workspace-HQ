@@ -99,3 +99,36 @@ export async function extractEntries(file, wanted, outDir, { maxBytes = ZIP_MAX_
   }
   return out;
 }
+
+// One entry (from readZipIndex) into memory, by its exact index row: a Meta export holds hundreds of message_1.json,
+// which extractEntries' basename lookup cannot tell apart. Same checks (method, local header, cap, size, CRC); nothing
+// touches the disk. The caller keeps maxBytes small: this is for text files, never media.
+export async function readEntry(file, e, { maxBytes = 64 * 1024 * 1024 } = {}) {
+  const label = baseName(e.name);
+  if (e.encrypted) throw new Error(label + ' is encrypted');
+  if (e.method !== 0 && e.method !== 8) throw new Error(label + ' uses an unsupported compression method (' + e.method + ')');
+  if (e.usize > maxBytes) throw new Error(label + ' is larger than ' + maxBytes + ' bytes');
+  const fh = await fsp.open(file, 'r');
+  let start, size;
+  try {
+    size = (await fh.stat()).size;
+    const loc = await readAt(fh, e.offset, 30);
+    if (loc.length < 30 || loc.readUInt32LE(0) !== LOC) throw new Error('bad local header for ' + label);
+    start = e.offset + 30 + loc.readUInt16LE(26) + loc.readUInt16LE(28);
+  } finally { await fh.close(); }
+  if (start + e.csize > size) throw new Error('truncated zip');
+  const chunks = [];
+  let n = 0, crc = 0;
+  const meter = new Transform({
+    transform(chunk, _enc, cb) {
+      n += chunk.length;
+      if (n > maxBytes) { cb(new Error(label + ' is larger than ' + maxBytes + ' bytes')); return; }
+      crc = zlib.crc32(chunk, crc); chunks.push(chunk); cb();
+    },
+  });
+  const src = e.csize === 0 ? Readable.from([]) : fs.createReadStream(file, { start, end: start + e.csize - 1 });
+  await pipeline(src, ...(e.method === 8 && e.csize > 0 ? [zlib.createInflateRaw()] : []), meter);
+  if (n !== e.usize) throw new Error(label + ': size mismatch');
+  if ((crc >>> 0) !== e.crc) throw new Error(label + ': checksum mismatch');
+  return Buffer.concat(chunks, n);
+}

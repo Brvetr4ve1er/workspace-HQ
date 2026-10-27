@@ -550,7 +550,8 @@ const whenOf = (s, now) => { const t = at2ms(s); return t === null ? '' : ago(t,
 const hhmmOf = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const msgDay = (s) => { const t = at2ms(s); if (t === null) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const TOOL_LINE = /^\[tool: /;
-export const SOURCE_LABEL = { code: 'Code', web: 'claude.ai', chatgpt: 'ChatGPT' };
+export const SOURCE_LABEL = { code: 'Code', web: 'claude.ai', chatgpt: 'ChatGPT', instagram: 'Instagram', facebook: 'Facebook' };
+export const PEOPLE_SOURCES = ['instagram', 'facebook'];   // DMs from the owner's Meta exports: read-only, never continued
 export function hubConv(row, now = Date.now()) {
   const r = obj(row);
   return { id: String(r.id || ''), title: r.title ? String(r.title) : 'Untitled chat', project: String(r.project_name || ''), projectId: String(r.project_id || ''),
@@ -561,8 +562,8 @@ export function hubThread(res, now = Date.now()) {
   if (!res || typeof res !== 'object' || !res.conversation) return null;
   const c = obj(res.conversation), ms = arr(res.messages);
   const messages = ms.map((m) => { const tool = m.role === 'tool' || TOOL_LINE.test(String(m.text || ''));
-    return { id: String(m.id), role: String(m.role || ''), who: m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Claude' : m.role === 'tool' ? 'Tool output' : 'System',
-      time: hhmmOf(m.at), day: msgDay(m.at), text: String(m.text || ''), tool, toolName: m.tool_name ? String(m.tool_name) : null, collapsed: tool }; });
+    return { id: String(m.id), role: String(m.role || ''), who: m.role === 'user' ? 'You' : m.role === 'assistant' ? 'Claude' : m.role === 'tool' ? 'Tool output' : m.role === 'other' ? (m.tool_name ? String(m.tool_name) : 'Them') : 'System',
+      time: hhmmOf(m.at), day: msgDay(m.at), text: String(m.text || ''), tool, toolName: m.tool_name && m.role !== 'other' ? String(m.tool_name) : null, collapsed: tool }; });
   const mins = Math.round(num(c.active_ms, 0) / 60000);
   return { id: String(c.id || ''), title: c.title ? String(c.title) : 'Untitled chat', project: String(c.project_name || ''), model: c.model || null, branch: c.git_branch || null,
     tokens: fmtTokens(tokSum(c)), activeEst: '~' + mins + ' min (estimate)', messages, hasMore: !!res.hasMore,
@@ -578,8 +579,8 @@ export function hubHit(h, now = Date.now()) {
   return { conversationId: String(r.conversationId || ''), messageId: String(r.messageId || ''), title: r.title ? String(r.title) : 'Untitled chat', when: whenOf(r.at, now), parts: snippetParts(r.snippet) };
 }
 // ---- Archive H6: document hits (memory notes, CLAUDE.md, vault prompts, history) and the in-place document view
-export const DOC_BADGE = { memory: 'memory', 'claude-md': 'CLAUDE.md', prompt: 'prompt', history: 'history' };
-const docBadge = (r) => (DOC_BADGE[r.source] || 'document') + (r.origin === 'chatgpt' ? ' (ChatGPT)' : '');
+export const DOC_BADGE = { memory: 'memory', 'claude-md': 'CLAUDE.md', prompt: 'prompt', history: 'history', social: 'social' };
+const docBadge = (r) => (r.source === 'social' ? SOURCE_LABEL[r.origin] || 'social' : (DOC_BADGE[r.source] || 'document') + (r.origin === 'chatgpt' ? ' (ChatGPT)' : ''));
 const docWhen = (ms, now) => (Number.isFinite(Number(ms)) && Number(ms) > 0 ? whenOf(new Date(Number(ms)).toISOString(), now) : '');
 export function hubDocHit(h, now = Date.now()) {
   const r = obj(h);
@@ -591,9 +592,9 @@ export function hubDocument(res, now = Date.now()) {
   return { id: String(r.id), badge: docBadge(r), title: r.title ? String(r.title) : 'Untitled document', project: String(r.project_path || ''),
     when: docWhen(r.mtime_ms, now), text, lines: text.split('\n').map((t, i) => ({ key: 'l' + i, text: t })) };
 }
-const KIND_LABEL = { chatgpt: 'ChatGPT', claude: 'claude.ai' };
+const KIND_LABEL = { chatgpt: 'ChatGPT', claude: 'claude.ai', instagram: 'Instagram', facebook: 'Facebook' };
 export function dropCards(imp) {
-  return arr(obj(imp).found).map((f) => ({ dropId: String(f.dropId || ''), kind: f.kind === 'chatgpt' ? 'chatgpt' : 'claude',
+  return arr(obj(imp).found).map((f) => ({ dropId: String(f.dropId || ''), kind: f.kind in KIND_LABEL ? f.kind : 'claude',
     text: `Import ${KIND_LABEL[f.kind] || 'claude.ai'} export (${String(f.file || 'export.zip')}, ${fmtBytes(num(f.bytes, 0))})?`,
     sub: 'Found in your WorkspaceHQ Imports folder. It is read on this PC only; nothing is uploaded, and the file is left where it is.' }));
 }
@@ -678,7 +679,14 @@ export function importReportLines(r) {
     `Chats: ${num(c.imported, 0)} imported · ${num(c.unchanged, 0)} unchanged · ${num(c.forgotten, 0)} forgotten · ${num(c.skipped, 0)} skipped`,
     `Messages: ${num(m.imported, 0)} imported · ${num(m.skipped, 0)} skipped · ${num(m.empty, 0)} empty`,
   ];
-  if (r.source === 'chatgpt') {
+  if (PEOPLE_SOURCES.includes(r.source)) {   // Instagram / Facebook (ingest-meta.mjs): DMs + documents
+    const d = obj(r.documents), sk = obj(r.skippedFiles), cats = arr(d.categories).map(String);
+    lines[0] = lines[0].replace('Chats:', 'Conversations:');
+    lines.push(`Posts, profile and activity: ${num(d.imported, 0)} documents imported · ${num(d.unchanged, 0)} unchanged${num(d.removed, 0) ? ' · ' + num(d.removed, 0) + ' removed' : ''}`);
+    if (cats.length) lines.push('Read: ' + cats.slice(0, 12).join(', ') + (cats.length > 12 ? `, +${cats.length - 12} more` : ''));
+    if (num(sk.sensitive, 0)) lines.push(`Never read: ${num(sk.sensitive, 0)} files with logins, passwords, payments, contacts, devices or location`);
+    if (!r.owner) lines.push("Your name was not found in the export — every message is shown as someone else's");
+  } else if (r.source === 'chatgpt') {
     const br = obj(r.branches), mem = obj(r.memory), other = arr(obj(r.files).other).map(String);
     if (num(br.skipped, 0) > 0) lines.push(`Other branches of edited chats: ${num(br.skipped, 0)} (not imported — the version you last saw is)`);
     if (num(mem.imported, 0) > 0) lines.push(`Memory: ${num(mem.imported, 0)} saved as memory documents`);
@@ -691,7 +699,8 @@ export function importReportLines(r) {
   return lines;
 }
 
-const IMPORT_PHASE = { unzip: 'Unpacking the export…', projects: 'Reading claude.ai Projects…', conversations: 'Reading chats…' };
+const IMPORT_PHASE = { unzip: 'Unpacking the export…', projects: 'Reading claude.ai Projects…', conversations: 'Reading chats…', documents: 'Reading posts, profile and activity…' };
+const IMPORT_NOUN = { chatgpt: 'ChatGPT chat', instagram: 'Instagram conversation', facebook: 'Facebook conversation' };
 export function importView(imp, hub, { hasBridge, canWrite, writeReason } = {}) {
   const cur = imp && imp.kind === 'import' ? imp : null;
   const ended = !!cur && (cur.phase === 'done' || cur.phase === 'failed');
@@ -710,8 +719,8 @@ export function importView(imp, hub, { hasBridge, canWrite, writeReason } = {}) 
     const last = cur && cur.phase === 'done' ? { ok: true, report: cur.report, at: null } : hub && hub.lastImport ? hub.lastImport : null;
     if (last && last.ok) {
       const c = obj(obj(last.report).conversations), day = last.at ? ` (${String(last.at).slice(0, 10)})` : '';
-      const n = num(c.imported, 0), u = num(c.unchanged, 0), gpt = obj(last.report).source === 'chatgpt' ? 'ChatGPT ' : '';
-      text = n ? `Imported ${n} ${gpt}chat${n === 1 ? '' : 's'}${day}` : u ? `Nothing new — ${u} ${gpt}chat${u === 1 ? ' was' : 's were'} already imported${day}` : `No ${gpt}chats found in that export`;
+      const n = num(c.imported, 0), u = num(c.unchanged, 0), noun = IMPORT_NOUN[obj(last.report).source] || 'chat';
+      text = n ? `Imported ${n} ${noun}${n === 1 ? '' : 's'}${day}` : u ? `Nothing new — ${u} ${noun}${u === 1 ? ' was' : 's were'} already imported${day}` : `No ${noun}s found in that export`;
       tone = 'ok'; report = importReportLines(last.report);
     } else if (last) { text = 'Last import failed: ' + String(last.error || 'unknown error'); tone = 'error'; }
   }

@@ -50,8 +50,8 @@ const fill = (args) => {
 };
 const ALL = { scan: true, tasks: true, projects: true, health: false, browser: false, vault: true };
 
-test('SECTION_IDS gains claude as the 7th, last entry; CLAUDE_RESERVE is 3000', () => {
-  assert.deepEqual(ctx.SECTION_IDS, ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude']);
+test('SECTION_IDS: claude 7th, then Instagram & Facebook (social) last; CLAUDE_RESERVE is 3000', () => {
+  assert.deepEqual(ctx.SECTION_IDS, ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude', 'social']);
   assert.equal(ctx.CLAUDE_RESERVE, 3000);
 });
 
@@ -164,5 +164,24 @@ test('health: an old sidecar (no detail) still omits the capped VRAM figure', as
     const text = typeof r === 'string' ? r : r.text;
     assert.match(text, /VRAM figure omitted/);
     assert.doesNotMatch(text, /4 GB VRAM/);
+  } finally { w.cleanup(); }
+});
+
+test('Instagram & Facebook: its own section through contextFor scope social; with Claude history both keep their reserve and the total stays ≤ 12000', async () => {
+  const w = workspace();
+  try {
+    const hub = fakeHub((args) => (args.scope === 'social'
+      ? { text: ('INSTAGRAM & FACEBOOK (placeholder)\n- Instagram · your posts: ' + 'lantern '.repeat(600)).slice(0, args.budgetChars), cites: ['Instagram · your posts'], hits: [] }
+      : fill(args)));
+    const r = await ctx.assemble({ dataDir: w.dataDir, vaultDir: w.vaultDir, include: { ...ALL, claude: true, social: true }, query: 'release lantern', now: NOW, claudeHub: hub });
+    assert.deepEqual(hub.calls.map((c) => c.args.scope || 'claude'), ['claude', 'social']);
+    const social = r.sections.find((s) => s.id === 'social'), claude = r.sections.find((s) => s.id === 'claude');
+    assert.equal(social.label, 'Instagram & Facebook');
+    assert.ok(social.chars >= 2900 && claude.chars >= 2900, `both get their reserve (claude ${claude.chars}, social ${social.chars})`);
+    assert.deepEqual(social.cites, ['Instagram · your posts']);
+    assert.ok(r.text.length <= 12000 + 200);
+    const only = await ctx.assemble({ dataDir: w.dataDir, vaultDir: w.vaultDir, include: { social: true }, query: 'lantern', now: NOW, claudeHub: fakeHub((a) => ({ text: 'INSTAGRAM & FACEBOOK (placeholder)', cites: [], hits: [], scope: a.scope })) });
+    assert.ok(only.text.includes('INSTAGRAM & FACEBOOK (placeholder)'));
+    assert.equal(ctx.SECTION_IDS.at(-1), 'social');
   } finally { w.cleanup(); }
 });

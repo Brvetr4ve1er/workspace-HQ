@@ -172,7 +172,7 @@ test('K-1 / K-3: Ask state comes from v3’s keys and the palette lists What’s
   localStorage.setItem('hq-oracle-chat', JSON.stringify({ day, messages: [{ role: 'user', content: 'q' }, { role: 'assistant', content: 'a', meta: { status: 'done', sections: [], ms: 10 } }] }));
   const store = createStore(DATA(), null);
   const c = new Component({ store, previewState: 'live', startTab: 'home', theme: 'dark', pet: false });
-  assert.deepEqual(c.state.askInclude, { scan: false, tasks: true, projects: true, health: true, browser: false, vault: false, claude: false });
+  assert.deepEqual(c.state.askInclude, { scan: false, tasks: true, projects: true, health: true, browser: false, vault: false, claude: false, social: false });
   assert.equal(c.state.askHistory.length, 1);
   c.state.paletteOpen = true; c.state.paletteQuery = 'trailers';
   const items = c.paletteItems().flat.map((i) => i.label);

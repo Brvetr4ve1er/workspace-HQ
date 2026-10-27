@@ -3,7 +3,7 @@ import { importView } from '../live/adapter.mjs';
 
 const gate = (c) => importView(c.LIVE.claudeImport, c.LIVE.claudeHub, { hasBridge: !!(c.hq && c.hq.claudeHub && c.hq.claudeHub.importExport), canWrite: c.canWrite(), writeReason: c.writeReason() });
 const started = (c, r) => {
-  c.LIVE.claudeImport = { kind: 'import', source: r.kind === 'chatgpt' ? 'chatgpt' : 'claude', phase: 'unzip', done: 0, total: 0 };
+  c.LIVE.claudeImport = { kind: 'import', source: ['chatgpt', 'instagram', 'facebook'].includes(r.kind) ? r.kind : 'claude', phase: 'unzip', done: 0, total: 0 };
   c.toast('info', 'Importing ' + (r.file || 'the export') + ' — the counter shows progress; chats are listed when the import finishes.');
 };
 
@@ -12,6 +12,13 @@ export const claudeImportsLogic = {
     const v = gate(this);
     if (!v.canImport) { this.denied(v.why); return; }
     const r = await this.call(() => this.hq.claudeHub.importExport('chatgpt'), 'Import failed');
+    if (r && r.started) { started(this, r); this.forceUpdate(); }
+  },
+  // Instagram or Facebook "Download your information" ZIP: the Hub reads which one it is
+  async diImportMeta() {
+    const v = gate(this);
+    if (!v.canImport) { this.denied(v.why); return; }
+    const r = await this.call(() => this.hq.claudeHub.importExport('meta'), 'Import failed');
     if (r && r.started) { started(this, r); this.forceUpdate(); }
   },
   async diConfirm() {

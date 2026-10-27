@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readZipIndex, extractEntries, baseName } from './unzip.mjs';
+import { readZipIndex, extractEntries, readEntry, baseName } from './unzip.mjs';
 import { zipFiles } from './__fixtures__/make-export.mjs';
 
 const dirs = [];
@@ -56,6 +56,17 @@ test('not a zip, truncated zip, unsupported method, size lie, zip bomb', async (
   const bomb = path.join(d, 'bomb.zip'); zipFiles(bomb, [{ name: 'conversations.json', data: Buffer.alloc(8 * 1024 * 1024) }]);
   assert.ok(fs.statSync(bomb).size < 64 * 1024, 'the bomb is tiny on disk');
   await assert.rejects(extractEntries(bomb, ['conversations.json'], fresh(d), { maxBytes: 1024 * 1024 }), /larger than 1048576 bytes/);
+});
+
+test('readEntry reads same-named entries apart, in memory, with the same checks', async () => {
+  const d = tmp(), zip = path.join(d, 'meta.zip');
+  zipFiles(zip, [{ name: 'inbox/a_1/message_1.json', data: '{"a":1}' }, { name: 'inbox/b_2/message_1.json', data: '{"b":2}', method: 0 }]);
+  const { entries } = await readZipIndex(zip);
+  assert.deepEqual(await Promise.all(entries.map(async (e) => String(await readEntry(zip, e)))), ['{"a":1}', '{"b":2}']);
+  const lie = path.join(d, 'lie.zip'); zipFiles(lie, [{ name: 'x.json', data: CONV, lieSize: 3 }]);
+  await assert.rejects(readEntry(lie, (await readZipIndex(lie)).entries[0]), /size mismatch|larger than/);
+  const bomb = path.join(d, 'bomb.zip'); zipFiles(bomb, [{ name: 'x.json', data: Buffer.alloc(4 * 1024 * 1024) }]);
+  await assert.rejects(readEntry(bomb, (await readZipIndex(bomb)).entries[0], { maxBytes: 1024 }), /larger than 1024 bytes/);
 });
 
 test('a wanted file that is absent is simply missing from the result', async () => {

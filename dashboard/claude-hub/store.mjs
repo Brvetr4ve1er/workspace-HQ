@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS prompt_use(prompt_id TEXT NOT NULL, at TEXT NOT NULL,
 CREATE INDEX IF NOT EXISTS prompt_use_prompt ON prompt_use(prompt_id, at);
 `;
 
+// Instagram / Facebook DMs (ingest-meta.mjs) are people, not AI chats: the unfiltered chat and project lists and the
+// usage stats leave them out; they are listed only when asked for by source.
+const NOT_PEOPLE = "c.source NOT IN ('instagram', 'facebook')";
 export function ftsQuery(q) {
   const terms = String(q || '').normalize('NFKC').match(/[\p{L}\p{N}_]+/gu) || [];
   if (!terms.length) return null;
@@ -302,7 +305,7 @@ function api(db) {
     },
     counts: () => ({ projects: st.countP.get().c, conversations: st.countC.get().c, messages: st.countM.get().c, documents: q('SELECT COUNT(*) AS c FROM document').get().c }),
     listProjects({ source } = {}) {
-      const where = source ? 'WHERE p.source = ?' : '';
+      const where = source ? 'WHERE p.source = ?' : "WHERE p.source NOT IN ('instagram', 'facebook')";
       return q(`SELECT p.*, COUNT(c.id) AS conversations, MAX(c.last_at) AS last_at FROM project p
         LEFT JOIN conversation c ON c.project_id = p.id AND c.forgotten = 0 AND c.message_count > 0
         ${where} GROUP BY p.id ORDER BY last_at DESC`).all(...(source ? [source] : []));
@@ -310,7 +313,7 @@ function api(db) {
     listConversations({ projectId, source, q: title, since, hqProjectId, before, beforeId, limit = 100 } = {}) {
       const w = ['c.forgotten = 0', 'c.message_count > 0'], a = [];
       if (projectId) { w.push('c.project_id = ?'); a.push(projectId); }
-      if (source) { w.push('c.source = ?'); a.push(source); }
+      if (source) { w.push('c.source = ?'); a.push(source); } else w.push(NOT_PEOPLE);
       if (hqProjectId) { w.push('p.hq_project_id = ?'); a.push(hqProjectId); }
       if (since) { w.push('c.last_at >= ?'); a.push(since); }
       if (typeof title === 'string' && title.trim()) {
@@ -354,15 +357,28 @@ function api(db) {
     },
     // H5 contextFor (context.mjs): the best FTS rows for an OR-of-keywords MATCH, user/assistant text only, no subagent
     // turns, no forgotten chat. Empty snippet markers: the text goes to a model, not to a highlighter. Errors surface.
-    contextHits({ match, limit = 60 } = {}) {
+    // sources: the conversation sources to search (Ask's Claude history = code/web/chatgpt; its Instagram & Facebook
+    // chip = instagram/facebook, whose other people's lines are role 'other' with the sender in tool_name).
+    contextHits({ match, limit = 60, sources = ['code', 'web', 'chatgpt'] } = {}) {
       if (!match) return [];
-      return q(`SELECT m.conversation_id AS conversationId, m.role, m.at,
+      const src = (Array.isArray(sources) ? sources : []).filter((s) => typeof s === 'string' && /^[a-z]{1,20}$/.test(s));
+      if (!src.length) return [];
+      return q(`SELECT m.conversation_id AS conversationId, m.role, m.at, m.tool_name AS sender,
         snippet(message_fts, 0, '', '', '…', 32) AS snippet, bm25(message_fts) AS rank,
         c.title, c.started_at AS startedAt, c.last_at AS lastAt, c.source, p.name AS projectName
         FROM message_fts JOIN message m ON m.rowid = message_fts.rowid JOIN conversation c ON c.id = m.conversation_id
         LEFT JOIN project p ON p.id = c.project_id
-        WHERE message_fts MATCH ? AND c.forgotten = 0 AND m.role IN ('user', 'assistant') AND m.is_sidechain = 0
-        ORDER BY rank LIMIT ?`).all(match, Math.max(1, Math.min(200, Number(limit) || 60)));
+        WHERE message_fts MATCH ? AND c.forgotten = 0 AND m.role IN ('user', 'assistant', 'other') AND m.is_sidechain = 0
+          AND c.source IN (${src.map(() => '?').join(', ')})
+        ORDER BY rank LIMIT ?`).all(match, ...src, Math.max(1, Math.min(200, Number(limit) || 60)));
+    },
+    // the same OR-of-keywords MATCH over one document source (Ask's Instagram & Facebook chip reads 'social')
+    contextDocHits({ match, source, limit = 20 } = {}) {
+      if (!match || typeof source !== 'string') return [];
+      return q(`SELECT d.id, d.title, d.mtime_ms AS mtimeMs, CASE WHEN json_valid(d.meta) THEN json_extract(d.meta, '$.origin') END AS origin,
+        snippet(document_fts, 1, '', '', '…', 32) AS snippet, bm25(document_fts) AS rank
+        FROM document_fts JOIN document d ON d.rowid = document_fts.rowid WHERE document_fts MATCH ? AND d.source = ?
+        ORDER BY rank LIMIT ?`).all(match, source, Math.max(1, Math.min(100, Number(limit) || 20)));
     },
     getMeta: (key) => { const r = st.getMeta.get(key); return r ? r.value : null; },
     setMeta: (key, value) => st.setMeta.run(key, String(value)),
@@ -442,14 +458,14 @@ function api(db) {
           SELECT m.conversation_id AS cid, m.at,
             (julianday(m.at) - julianday(LAG(m.at) OVER (PARTITION BY m.conversation_id ORDER BY m.at, m.rowid))) * 86400000.0 AS gap
           FROM message m JOIN conversation c ON c.id = m.conversation_id
-          WHERE c.forgotten = 0 AND m.at >= ? AND m.at < ? ${pw})
+          WHERE c.forgotten = 0 AND ${NOT_PEOPLE} AND m.at >= ? AND m.at < ? ${pw})
         SELECT date(at, ?) AS day, COUNT(DISTINCT cid) AS chats, COUNT(*) AS messages,
           CAST(ROUND(SUM(CASE WHEN gap > 0 AND gap < 300000 THEN gap ELSE 0 END)) AS INTEGER) AS active_ms
         FROM m GROUP BY day ORDER BY day`).all(lo, hi, ...pa, mod).map((r) => ({ ...r }));
       // Token scope: usage rows carry no timestamp, so tokens_* are the WHOLE totals of the chats active in
       // [from, to), not only tokens spent inside it (IPC-CONTRACT stats row; History labels them "whole chat").
       const projects = q(`WITH act AS (SELECT DISTINCT m.conversation_id AS cid FROM message m JOIN conversation c ON c.id = m.conversation_id
-            WHERE c.forgotten = 0 AND m.at >= ? AND m.at < ? ${pw}),
+            WHERE c.forgotten = 0 AND ${NOT_PEOPLE} AND m.at >= ? AND m.at < ? ${pw}),
           ux AS (SELECT c.project_id AS pid, u.api_id, MAX(u.tin) tin, MAX(u.tout) tout, MAX(u.tcr) tcr, MAX(u.tcw) tcw
             FROM usage u JOIN act ON act.cid = u.conversation_id JOIN conversation c ON c.id = u.conversation_id GROUP BY c.project_id, u.api_id),
           ch AS (SELECT c.project_id AS pid, COUNT(*) AS chats FROM act JOIN conversation c ON c.id = act.cid GROUP BY c.project_id)

@@ -4,8 +4,10 @@ const path = require('path');
 const bridgeRoutes = require('./claude-bridge-routes');
 
 const imports = require('./claude-imports');
-const KINDS = ['auto', 'claude', 'chatgpt'];
-const LABEL = { claude: 'claude.ai', chatgpt: 'ChatGPT' };
+const KINDS = ['auto', 'claude', 'chatgpt', 'instagram', 'facebook', 'meta'];   // meta = Instagram or Facebook
+const META = ['instagram', 'facebook'];
+const LABEL = { claude: 'claude.ai', chatgpt: 'ChatGPT', instagram: 'Instagram', facebook: 'Facebook', meta: 'Instagram or Facebook' };
+const opFor = (use, zipPath) => (use === 'chatgpt' ? ['importChatGPT', { zipPath }] : META.includes(use) ? ['importMeta', { zipPath, expect: use }] : ['importExport', { zipPath }]);
 
 function registerImport(ipcMain, host, { pickZip, readNames = imports.readEntryNames, getWatcher = imports.current }) {
   ipcMain.handle('hq:claude-hub:import', async (_e, kind, opts) => {
@@ -34,10 +36,10 @@ function registerImport(ipcMain, host, { pickZip, readNames = imports.readEntryN
         if (!d.kind) return { error: d.reason };
         detected = d.kind;
       }
-      if (k !== 'auto' && k !== detected) return { error: 'That is a ' + LABEL[detected] + ' export, not a ' + LABEL[k] + ' export' };
+      if (k !== 'auto' && k !== detected && !(k === 'meta' && META.includes(detected))) return { error: 'That is a ' + LABEL[detected] + ' export, not ' + (/^[AEIOU]/.test(LABEL[k]) ? 'an ' : 'a ') + LABEL[k] + ' export' };
       use = detected;
     }
-    const r = await host.request(use === 'chatgpt' ? 'importChatGPT' : 'importExport', { zipPath: file });
+    const r = await host.request(...opFor(use, file));
     if (r && typeof r.error === 'string') return { error: r.error };
     if (key) { const w = getWatcher(); if (w) w.markImported(key); }
     return { started: true, file: path.basename(file), kind: use };
@@ -47,7 +49,7 @@ function registerImport(ipcMain, host, { pickZip, readNames = imports.readEntryN
 function dialogPicker(getWin) {
   return async (kind) => {
     const { dialog } = require('electron');
-    const what = kind === 'chatgpt' ? 'ChatGPT export' : kind === 'auto' ? 'ChatGPT or claude.ai export' : 'claude.ai export';
+    const what = kind === 'auto' ? 'ChatGPT or claude.ai export' : (LABEL[kind] || 'claude.ai') + ' export';
     const opts = { title: 'Import ' + what, properties: ['openFile'], filters: [{ name: what + ' (.zip)', extensions: ['zip'] }] };
     const win = getWin && getWin();
     const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);

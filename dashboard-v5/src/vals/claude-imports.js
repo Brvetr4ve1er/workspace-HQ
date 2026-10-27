@@ -14,6 +14,7 @@ export function claudeImportsVals(ctx) {
   const hits = Array.isArray(lib.docHits) ? lib.docHits.map((h) => hubDocHit(h)) : [];
   return {
     diImportChatGPT: () => this.diImportChatGPT(), diChatGPTTip: v.why || 'Pick your ChatGPT data export (.zip) — it is read on this PC only; nothing is uploaded',
+    diImportMeta: () => this.diImportMeta(), diMetaTip: v.why || 'Pick your Instagram or Facebook data export (.zip; Instagram as HTML, Facebook as JSON) — only its text is read, on this PC; logins, payments, contacts and location are never read',
     diShow: cards.length > 0, diCard: cards[0] || { text: '', sub: '', kind: '' }, diMore: cards.length > 1 ? '+ ' + (cards.length - 1) + ' more waiting' : '',
     diConfirm: () => this.diConfirm(), diDismiss: () => this.diDismiss(), diCant: !v.canImport, diCantTip: v.why || 'Import this export now',
     diHasReport: report.length > 0, diReport: report.map((text, i) => ({ key: 'r' + i, text })),

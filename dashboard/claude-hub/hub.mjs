@@ -19,6 +19,7 @@ import { parseWebConversation, parseWebProject, newReport, noteUnknown } from '.
 import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
 import { readHqProjects, autoLink } from './link.mjs';
 import { importChatGPTFile } from './ingest-chatgpt.mjs';
+import { importMetaFile } from './ingest-meta.mjs';
 import { syncDocs, watchDocs } from './ingest-docs.mjs';
 
 // A docs pass that could not read a notes root (EPERM/EACCES/EBUSY on the vault Prompts folder, the memory root, a CLAUDE.md)
@@ -295,15 +296,17 @@ function main() {
     if (force || now - importEmitAt > 500) { importEmitAt = now; emit('progress', { kind: 'import', ...p }); }
   };
   const lastImport = () => { try { return JSON.parse((store && store.getMeta('last_import')) || 'null'); } catch { return null; } };
-  function runImport(zipPath, source = 'claude') {
+  function runImport(zipPath, source = 'claude', expect = null) {
     importing = true;
     const tmpRoot = path.join(path.dirname(path.resolve(dbFile)), 'tmp');
-    const run = source === 'chatgpt' ? importChatGPTFile : importExportFile;
+    // Instagram / Facebook: source 'meta' until the ZIP says which (the report carries it); no temp files (read in memory)
+    const run = source === 'chatgpt' ? importChatGPTFile : source === 'meta' ? (st, z, o) => importMetaFile(st, z, { ...o, expect }) : importExportFile;
     const ev = (p, force) => emitImport({ ...p, source }, force);
     run(store, zipPath, { tmpRoot, onProgress: (p) => ev(p), onImported: (ids) => markChanged(ids) })
       .then((report) => {
-        store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, source, report }));
-        ev({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report }, true);
+        const src = source === 'meta' && report && typeof report.source === 'string' ? report.source : source;   // instagram | facebook
+        store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, source: src, report }));
+        emitImport({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report, source: src }, true);
         markChanged([]);
       })
       .catch((e) => {   // a .catch AFTER the .then: it also covers a throw in the success body (setMeta, emit)
@@ -432,6 +435,17 @@ function main() {
       if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
       if (importing) throw new Error('an import is already running');
       runImport(zipPath, 'chatgpt');
+      return { started: true };
+    },
+    // Instagram / Facebook "Download your information" ZIP (ingest-meta.mjs). expect: 'instagram' | 'facebook' | null (either).
+    importMeta: (a) => {
+      if (!writer) notOwner();
+      const zipPath = a && typeof a.zipPath === 'string' ? a.zipPath : '';
+      const expect = a && (a.expect === 'instagram' || a.expect === 'facebook') ? a.expect : null;
+      if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importMeta needs an absolute .zip path');
+      if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
+      if (importing) throw new Error('an import is already running');
+      runImport(zipPath, 'meta', expect);
       return { started: true };
     },
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)

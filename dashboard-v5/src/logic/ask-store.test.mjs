@@ -118,12 +118,12 @@ test('model history: only finished pairs with text, then the new question (v3 se
 test('sources: v3 format, defaults for anything that is not a boolean', () => {
   assert.deepEqual(AS.loadInclude(memStorage()), AS.DEFAULT_INCLUDE);
   const st = memStorage({ [AS.LS_INCLUDE]: JSON.stringify({ scan: false, tasks: 'yes', vault: true, extra: true }) });
-  assert.deepEqual(AS.loadInclude(st), { scan: false, tasks: true, projects: true, health: false, browser: false, vault: true, claude: false });
+  assert.deepEqual(AS.loadInclude(st), { scan: false, tasks: true, projects: true, health: false, browser: false, vault: true, claude: false, social: false });
   assert.deepEqual(AS.loadInclude(memStorage({ [AS.LS_INCLUDE]: '[1,2]' })), AS.DEFAULT_INCLUDE);
   AS.saveInclude(st, { scan: true, health: true });
   // v3 writes the object loadInclude built: every v3 source, in SOURCES order — Claude history off adds nothing
   assert.equal(st.getItem(AS.LS_INCLUDE), '{"scan":true,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false}');
-  assert.deepEqual(AS.SOURCES.map((s) => s.id), ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude']);
+  assert.deepEqual(AS.SOURCES.map((s) => s.id), ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude', 'social']);
   assert.deepEqual(AS.V3_SOURCES, ['scan', 'tasks', 'projects', 'health', 'browser', 'vault']);
   assert.equal(AS.SOURCES.find((s) => s.id === 'health').tip, 'The SYSTEM tab\'s vitals');
 });
@@ -168,4 +168,15 @@ test('meta line names the chats Claude history drew from (≤ 3, then "+N more")
   assert.equal(AS.metaLine({ status: 'done', sections: [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'claude', label: 'Claude history', chars: 0, clipped: false, cites: [], note: 'Claude Hub is not running' }], ms: 1400 }),
     'grounded in Scan · Claude history: Claude Hub is not running · 1.4s');
   assert.equal(AS.metaLine({ status: 'done', sections: [{ id: 'claude', label: 'Claude history', chars: 0, cites: 'bad' }], ms: 100 }), 'no sources ticked · 0.1s');
+});
+
+test('Instagram & Facebook: the 8th chip is off by default, stored only when on; its cites join the meta line', () => {
+  assert.equal(AS.DEFAULT_INCLUDE.social, false);
+  assert.equal(AS.SOURCES[7].id, 'social');
+  const st = memStorage();
+  AS.saveInclude(st, { ...AS.DEFAULT_INCLUDE, social: true });
+  assert.equal(st.getItem(AS.LS_INCLUDE), '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"social":true}');
+  assert.equal(AS.loadInclude(st).social, true);
+  const meta = { status: 'done', ms: 1000, sections: [{ id: 'social', label: 'Instagram & Facebook', chars: 900, cites: ['Instagram · your posts', 'Facebook DM with Placeholder Friend, 2026-10-02'] }] };
+  assert.equal(AS.metaLine(meta), 'grounded in Instagram & Facebook · from Instagram · your posts; Facebook DM with Placeholder Friend, 2026-10-02 · 1.0s');
 });

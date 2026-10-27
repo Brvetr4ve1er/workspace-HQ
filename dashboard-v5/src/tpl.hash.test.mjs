@@ -41,9 +41,10 @@ import tpl from './app.tpl.js';
 // 2026-10-26 GitHub view: Projects › GitHub (projects.tpl.js) — account stats, waiting on you, your PRs, assigned issues, repo grid with CI / clone / Open / Copy (+10003 chars / +10011 bytes)
 // 2026-10-26 data freshness: top bar (shell.tpl.js) — scan time tooltip + an orange "N days old" badge when the newest scan is 2+ days old (+300 chars / +302 bytes)
 // 2026-10-26 connected accounts: Projects › Vercel & Supabase (projects.tpl.js) — Vercel projects with production / latest deploy, recent deploys, Supabase projects, connect cards (+9098 chars / +9109 bytes)
-const SHA256 = 'c71d7063f4518bf9643b6881e103633b0b3acb65f18dd6ff8cd0a89ce039e273';
-const LENGTH = 290971;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 291497;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-27 Instagram / Facebook import: claude fragment, one line — an "Import Instagram / Facebook export" button after the ChatGPT one, with its <!-- v5: reason --> marker (+463 chars / +463 bytes, no line removed)
+const SHA256 = '7a6c6d3f3bbd21f9a1b68f9a6f90e585fd8c93ddc1ececefa6ad0ac5eacd5346';
+const LENGTH = 291434;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 291960;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

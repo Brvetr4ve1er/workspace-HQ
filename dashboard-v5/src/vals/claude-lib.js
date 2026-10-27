@@ -12,7 +12,7 @@ export function claudeLibVals(ctx) {
   const hub = LIVE.claudeHub;
   return {
     isChats: sub === 'chats',
-    clSrcChips: [['all', 'All'], ['code', 'Code'], ['web', 'claude.ai'], ['chatgpt', 'ChatGPT']].map(([k, l]) => chip(S.clSrc === k, () => this.clSetFilter('clSrc', k), l)),
+    clSrcChips: [['all', 'All'], ['code', 'Code'], ['web', 'claude.ai'], ['chatgpt', 'ChatGPT'], ['instagram', 'Instagram'], ['facebook', 'Facebook']].map(([k, l]) => chip(S.clSrc === k, () => this.clSetFilter('clSrc', k), l)),
     clSinceChips: [['all', 'Any time'], ['7', '7 days'], ['30', '30 days']].map(([k, l]) => chip(S.clSince === k, () => this.clSetFilter('clSince', k), l)),
     clProjChips: [chip(!S.clProj, () => this.clSetFilter('clProj', ''), 'All projects')].concat(projs.map((p) => chip(S.clProj === p.id, () => this.clSetFilter('clProj', p.id), p.name || p.key))),
     clQuery: S.clQuery, onClQuery: (e) => this.onClQuery(e), clSearch: () => this.clSearch(), clClearSearch: () => this.clClearSearch(),

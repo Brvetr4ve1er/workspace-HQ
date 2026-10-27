@@ -14,6 +14,8 @@
 // 4 KB per section, 12 KB total (~3k tokens) + persona + chat history. When
 // "Claude history" is ticked (Claude Hub H5) it is assembled last with
 // CLAUDE_RESERVE chars held back for it, so the other sections share 9 KB.
+// "Instagram & Facebook" (social) works the same way through the Hub's contextFor scope 'social' (the owner's own Meta
+// exports, ingest-meta.mjs) and is assembled after Claude history with its own reserve.
 'use strict';
 
 const fs = require('node:fs');
@@ -25,8 +27,9 @@ const SECTION_MAX = 4000;
 const TOTAL_MAX = 12000;
 const CLAUDE_RESERVE = 3000;
 const CLAUDE_TIMEOUT_MS = 4000;
-const SECTION_IDS = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude'];
-const LABEL = { scan: 'scan', tasks: 'tasks', projects: 'projects', health: 'PC health', browser: 'browser', vault: 'vault', claude: 'Claude history' };
+const SECTION_IDS = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude', 'social'];
+const LABEL = { scan: 'scan', tasks: 'tasks', projects: 'projects', health: 'PC health', browser: 'browser', vault: 'vault', claude: 'Claude history', social: 'Instagram & Facebook' };
+const HUB_IDS = ['claude', 'social'];   // assembled last, in this order, each with CLAUDE_RESERVE held back for it
 
 const TIER = { red: 'critical', orange: 'important', yellow: 'housekeeping' };
 const ORGAN_STATUS = { grace: 'healthy', ember: 'warning', blood: 'critical' };
@@ -263,10 +266,11 @@ const HUB_NOTE = {
   'hub stopped': 'Claude Hub stopped while answering',
   timeout: 'Claude Hub did not answer within 4 s',
 };
-async function claudeSection(claudeHub, query, budgetChars) {
+async function claudeSection(claudeHub, query, budgetChars, scope = 'claude') {
   if (!claudeHub || typeof claudeHub.request !== 'function') return { text: '', cites: [], note: HUB_NOTE['hub not running'] };
   let r;
-  try { r = await claudeHub.request('contextFor', { query: String(query || ''), budgetChars }, { timeout: CLAUDE_TIMEOUT_MS }); }
+  const args = { query: String(query || ''), budgetChars, ...(scope === 'social' ? { scope } : {}) };
+  try { r = await claudeHub.request('contextFor', args, { timeout: CLAUDE_TIMEOUT_MS }); }
   catch (e) { return { text: '', cites: [], note: line(e?.message || e, 80) }; }
   if (r && typeof r.error === 'string') return { text: '', cites: [], note: HUB_NOTE[r.error] || line(r.error, 80) };
   if (!r || typeof r !== 'object' || typeof r.text !== 'string' || !Array.isArray(r.cites)) return { text: '', cites: [], note: 'the Claude Hub answered in an unknown shape' };
@@ -284,12 +288,13 @@ async function assemble({ dataDir, vaultDir, include = {}, query = '', activity 
   const sections = [];
   let used = header.length;
 
-  // Ticking Claude history holds CLAUDE_RESERVE back from every other section (claude is assembled last).
-  const reserve = include.claude === true ? CLAUDE_RESERVE : 0;
+  // Ticking Claude history / Instagram & Facebook holds CLAUDE_RESERVE back for each (they are assembled last, in
+  // HUB_IDS order): a section's room excludes the reserves of the hub sections still to come.
+  const reserveAfter = (id) => HUB_IDS.slice(HUB_IDS.includes(id) ? HUB_IDS.indexOf(id) + 1 : 0).filter((h) => include[h] === true).length * CLAUDE_RESERVE;
   const add = (id, body, extra) => {
     let text = body, clipped = false;
     if (text.length > SECTION_MAX) { text = text.slice(0, SECTION_MAX - 16) + '\n…[trimmed]'; clipped = true; }
-    const room = TOTAL_MAX - used - (id === 'claude' ? 0 : reserve);
+    const room = TOTAL_MAX - used - reserveAfter(id);
     if (room < 200) { sections.push({ id, label: LABEL[id], chars: 0, clipped: true, note: 'dropped — context budget full', ...(extra ? { cites: [] } : {}) }); return; }
     if (text.length > room) { text = text.slice(0, room - 16) + '\n…[trimmed]'; clipped = true; }
     parts.push(text);
@@ -300,8 +305,8 @@ async function assemble({ dataDir, vaultDir, include = {}, query = '', activity 
   for (const id of SECTION_IDS) {
     if (include[id] !== true) continue;
     try {
-      if (id === 'claude') {
-        const c = await claudeSection(claudeHub, query, Math.min(CLAUDE_RESERVE, TOTAL_MAX - used - 2));
+      if (HUB_IDS.includes(id)) {
+        const c = await claudeSection(claudeHub, query, Math.min(CLAUDE_RESERVE, TOTAL_MAX - used - 2 - reserveAfter(id)), id);
         if (!c.text) sections.push({ id, label: LABEL[id], chars: 0, clipped: false, cites: [], ...(c.note ? { note: c.note } : {}) });
         else add(id, c.text, { cites: c.cites, ...(c.note ? { note: c.note } : {}) });
         continue;

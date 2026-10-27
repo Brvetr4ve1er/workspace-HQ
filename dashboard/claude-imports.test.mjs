@@ -23,7 +23,10 @@ test('detectExportKind: ChatGPT, claude.ai, and the refusal wording', () => {
   assert.deepEqual(detectExportKind(['conversations.json', 'user.json', 'chat.html']), { kind: 'chatgpt', reason: null });
   assert.deepEqual(detectExportKind(['conversations.json', 'projects.json', 'users.json']), { kind: 'claude', reason: null });
   assert.deepEqual(detectExportKind(['conversations.json', 'users.json']), { kind: 'claude', reason: null });
-  assert.equal(detectExportKind(['photos.json']).reason, 'Not a ChatGPT or claude.ai export (looked for conversations.json)');
+  assert.equal(detectExportKind(['photos.json']).reason, 'Not a ChatGPT, claude.ai, Instagram or Facebook export (looked for conversations.json or a profile information file)');
+  assert.deepEqual(detectExportKind(['start_here.html', 'instagram_profile_information.html', 'message_1.html']), { kind: 'instagram', reason: null });
+  assert.deepEqual(detectExportKind(['profile_information.json', 'your_friends.json', 'message_1.json']), { kind: 'facebook', reason: null });
+  assert.equal(detectExportKind(['profile_information.json']).kind, null, 'a lone profile file is not enough');
   assert.equal(detectExportKind(['conversations.json']).kind, null);
   assert.equal(importsDir({ HQ_IMPORTS_DIR: 'C:\\gate\\imports' }), 'C:\\gate\\imports');
   assert.match(importsDir({}), /Documents[\\/]WorkspaceHQ Imports$/);
@@ -52,7 +55,7 @@ test('a ZIP that stays unreadable is refused only after it stopped changing for 
   await settle(w, 2);
   const errs = () => sent.filter(([, d]) => d.event === 'error').map(([, d]) => d.data);
   assert.deepEqual(errs().map((e) => e.file), ['photos.zip']);
-  assert.equal(errs()[0].error, 'Not a ChatGPT or claude.ai export (looked for conversations.json)');
+  assert.equal(errs()[0].error, 'Not a ChatGPT, claude.ai, Instagram or Facebook export (looked for conversations.json or a profile information file)');
   await sleep(450); await w.scan();
   assert.deepEqual(errs().map((e) => e.file).sort(), ['broken.zip', 'photos.zip']);
   assert.match(errs().find((e) => e.file === 'broken.zip').error, /not a readable ZIP/);
