@@ -556,6 +556,17 @@ Additive only. New file `dashboard/vault-open.js` (one hook line in `main.js`).
 |---|---|---|
 | `vaultOpen(name, how)` | `hq:vault-open` (invoke) | `name` must equal a `name` in the CURRENT `data/latest.json` `inventory.vaults`; its `path` (absolute, or relative to Documents) must be a vault Obsidian has registered (`%APPDATA%/obsidian/obsidian.json` `vaults{id:{path}}`, compared case-insensitively). `how` = `'open'` → `obsidian://open?vault=<that vault's id>`, `'search'` → `obsidian://search?vault=<id>`; nothing else is ever opened. `HQ_DRY_LAUNCH=1` logs `[dry-open]`. → `{ok, how}` or `{error}` (`refused: not a vault in the latest scan`, `Obsidian doesn't know this vault yet — …`, `Obsidian is not installed …`). |
 
+## 2026-10-27 — Claude › Canvas Remove + Settings / level-up "Save stat card PNG" (were "isn't wired")
+
+Additive only. New files `dashboard/canvas-ops.js` and `dashboard/stat-card.js` (one hook line each in `main.js`).
+Pin to Home needs no channel: pins are per-PC (`whq3-prefs.canvasPins`, keys `<board>/<node id>`, at most 6), and a pin
+whose node is gone drops silently. The MCP server gains `hq_canvas_remove`, the same rule on the same files.
+
+| Preload | Channel | Shape |
+|---|---|---|
+| `canvasRemove(board, id)` | `hq:canvas-remove` (invoke) | Only from the owner's second click on Remove in Claude › Canvas. `board` matches the `hq:canvas-add` name rule; `id` is a node id (1–120 chars). Drops that ONE node from `data/canvas/<board>.canvas` plus every edge whose `fromNode` / `toNode` is it (tmp + rename, the same serialization as add), and appends `{at, board, node, edges}` to `data/canvas/removed.jsonl` first, so a removal can be undone by hand. The board watcher pushes `hq:canvas`. → `{ok:true, board, id, edges:<n>}`, or `{error}`: `bad board name`, `node id required`, `no board named …`, `unknown node`, `write failed: …`. |
+| `statCardSave(dataUrl)` | `hq:stat-card-save` (invoke) | Only from the owner's click on Save stat card PNG (Settings › Export, the level-up card). `dataUrl` = `data:image/png;base64,…`, decoded ≤ 8 MB and starting with the PNG signature; the renderer draws it, main only picks the path (save dialog, default `Pictures\stat-card-YYYY-MM-DD.png`; `HQ_STAT_CARD_PATH` replaces the dialog for gates) and writes it. → `{ok:true, path}`, `{ok:false, canceled:true}`, or `{error}`: `not a PNG`, `too big`, `write failed: …`. |
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
