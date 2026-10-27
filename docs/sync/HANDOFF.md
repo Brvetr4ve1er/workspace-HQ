@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-27 · FROM frontend (Discard + every-button sweep — owner: "make the discard button work AND test for other broken buttons") · main @ 724ae26
+DONE: 97471e5 meta: CONTRACT amendment (a third cancel path, same rule) + IPC-CONTRACT rows hq:social-cancel, hq:vault-open.
+  5d24851 fe main: social-bridge.js cancelStaged = THE staged → canceled rule (popup route now calls it; its 68 tests unchanged)
+  + hq:social-cancel in social-tab.js; new dashboard/vault-open.js (open / search a scanned, Obsidian-registered vault by id).
+  46b8b8c fe v5: Discard (two clicks), Life › Notes Open in Obsidian / Search, Machine / Claude status cards → their sub
+  (were no-ops from another sub), timeline rows without a project → Milestones / Library / Tasks or disabled, empty Ask /
+  Run in app / journal Add now say what's missing, aria-pressed / aria-selected on four toggle groups. tpl hash +535.
+  724ae26 fe: cdp-gate `button-sweep` (526 buttons, 37 screens, fake bridge; fails on errors / "isn't wired" outside the
+  brief's cuts / clicks that change nothing) + `social-discard`; 3 Ask gates were stale since the 8th chip (37441df) — fixed.
+  Suites: dashboard 731, v5 434, mcp 4, selftest 2888 combos 0/0/0, cdp-gate all 37 scenarios PASS.
+IN-FLIGHT: none. Left as recorded cuts: Save stat card PNG; canvas card pin / remove (no canvas cards in the fake, unswept).
+ASKS: none.
+BREAKS: main.js social-tab hook passes dataDir; one new hook line (vault-open). Additive IPC only.
+
 ## 2026-10-27 · FROM frontend (Social tab — owner: "a social media tab … to connect my socials … its own vault, VEEMO CORTEX"; skipped the questions) · main @ d68c9da
 DONE: a2d02c0 meta: IPC-CONTRACT "Social tab" section + CLAUDE.md facts line. 07335e2 fe: new dashboard/social-tab.js (5 tests) —
   hq:social-vault:list/open/save (VEEMO CORTEX 30_Areas/Social ≤2 deep + 00_Inbox/Social *.md; open only a listed note; save
