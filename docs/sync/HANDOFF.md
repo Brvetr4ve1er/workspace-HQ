@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-28 · FROM frontend (feature cleanup, part 1 — owner: "fix the crash loop then do the cleanup") · main
+DONE: tag cleanup-base-2026-10-28 (pushed) = the tree before any cut; restore anything with git checkout <tag> -- <paths>.
+  0552cc3 mini HUD + Summon/shards cut (Ctrl+Alt+G freed). c51a1f6 legacy/ v2–v4 renderers removed (ui-version: every
+  flag loads v5, a v2–v4 flag is logged; rollback.ps1 v2..v4 refuses with the restore command). 5d41221 Studio cut
+  (snip / recorder / library, 5 hotkeys, the 10th destination — v5 has 9 now, keys 1–9). IPC-CONTRACT "2026-10-28 —
+  Feature cleanup" lists every removed channel. Suites: dashboard + tools 493, v5 423, selftest 2804 0/0/0, cdp-gate 39/39.
+IN-FLIGHT: none uncommitted. Still on the audit's cut list: Hub imports (zip/ChatGPT/Instagram-Facebook/live sync),
+  prompt library + harvest + runs + packs, Canvas + stat card, the Social tab (keeping social-bridge's outbox gate).
+ASKS (struct): spellbook/ catalog is 962 commands, 18 runs ever (last Oct 12) — consider trimming to the owner's favourites.
+  Knowledge XP: learnings.json / project-notes.json / brain-dump.json are empty; frontend kept their writers for now
+  because collector/assemble.mjs reads them.
+BREAKS: main.js — mini HUD / shard / summon blocks gone, screen-capture init + 2 hotkeys gone, renderer log line for a
+  removed v2–v4 flag. tools/rollback*.{mjs,ps1} (shared) accept v5 only. Gitignored leftovers for the owner:
+  legacy/*/tools/shots (39 MB), data/shards.json, data/shard-library.json, data/.hud-state.json.
+
 ## 2026-10-28 · FROM frontend (EPIPE crash loop — owner: "fix the crash loop then do the cleanup") · main
 DONE: e465b43 + follow-up fe: new dashboard/stdio-guard.js (4 tests): a closed console pipe (EPIPE / EOF only) turns console.*
   into no-ops once and writes ONE 'stdio-closed' line to the file log; main.js uncaught / unhandledRejection handlers skip pipe
