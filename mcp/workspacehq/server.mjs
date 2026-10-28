@@ -2,8 +2,8 @@
 // THE BINDING — WorkspaceHQ stdio MCP server (charter M3, file-mediated v1).
 // Newline-delimited JSON-RPC 2.0 on stdin/stdout, zero dependencies.
 // Works with the app CLOSED: reads/writes the same data/ files the Warden uses.
-// Mutation shapes MIRROR dashboard/main.js exactly (applyDone, hq:capture-save,
-// hq:canvas-add) so both writers produce indistinguishable files.
+// Mutation shapes MIRROR dashboard/main.js exactly (applyDone, hq:capture-save)
+// so both writers produce indistinguishable files.
 // Live-app mutations (token-gated endpoint, data/.mcp-token) are v2 — see README.
 
 import fs from 'node:fs';
@@ -21,11 +21,6 @@ const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'workspacehq', version: '0.1.0' };
 
 const CAPTURE_MAX = 4000;
-const CANVAS_TEXT_MAX = 2000;
-const CANVAS_NAME_RE = /^[\w][\w -]{0,63}$/;   // same rail as main.js: no dots, no separators
-// Win32 resolves device basenames (CON, NUL, COM1…) to DOS devices regardless
-// of extension — a read can hang the stdio loop, a write goes to the console.
-const WIN_DEVICE_RE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 
 // ---------------------------------------------------------------------------
 // Safety rails
@@ -204,149 +199,6 @@ const TOOLS = [
       arr.push(entry);
       writeAtomic(file, JSON.stringify(arr, null, 2));
       return { ok: true, id: entry.id, ts: entry.ts, note: 'surfaces as a side-quest on next app assemble' };
-    },
-  },
-  {
-    name: 'hq_canvas_read',
-    description: 'THE CANVAS (shared JSON Canvas boards, Obsidian-compatible). Without a name: list boards with node/edge counts. With a name: return that board\'s full JSON.',
-    inputSchema: {
-      type: 'object',
-      properties: { name: { type: 'string', description: 'board name (omit to list all boards)' } },
-      additionalProperties: false,
-    },
-    run(args) {
-      if (args.name != null && args.name !== '') {
-        const name = String(args.name);
-        if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
-        const board = readJson(confined('canvas', `${name}.canvas`), null);
-        if (!board) throw new ToolError(`no board named "${name}"`);
-        return { name, ...board };
-      }
-      let files = [];
-      try { files = fs.readdirSync(confined('canvas')).filter((f) => f.endsWith('.canvas')); } catch { /* no boards yet */ }
-      return {
-        boards: files.map((f) => {
-          const b = readJson(confined('canvas', f), {});
-          return {
-            name: f.replace(/\.canvas$/, ''),
-            nodes: Array.isArray(b.nodes) ? b.nodes.length : 0,
-            edges: Array.isArray(b.edges) ? b.edges.length : 0,
-          };
-        }),
-      };
-    },
-  },
-  {
-    name: 'hq_canvas_add',
-    description: 'Append a text node to a canvas board (created if absent). The app fs-watches data/canvas, so if it is running the node appears near-live. Max 2000 chars.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'board name (created if it does not exist)' },
-        text: { type: 'string', maxLength: CANVAS_TEXT_MAX, description: 'node text (markdown ok)' },
-        x: { type: 'number', description: 'canvas x (default 40)' },
-        y: { type: 'number', description: 'canvas y (default 40)' },
-      },
-      required: ['name', 'text'],
-      additionalProperties: false,
-    },
-    run(args) {
-      const name = String(args.name || '');
-      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
-      const text = String(args.text ?? '');
-      if (!text.trim()) throw new ToolError('text required');
-      const file = confined('canvas', `${name}.canvas`);
-      // From here down: exact mirror of main.js hq:canvas-add (shape AND serialization),
-      // so Warden-written and Binding-written boards are indistinguishable.
-      let board = { nodes: [], edges: [] };
-      try {
-        const b = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (b && Array.isArray(b.nodes)) board = { edges: [], ...b };
-      } catch { /* new board */ }
-      const node = {
-        id: 'n-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        type: 'text', text: text.slice(0, CANVAS_TEXT_MAX),
-        x: Number.isFinite(args.x) ? Math.round(args.x) : 40,
-        y: Number.isFinite(args.y) ? Math.round(args.y) : 40,
-        width: 280, height: 120,
-      };
-      board.nodes.push(node);
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      writeAtomic(file, JSON.stringify(board, null, 1));
-      return { ok: true, board: name, node: { id: node.id, x: node.x, y: node.y } };
-    },
-  },
-  {
-    name: 'hq_canvas_remove',
-    description: 'Remove ONE node (and every edge touching it) from a canvas board. Only when the user asks to remove that card. The node and its edges are appended to data/canvas/removed.jsonl first, so it can be put back by hand. Use hq_canvas_read for node ids.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'board name' },
-        id: { type: 'string', maxLength: 120, description: 'node id (from hq_canvas_read)' },
-      },
-      required: ['name', 'id'],
-      additionalProperties: false,
-    },
-    run(args) {
-      const name = String(args.name || '');
-      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
-      const id = typeof args.id === 'string' ? args.id : '';
-      if (!id || id.length > 120) throw new ToolError('node id required');
-      const file = confined('canvas', `${name}.canvas`);
-      // From here down: the same rule as dashboard/canvas-ops.js (hq:canvas-remove).
-      const b = readJson(file, null);
-      if (!b || !Array.isArray(b.nodes)) throw new ToolError(`no board named "${name}"`);
-      const node = b.nodes.find((n) => n && String(n.id) === id);
-      if (!node) throw new ToolError('unknown node');
-      const edges = Array.isArray(b.edges) ? b.edges : [];
-      const touches = (e) => e && (String(e.fromNode) === id || String(e.toNode) === id);
-      const gone = edges.filter(touches);
-      fs.appendFileSync(confined('canvas', 'removed.jsonl'), JSON.stringify({ at: new Date().toISOString(), board: name, node, edges: gone }) + '\n');
-      writeAtomic(file, JSON.stringify({ ...b, nodes: b.nodes.filter((n) => n !== node), edges: edges.filter((e) => !touches(e)) }, null, 1));
-      return { ok: true, board: name, id, edges: gone.length };
-    },
-  },
-  {
-    name: 'hq_canvas_create',
-    description: 'Create a new, empty canvas board. Refuses if a board with that name exists (case-insensitive). Same rule as the app\'s ＋ Board (hq:canvas-create).',
-    inputSchema: {
-      type: 'object',
-      properties: { name: { type: 'string', description: 'board name — letters, digits, space, - and _ (max 64)' } },
-      required: ['name'],
-      additionalProperties: false,
-    },
-    run(args) {
-      const name = String(args.name || '');
-      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
-      let have = [];
-      try { have = fs.readdirSync(confined('canvas')).filter((f) => f.endsWith('.canvas')).map((f) => f.slice(0, -7).toLowerCase()); } catch { /* no boards yet */ }
-      if (have.includes(name.toLowerCase())) throw new ToolError(`a board named "${name}" already exists`);
-      const file = confined('canvas', `${name}.canvas`);
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, JSON.stringify({ nodes: [], edges: [] }, null, 1), { flag: 'wx' });
-      return { ok: true, board: name };
-    },
-  },
-  {
-    name: 'hq_canvas_clear',
-    description: 'Empty a canvas board: every node and edge goes. Only when the user asks to clear that board. Everything removed is appended to data/canvas/removed.jsonl first; the board itself stays. Same rule as the app\'s Clear (hq:canvas-clear).',
-    inputSchema: {
-      type: 'object',
-      properties: { name: { type: 'string', description: 'board name' } },
-      required: ['name'],
-      additionalProperties: false,
-    },
-    run(args) {
-      const name = String(args.name || '');
-      if (!CANVAS_NAME_RE.test(name) || WIN_DEVICE_RE.test(name.replace(/[ .]+$/, ''))) throw new ToolError('bad board name — letters, digits, space, - and _ only (max 64), no device names');
-      const file = confined('canvas', `${name}.canvas`);
-      const b = readJson(file, null);
-      if (!b || !Array.isArray(b.nodes)) throw new ToolError(`no board named "${name}"`);
-      const edges = Array.isArray(b.edges) ? b.edges : [];
-      fs.appendFileSync(confined('canvas', 'removed.jsonl'), JSON.stringify({ at: new Date().toISOString(), board: name, cleared: true, nodes: b.nodes, edges }) + '\n');
-      writeAtomic(file, JSON.stringify({ ...b, nodes: [], edges: [] }, null, 1));
-      return { ok: true, board: name, nodes: b.nodes.length, edges: edges.length };
     },
   },
   {

@@ -28,7 +28,6 @@ export function overlaysVals(ctx) {
     // (Since the F2 split, `out` is assembled from src/vals/*.js; the keys this note covers
     // that live in other files are marked there with a RECONSTRUCTED pointer.)
     hasSheet: !!S.sheet, sheet: S.sheet || {}, sheetDanger: !!(S.sheet && S.sheet.danger), sheetSafe: !!(S.sheet && !S.sheet.danger), cancelSheet: () => this.setState({ sheet: null }), sheetOk: () => this.sheetOk(),
-    exportCard: () => this.exportStatCard(), exportCardLabel: S.statCardSaving ? 'Saving…' : 'Save stat card PNG', exportCardOff: !!S.statCardSaving,
     hasLevel: !!S.levelUp, lvl, closeLevel: () => this.setState({ levelUp: null }),
   };
 }

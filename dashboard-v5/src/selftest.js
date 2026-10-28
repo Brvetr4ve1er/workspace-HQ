@@ -19,7 +19,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false };
+  projSearch: '', projStatus: 'all', askChecking: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -128,7 +128,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -136,7 +136,6 @@ export async function run(W = window.WHQ) {
       const gapP = M.P0.find((p) => gapsOf(p).length);
       const gapText = gapP ? gapsOf(gapP)[0].text : '';
       const inter = (M.INTERACTIVE || [])[0];
-      const board = () => { LV.canvasBoards = [{ name: 'Selftest Board', nodes: [], edges: [] }]; };
       // H1 Claude Hub card (System > Machine): every state the Hub can be in, injected into the store (never window.hq).
       // The card shows only with a bridge: dev-main.js --preload=fake, or the real app (without one these render it hidden).
       const HUB_COUNTS = { projects: 3, conversations: 40, messages: 900 };
@@ -185,8 +184,6 @@ export async function run(W = window.WHQ) {
         inter && ['confirm-interactive', at('automations', 'runnable'), { confirm: inter.id, confirmAsk: 'always' }],
         ['projects-risk', at('projects', 'grid'), { projStatus: 'risk' }],
         ['projects-none', at('projects', 'grid'), { projSearch: 'zzz-selftest-none' }],
-        ['canvas-note', at('claude', 'canvas'), { canvasNoteOpen: true, canvasDraft: 'A selftest note' }, board],
-        ['canvas-note-saving', at('claude', 'canvas'), { canvasNoteOpen: true, canvasDraft: 'A selftest note', canvasSaving: true }, board],
         ['chats-list', at('claude', 'chats'), {}, clLib({})],
         ['chats-empty-nobridge', at('claude', 'chats'), {}, () => { LV.claudeHub = null; LV.claudeLib = { ...LV.claudeLib, convs: null }; }],
         ['chats-filtered-none', at('claude', 'chats'), { clSrc: 'web', clSince: '7' }, clLib({ convs: [], convsMore: false })],
@@ -241,7 +238,6 @@ export async function run(W = window.WHQ) {
             ['cc-web', at('claude', 'chats'), { ccOpen: true, ccConv: 'web:st-web' }, () => { LV.claudeLib = { ...LV.claudeLib, thread: { conversation: { id: 'web:st-web', source: 'web', title: 'Selftest web chat', project_id: 'web:chats' }, messages: [], hasMore: false }, projects: [{ id: 'web:chats', source: 'web', hq_project_id: null }] }; }],
           ];
         })(),
-        ['canvas-no-boards', at('claude', 'canvas'), { canvasNoteOpen: true }, () => { LV.canvasBoards = []; }],
       ].filter(Boolean);
       for (const theme of ['dark', 'light']) {
         for (const off of offsets) {

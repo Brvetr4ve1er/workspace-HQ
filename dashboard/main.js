@@ -41,7 +41,7 @@ const DAILY_DIR = path.join(VAULT, '10_Daily');
 // Allow-list of regenerable dirs the reclaim action may delete (npm install / rebuild restores them).
 const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
-let win, tray, watcher, qbWatcher, dailyWatcher, castWin = null, canvasWatcher = null;
+let win, tray, watcher, qbWatcher, dailyWatcher, castWin = null;
 let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
 let navBridge = null;   // v5 M4: nav-bridge init() result ({ openAt }) — tray Show / Open Automations
 let claudeHub = null;   // Claude Hub host (claude-hub-host.js), set in whenReady
@@ -851,51 +851,6 @@ require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   //
 const liveState = require('./live-state').init({ ipcMain, send: castSend, devServers: activeDevServers, casts: castRegistry, readSpellbook });   // v5 clean pass: hq:live-state
 const commitGuard = require('./commit-guard'); commitGuard.init({ ipcMain, resolveProjectPath });   // v5 clean pass: hq:commit-preview + the do-commit .env guard
 
-// ---- THE CANVAS (M3): data/canvas/*.canvas — JSON Canvas, Obsidian-compatible,
-// fs-watched so both the Warden and the Familiar (via the MCP server writing
-// the same files) draw on a live shared board.
-const CANVAS_DIR = path.join(DATA, 'canvas');
-const CANVAS_NAME_RE = /^[\w][\w -]{0,63}$/;   // confinement: no dots, no separators
-function canvasList() {
-  try {
-    return fs.readdirSync(CANVAS_DIR).filter((f) => f.endsWith('.canvas')).map((f) => {
-      try { return { name: f.replace(/\.canvas$/, ''), ...JSON.parse(fs.readFileSync(path.join(CANVAS_DIR, f), 'utf8')) }; }
-      catch { return null; }
-    }).filter(Boolean);
-  } catch { return []; }
-}
-ipcMain.handle('hq:canvas-read', () => canvasList());
-ipcMain.handle('hq:canvas-add', (_e, name, node) => {
-  if (!CANVAS_NAME_RE.test(String(name || ''))) return false;
-  if (!node || node.type !== 'text' || typeof node.text !== 'string') return false;
-  const file = path.join(CANVAS_DIR, name + '.canvas');
-  let board = { nodes: [], edges: [] };
-  try { const b = JSON.parse(fs.readFileSync(file, 'utf8')); if (b && Array.isArray(b.nodes)) board = { edges: [], ...b }; } catch { /* new board */ }
-  board.nodes.push({
-    id: 'n-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    type: 'text', text: node.text.slice(0, 2000),
-    x: Number.isFinite(node.x) ? Math.round(node.x) : 40,
-    y: Number.isFinite(node.y) ? Math.round(node.y) : 40,
-    width: 280, height: 120,
-  });
-  fs.mkdirSync(CANVAS_DIR, { recursive: true });
-  const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(board, null, 1));
-  fs.renameSync(tmp, file);   // the watcher pushes; no manual castSend needed
-  return true;
-});
-{
-  let t = null;
-  try {
-    fs.mkdirSync(CANVAS_DIR, { recursive: true });
-    canvasWatcher = fs.watch(CANVAS_DIR, (_evt, file) => {
-      if (!file || !file.endsWith('.canvas')) return;
-      clearTimeout(t);
-      t = setTimeout(() => castSend('hq:canvas', canvasList()), 300);
-    });
-  } catch { /* canvas dir unwatchable — reads still work */ }
-}
-
 // ---- MED-BAY (M2): live PC-health scan + safe fix runner -----------------
 const PC_HEALTH_FILE = path.join(DATA, 'pc-health.json');
 function readPcHealth() { try { return JSON.parse(fs.readFileSync(PC_HEALTH_FILE, 'utf8')); } catch { return null; } }
@@ -1279,8 +1234,6 @@ if (!app.requestSingleInstanceLock()) {
     const claudeChatEngine = require('./claude-chat').init({ ipcMain, send: castSend, app, hub: claudeHub, getProjects: studioProjects, appLog });   // Claude Hub H3 in-app chat (spec 2026-10-13 §8)
     require('./social-tab').init({ ipcMain, app, shell, vaultDir: VAULT, dataDir: DATA, log: (s) => console.log(s) });   // Social tab: VEEMO CORTEX social notes (hq:social-vault:list/open/save; writes only on the owner's Save) + hq:social-open-site (fixed platform URLs) + hq:social-cancel (Inbox Discard)
     require('./vault-open').init({ ipcMain, app, shell, dataDir: DATA, docsRoot: DOCS_ROOT, log: (s) => console.log(s) });   // Life › Notes: Open in Obsidian / Search for a scanned, Obsidian-registered vault (hq:vault-open)
-    require('./canvas-ops').init({ ipcMain, canvasDir: CANVAS_DIR });   // Claude › Canvas Remove / ＋ Board / Clear board, removals copied to removed.jsonl (hq:canvas-remove, -create, -clear)
-    require('./stat-card').init({ ipcMain, app, dialog, getWin: () => win });   // Save stat card PNG: the renderer draws, main picks the path (hq:stat-card-save)
     require('./pc-health-open').init({ ipcMain, shell, dataDir: DATA });   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });
     require('./accounts-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });   // Projects › Accounts: Vercel + Supabase through the owner's CLI logins (hq:accounts-refresh, hq:accounts-open)   // Projects › GitHub: refresh through the owner's gh login + open a listed github.com link (hq:github-refresh, hq:github-open)   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
@@ -1311,7 +1264,7 @@ if (!app.requestSingleInstanceLock()) {
     app.isQuitting = true;
     if (machineTimer) clearInterval(machineTimer);
     try { globalShortcut.unregisterAll(); } catch {}
-    for (const w of [watcher, qbWatcher, dailyWatcher, canvasWatcher]) if (w) try { w.close(); } catch {}
+    for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}
     if (bridge) try { bridge.stop(); } catch {}
     try { claudeHub && claudeHub.stop(); } catch {}   // the Hub releases its db lock on stdin close
     // no orphaned incantations: kill any live cast trees on the way out

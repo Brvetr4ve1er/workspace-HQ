@@ -48,9 +48,10 @@ import tpl from './app.tpl.js';
 // 2026-10-27 canvas ＋ Board + Clear board: claude (＋ Board button, the new-board form with its name hint, the board list with card counts and Clear); each with its <!-- v5: reason --> marker (+3572 chars / +3580 bytes)
 // 2026-10-28 feature cleanup — Studio cut: the studio and lightbox fragments removed whole (snip / recorder / capture library had 1 recording and 0 snips ever) (-10096 chars / -10110 bytes)
 // 2026-10-28 feature cleanup — importers + prompt library cut: claude (the claude.ai / ChatGPT / Instagram-Facebook import strip and the whole Prompts sub), ov-settings (claude.ai export row), system (drop-folder + last-import lines), social (both import buttons), project-page (Run a prompt), extras (Promote, Run, Pack dialogs and the drop card) (-30554 chars / -30631 bytes)
-const SHA256 = '94a663876cd8df4b031b80729b19c35f7e81722a14cc706fc28cee9f6ec319a1';
-const LENGTH = 277368;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 277849;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-28 feature cleanup — Canvas + stat card cut: claude (the whole Canvas sub: ＋ Note, ＋ Board, board list + Clear, cards with Pin / Remove), home (Pinned from canvas), ov-settings (Export › Save stat card PNG), ov-misc (level-up Save card) (-13441 chars / -13467 bytes)
+const SHA256 = '138902919c59332815a4180c90e08c291d83cacb585811d45c1ee2e19b940277';
+const LENGTH = 263927;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 264382;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

@@ -1,59 +1,9 @@
-// Claude sessions: draft one from a task, start it in a project. Canvas "＋ Note".
+// Claude sessions: draft one from a task, start it in a project.
 // Component.prototype mixin (src/app.js): same `this` as the class methods they were.
 import { FX } from './shared.js';
 import { TERM_SKIPPED } from './project.js';
 
-// main's hq:canvas-add accepts only these board names (no dots, no separators)
-export const CANVAS_NAME_RE = /^[\w][\w -]{0,63}$/;
-export const CANVAS_NOTE_MAX = 600;   // v3's input limit (main cuts at 2000)
-const NO_BRIDGE = 'Unavailable — the bridge is offline';
-
-// Boards a note can go to: the raw board list (store live.canvasBoards, contract K-2:
-// [{name, nodes}], from DATA.canvas / hq.getCanvas / hq.onCanvas), else the boards the
-// canvas widgets came from. Unique, in order, only names main would accept.
-export function canvasBoardNames(boards, widgets) {
-  const names = Array.isArray(boards) ? boards.map((b) => b && b.name) : (Array.isArray(widgets) ? widgets : []).map((w) => w && w.board);
-  const out = [];
-  for (const n of names) { const s = typeof n === 'string' ? n : ''; if (CANVAS_NAME_RE.test(s) && !out.includes(s)) out.push(s); }
-  return out;
-}
-
 export const claudeLogic = {
-  // ---- Claude › Canvas "＋ Note" (Phase 3 P5, v3 summoning/canvas-board.js) ----
-  // hq.canvasAdd(board, {type:'text', text, x:40, y:40}) → true / false. No reload:
-  // main's board watcher pushes hq:canvas about 300 ms later and the store re-renders.
-  canvasBoardNames() { return canvasBoardNames(this.LIVE.canvasBoards, this.M.CANVAS); },
-  // the picked board, else the first one; null when there is none
-  canvasBoardPick() { const names = this.canvasBoardNames(), want = this.state.canvasBoard; return names.includes(want) ? want : (names[0] || null); },
-  // why a note can't be added right now ('' = it can)
-  canvasNoteReason() {
-    if (!this.hq || !this.hq.canvasAdd) return NO_BRIDGE;
-    if (!this.canWrite()) return this.writeReason() || NO_BRIDGE;
-    if (!this.canvasBoardPick()) return 'No canvas boards yet — make one with ＋ Board';
-    return '';
-  },
-  toggleCanvasNote() {
-    if (this.state.canvasNoteOpen) { this.setState({ canvasNoteOpen: false }); return; }
-    const why = this.canvasNoteReason(); if (why) return this.denied(why);
-    this.setState({ canvasNoteOpen: true }); FX().sfx('open');
-  },
-  canvasDraftKey(e) { if (e.key === 'Enter' && !e.isComposing && !e.repeat) { e.preventDefault(); this.addCanvasNote(); } },
-  async addCanvasNote() {
-    const why = this.canvasNoteReason(); if (why) return this.denied(why);
-    const text = String(this.state.canvasDraft || '').trim().slice(0, CANVAS_NOTE_MAX); if (!text) return;
-    if (this._canvasBusy) return;
-    const board = this.canvasBoardPick();
-    this._canvasBusy = true; this.setState({ canvasSaving: true });
-    let ok = false, err = '';
-    try { ok = (await this.hq.canvasAdd(board, { type: 'text', text, x: 40, y: 40 })) === true; }
-    catch (e) { err = ' · ' + ((e && e.message) || e); }
-    this._canvasBusy = false;
-    if (!ok) { this.setState({ canvasSaving: false }); this.toast('error', 'Not added' + err); FX().sfx('error'); return; }
-    // keep anything typed while the call was out
-    this.setState((s) => ({ canvasSaving: false, canvasDraft: String(s.canvasDraft || '').trim().slice(0, CANVAS_NOTE_MAX) === text ? '' : s.canvasDraft }));
-    this.toast('success', 'Added to ' + board + ' · it appears in a moment'); FX().sfx('done');
-  },
-
   // ---- sessions ----
   // A task without a project (workspace-level) doesn't pick one silently: the
   // composer's project is cleared and Run stays disabled until one is chosen.

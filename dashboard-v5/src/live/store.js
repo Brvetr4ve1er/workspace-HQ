@@ -42,8 +42,7 @@ export function createStore(DATA, hq) {
     social: { POSTS: [], MENTIONS: [], ACCOUNTS: [], ACTIVITY: {}, connected: false, loaded: false },
     socialArchive: { summary: null, error: null, busy: false, sel: null, list: null, listErr: null, q: '', hits: null, doc: null },   // Social › Archive: Hub socialSummary + one kind's documents + search + the open document, raw
     socialVault: { vault: null, folder: null, exists: false, obsidian: false, notes: null, error: null, busy: false },   // Social › Vault: main's VEEMO CORTEX social-notes listing
-    canvas: A.canvasWidgets(DATA.canvas), dev: {}, machine: null, browserNow: null,
-    canvasBoards: A.canvasBoards(DATA.canvas),   // raw boards [{name, nodes, edges}] (Canvas "＋ Note" board picker)
+    dev: {}, machine: null, browserNow: null,
     llm: null, casts: {},
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
@@ -91,7 +90,7 @@ export function createStore(DATA, hq) {
     get SITES() { return A.sites(at(0).browser); },
     get LEARN() { const P = at(0).P0; return at(0).learnings.map((l) => [l.text, (P.find((p) => p.id === l.proj) || {}).name || '', l.at ? A.fmtD(new Date(Date.parse(l.at))) : '']); },
     WEEKS: A.weeks(snaps),
-    get SESSIONS() { return live.sessions; }, get CANVAS() { return live.canvas; },
+    get SESSIONS() { return live.sessions; },
     get POSTS() { return live.social.POSTS; }, get MENTIONS() { return live.social.MENTIONS; },
     projectNotes: DATA.projectNotes && typeof DATA.projectNotes === 'object' ? DATA.projectNotes : {},
     weeklyRecap: DATA.weeklyRecap || null, builtAt: DATA.built_at || null,
@@ -231,15 +230,6 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
     return pull(() => hq.probeLlm({ force: !!force }), (r) => { live.llm = r || null; });
   }
-  // hq:canvas-read / the hq:canvas push: an array of boards (or { boards }). Both
-  // the widgets and the raw boards follow it; a payload that isn't a board list
-  // (a failed read) changes nothing. Answers whether it applied.
-  function setBoards(payload) {
-    if (!A.boardList(payload)) return false;
-    live.canvas = A.canvasWidgets(payload);
-    live.canvasBoards = A.canvasBoards(payload);
-    return true;
-  }
   // a fresh pc-health sidecar (e.g. after a machine fix); null falls back to the baked one
   function refreshMachine(pcHealth) {
     live.pcHealth = isObj(pcHealth) ? pcHealth : null;
@@ -284,8 +274,6 @@ export function createStore(DATA, hq) {
       emit();
     }));
     if (hq.onDevStatus) sub(() => hq.onDevStatus((d) => { if (d && d.id) { live.dev = { ...live.dev, [d.id]: d.running ? { since: msOf(d.since) || Date.now() } : null }; emit(); } }));
-    if (hq.getCanvas) reads.push(pull(() => hq.getCanvas(), setBoards));
-    if (hq.onCanvas) sub(() => hq.onCanvas((b) => { if (setBoards(b)) emit(); }));
     if (hq.onMachine) sub(() => hq.onMachine((m) => { live.machine = m || null; emit(); }));
     if (hq.getBrowserLive) reads.push(pull(() => hq.getBrowserLive(), (b) => { live.browserNow = b || null; }));
     if (hq.onBrowserTab) sub(() => hq.onBrowserTab((b) => { live.browserNow = b || null; emit(); }));

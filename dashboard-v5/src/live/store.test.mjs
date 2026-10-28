@@ -20,7 +20,7 @@ function fakeHq(reads = {}) {
   const read = (name) => (...args) => { stats.calls.push(name); return typeof reads[name] === 'function' ? reads[name](...args) : Promise.resolve(reads[name]); };
   const hq = {
     getSessions: read('getSessions'), onClaudeSessions: on('claudeSessions'), onSessionOutput: on('sessionOutput'),
-    onDevStatus: on('devStatus'), getCanvas: read('getCanvas'), onCanvas: on('canvas'), onMachine: on('machine'),
+    onDevStatus: on('devStatus'), onMachine: on('machine'),
     getBrowserLive: read('getBrowserLive'), onBrowserTab: on('browserTab'), onCastOutput: on('castOutput'), onCastDone: on('castDone'),
     getSocial: read('getSocial'), probeLlm: read('probeLlm'),
     liveState: read('liveState'), onScanStatus: on('scanStatus'),
@@ -250,10 +250,10 @@ test('stop() releases every subscription, the new ones included', async () => {
   const { hq, stats, cbs, push } = fakeHq({ liveState: LIVE_STATE });
   const st = createStore(DATA(), hq);
   await st.start();
-  for (const ch of ['claudeSessions', 'sessionOutput', 'devStatus', 'canvas', 'machine', 'browserTab', 'castOutput', 'castDone', 'scanStatus', 'uiPrefs']) {
+  for (const ch of ['claudeSessions', 'sessionOutput', 'devStatus', 'machine', 'browserTab', 'castOutput', 'castDone', 'scanStatus', 'uiPrefs']) {
     assert.equal((cbs[ch] || []).length, 1, ch + ' subscribed once');
   }
-  assert.equal(stats.subs, 10);
+  assert.equal(stats.subs, 9);
   st.stop();
   assert.equal(stats.disposed, stats.subs);
   assert.ok(Object.values(cbs).every((l) => l.length === 0));
@@ -261,7 +261,7 @@ test('stop() releases every subscription, the new ones included', async () => {
   push.scanStatus({ state: 'failed' });
   assert.equal(st.live.scan.state, 'running');
   st.stop();   // idempotent
-  assert.equal(stats.disposed, 10);
+  assert.equal(stats.disposed, 9);
 });
 
 test('reads that throw or reject leave the store usable; no bridge → read-only and start() resolves', async () => {
@@ -293,51 +293,6 @@ test('empty DATA still builds a model with the new names', () => {
 });
 
 // ---- clean pass Phase 3 (K-2): raw canvas boards next to the widgets ------------------------
-
-test('canvasBoards: seeded from DATA.canvas, replaced by getCanvas() and by every hq:canvas push', async () => {
-  const board = (name, ...texts) => ({ name, nodes: texts.map((t, i) => ({ id: name + i, type: 'text', text: t, x: i * 10, y: 0 })), edges: [] });
-  const data = { ...DATA(), canvas: [board('baked', 'Baked note')] };
-  assert.deepEqual(createStore(data, null).live.canvasBoards.map((b) => b.name), ['baked']);
-  assert.deepEqual(createStore(DATA(), null).live.canvasBoards, [], 'no canvas in DATA → no boards');
-
-  const { hq, push } = fakeHq({ getCanvas: [board('plan', 'One', 'Two'), board('ideas')] });
-  const st = createStore(data, hq);
-  let emits = 0; st.on(() => emits++);
-  await st.start();
-  assert.deepEqual(st.live.canvasBoards.map((b) => [b.name, b.nodes.map((n) => n.text)]), [['plan', ['One', 'Two']], ['ideas', []]]);
-  assert.deepEqual(st.live.canvasBoards[0].nodes[1], { id: 'plan1', type: 'text', text: 'Two', x: 10, y: 0 });
-  assert.deepEqual(st.live.canvas.map((w) => w.title), ['One', 'Two'], 'the widgets follow the same read');
-
-  // a push replaces both — as an array or as { boards }
-  const before = emits;
-  push.canvas([board('plan', 'One', 'Two', 'Three')]);
-  assert.deepEqual(st.live.canvasBoards[0].nodes.map((n) => n.text), ['One', 'Two', 'Three']);
-  assert.equal(st.live.canvas.length, 3);
-  push.canvas({ boards: [board('other', 'Solo')] });
-  assert.deepEqual(st.live.canvasBoards.map((b) => b.name), ['other']);
-  assert.deepEqual(st.live.canvas.map((w) => w.title), ['Solo']);
-  assert.equal(emits, before + 2);
-
-  // a payload that isn't a board list changes nothing and doesn't re-render
-  for (const junk of [null, undefined, 'x', { nope: 1 }]) push.canvas(junk);
-  assert.deepEqual(st.live.canvasBoards.map((b) => b.name), ['other']);
-  assert.equal(st.live.canvas.length, 1);
-  assert.equal(emits, before + 2);
-  // an empty list is a real answer: no boards left
-  push.canvas([]);
-  assert.deepEqual([st.live.canvasBoards, st.live.canvas], [[], []]);
-  st.stop();
-});
-
-test('a failed getCanvas read keeps the baked boards', async () => {
-  const data = { ...DATA(), canvas: [{ name: 'baked', nodes: [{ id: 'n', type: 'text', text: 'Kept' }] }] };
-  const { hq } = fakeHq({ getCanvas: null });
-  const st = createStore(data, hq);
-  await st.start();
-  assert.deepEqual(st.live.canvasBoards.map((b) => b.name), ['baked']);
-  assert.deepEqual(st.live.canvas.map((w) => w.title), ['Kept']);
-  st.stop();
-});
 
 test('the model keeps fileUrl', async () => {
   const { hq } = fakeHq({});

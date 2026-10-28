@@ -414,40 +414,6 @@ export function sites(browser) {
   return arr(b.by_domain).map((d) => [String(d.domain), Math.round(num(d.focus_ms) / 60000), projDomains.has(d.domain) ? 'Project' : 'Other']).filter((s) => s[1] > 0);
 }
 
-// ---- Claude › Canvas: JSON Canvas boards → note/list widgets ------------------------------
-// main sends the boards as an array (hq:canvas-read, the hq:canvas push); a
-// { boards } wrapper is accepted too. Anything else is not a board list → null.
-export function boardList(payload) {
-  const list = Array.isArray(payload) ? payload : payload && typeof payload === 'object' && Array.isArray(payload.boards) ? payload.boards : null;
-  return list ? list.filter((b) => b && typeof b === 'object' && !Array.isArray(b)) : null;
-}
-// The raw boards for the Canvas "＋ Note" board picker: name + nodes as the file
-// holds them (id/type/text/x/y normalised, the rest — width, height, file, url,
-// color — kept). A board without a name can't be written to (hq.canvasAdd takes
-// the name), so it drops.
-export function canvasBoards(payload) {
-  return arr(boardList(payload)).map((b) => ({
-    name: typeof b.name === 'string' ? b.name : '',
-    nodes: arr(b.nodes).filter((n) => n && typeof n === 'object' && !Array.isArray(n)).map((n) => ({ ...n, id: String(n.id ?? ''), type: String(n.type || ''), text: typeof n.text === 'string' ? n.text : '', x: num(n.x), y: num(n.y) })),
-    edges: arr(b.edges),
-  })).filter((b) => b.name);
-}
-export function canvasWidgets(boards) {
-  const out = [];
-  for (const b of arr(boardList(boards))) for (const n of arr(obj(b).nodes)) {
-    const text = String(obj(n).text || obj(n).file || obj(n).url || '').trim();
-    if (!text) continue;
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const title = lines[0].replace(/^#+\s*|\*\*/g, '').slice(0, 80);
-    const rest = lines.slice(1);
-    const bullets = rest.filter((l) => /^[-*]\s/.test(l));
-    out.push(bullets.length >= 2
-      ? { id: String(n.id), board: String(b.name), type: 'list', title, items: bullets.map((l) => l.replace(/^[-*]\s+/, '').replace(/\*\*/g, '')).slice(0, 6), tone: 'gold', wide: false }
-      : { id: String(n.id), board: String(b.name), type: 'note', title, body: rest.join(' ').replace(/\*\*/g, '').slice(0, 400), tone: 'blue', wide: rest.join(' ').length > 160 });
-  }
-  return out.slice(0, 24);
-}
-
 // ---- live reads ----------------------------------------------------------------------------
 
 export const normPath = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();

@@ -42,7 +42,6 @@ export const CHANGES = [
   { text: 'System › Machine has Re-examine: a fresh health check without a full scan. An issue a fix ran on stays hidden until you re-examine.', needs: 'reexamine' },
   { text: 'Workspace clutter, and a project’s missing tests, CI, README or license, can be noted to your Ideas in one click (the window refreshes).', needs: 'saveIdea' },
   { text: 'A project’s Next lists its own side quests and the scan’s suggestions; its page shows every risk flag and its git risk.', needs: 'questTerminal' },
-  { text: 'Canvas has ＋ Note: add a text note to one of your boards.', needs: 'addCanvasNote' },
   { text: 'Automations also lists the interactive Claude skills and commands (they use Claude quota), with kind, source and category filters and a Rescan.', needs: 'rescanLib' },
   { text: 'Projects can be searched by name or stack and filtered by status, and “capture <text>” in the command palette saves an idea.', needs: 'paletteCapture' },
 ];

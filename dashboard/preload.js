@@ -70,7 +70,6 @@ contextBridge.exposeInMainWorld('hq', {
   socialOpenSite: (platform) => ipcRenderer.invoke('hq:social-open-site', platform),   // a listed platform's home page, to sign in there
   socialCancel: (id) => ipcRenderer.invoke('hq:social-cancel', id),   // Social › Inbox Discard: staged → canceled only (never publishes)
   vaultOpen: (name, how) => ipcRenderer.invoke('hq:vault-open', name, how),   // Life › Notes: 'open' | 'search' in Obsidian, a scanned vault only
-  statCardSave: (dataUrl) => ipcRenderer.invoke('hq:stat-card-save', dataUrl),   // Save stat card PNG: main picks the path, the renderer never names one
   claudeChat: {
     send: (req) => ipcRenderer.invoke('hq:claude-chat:send', req),
     cancel: (turnId) => ipcRenderer.invoke('hq:claude-chat:cancel', turnId),
@@ -107,19 +106,8 @@ contextBridge.exposeInMainWorld('hq', {
   githubOpen: (u) => ipcRenderer.invoke('hq:github-open', u),   // only a github.com link listed in the current snapshot
   accountsRefresh: () => ipcRenderer.invoke('hq:accounts-refresh'),   // re-reads Vercel + Supabase through the owner's CLI logins
   accountsOpen: (u) => ipcRenderer.invoke('hq:accounts-open', u),   // only a Vercel / Supabase link listed in the current snapshot
-  // M3: THE CANVAS — shared JSON Canvas boards, fs-watched live
   getSocial: () => ipcRenderer.invoke('hq:social-read'),
 
-  getCanvas: () => ipcRenderer.invoke('hq:canvas-read'),
-  canvasAdd: (name, node) => ipcRenderer.invoke('hq:canvas-add', name, node),
-  canvasRemove: (board, id) => ipcRenderer.invoke('hq:canvas-remove', board, id),   // one node + its edges; a copy goes to removed.jsonl
-  canvasCreate: (board) => ipcRenderer.invoke('hq:canvas-create', board),   // a new empty board, never over an existing one
-  canvasClear: (board) => ipcRenderer.invoke('hq:canvas-clear', board),   // every node + edge; a copy goes to removed.jsonl, the board stays
-  onCanvas: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('hq:canvas', handler);
-    return () => ipcRenderer.removeListener('hq:canvas', handler);
-  },
   // MA: Claude session presence (registry in claude-sessions.js)
   getSessions: () => ipcRenderer.invoke('hq:sessions-list'),
   // v4 SPINE B3: session dispatch/kill/diff + output stream (session-api.js)

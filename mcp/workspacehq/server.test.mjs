@@ -93,37 +93,3 @@ test('tools/list describes sent_after_cancel on hq_social_outbox', async () => {
   const t = r[5].result.tools.find((x) => x.name === 'hq_social_outbox');
   assert.match(t.description, /sent_after_cancel/);
 });
-
-test('hq_canvas_remove drops one node and its edges, logs it to removed.jsonl, and matches the app rule', async () => {
-  const dir = path.join(root, 'data', 'canvas');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'Ideas.canvas'), JSON.stringify({ nodes: [{ id: 'a', type: 'text', text: 'A' }, { id: 'b', type: 'text', text: 'B' }], edges: [{ id: 'e1', fromNode: 'a', toNode: 'b' }] }));
-  const r = await rpc([
-    { id: 6, method: 'tools/call', params: { name: 'hq_canvas_remove', arguments: { name: 'Ideas', id: 'a' } } },
-    { id: 7, method: 'tools/call', params: { name: 'hq_canvas_remove', arguments: { name: 'Ideas', id: 'zz' } } },
-  ]);
-  assert.deepEqual(toolResult(r[6]), { ok: true, board: 'Ideas', id: 'a', edges: 1 });
-  assert.equal(r[7].result.isError, true);
-  const b = JSON.parse(fs.readFileSync(path.join(dir, 'Ideas.canvas'), 'utf8'));
-  assert.deepEqual(b, { nodes: [{ id: 'b', type: 'text', text: 'B' }], edges: [] });
-  const log = JSON.parse(fs.readFileSync(path.join(dir, 'removed.jsonl'), 'utf8').trim());
-  assert.deepEqual([log.board, log.node.id, log.edges.length], ['Ideas', 'a', 1]);
-});
-
-test('hq_canvas_create makes an empty board once; hq_canvas_clear empties one and logs it', async () => {
-  const dir = path.join(root, 'data', 'canvas');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'Full.canvas'), JSON.stringify({ nodes: [{ id: 'x', type: 'text', text: 'X' }], edges: [], keep: 1 }));
-  const r = await rpc([
-    { id: 8, method: 'tools/call', params: { name: 'hq_canvas_create', arguments: { name: 'Fresh' } } },
-    { id: 9, method: 'tools/call', params: { name: 'hq_canvas_create', arguments: { name: 'fresh' } } },
-    { id: 10, method: 'tools/call', params: { name: 'hq_canvas_clear', arguments: { name: 'Full' } } },
-  ]);
-  assert.deepEqual(toolResult(r[8]), { ok: true, board: 'Fresh' });
-  assert.equal(r[9].result.isError, true);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'Fresh.canvas'), 'utf8')), { nodes: [], edges: [] });
-  assert.deepEqual(toolResult(r[10]), { ok: true, board: 'Full', nodes: 1, edges: 0 });
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'Full.canvas'), 'utf8')), { nodes: [], edges: [], keep: 1 });
-  const last = fs.readFileSync(path.join(dir, 'removed.jsonl'), 'utf8').trim().split('\n').pop();
-  assert.equal(JSON.parse(last).cleared, true);
-});

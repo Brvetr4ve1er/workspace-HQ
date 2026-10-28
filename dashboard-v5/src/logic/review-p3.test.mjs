@@ -8,7 +8,7 @@
 //  2. Re-examine's toast counted the pc-health organs only, while the verdict also counts
 //     the local model; with Ollama down it said "nothing flagged" over "1 issue to look at".
 //  3. K-4: app.js declares every Phase 3 state key with the default its readers assume.
-//  4. Escape folds the Canvas ＋ Note form, but only while it is on screen.
+//  4. (Escape and the Canvas ＋ Note form — the canvas was removed 2026-10-28.)
 //  5. K-1 / K-2 / K-3 seen from both sides.
 //
 // Synthetic fixtures only (placeholder names and paths) — the repo is public.
@@ -120,7 +120,7 @@ test('Re-examine with the local model down: the toast and the verdict give the s
 test('K-4: app.js declares every Phase 3 key with the default its reader assumes', () => {
   const S = make(null).state;
   const want = { sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: LIB_PAGE, libRescanning: false,
-    projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, whatsNewOpen: false, whatsNewMissing: {} };
+    projSearch: '', projStatus: 'all', askChecking: false, whatsNewOpen: false, whatsNewMissing: {} };
   for (const [k, v] of Object.entries(want)) assert.deepEqual(S[k], v, k);
   // the declared defaults are what the readers fall back to for undefined
   assert.deepEqual(libFilters(S), libFilters({}));
@@ -133,38 +133,7 @@ test('K-4: app.js declares every Phase 3 key with the default its reader assumes
 });
 
 // ---- 4. Escape and the Canvas note form ---------------------------------------------------------
-test('Escape folds the ＋ Note form only while it is on screen', () => {
-  const onCanvas = { tab: 'claude', sub: { claude: 'canvas' }, route: null, canvasNoteOpen: true };
-  const c = make({ canvasAdd() {} }, onCanvas);
-  c.closeTop();
-  assert.equal(c.state.canvasNoteOpen, false, 'on Claude › Canvas: Escape folds it');
-  // left open on Canvas, then a project page: Escape leaves the page, the hidden form stays as it was
-  const d = make({ canvasAdd() {} }, Object.assign({}, onCanvas, { tab: 'projects', route: { type: 'project', id: 'a' } }));
-  d.closeTop();
-  assert.equal(d.state.route, null, 'Escape went to the page');
-  assert.equal(d.state.canvasNoteOpen, true);
-  // an overlay over the form closes first
-  const e = make({ canvasAdd() {} }, Object.assign({}, onCanvas, { settingsOpen: true }));
-  e.closeTop();
-  assert.equal(e.state.settingsOpen, false);
-  assert.equal(e.state.canvasNoteOpen, true);
-});
-
 // ---- 5. contracts seen from both sides ----------------------------------------------------------
-test('K-2: the store’s raw boards feed the ＋ Note picker; a {boards} push replaces both views', () => {
-  const pushes = [];
-  const hq = { canvasAdd() {}, onCanvas: (cb) => { pushes.push(cb); return () => {}; } };
-  const c = make(hq, { tab: 'claude', sub: { claude: 'canvas' } });
-  c.store.start();
-  assert.deepEqual(c.canvasBoardNames(), ['Board One']);
-  pushes[0]({ boards: [{ name: 'Board Two', nodes: [{ id: 'x', type: 'text', text: 'Pushed', x: 1, y: 2 }] }, { name: '../escape', nodes: [] }] });
-  assert.deepEqual(c.canvasBoardNames(), ['Board Two'], 'names main would refuse are not offered');
-  assert.deepEqual(c.renderVals().canvas.map((w) => w.board), ['Board Two']);
-  pushes[0]('not a board list');
-  assert.deepEqual(c.canvasBoardNames(), ['Board Two'], 'a bad payload changes nothing');
-  c.store.stop();
-});
-
 test('K-1 / K-3: Ask state comes from v3’s keys and the palette lists What’s new', () => {
   localStorage.clear();
   const day = new Date().toLocaleDateString('en-CA');

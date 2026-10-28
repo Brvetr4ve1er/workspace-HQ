@@ -34,7 +34,6 @@ import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
 import { socialLogic } from './logic/social.js';
 import { lifeLogic } from './logic/life.js';
-import { canvasLogic } from './logic/canvas.js';
 import { statCardLogic } from './logic/stat-card.js';
 import { renderVals } from './vals/index.js';
 
@@ -67,7 +66,6 @@ export class Component extends DCLogic {
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
       vw: window.innerWidth, completed: [], recentDone: [], dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
-      canvasPins: Array.isArray(P.canvasPins) ? P.canvasPins.filter((k) => typeof k === 'string') : [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false, canvasBoardOpen: false, canvasBoardDraft: '', canvasCreating: false, canvasClearAsk: null, canvasClearing: null,   // Canvas Pin to Home (per-PC) / Remove, stat card PNG
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
       scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: [], askDraft: '',
       runsOpen: false, localRuns: [], expandedRun: null, settingsOpen: false, cheatOpen: false, ambientOverlay: false, moreOpen: false,
@@ -91,8 +89,6 @@ export class Component extends DCLogic {
       ghBusy: false, ghFilter: 'all',
       // Projects › Vercel & Supabase (logic/accounts.js): Refresh running
       acBusy: false,
-      // Claude › Canvas ＋ Note (logic/claude.js): form open · draft · picked board (null = the first) · add in flight
-      canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false,
       // Claude library (H2, logic/claude-lib.js): Chats filters (persisted in localStorage) · search · open thread · Forget confirm · link picker
       ...clPrefs(), clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
       // Claude chat composer (H3, logic/claude-chat.js) — not persisted: every composer opens Read-only
@@ -145,10 +141,10 @@ export class Component extends DCLogic {
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
-    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'canvasPins', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
+    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
       delete P.notifyMeasured;   // the Notifications switch was cut (Phase 2); drop what older builds saved
-      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, pinned: S.pinned, canvasPins: S.canvasPins, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
+      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
         recapSeen: S.recapDismissed && this.M.weeklyRecap ? this.M.weeklyRecap.week_end : P.recapSeen, sinceSeen: S.sinceDismissed ? this.M.at(0).id : P.sinceSeen }));
     }
     { const pr = this.projectsAt(0), sec = this.sum(pr, (p) => p.secrets), run = this.runningCount() > 0; FX().set({ level: this.M.levelOf(S.xp).l, mood: run ? 'busy' : sec > 0 ? 'nervous' : this.openTasks(0).length === 0 ? 'sleepy' : 'ok' }); }
@@ -356,11 +352,8 @@ export class Component extends DCLogic {
   closeTop() {
     const S = this.state;
     // What's new sits over Settings (it opens from there), so it closes first
-    // canvasNoteOpen: Escape folds the Canvas ＋ Note form, an in-page form, so after the
-    // overlays and only while it is on screen (the flag outlives a tab switch)
-    const noteShown = S.canvasNoteOpen && !S.route && S.tab === 'claude' && S.sub && S.sub.claude === 'canvas';
-    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
-    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault'].includes(k) ? null : false }); return; }
+    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
+    for (const k of order) if (S[k]) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault'].includes(k) ? null : false }); return; }
     if (S.route) this.setState({ route: null });
   }
   onKey(e) {
@@ -394,5 +387,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, socialLogic, lifeLogic, canvasLogic, statCardLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, socialLogic, lifeLogic, statCardLogic);
 Component.prototype.renderVals = renderVals;

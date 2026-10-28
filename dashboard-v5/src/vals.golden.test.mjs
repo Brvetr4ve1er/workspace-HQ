@@ -359,7 +359,7 @@ add('bridge.project-a', { hq: {}, state: page('a', 'git') });
 
 // ---- Phase 3 (v3 parity) states -------------------------------------------------------------
 // an inert bridge with the Phase 3 methods, so their buttons render enabled
-const P3_HQ = { captureSave() {}, healthScan() {}, healthFix() {}, claudeQuest() {}, canvasAdd() {}, rescanSpellbook() {}, castSpell() {} };
+const P3_HQ = { captureSave() {}, healthScan() {}, healthFix() {}, claudeQuest() {}, rescanSpellbook() {}, castSpell() {} };
 const FRESH_PC = { scanned_at: '2026-10-05T09:58:00Z', host: { name: 'test-pc' }, organs: [organ('cpu', { value: 9, status: 'grace' }), organ('gpu', { label: 'Graphics', value: 96, status: 'ember', diagnosis: 'GPU running hot', fixes: [] })] };
 // P8 palette: the capture verb, and the new Commands rows found by searching
 add('overlay.palette-go-capture', { state: palette('capture Some Idea For Later') });
@@ -473,18 +473,6 @@ add('history.claude-activity', clAt({ stats: { days: [{ day: '2026-10-04', chats
 // P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
 add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });
 add('project.c.git-risk', { state: page('c', 'git') });
-// P5 Canvas ＋ Note: form open on the second board, saving, no bridge (disabled with the reason)
-add('claude.canvas-note', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasBoard: 'Board One' }) });
-add('claude.canvas-note-saving', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasSaving: true }) });
-add('claude.canvas-pinned-remove-ask', { hq: { ...P3_HQ, canvasRemove() {} }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasPins: ['Board One/n1', 'Board One/gone'], canvasRemoveAsk: 'Board One/n2' }) });   // Pinned ✓ + Remove's second-click state
-const BOARD_HQ = { ...P3_HQ, canvasCreate() {}, canvasClear() {} };
-add('claude.canvas-board-form', { hq: BOARD_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasBoardOpen: true, canvasBoardDraft: 'board one' }) });   // a taken name (case-insensitive) says so
-add('claude.canvas-board-creating', { hq: BOARD_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasBoardOpen: true, canvasBoardDraft: 'Fresh board', canvasCreating: true }) });
-add('claude.canvas-clear-ask', { hq: BOARD_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasClearAsk: 'Board One' }) });   // Clear's second-click state
-add('home.canvas-pins', { state: () => ({ tab: 'home', canvasPins: ['Board One/n2', 'Board One/gone', 'Board One/n1'] }) });   // Home › Pinned from canvas (a gone pin drops)
-add('overlay.stat-card-saving', { hq: { statCardSave() {} }, state: { settingsOpen: true, statCardSaving: true } });
-add('claude.canvas-note-nobridge',{ state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
-add('claude.canvas-pushed-boards', { hq: P3_HQ, live: (L) => { L.canvasBoards = A.canvasBoards({ boards: [{ name: 'Board Two', nodes: [] }, { name: 'bad/name', nodes: [] }] }); }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
 // P6 Automations: kind / source / category chips, nothing matching, Show more, Rescan running, an interactive confirm
 add('auto.interactive', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libKind: 'interactive' }) });
 add('auto.source-skill', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libSource: 'skill' }) });

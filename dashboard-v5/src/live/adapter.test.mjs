@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, gapsOf, GAPS, devPort, dayOf, fmtD, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -98,12 +98,11 @@ test('machine: organs become vitals; only warn/bad organs become issues', () => 
   assert.deepEqual(DETAIL.ram, []); // an absent sidecar still yields empty panels
 });
 
-test('clutter, sites and canvas degrade to empty on missing blocks', () => {
+test('clutter and sites degrade to empty on missing blocks', () => {
   assert.deepEqual(clutter({}), []);
   assert.equal(clutter({ empty: ['x', 'y'] })[0].detail, '2 empty folders · x, y');
   assert.deepEqual(sites(null), []);
   assert.deepEqual(sites({ by_domain: [{ domain: 'a.dev', focus_ms: 120000 }, { domain: 'b.com', focus_ms: 60000 }], by_project: [{ domains: ['a.dev'] }] }), [['a.dev', 2, 'Project'], ['b.com', 1, 'Other']]);
-  assert.deepEqual(canvasWidgets([{ name: 'b', nodes: [{ id: 'n', text: '# Plan\n- one\n- two' }] }])[0].items, ['one', 'two']);
 });
 
 test('dates: scan ids are local days; sessions and social map cleanly', () => {
@@ -360,26 +359,6 @@ test('clutter rows: one labelled row per item, named the way v3 named them', () 
   // row ids are unique and stable per position; the group summary is unchanged
   assert.deepEqual(c.find((g) => g.id === 'empty').rows.map((r) => r.id), ['empty:0', 'empty:1']);
   assert.equal(c.find((g) => g.id === 'empty').detail, '3 empty folders · old-folder, named-empty, ?');
-});
-
-test('canvasBoards: array or { boards }, raw nodes normalised, nameless boards and junk dropped', () => {
-  const boards = [
-    { name: 'plan', nodes: [{ id: 'n1', type: 'text', text: 'Hello', x: 10, y: -20, width: 280, color: '2' }, { id: 7, type: 'file', file: 'a.md' }, null, 'x'], edges: [{ id: 'e1' }] },
-    { nodes: [{ id: 'n2', text: 'orphan' }] },
-    null,
-  ];
-  const b = canvasBoards(boards);
-  assert.equal(b.length, 1);
-  assert.equal(b[0].name, 'plan');
-  assert.deepEqual(b[0].nodes[0], { id: 'n1', type: 'text', text: 'Hello', x: 10, y: -20, width: 280, color: '2' });
-  assert.deepEqual(b[0].nodes[1], { id: '7', type: 'file', file: 'a.md', text: '', x: 0, y: 0 });
-  assert.deepEqual(b[0].edges, [{ id: 'e1' }]);
-  assert.deepEqual(canvasBoards({ boards }), b);
-  for (const junk of [null, undefined, 'x', 3, {}, { boards: 'x' }]) assert.deepEqual(canvasBoards(junk), []);
-  assert.equal(boardList(null), null);
-  assert.deepEqual(boardList([]), []);
-  // the widgets read a { boards } payload too (it used to empty them)
-  assert.deepEqual(canvasWidgets({ boards: [{ name: 'b', nodes: [{ id: 'n', text: 'Note\nbody' }] }] }).map((w) => [w.board, w.title]), [['b', 'Note']]);
 });
 
 // append to dashboard-v5/src/live/adapter.test.mjs
