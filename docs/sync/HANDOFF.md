@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-28 · FROM frontend (EPIPE crash loop — owner: "fix the crash loop then do the cleanup") · main
+DONE: e465b43 + follow-up fe: new dashboard/stdio-guard.js (4 tests): a closed console pipe (EPIPE / EOF only) turns console.*
+  into no-ops once and writes ONE 'stdio-closed' line to the file log; main.js uncaught / unhandledRejection handlers skip pipe
+  errors and never re-throw through the console. Cause: logs/app-2026-10-28.log had 10,461 uncaughtException EPIPE lines
+  00:03–11:40 (pid 22572, launched detached) until its 5 MiB cap. Checked with a real closed-pipe child; dashboard + hub 743 pass.
+  App restarted via toolsollback.ps1 v5 (pid 33744); a console write after restart logged nothing bad.
+IN-FLIGHT: feature cleanup from docs/audits (local, not committed: personal usage data) — tag cleanup-base-2026-10-28 first.
+ASKS: none. NOTE: the capped log was renamed logs/app-2026-10-28.epipe-loop.log (5 MB) — rotation won't prune that name; owner's to delete.
+BREAKS: main.js lines 26–29 (stdio guard + the two process handlers). No IPC change.
+
 ## 2026-10-27 · FROM frontend (canvas ＋ Board + Clear board — owner: "build clear board and create board too") · main
 DONE: eb74355 meta: IPC-CONTRACT rows hq:canvas-create, hq:canvas-clear. e69f5af fe main: canvas-ops.js gains both
   (create: empty board, case-insensitive no-overwrite, wx; clear: nodes + edges to removed.jsonl first, file and other
