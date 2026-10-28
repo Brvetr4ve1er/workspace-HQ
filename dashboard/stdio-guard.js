@@ -6,12 +6,12 @@
 // guardStdio({ proc?, con?, onBroken? }) → { isBroken(), isPipeError(e), handle(e) }
 //   - listens for 'error' on proc.stdout / proc.stderr (an unheard stream 'error' is itself an
 //     uncaught exception)
-//   - handle(e): a pipe error (EPIPE, EOF, EBADF, ERR_STREAM_DESTROYED) turns every console method
+//   - handle(e): a pipe error (EPIPE, EOF — nothing broader, so an unrelated fd bug still gets logged) turns every console method
 //     into a no-op ONCE, calls onBroken(e) once (main.js writes one line to the file log), and
 //     returns true; anything else returns false so the caller logs it as before
 //   The file log (app-log.js) is untouched: it never goes through the console.
 
-const PIPE_CODES = new Set(['EPIPE', 'EOF', 'EBADF', 'ERR_STREAM_DESTROYED']);
+const PIPE_CODES = new Set(['EPIPE', 'EOF']);
 const CONSOLE_METHODS = ['log', 'info', 'warn', 'error', 'debug', 'trace', 'dir', 'table'];
 
 const isPipeError = (e) => !!e && PIPE_CODES.has(e.code);

@@ -39,8 +39,8 @@ test('handle() claims pipe errors from the uncaught handler and leaves real erro
 });
 
 test('isPipeError knows the stream-gone codes only', () => {
-  for (const c of ['EPIPE', 'EOF', 'EBADF', 'ERR_STREAM_DESTROYED']) assert.equal(isPipeError(pipeErr(c)), true);
-  assert.equal(isPipeError(pipeErr('ENOENT')), false);
+  for (const c of ['EPIPE', 'EOF']) assert.equal(isPipeError(pipeErr(c)), true);
+  for (const c of ['ENOENT', 'EBADF', 'ERR_STREAM_DESTROYED']) assert.equal(isPipeError(pipeErr(c)), false);
   assert.equal(isPipeError(null), false);
 });
 
