@@ -46,7 +46,6 @@ export function shellVals(ctx) {
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
     life: 'screen time and notes',
     social: (LIVE.social && Array.isArray(LIVE.social.ACCOUNTS) ? LIVE.social.ACCOUNTS.length : 0) + ' of ' + H.PLATFORMS.length + ' accounts connected · Instagram & Facebook archive · vault: ' + ((LIVE.socialVault && LIVE.socialVault.vault) || 'VEEMO CORTEX'),
-    studio: H.CAPTURES.length + ' captures · Ctrl Alt S to snip, Ctrl Alt R opens the recorder',
   }[S.tab] || '';
   // ----- toasts -----
   const toasts = S.toasts.map((t) => ({ text: t.text, color: TK[t.kind], ref: this.toastRef(t.id), hasUndo: !!t.undo && !!this._pending['done:' + t.undo], undo: () => this.undoTask(t.undo), hasCancel: !!t.runSpell, cancel: () => this.cancelRun(t.runSpell), close: () => this.dismissToast(t.id), isProgress: t.kind === 'progress' }));

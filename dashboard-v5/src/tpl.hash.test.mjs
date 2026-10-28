@@ -46,9 +46,10 @@ import tpl from './app.tpl.js';
 // 2026-10-27 button sweep fixes: social (Discard wired: data-so, disabled, title, label binding; Inbox marker), history (a timeline row with nowhere to go is disabled), home (momentum tabs aria-pressed), claude (Library | Candidates aria-selected), ov-scrub (snapshot bar aria-pressed); each with its <!-- v5: reason --> marker (+535 chars / +535 bytes)
 // 2026-10-27 canvas pin / remove + stat card: claude (card Pin aria-pressed + title + label binding, Remove disabled + title + label binding), home (Pinned from canvas section), ov-settings (Save stat card PNG wired: disabled + label binding, the 'not wired' note replaced), ov-misc (level-up Save card: disabled + label binding); each with its <!-- v5: reason --> marker (+2168 chars / +2176 bytes)
 // 2026-10-27 canvas ＋ Board + Clear board: claude (＋ Board button, the new-board form with its name hint, the board list with card counts and Clear); each with its <!-- v5: reason --> marker (+3572 chars / +3580 bytes)
-const SHA256 = '3ad1ae498e585fcbe7278a96c70b4fa7ce7bcd3705c1d232718487114f097394';
-const LENGTH = 318018;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 318590;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-28 feature cleanup — Studio cut: the studio and lightbox fragments removed whole (snip / recorder / capture library had 1 recording and 0 snips ever) (-10096 chars / -10110 bytes)
+const SHA256 = 'ef671de610fbe859c305098ee6fb81b188b3fe8b9a3b036517fa5855f5e75601';
+const LENGTH = 307922;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 308480;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

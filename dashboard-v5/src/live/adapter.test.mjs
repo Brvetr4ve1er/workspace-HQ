@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, captures, sessions, social, fileUrl, normPath, projectForCwd, riskFlags, promptRow, promptsView, candidateTitle, reasonText, candidateRow, candidatesView } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, canvasWidgets, canvasBoards, boardList, gapsOf, GAPS, devPort, dayOf, fmtD, sessions, social, fileUrl, normPath, projectForCwd, riskFlags, promptRow, promptsView, candidateTitle, reasonText, candidateRow, candidatesView } from './adapter.mjs';
 import { runView, packView, RUN_TARGETS_UI } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
@@ -107,11 +107,8 @@ test('clutter, sites and canvas degrade to empty on missing blocks', () => {
   assert.deepEqual(canvasWidgets([{ name: 'b', nodes: [{ id: 'n', text: '# Plan\n- one\n- two' }] }])[0].items, ['one', 'two']);
 });
 
-test('dates: scan ids are local days; captures, sessions and social map cleanly', () => {
+test('dates: scan ids are local days; sessions and social map cleanly', () => {
   assert.equal(fmtD(dayOf('2026-10-03')), 'Oct 3');
-  const now = new Date(2026, 9, 3, 15);
-  const c = captures([{ kind: 'shot', path: 'p1', name: 'a.png', size: 2048, mtimeMs: new Date(2026, 9, 3, 9, 5).getTime(), thumbDataUrl: 'javascript:x' }], now);
-  assert.deepEqual([c[0].day, c[0].time, c[0].size, c[0].kind, c[0].thumb], ['Today', '09:05', '2 KB', 'snip', null]);
   assert.equal(sessions([{ jobId: 'j', label: 'Fix', status: 'ended', exitCode: 1, startedAt: 0, tail: 'a\nb' }])[0].status, 'failed');
   const so = social({ accounts: { accounts: [{ platform: 'bluesky', handle: 'me' }] }, outbox: { actions: [{ id: 'o1', platform: 'bluesky', text: 'hi', status: 'staged' }, { id: 'o2', status: 'sent' }] } });
   assert.deepEqual([so.POSTS.length, so.POSTS[0].handle, so.connected], [1, '@me', true]);
@@ -384,33 +381,6 @@ test('canvasBoards: array or { boards }, raw nodes normalised, nameless boards a
   assert.deepEqual(boardList([]), []);
   // the widgets read a { boards } payload too (it used to empty them)
   assert.deepEqual(canvasWidgets({ boards: [{ name: 'b', nodes: [{ id: 'n', text: 'Note\nbody' }] }] }).map((w) => [w.board, w.title]), [['b', 'Note']]);
-});
-
-test('captures keep recovered (boolean) and the snip/rec kind', () => {
-  const now = new Date(2026, 9, 3, 15);
-  const c = captures([
-    { kind: 'rec', recovered: true, path: 'r1', name: 'a.recovered.webm', mtimeMs: new Date(2026, 9, 3, 9).getTime() },
-    { kind: 'rec', path: 'r2', name: 'b.webm', mtimeMs: new Date(2026, 9, 3, 8).getTime() },
-    { kind: 'shot', recovered: 'yes', path: 's1', name: 'c.png', mtimeMs: new Date(2026, 9, 3, 7).getTime() },
-  ], now);
-  assert.deepEqual(c.map((x) => [x.id, x.kind, x.recovered]), [['r1', 'rec', true], ['r2', 'rec', false], ['s1', 'snip', false]]);
-});
-
-// 2026-10-07: library-list rows carry durationMs (main's recording-length sidecar)
-test('captures map a recording’s durationMs; anything else (a snip, absent, junk) is null — never a made-up length', () => {
-  const now = new Date(2026, 9, 3, 15), at = (h) => new Date(2026, 9, 3, h).getTime();
-  const c = captures([
-    { kind: 'rec', path: 'r1', name: 'a.webm', mtimeMs: at(12), durationMs: 3000 },
-    { kind: 'rec', path: 'r2', name: 'b.webm', mtimeMs: at(11), durationMs: 0 },
-    { kind: 'rec', path: 'r3', name: 'c.webm', mtimeMs: at(10), durationMs: null },
-    { kind: 'rec', path: 'r4', name: 'd.webm', mtimeMs: at(9) },                       // an older main: no field
-    { kind: 'rec', path: 'r5', name: 'e.webm', mtimeMs: at(8), durationMs: '3000' },
-    { kind: 'rec', path: 'r6', name: 'f.webm', mtimeMs: at(7), durationMs: -5 },
-    { kind: 'rec', path: 'r7', name: 'g.webm', mtimeMs: at(6), durationMs: NaN },
-    { kind: 'rec', path: 'r8', name: 'h.webm', mtimeMs: at(5), durationMs: Infinity },
-    { kind: 'shot', path: 's1', name: 'i.png', mtimeMs: at(4), durationMs: 5000 },
-  ], now);
-  assert.deepEqual(c.map((x) => [x.id, x.durationMs]), [['r1', 3000], ['r2', 0], ['r3', null], ['r4', null], ['r5', null], ['r6', null], ['r7', null], ['r8', null], ['s1', null]]);
 });
 
 // append to dashboard-v5/src/live/adapter.test.mjs

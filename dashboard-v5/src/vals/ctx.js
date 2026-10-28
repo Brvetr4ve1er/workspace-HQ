@@ -19,7 +19,7 @@ export function makeCtx() {
   const v = Object.assign(v0, {
     home: ok && !onPage && S.tab === 'home', projects: ok && !onPage && S.tab === 'projects', project: ok && onPage, tasks: ok && !onPage && S.tab === 'tasks',
     automations: ok && !onPage && S.tab === 'automations', claude: ok && !onPage && S.tab === 'claude', history: ok && !onPage && S.tab === 'history',
-    system: ok && !onPage && S.tab === 'system', life: ok && !onPage && S.tab === 'life', social: ok && !onPage && S.tab === 'social', studio: ok && !onPage && S.tab === 'studio',
+    system: ok && !onPage && S.tab === 'system', life: ok && !onPage && S.tab === 'life', social: ok && !onPage && S.tab === 'social',
   });
   v.stdHeader = ok && !onPage && S.tab !== 'home';
   const sub = S.sub[S.tab];
@@ -48,7 +48,7 @@ export function makeCtx() {
   const tierCount = (k) => open.filter((t) => t.tier === k).length;
   // toast colours, also used by the notifications list
   const TK = { success: 'var(--green)', error: 'var(--red)', info: 'var(--blue)', progress: 'var(--gold)' };
-  // read-only guard for claude / system / studio actions
+  // read-only guard for claude / system actions
   const ro = () => { if (!this.canWrite()) { this.denied(); return true; } return false; };
   return {
     S, H, LIVE, w, off, live, ps, cantWrite, writeReason, snap, viewed, viewedLabel, projects, tasks, open, unc, unp, sec, level, L, ambientDocked,

@@ -38,13 +38,13 @@ export function createStore(DATA, hq) {
   const PROJS = at(0).P0.concat(at(0).archived);
 
   const live = {
-    sessions: [], sessionOut: {}, captures: [], capturesLoaded: false,
+    sessions: [], sessionOut: {},
     social: { POSTS: [], MENTIONS: [], ACCOUNTS: [], ACTIVITY: {}, connected: false, loaded: false },
     socialArchive: { summary: null, error: null, busy: false, sel: null, list: null, listErr: null, q: '', hits: null, doc: null },   // Social › Archive: Hub socialSummary + one kind's documents + search + the open document, raw
     socialVault: { vault: null, folder: null, exists: false, obsidian: false, notes: null, error: null, busy: false },   // Social › Vault: main's VEEMO CORTEX social-notes listing
     canvas: A.canvasWidgets(DATA.canvas), dev: {}, machine: null, browserNow: null,
     canvasBoards: A.canvasBoards(DATA.canvas),   // raw boards [{name, nodes, edges}] (Canvas "＋ Note" board picker)
-    llm: null, casts: {}, recording: null,
+    llm: null, casts: {},
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
     accounts: null,   // a fresher data/accounts.json than the baked DATA.accounts (refreshAccounts)
@@ -95,7 +95,7 @@ export function createStore(DATA, hq) {
     get SITES() { return A.sites(at(0).browser); },
     get LEARN() { const P = at(0).P0; return at(0).learnings.map((l) => [l.text, (P.find((p) => p.id === l.proj) || {}).name || '', l.at ? A.fmtD(new Date(Date.parse(l.at))) : '']); },
     WEEKS: A.weeks(snaps),
-    get SESSIONS() { return live.sessions; }, get CAPTURES() { return live.captures; }, get CANVAS() { return live.canvas; },
+    get SESSIONS() { return live.sessions; }, get CANVAS() { return live.canvas; },
     get POSTS() { return live.social.POSTS; }, get MENTIONS() { return live.social.MENTIONS; },
     projectNotes: DATA.projectNotes && typeof DATA.projectNotes === 'object' ? DATA.projectNotes : {},
     weeklyRecap: DATA.weeklyRecap || null, builtAt: DATA.built_at || null,
@@ -177,10 +177,6 @@ export function createStore(DATA, hq) {
     return { castId: d.castId, spellId: d.spellId, name: d.name || s.name || d.spellId, icon: d.icon || s.icon || '▶', chainId: d.chainId || null, chain: !!d.chain, out: [], status: 'running', t0: t0 || Date.now() };
   }
 
-  function refreshCaptures() {
-    if (!hq || !hq.studio || !hq.studio.libraryList) return Promise.resolve();
-    return pull(() => hq.studio.libraryList({}), (rows) => { live.captures = A.captures(Array.isArray(rows) ? rows : arr(rows && rows.items)); live.capturesLoaded = true; });
-  }
   function refreshSocial() {
     if (!hq || !hq.getSocial) return Promise.resolve();
     return pull(() => hq.getSocial(), (s) => { live.social = { ...A.social(s), loaded: true }; });
@@ -379,11 +375,6 @@ export function createStore(DATA, hq) {
       retryLibLoad();
       emit();
     }));
-    if (hq.studio) {
-      reads.push(refreshCaptures());
-      if (hq.studio.onCaptureAdded) sub(() => hq.studio.onCaptureAdded(() => { refreshCaptures(); }));
-      if (hq.studio.recStatus) sub(() => hq.studio.recStatus((s) => { live.recording = s && s.state === 'recording' ? s : null; emit(); }));
-    }
     reads.push(refreshSocial(), refreshLlm(false));
     return Promise.all(reads).then(() => {});
   }
@@ -589,7 +580,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshCaptures, refreshSocial, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshSocial, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, refreshClaudeImports, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject, refreshPrompts, searchPrompts, openPrompt, refreshCandidates,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, runPrompt, packImport, packExport,
     refreshSocialArchive, socialArchiveKind, searchSocialArchive, openSocialDoc, closeSocialDoc, refreshSocialVault, openSocialNote, saveSocialNote, openSocialSite, discardSocialPost,

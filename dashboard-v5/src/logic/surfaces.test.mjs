@@ -15,7 +15,6 @@ import tasksTpl from '../tpl/tasks.tpl.js';
 import homeTpl from '../tpl/home.tpl.js';
 import pageTpl from '../tpl/project-page.tpl.js';
 import autoTpl from '../tpl/automations.tpl.js';
-import studioTpl from '../tpl/studio.tpl.js';
 
 process.env.TZ = 'UTC';
 const NOW = new Date(2026, 9, 5, 10, 0, 0).getTime();
@@ -81,7 +80,6 @@ function fakeHq(o = {}) {
     saveNote: rec('saveNote', true),
     logDecision: rec('logDecision', or('logDecision', true)),
     learn: rec('learn', true),
-    studio: { libraryDelete: rec('libraryDelete', or('libraryDelete', true)), libraryReveal: rec('libraryReveal', true), panelToggle: rec('panelToggle', true), snipArm: rec('snipArm', true) },
   };
   return hq;
 }
@@ -277,33 +275,4 @@ test('pin refuses a 9th with a toast; unpinning and pinning under the cap still 
   row(ninth.id).pin();          // now there is room
   assert.equal(c.state.pinned.length, 8);
   assert.ok(c.state.pinned.includes(ninth.id));
-});
-
-// ---- C8: studio -------------------------------------------------------------------------------------
-test('deleting a capture: false from main is a failure, only true is reported as done', async (t) => {
-  timers(t);
-  const sheet = { act: 'delete', path: 'C:/captures/snip-1.png', name: 'snip-1.png', title: 'Delete snip-1.png?', body: 'It goes to the Recycle Bin.', ok: 'Delete', danger: true };
-  for (const ret of [false, null]) {
-    const hq = fakeHq({ libraryDelete: ret });
-    const c = make(hq, { tab: 'studio', lightbox: 'C:/captures/snip-1.png', sheet });
-    let refreshed = 0; c.store.refreshCaptures = () => { refreshed++; };
-    await c.sheetOk();
-    assert.ok(hq.calls.some((x) => x[0] === 'libraryDelete' && x[1] === 'C:/captures/snip-1.png'));
-    assert.ok(hasToast(c, 'error', 'Couldn’t delete snip-1.png'), String(ret) + ':\n' + toasts(c).join('\n'));
-    assert.ok(!hasToast(c, 'success', 'Recycle Bin'), 'no success claim for ' + ret);
-    assert.equal(c.state.lightbox, 'C:/captures/snip-1.png', 'the lightbox stays open');
-    assert.equal(refreshed, 0);
-  }
-  const c = make(fakeHq({ libraryDelete: true }), { tab: 'studio', lightbox: 'C:/captures/snip-1.png', sheet });
-  let refreshed = 0; c.store.refreshCaptures = () => { refreshed++; };
-  await c.sheetOk();
-  assert.ok(hasToast(c, 'success', 'Moved to the Recycle Bin · snip-1.png'), toasts(c).join('\n'));
-  assert.equal(c.state.lightbox, null);
-  assert.equal(refreshed, 1);
-});
-
-test('the record button and the empty state say they open the recorder', () => {
-  assert.match(studioTpl, /<!-- v5:[^>]*--><button type="button" onClick="\{\{ record \}\}"[^>]*>● Open recorder<\/button>/);
-  assert.match(studioTpl, /Ctrl Alt R opens the recorder\./);
-  assert.doesNotMatch(studioTpl, />● Record<|Ctrl Alt R to record/);
 });

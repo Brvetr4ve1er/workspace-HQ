@@ -76,7 +76,7 @@ test('a past view keeps its scan when a new one lands (by id, not by offset)', (
 test('a deep link to a project lands on the route’s tab with the project open', () => {
   fresh();
   const c = make(3);
-  c.state.tab = 'studio';
+  c.state.tab = 'history';
   c.navigateTo({ tab: 'tasks', projectId: 'a' });
   assert.equal(c.state.tab, 'tasks');
   assert.deepEqual(c.state.route, { type: 'project', id: 'a' });

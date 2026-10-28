@@ -25,7 +25,6 @@ function fakeHq(reads = {}) {
     getSocial: read('getSocial'), probeLlm: read('probeLlm'),
     liveState: read('liveState'), onScanStatus: on('scanStatus'),
     uiPrefs: { get: read('uiPrefs.get'), set: read('uiPrefs.set'), on: on('uiPrefs') },
-    studio: { libraryList: read('libraryList'), onCaptureAdded: on('captureAdded'), recStatus: on('recStatus') },
   };
   const push = new Proxy({}, { get: (_, name) => (payload) => (cbs[name] || []).forEach((f) => f(payload)) });
   return { hq, push, stats, cbs };
@@ -230,17 +229,17 @@ test('sessions map an absolute cwd onto a relative project path (newer scans)', 
   st.stop();
 });
 
-// Regression (review): refreshSocial/refreshLlm/refreshCaptures called the bridge outside pull(), so a
+// Regression (review): refreshSocial/refreshLlm called the bridge outside pull(), so a
 // read that threw synchronously escaped start() and skipped every subscription after it.
 test('a bridge read that throws synchronously is a failed read, not a failed start()', async () => {
   const boom = () => { throw new Error('sync boom'); };
-  const { hq, cbs } = fakeHq({ getSocial: boom, probeLlm: boom, libraryList: boom });
+  const { hq, cbs } = fakeHq({ getSocial: boom, probeLlm: boom });
   const st = createStore(DATA(), hq);
   const warn = console.warn; console.warn = () => {};
   try {
     await st.start();
-    assert.equal((cbs.recStatus || []).length, 1, 'subscriptions after the studio read still made');
-    await st.refreshSocial(); await st.refreshLlm(true); await st.refreshCaptures();
+    assert.equal((cbs.uiPrefs || []).length, 1, 'subscriptions still made');
+    await st.refreshSocial(); await st.refreshLlm(true);
   } finally { console.warn = warn; }
   assert.equal(st.live.social.loaded, false);
   assert.equal(st.live.llm, null);
@@ -251,10 +250,10 @@ test('stop() releases every subscription, the new ones included', async () => {
   const { hq, stats, cbs, push } = fakeHq({ liveState: LIVE_STATE });
   const st = createStore(DATA(), hq);
   await st.start();
-  for (const ch of ['claudeSessions', 'sessionOutput', 'devStatus', 'canvas', 'machine', 'browserTab', 'castOutput', 'castDone', 'scanStatus', 'uiPrefs', 'captureAdded', 'recStatus']) {
+  for (const ch of ['claudeSessions', 'sessionOutput', 'devStatus', 'canvas', 'machine', 'browserTab', 'castOutput', 'castDone', 'scanStatus', 'uiPrefs']) {
     assert.equal((cbs[ch] || []).length, 1, ch + ' subscribed once');
   }
-  assert.equal(stats.subs, 12);
+  assert.equal(stats.subs, 10);
   st.stop();
   assert.equal(stats.disposed, stats.subs);
   assert.ok(Object.values(cbs).every((l) => l.length === 0));
@@ -262,7 +261,7 @@ test('stop() releases every subscription, the new ones included', async () => {
   push.scanStatus({ state: 'failed' });
   assert.equal(st.live.scan.state, 'running');
   st.stop();   // idempotent
-  assert.equal(stats.disposed, 12);
+  assert.equal(stats.disposed, 10);
 });
 
 test('reads that throw or reject leave the store usable; no bridge → read-only and start() resolves', async () => {
@@ -340,12 +339,11 @@ test('a failed getCanvas read keeps the baked boards', async () => {
   st.stop();
 });
 
-test('the model keeps fileUrl; captures from libraryList carry recovered', async () => {
-  const { hq } = fakeHq({ libraryList: [{ kind: 'rec', recovered: true, path: 'C:\\caps\\a.recovered.webm', name: 'a.recovered.webm', mtimeMs: 1 }] });
+test('the model keeps fileUrl', async () => {
+  const { hq } = fakeHq({});
   const st = createStore(DATA(), hq);
   await st.start();
-  assert.deepEqual(st.live.captures.map((c) => [c.kind, c.recovered]), [['rec', true]]);
-  assert.equal(st.model.fileUrl(st.live.captures[0].path), 'file:///C:/caps/a.recovered.webm');
+  assert.equal(st.model.fileUrl('C:\\caps\\a.recovered.webm'), 'file:///C:/caps/a.recovered.webm');
   st.stop();
 });
 

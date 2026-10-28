@@ -268,14 +268,6 @@ function createFake(opts) {
     ['onCastOutput', 'on:hq:cast-output'], ['onCastDone', 'on:hq:cast-done'],
     ['showMain', WRITE], ['killServers', WRITE], ['onMachine', 'on:hq:machine'],
     ['getBrowserLive', () => null], ['onBrowserTab', 'on:hq:browser-tab'],
-    ['studio.panelToggle', WRITE], ['studio.snipArm', WRITE], ['studio.snipCommit', SEND], ['studio.snipCancel', SEND],
-    ['studio.recSources', () => []], ['studio.recStart', WRITE], ['studio.recChunk', SEND], ['studio.recStop', WRITE],
-    ['studio.recAbort', SEND], ['studio.recToggle', WRITE], ['studio.recPause', SEND], ['studio.panelMode', WRITE],
-    ['studio.onRecCommand', 'on:hq:studio:rec-command'],
-    ['studio.libraryList', () => []], ['studio.libraryReveal', WRITE], ['studio.libraryDelete', WRITE], ['studio.libraryOpen', WRITE],
-    ['studio.settingsGet', () => ({})], ['studio.settingsSet', WRITE],
-    ['studio.recStatus', 'on:hq:studio:rec-status'], ['studio.onCaptureAdded', 'on:studio:capture-added'],
-    ['studio.onSnipFrozen', 'on:hq:studio:snip-frozen'], ['studio.onOpenRealm', 'on:hq:studio:open-realm'],
   ];
 
   const answer = (method, kind, args) => {

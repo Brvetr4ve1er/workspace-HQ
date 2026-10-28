@@ -14,7 +14,7 @@
 //                                    last ({pid, event, ts, clean} | null; clean = it ended on quit/exit)
 // logger.secondary()                 this process lost the single-instance lock: its lines carry
 //                                    secondary:true (prev skips them) and its quit reason is 'second-launch'
-// logger.attach({ app, proc? })      app-level hooks, so every window counts (screen-capture's too):
+// logger.attach({ app, proc? })      app-level hooks, so every window counts:
 //     render-process-gone {window, reason, exitCode} · child-process-gone {type, reason, exitCode, name}
 //     browser-window-created → per window: unresponsive / responsive / session-end {window}
 //       Electron 32 has session-end only as a (win32) BaseWindow event — there is no app-level one

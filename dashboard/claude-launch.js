@@ -1,7 +1,6 @@
 // Open an interactive Claude session in a NEW terminal window, in a project
 // folder, with a seed prompt. Extracted from main.js's hq:claude-quest handler
-// (v5 clean pass M4) so screen-capture.js's "send to Claude" reuses the same
-// launcher (IPC-CONTRACT K-5: screenCapture.init opts.launchClaude).
+// (v5 clean pass M4); prompt runs reuse the same launcher.
 //
 //   launchClaudeTerminal(cwd, prompt, opts?) → boolean
 //     cwd    — absolute project folder, ALREADY containment-checked by the caller

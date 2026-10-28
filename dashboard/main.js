@@ -15,11 +15,10 @@ const { spawnSync, spawn } = require('node:child_process');
 const { startBridge } = require('./browser-bridge');
 const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
 const llmLocal = require('./llm-local');               // PC-Brain L3: local model adapter (Ollama/LM Studio)
-const screenCapture = require('./screen-capture');     // v3 STUDIO: snip + record + library (Group 1)
 const trayMenu = require('./tray-menu');               // v5 M4: tray menu as data (trayTemplate) + scanCounts (tray + mini HUD)
-const { launchClaudeTerminal } = require('./claude-launch');   // v5 M4: hq:claude-quest + snip "send to Claude" (K-5); HQ_DRY_LAUNCH=1 only logs
+const { launchClaudeTerminal } = require('./claude-launch');   // v5 M4: hq:claude-quest; HQ_DRY_LAUNCH=1 only logs
 const appLog = require('./app-log').create({ appRoot: path.join(__dirname, '..'), env: process.env });   // lifecycle log → logs/app-YYYY-MM-DD.log (app-log.js; gates set HQ_APP_LOG_DIR)
-appLog.attach({ app });   // crashes, hangs, session end, quit — every window, screen-capture's included
+appLog.attach({ app });   // crashes, hangs, session end, quit — every window
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
 // whole main process (and every window) down. Log and keep the app alive.
@@ -434,7 +433,7 @@ ipcMain.handle('hq:capture-save', (_e, text) => {
 });
 
 // ---- Scoped Claude launcher: open an interactive Claude session cd'd to a project ----
-// v5 M4 (K-5): the snip bar's "send to Claude" — screenCapture.init gets the project
+// v5 M4 (K-5): the project picker (Claude chat, prompt runs) gets the project
 // picker (latest scan, paths resolved + containment-checked, unresolvable ones
 // dropped) and the launcher, which re-checks the cwd it is handed (untrusted input).
 function studioProjects() {
@@ -447,12 +446,8 @@ function studioProjects() {
   }
   return out;
 }
-function studioLaunchClaude(cwd, prompt) {
-  const abs = typeof cwd === 'string' && cwd ? resolveProjectPath(cwd) : null;
-  return abs ? launchClaudeTerminal(abs, prompt) : false;
-}
-// v5 M4: the launch itself is claude-launch.js launchClaudeTerminal (shared with
-// screen-capture's "send to Claude", K-5); HQ_DRY_LAUNCH=1 logs instead of opening.
+// v5 M4: the launch itself is claude-launch.js launchClaudeTerminal; HQ_DRY_LAUNCH=1
+// logs instead of opening.
 ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return false;
@@ -1300,12 +1295,6 @@ if (!app.requestSingleInstanceLock()) {
     watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
     bridge = startBridge({ dataDir: DATA, onLive: pushBrowserTab });   // browser extension ingest
     startMachineSampler();   // live CPU/RAM/servers for the main window
-    // v3 STUDIO — mount the main-process capture wire (owns its IPC + panel/overlay windows).
-    try { screenCapture.init({ ipcMain, app, BrowserWindow, screen, desktopCapturer, globalShortcut, getProjects: studioProjects, launchClaude: studioLaunchClaude }); } catch (e) { console.error('studio init failed:', e); }   // v5 M4: K-5 send-to-Claude seams
-    // The two "still free" global hotkeys the design specifies. Shift-variants
-    // and Ctrl+Alt+L are registered inside screen-capture.js.
-    try { globalShortcut.register('CommandOrControl+Alt+S', () => screenCapture.snipArm('region')); } catch (e) { console.error('studio snip hotkey failed:', e); }
-    try { globalShortcut.register('CommandOrControl+Alt+R', () => screenCapture.recToggle()); } catch (e) { console.error('studio rec hotkey failed:', e); }
     // Quick-cast palette: the spellbook must be reachable faster than a terminal.
     const CAST_HOTKEY = 'CommandOrControl+Alt+X';
     try { globalShortcut.register(CAST_HOTKEY, openCastPalette); } catch (e) { console.error('cast hotkey failed:', e); }

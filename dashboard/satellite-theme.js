@@ -1,5 +1,5 @@
 // v5 clean pass S0 — one theme source for every satellite window.
-// Satellites (cast, record panel, snip overlay) link
+// Satellites (the quick-run palette) link
 // ../dashboard-v5/styles/tokens.css and load this file first; it puts
 // data-hq-theme ('dark' | 'light') and data-hq-reduce on <html> from main's
 // shared ui-prefs (hq.uiPrefs.get + push), so a theme change in the main

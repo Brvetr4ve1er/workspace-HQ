@@ -449,20 +449,7 @@ export function canvasWidgets(boards) {
 }
 
 // ---- live reads ----------------------------------------------------------------------------
-export function captures(rows, now = new Date()) {
-  const today = now.toDateString(), y = new Date(now); y.setDate(y.getDate() - 1);
-  return arr(rows).map((r) => {
-    const d = new Date(num(r.mtimeMs));
-    const day = d.toDateString() === today ? 'Today' : d.toDateString() === y.toDateString() ? 'Yesterday' : fmtD(d);
-    // recovered: a recording rebuilt from chunks after a crash (studio library-list)
-    // durationMs: a recording's length from main's sidecar (library-list, 2026-10-07); null when
-    // unknown — a snip, an older main, a recording without a sidecar, or anything not a finite ms count
-    const isRec = r.kind === 'rec';
-    const durationMs = isRec && typeof r.durationMs === 'number' && Number.isFinite(r.durationMs) && r.durationMs >= 0 ? r.durationMs : null;
-    return { id: String(r.path), path: String(r.path), kind: isRec ? 'rec' : 'snip', recovered: r.recovered === true, name: String(r.name || ''), day, time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), size: fmtBytes(r.size), thumb: typeof r.thumbDataUrl === 'string' && r.thumbDataUrl.startsWith('data:image/') ? r.thumbDataUrl : null, mtime: num(r.mtimeMs), durationMs };
-  }).sort((a, b) => b.mtime - a.mtime);
-}
-// Windows paths compare case-insensitively with either slash; trailing slash dropped
+
 export const normPath = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 const isAbsPath = (n) => /^[a-z]:(\/|$)/.test(n) || n.startsWith('/');
 // where a relative root sits in cwd as whole segments ('…/root' or '…/root/…'), else -1

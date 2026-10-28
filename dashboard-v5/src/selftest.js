@@ -19,7 +19,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false, prView: 'library', hcSel: [], promote: null, run: null, pack: null,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, studioFilter: 'all' };
+  projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -128,7 +128,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { captures: LV.captures, canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports, prompts: LV.prompts, candidates: LV.candidates };
+    const LV = W.store.live, savedLive = { canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports, prompts: LV.prompts, candidates: LV.candidates };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -316,25 +316,6 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: off }, patch));
             });
           }
-        }
-        // Studio with captures: real files only (a missing file logs an error-level load
-        // failure). The snip is the app icon; the "recording" points at that same PNG, which
-        // a <video> can't decode: the lightbox's "couldn't load" path. It has a thumbnail.
-        Object.assign(LV, savedLive);
-        L.go('studio'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }));
-        await rendered(); await sleep(250);   // the tab change's refreshCaptures lands before the sample rows go in
-        const icon = decodeURIComponent(new URL('icons/hq-256.png', location.href).pathname).replace(/^\/([A-Za-z]:)/, '$1');
-        const now = Date.now();
-        const caps = [
-          { id: icon, path: icon, kind: 'snip', recovered: false, name: 'selftest-snip.png', day: 'Today', time: '09:00', size: '1 KB', thumb: null, mtime: now },
-          { id: icon + '#rec', path: icon, kind: 'rec', recovered: true, name: 'selftest-rec.webm', day: 'Today', time: '08:00', size: '2 MB', thumb: PIXEL, mtime: now - 3600000 },
-        ];
-        for (const [name, patch] of [['studio-all', {}], ['studio-rec', { studioFilter: 'rec' }], ['lightbox-snip', { lightbox: caps[0].id }], ['lightbox-rec', { lightbox: caps[1].id }]]) {
-          await combo([theme, 'p3:' + name].join(' '), () => {
-            LV.captures = caps;
-            L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
-          });
-          await sleep(80);   // this combo's image / video load and error events fire inside it
         }
       }
     } finally {

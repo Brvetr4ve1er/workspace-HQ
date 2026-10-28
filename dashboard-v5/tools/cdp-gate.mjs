@@ -137,7 +137,7 @@ async function fresh(t) {
   await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L._libRescan = false; L._canvasBusy = false;
     if (L.store && L.store.live && L.store.live.claudeChat) L.store.live.claudeChat.turns.length = 0;
     if (L.store && L.store.live) L.store.live.claudeImport = null;
-    L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null,
+    L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, onboard: null,
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
     vault: null, whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
@@ -1703,7 +1703,7 @@ const SCENARIOS = {
         const L = WHQ.app.logic, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const names = [...L.M.P0, ...(L.M.at(0).archived || [])].map((p) => p.name).filter((n) => n && n.length > 2).sort((a, b) => b.length - a.length);
         const mask = (s) => { let o = s; for (const n of names) o = o.split(n).join('‹project›'); return o; };
-        const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, lightbox: null, onboard: null, vault: null, promote: null, pack: null, run: null,
+        const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, promote: null, pack: null, run: null,
           askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, whatsNewOpen: false, focus: null,
           toasts: [], route: null, snapOffset: 0, soDiscardAsk: null, clOpen: false, ccOpen: false, canvasNoteOpen: false, pageMore: false };
         const reset = async () => {

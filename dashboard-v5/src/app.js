@@ -34,7 +34,6 @@ import { runLogic } from './logic/run.js';
 import { candidatesLogic } from './logic/prompt-candidates.js';
 import { systemLogic } from './logic/system.js';
 import { libraryLogic } from './logic/library.js';
-import { studioLogic } from './logic/studio.js';
 import { projectLogic } from './logic/project.js';
 import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
@@ -80,7 +79,7 @@ export class Component extends DCLogic {
       focus: saved.focus || null, now: Date.now(), confirm: null, confirmAsk: 'always', commit: null, sheet: null, levelUp: null, toasts: [], refreshing: false,
       lastScan: scanAt && !isNaN(scanAt) ? (scanAt.toDateString() === new Date().toDateString() ? '' : M.fmtD(scanAt) + ' ') + hhmm(scanAt) : (M.at(0).id || '—'),
       projSort: 'worst', taskFilter: 'all', hoverProj: null, diagTab: 'git', pageMore: false,
-      journalAdds: {}, journalDraft: '', journalKind: 'note', autoQuery: '', trendRange: 30, lifeRange: 'window', lightbox: null, studioFilter: 'all',
+      journalAdds: {}, journalDraft: '', journalKind: 'note', autoQuery: '', trendRange: 30, lifeRange: 'window',
       recapOpen: false, recapDismissed: P.recapSeen === (M.weeklyRecap && M.weeklyRecap.week_end), sessionSel: null, composer: '', composerProj: (M.P0[0] || {}).id || null,
       momentum: 'unc', fixed: [], sinceDismissed: P.sinceSeen === M.at(0).id, actTab: 'runs', compareOff: null, commitSel: 0, onboard: null, notifLog: [],
       // What's new · trailers (logic/whats-new.js): open, and trailers whose video failed to play (id → true)
@@ -131,7 +130,6 @@ export class Component extends DCLogic {
     this.store.start();
     { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); if (S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad(); if (S.tab === 'social' && !S.route) this.socialLoad(); }   // a cold start on Chats/Projects loads too; P1: the Library loads on arrival
     this.followUiPrefs();
-    if (this.hq && this.hq.studio && this.hq.studio.onOpenRealm) this._offRealm = this.hq.studio.onOpenRealm(() => this.go('studio'));   // Ctrl+Alt+L
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
     this.maybeLevelUp();
@@ -166,7 +164,6 @@ export class Component extends DCLogic {
       this.mainRef.current.scrollTop = 0;
       if (!S.reduceMotion) this.mainRef.current.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' });
     }
-    if (moved && S.tab === 'studio') this.store.refreshCaptures();
     if (moved && S.tab === 'social' && !S.route) this.socialLoad();   // Social tab: the bridge snapshot + the open sub's data
     if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
     if (moved && S.tab === 'claude' && !S.route && S.sub.claude === 'prompts') this.prLoad();   // P1: the Library loads on arrival
@@ -368,8 +365,8 @@ export class Component extends DCLogic {
     // canvasNoteOpen: Escape folds the Canvas ＋ Note form, an in-page form, so after the
     // overlays and only while it is on screen (the flag outlives a tab switch)
     const noteShown = S.canvasNoteOpen && !S.route && S.tab === 'claude' && S.sub && S.sub.claude === 'canvas';
-    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'promote', 'pack', 'run', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
-    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else if (k === 'pack') this.rnPackCancel(); else if (k === 'run') this.rnClose(); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'lightbox', 'onboard', 'vault', 'promote'].includes(k) ? null : false }); return; }
+    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'promote', 'pack', 'run', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'canvasNoteOpen', 'pageMore'];
+    for (const k of order) if (S[k] && (k !== 'canvasNoteOpen' || noteShown)) { if (k === 'focus') this.endFocus(false); else if (k === 'pack') this.rnPackCancel(); else if (k === 'run') this.rnClose(); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'promote'].includes(k) ? null : false }); return; }
     if (S.route) this.setState({ route: null });
   }
   onKey(e) {
@@ -403,5 +400,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, claudeImportLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, studioLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic, lifeLogic, canvasLogic, statCardLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, claudeImportsLogic, promptsLogic, candidatesLogic, runLogic, githubLogic, accountsLogic, socialLogic, lifeLogic, canvasLogic, statCardLogic);
 Component.prototype.renderVals = renderVals;

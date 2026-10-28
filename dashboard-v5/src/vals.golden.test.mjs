@@ -204,12 +204,7 @@ function DATA() {
   };
 }
 
-// everything window.hq would have pushed after boot (sessions, casts, dev servers, vitals, social, captures)
-const CAPTURE_ROWS = [
-  { path: 'C:/captures/snip-1.png', kind: 'snip', name: 'snip-1.png', mtimeMs: Date.parse('2026-10-05T09:15:00Z'), size: 245000 },
-  { path: 'C:/captures/rec-1.mp4', kind: 'rec', recovered: true, name: 'rec-1.mp4', mtimeMs: Date.parse('2026-10-04T18:00:00Z'), size: 12500000 },
-  { path: 'C:/captures/snip-0.png', kind: 'snip', name: 'snip-0.png', mtimeMs: Date.parse('2026-09-28T08:00:00Z'), size: 800, thumbDataUrl: 'data:image/png;base64,AAAA' },
-];
+// everything window.hq would have pushed after boot (sessions, casts, dev servers, vitals, social)
 function richLive(L, store) {
   L.sessions = A.sessions([
     { jobId: 'j1', label: 'Fix the build', cwd: 'C:/dev/a', status: 'running', startedAt: Date.parse('2026-10-05T09:40:00Z'), tail: 'line 1\nline 2' },
@@ -230,14 +225,13 @@ function richLive(L, store) {
     outbox: { actions: [{ id: 's1', platform: 'bluesky', text: 'Draft post text', status: 'staged', staged_at: '2026-10-04T12:00:00Z' }, { id: 's2', platform: 'bluesky', status: 'sent' }] },
     inbox: { events: [{ kind: 'mention', author: 'someone.example', text: 'nice work', ts: '2026-10-05T09:00:00Z', url: 'https://example.com/post/1' }, { kind: 'like', author: 'x' }] },
   }), loaded: true };
-  L.captures = A.captures(CAPTURE_ROWS);
 }
 
 // ---- scenarios ---------------------------------------------------------------------------
 // { name, data: 'base'|'empty', hq, width, props, live(L, store), setup(c), state: patch | (c, M) => patch }
 // names are file-safe (GOLDEN_DUMP writes <name>.json): letters, digits, '.', '-'
 const SOCIAL_SUMMARY = { kinds: [{ origin: 'facebook', kind: 'interests', docs: 2, newest_ms: 5 }, { origin: 'instagram', kind: 'posts', docs: 3, newest_ms: 30 }, { origin: 'instagram', kind: 'likes', docs: 1, newest_ms: 20 }], dms: [{ origin: 'instagram', conversations: 4, messages: 120, last_at: '2026-10-02T10:00:00Z' }] };
-const TABS = ['home', 'projects', 'tasks', 'automations', 'claude', 'history', 'system', 'life', 'social', 'studio'];
+const TABS = ['home', 'projects', 'tasks', 'automations', 'claude', 'history', 'system', 'life', 'social'];
 const DIAG = ['git', 'security', 'standing', 'insights', 'roadmap'];
 const SCEN = [];
 const add = (name, o = {}) => SCEN.push({ name, ...o });
@@ -335,7 +329,7 @@ add('overlay.sheet-danger', { state: { sheet: { act: 'archive', id: 'a', title: 
 add('overlay.sheet-safe', { state: { sheet: { act: 'fix', cmd: 'cleanmgr', fixTitle: 'Clean temp files', title: 'Clean temp files?', body: 'Runs this PowerShell command now:\n\ncleanmgr', ok: 'Run fix', danger: false } } });
 add('overlay.level-up', { state: { levelUp: { l: 4, t: 'Operator' } } });
 for (const step of [1, 2, 3]) add('overlay.onboard-' + step, { state: { onboard: { step, path: 'C:/dev/new-project', dev: 'npm run dev', branch: 'main', name: 'Project New' } } });
-// overlays: toasts (one with a live Undo window), lightbox on a capture
+// overlays: toasts (one with a live Undo window)
 add('overlay.toasts', {
   setup: (c) => { c._pending['done:q-d-tests'] = { fn() {}, timer: null }; },
   state: { toasts: [
@@ -346,8 +340,7 @@ add('overlay.toasts', {
     { id: 'k5', kind: 'success', text: 'Marked done · old', undo: 'gone' },
   ] },
 });
-add('overlay.lightbox', { live: (L) => { L.captures = A.captures(CAPTURE_ROWS); }, state: (c, M) => ({ tab: 'studio', lightbox: M.CAPTURES[1].id }) });
-// live data pushed over the bridge (sessions, casts, dev servers, vitals, social, captures)
+// live data pushed over the bridge (sessions, casts, dev servers, vitals, social)
 add('live.home', { live: richLive, state: { tab: 'home' } });
 add('live.claude-sessions', { live: richLive, state: (c) => ({ ...tabSub('claude', 'sessions')(c), sessionSel: 'j1' }) });
 add('live.system', { live: richLive, state: tabSub('system', 'machine') });
@@ -359,7 +352,6 @@ add('social.archive-empty', { live: (L) => { L.claudeHub = { state: 'ready', rol
 add('social.archive-hub-down', { live: (L) => { L.claudeHub = { state: 'no-node', node: 'v20.0.0' }; }, state: tabSub('social', 'archive') });
 add('live.social-vault', { hq: {}, live: (L) => { L.socialVault = { vault: 'Example Vault', folder: '30_Areas/Social', exists: true, obsidian: true, notes: [{ rel: '30_Areas/Social/Plan.md', name: 'Plan.md', title: 'Posting plan', mtime: Date.parse('2026-10-20T00:00:00Z'), size: 10, where: 'social' }, { rel: '00_Inbox/Social Profile — Example.md', name: 'Social Profile — Example.md', title: 'Social Profile — Example', mtime: Date.parse('2026-10-26T00:00:00Z'), size: 10, where: 'inbox' }], error: null, busy: false }; }, state: (c) => ({ ...tabSub('social', 'vault')(c), soTitle: 'A title', soBody: 'Some text' }) });
 add('social.vault-new', { live: (L) => { L.socialVault = { vault: 'Example Vault', folder: '30_Areas/Social', exists: false, obsidian: false, notes: [], error: null, busy: false }; }, state: tabSub('social', 'vault') });
-add('live.studio-rec', { live: richLive, state: { tab: 'studio', studioFilter: 'rec' } });
 add('live.runs', { live: richLive, state: { runsOpen: true, expandedRun: 'k1' } });
 // an (inert) bridge object: the writable branches (nothing on it is called while rendering)
 add('bridge.home', { hq: {}, state: { tab: 'home' } });
@@ -367,7 +359,7 @@ add('bridge.project-a', { hq: {}, state: page('a', 'git') });
 
 // ---- Phase 3 (v3 parity) states -------------------------------------------------------------
 // an inert bridge with the Phase 3 methods, so their buttons render enabled
-const P3_HQ = { captureSave() {}, healthScan() {}, healthFix() {}, claudeQuest() {}, canvasAdd() {}, rescanSpellbook() {}, castSpell() {}, studio: { libraryReveal() {} } };
+const P3_HQ = { captureSave() {}, healthScan() {}, healthFix() {}, claudeQuest() {}, canvasAdd() {}, rescanSpellbook() {}, castSpell() {} };
 const FRESH_PC = { scanned_at: '2026-10-05T09:58:00Z', host: { name: 'test-pc' }, organs: [organ('cpu', { value: 9, status: 'grace' }), organ('gpu', { label: 'Graphics', value: 96, status: 'ember', diagnosis: 'GPU running hot', fixes: [] })] };
 // P8 palette: the capture verb, and the new Commands rows found by searching
 add('overlay.palette-go-capture', { state: palette('capture Some Idea For Later') });
@@ -494,9 +486,6 @@ add('history.claude-activity', clAt({ stats: { days: [{ day: '2026-10-04', chats
 // P3 project page: bridge (⚡ Terminal, Add to ideas enabled), a gap being saved, Security flags
 add('project.a.p3-bridge', { hq: P3_HQ, state: page('a', 'security', { sysSaves: { 'Project A: add a test suite': 'noted' } }) });
 add('project.c.git-risk', { state: page('c', 'git') });
-// P4 Studio: a snip in the lightbox (the recording one is overlay.lightbox), the recordings filter with a bridge
-add('overlay.lightbox-snip', { hq: P3_HQ, live: (L) => { L.captures = A.captures(CAPTURE_ROWS); }, state: (c, M) => ({ tab: 'studio', lightbox: M.CAPTURES[0].id }) });
-add('overlay.lightbox-thumb-only', { live: (L) => { L.captures = A.captures(CAPTURE_ROWS); }, state: (c, M) => ({ tab: 'studio', lightbox: M.CAPTURES[2].id }) });
 // P5 Canvas ＋ Note: form open on the second board, saving, no bridge (disabled with the reason)
 add('claude.canvas-note', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasBoard: 'Board One' }) });
 add('claude.canvas-note-saving', { hq: P3_HQ, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true, canvasDraft: 'A note for the board', canvasSaving: true }) });

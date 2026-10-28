@@ -17,13 +17,5 @@ export const sheetLogic = {
         if (r.ok === true) { this.markFixed(s.issueId); FX().event('cheer', 'Fixed!'); }
       }
     }
-    if (s.act === 'delete') {
-      // main answers true only when the file reached the Recycle Bin; false/null = refused or failed
-      // (not this.call(): it returns null both for a throw and for a plain null answer)
-      let r = null, why = '';
-      try { r = await this.hq.studio.libraryDelete(s.path); } catch (e) { why = ' · ' + ((e && e.message) || e); }
-      if (r !== true) { this.toast('error', 'Couldn’t delete ' + s.name + (why || (r && r.error ? ' · ' + r.error : ''))); FX().sfx('error'); return; }
-      this.setState({ lightbox: null }); this.toast('success', 'Moved to the Recycle Bin · ' + s.name); this.store.refreshCaptures();
-    }
   },
 };
