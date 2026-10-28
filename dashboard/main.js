@@ -23,8 +23,10 @@ appLog.attach({ app });   // crashes, hangs, session end, quit — every window,
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
 // whole main process (and every window) down. Log and keep the app alive.
-process.on('uncaughtException', (e) => { console.error('[uncaught]', e); appLog.error('uncaughtException', e); });
-process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', e); appLog.error('unhandledRejection', e); });
+// A closed console pipe (hidden, detached launch) silences the console once instead of looping (stdio-guard.js).
+const stdio = require('./stdio-guard').guardStdio({ onBroken: (e) => appLog.event('stdio-closed', { code: e.code }) });
+process.on('uncaughtException', (e) => { if (stdio.handle(e)) return; try { console.error('[uncaught]', e); } catch (w) { stdio.handle(w); } appLog.error('uncaughtException', e); });
+process.on('unhandledRejection', (e) => { if (stdio.handle(e)) return; try { console.error('[unhandledRejection]', e); } catch (w) { stdio.handle(w); } appLog.error('unhandledRejection', e); });
 
 const DIR = __dirname;
 const SCAN_DIR = path.join(DIR, '..');
