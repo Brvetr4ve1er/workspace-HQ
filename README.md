@@ -18,9 +18,8 @@ pixel mascot called Bit.
 
 - A personal tool, built for one machine. Windows only, no installer.
 - v5 (`dashboard-v5/`, built from the Claude Design file) is live: the app loads it by default.
-- The older renderers, v2 to v4, are quarantined in `legacy/`. They are kept in git but never load by
-  default. Rolling back is one command, `tools\rollback.ps1 v3` (or `v2` / `v4`), and
-  `tools\rollback.ps1 v5` returns to v5. Add `-DryRun` to see what it would do first.
+- The older renderers, v2 to v4, were removed on 2026-10-28. They live on in git under the tag
+  `cleanup-base-2026-10-28`. `tools\rollback.ps1 v5` restarts the app; add `-DryRun` to see the plan first.
 - The trailers stay silent until the soundtrack is muxed in.
 
 ## What's in the box
@@ -30,7 +29,6 @@ pixel mascot called Bit.
 | `collector/` | The scan. Plain Node + git over the local filesystem, no prompts. An optional enrichment step asks the `claude` CLI for the soft fields (completion %, risk, insights). It is skipped when the CLI isn't installed. |
 | `dashboard/` | The Electron app (Electron 32): main process, tray, global hotkeys, and the IPC every renderer uses. |
 | `dashboard-v5/` | The renderer. Vanilla JS, no framework, no build step. |
-| `legacy/` | The quarantined renderers v2, v3 and v4. Frozen, for rollback only. |
 | `mcp/workspacehq/` | The `workspacehq` MCP server that Claude Code sessions bind through `.mcp.json` ([tools](mcp/workspacehq/README.md)). |
 | `browser-bridge/` | Browser extension. It reports the active tab to the app. It also uses your logged-in sessions on Bluesky, Mastodon, Reddit, X, LinkedIn, Instagram, Threads, Facebook and YouTube to read your feeds, mentions, notifications and post stats into the app. It publishes a post that Claude staged only when you press approve & send ([how approval works](browser-bridge/README.md)). |
 | `schema/`, `spellbook/` | Scan data schema; curated automation ("spell") definitions. |
@@ -78,9 +76,8 @@ node dashboard/build-data.mjs
 The full pipeline (collector → optional enrichment → assemble → render) is `.\run-pipeline.ps1`.
 Add `-NoEnrich` to stay offline, and `-ReportsDir <folder>` to choose where scan history is written.
 
-The app runs v5. To switch renderers, run `tools\rollback.ps1 <v2|v3|v4|v5>`. It writes
-`data/.ui-version` (gitignored) and restarts the app. For one launch only, set
-`$env:HQ_UI_VERSION = 'v3'` instead.
+The app runs v5, the only renderer. `tools\rollback.ps1 v5` writes `data/.ui-version` (gitignored)
+and restarts the app.
 
 Tests (Node 25; the Claude Hub tests need Node 22.13 or newer for `node:sqlite`):
 

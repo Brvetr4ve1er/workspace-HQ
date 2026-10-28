@@ -7,12 +7,13 @@ editing anything; append an entry there when you finish a work block.**
 
 | Lane | Owns | Commit prefix |
 |---|---|---|
-| **frontend** | `dashboard/` (all of it: main.js, preload, satellites *.html/*.js), `dashboard-v5/` (the renderer — the Claude Design build), `legacy/` (quarantined renderers v2–v4 in `legacy/dashboard-vN/` — frozen, rollback only, never loaded by default), `mcp/workspacehq/` (the `workspacehq` MCP server, `.mcp.json`), `browser-bridge/` (extension) | `fe:` |
+| **frontend** | `dashboard/` (all of it: main.js, preload, satellites *.html/*.js), `dashboard-v5/` (the renderer — the Claude Design build), `mcp/workspacehq/` (the `workspacehq` MCP server, `.mcp.json`), `browser-bridge/` (extension) | `fe:` |
 | **structure** | `collector/`, `schema/`, `run-pipeline.ps1`, `scan-prompt.md`, `spellbook/` (curated spell defs) | `struct:` |
 | shared (either, announce in handoff first) | `data/` shapes, `docs/`, `.gitignore`, `tools/`, `.mcp.json` | `meta:` |
 
 **NEXUS v3 program is active** — charter: `docs/superpowers/specs/2026-07-21-nexus-v3-program.md`.
-Program invariants: contract changes additive-only (v2 rollback stays one flip away);
+Program invariants: contract changes additive-only (the v2–v4 renderers were removed 2026-10-28 —
+restore from tag `cleanup-base-2026-10-28`; the cleanup's removed channels are listed in IPC-CONTRACT);
 economy changes = struct-lane asks with CONTRACT entry + golden re-baseline; main-process
 edits gated on in-flight work landing (new main-side features go in NEW files).
 
@@ -45,11 +46,10 @@ edits gated on in-flight work landing (new main-side features go in NEW files).
 - Instagram / Facebook (2026-10-27): Claude › Chats › "Import Instagram / Facebook export" (kind `meta`) or the drop folder → Hub op `importMeta` (`dashboard/claude-hub/ingest-meta.mjs`: Instagram as HTML, Facebook as JSON; text entries only, read in memory via `unzip.mjs` `readEntry`). DMs = sources `instagram`/`facebook` (others' lines role `other`, sender in `tool_name`; left out of unfiltered lists, stats, harvest); everything else = document source `social`. Sensitive folders are never read (`SENSITIVE`). Ask's 8th chip "Instagram & Facebook" = `contextFor` scope `social`. Tests `node --test dashboard/claude-hub/ingest-meta.test.mjs`; fixtures `__fixtures__/make-meta-export.mjs`.
 - Hotkeys already claimed: `Ctrl+Alt+X` (quick-run) · `Ctrl+Alt+S` / `Ctrl+Alt+Shift+S` (snip) ·
   `Ctrl+Alt+R` / `Ctrl+Alt+Shift+R` (record) · `Ctrl+Alt+L` (open Studio). `Ctrl+Alt+Space` was retired 2026-09-15; `Ctrl+Alt+G` (summon) 2026-10-28.
-- Renderer: v5 is the default — `dashboard-v5/` (template renderer `src/dc/runtime.js`, data
-  `src/live/`). A missing/unreadable `data/.ui-version` (gitignored, owner's file) or any value
-  other than `v2` | `v3` | `v4` | `v5` loads v5. Rollback = `tools\rollback.ps1 v3` (or `v2`/`v4`):
-  loads `legacy/dashboard-vN/index.html` on the same preload, main logs
-  `[ui] legacy renderer vN (legacy/) — rollback mode`. `HQ_UI_VERSION=vN` overrides the file for one launch.
+- Renderer: v5 is the only one — `dashboard-v5/` (template renderer `src/dc/runtime.js`, data
+  `src/live/`). The v2–v4 renderers (`legacy/`) were removed 2026-10-28: a `data/.ui-version` or
+  `HQ_UI_VERSION` still naming one loads v5 and logs `ui-legacy-removed`; `tools\rollback.ps1 v3` refuses
+  with the restore command (`git checkout cleanup-base-2026-10-28 -- legacy …`).
   The rule lives in `dashboard/ui-version.js` (pure, `ui-version.test.mjs`).
 - Theme system invariants: never override `position` on `#tabs`/`.timemachine`;
   new themes must remap `--active`/`--active-arrow`/`--divider`/`--mono`.

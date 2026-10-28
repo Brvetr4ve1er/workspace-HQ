@@ -603,3 +603,4 @@ The one deliberate break of the additive-only rule. These features had no record
 |---|---|
 | Mini HUD | `getMiniData` `hq:mini-data`, `miniHide` `hq:mini-hide`, push `onMiniUpdate` `hq:mini-update`. `showMain` `hq:show-main` and `killServers` `hq:kill-servers` STAY (quick-run uses them). Tray loses the Mini HUD checkbox. |
 | Summon + desktop shards | `shardSummon` `hq:shard-summon`, `shardSummonCancel`, `shardClose`, `shardSave`, `shardLibSpawn`, `shardLibDelete`, `shardRegen` (`hq:shard-*`), push `onShardInit` `shard:init`; hotkey Ctrl+Alt+G released; the `--summon=` / `--summon-open` dev flags are gone. Tray loses Summon…. data/shards.json, data/shard-library.json and data/.hud-state.json are left on disk, unread. |
+| Legacy renderers v2–v4 | No channel: `legacy/` deleted. `data/.ui-version` / `HQ_UI_VERSION` naming v2–v4 loads v5 and writes an `ui-legacy-removed` log line; `tools\rollback.ps1 v2..v4` refuses with the restore command. |
