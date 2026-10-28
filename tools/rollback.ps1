@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-  Switch WorkspaceHQ's renderer and restart the app. Rollback is one command.
+  Restart the WorkspaceHQ app (v5). The v2–v4 rollback renderers were removed 2026-10-28.
 
 .DESCRIPTION
-  tools\rollback.ps1 <v2|v3|v4|v5> [-DryRun]
+  tools\rollback.ps1 v5 [-DryRun]
 
-  1. Validates the version. v5 is the app (dashboard-v5\). v2, v3 and v4 are the
-     quarantined renderers in legacy\ and only load as a rollback.
+  1. Validates the version. v5 (dashboard-v5\) is the only renderer; v2, v3 and v4
+     were removed 2026-10-28 and are refused with the git command that restores them.
   2. Writes data\.ui-version (no BOM, no newline).
   3. Stops the running WorkspaceHQ app: the electron.exe main process started from
      this repo's dashboard\ folder WITHOUT --user-data-dir, then its leftover
@@ -27,15 +27,11 @@
   scheduled task and no Startup entry.
 
 .EXAMPLE
-  tools\rollback.ps1 v3
-  Roll back to the legacy v3 renderer.
-
-.EXAMPLE
   tools\rollback.ps1 v5
-  Back to the default renderer.
+  Restart the app.
 
 .EXAMPLE
-  tools\rollback.ps1 v3 -DryRun
+  tools\rollback.ps1 v5 -DryRun
   Show what would happen, change nothing.
 #>
 [CmdletBinding()]
@@ -50,8 +46,8 @@ $Core = Join-Path $PSScriptRoot 'rollback-core.mjs'
 $ElectronExe = Join-Path $Root 'dashboard\node_modules\electron\dist\electron.exe'
 
 if (-not $Version) {
-  Write-Host 'usage: tools\rollback.ps1 <v2|v3|v4|v5> [-DryRun]'
-  Write-Host '  v5 = the app (default); v2 / v3 / v4 = legacy renderers, rollback only'
+  Write-Host 'usage: tools\rollback.ps1 v5 [-DryRun]'
+  Write-Host '  v5 = the app; v2 / v3 / v4 were removed 2026-10-28'
   exit 2
 }
 

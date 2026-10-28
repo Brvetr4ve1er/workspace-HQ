@@ -21,10 +21,10 @@ const TRAILER_GPU = proc(8624, 10776, `"${EXE}" --type=gpu-process --user-data-d
 const TEST_INSTANCE = proc(5000, 4999, `"${EXE}" . --hidden --user-data-dir=C:\\Users\\me\\AppData\\Local\\Temp\\hq-test-1 --remote-debugging-port=9333`);
 const HIDDEN_LAUNCH = proc(6000, 1, `"${EXE}" . --hidden`);
 
-test('validVersion: v2..v5 only, case and whitespace forgiven', () => {
-  for (const v of ['v2', 'v3', 'v4', 'v5']) assert.equal(validVersion(v), v);
-  assert.equal(validVersion(' V3 '), 'v3');
-  for (const bad of ['', 'v1', 'v6', '3', 'v3x', 'legacy', null, undefined, 'v 3']) assert.equal(validVersion(bad), null, String(bad));
+test('validVersion: v5 only (v2–v4 removed 2026-10-28), case and whitespace forgiven', () => {
+  assert.equal(validVersion('v5'), 'v5');
+  assert.equal(validVersion(' V5 '), 'v5');
+  for (const bad of ['v2', 'v3', 'v4', '', 'v1', 'v6', '3', 'v3x', 'legacy', null, undefined, 'v 3']) assert.equal(validVersion(bad), null, String(bad));
 });
 
 test('splitArgs follows CommandLineToArgvW quoting', () => {
@@ -76,9 +76,9 @@ test('matchOwnerApp falls back to argv[0] when ExecutablePath is missing', () =>
 test('planRollback: stops only the owner app (+ its children), relaunches hidden from dashboard\\', () => {
   const all = [OWNER, OWNER_GPU, OWNER_RENDERER, OWNER_NET, TRAILER, TRAILER_GPU, TEST_INSTANCE,
     { ProcessId: 77, ParentProcessId: 5000, Name: 'electron.exe', ExecutablePath: EXE, CommandLine: `"${EXE}" --type=renderer --user-data-dir=C:\\Users\\me\\AppData\\Local\\Temp\\hq-test-1` }];
-  const plan = planRollback({ version: 'V3', procs: all, repoRoot: REPO });
-  assert.equal(plan.version, 'v3');
-  assert.equal(plan.target, 'legacy/dashboard-v3/index.html');
+  const plan = planRollback({ version: 'V5', procs: all, repoRoot: REPO });
+  assert.equal(plan.version, 'v5');
+  assert.equal(plan.target, 'dashboard-v5/index.html');
   assert.equal(plan.uiVersionFile, `${REPO}\\data\\.ui-version`);
   assert.deepEqual(plan.stop.map((s) => s.pid), [38980]);
   assert.deepEqual(plan.children.sort(), [8060, 17728, 31964].sort());
@@ -90,10 +90,11 @@ test('planRollback: v5 targets dashboard-v5; nothing running → nothing to stop
   assert.equal(plan.target, 'dashboard-v5/index.html');
   assert.deepEqual(plan.stop, []);
   assert.deepEqual(plan.children, []);
-  assert.deepEqual(planRollback({ version: 'v4', procs: OWNER, repoRoot: REPO }).stop.map((s) => s.pid), [38980], 'single object (ConvertTo-Json of one process)');
-  assert.deepEqual(planRollback({ version: 'v2', procs: null, repoRoot: REPO }).stop, []);
+  assert.deepEqual(planRollback({ version: 'v5', procs: OWNER, repoRoot: REPO }).stop.map((s) => s.pid), [38980], 'single object (ConvertTo-Json of one process)');
+  assert.deepEqual(planRollback({ version: 'v5', procs: null, repoRoot: REPO }).stop, []);
+  for (const gone of ['v2', 'v3', 'V4']) assert.throws(() => planRollback({ version: gone, procs: [], repoRoot: REPO }), /was removed 2026-10-28 — restore it with: git checkout cleanup-base-2026-10-28/);
   assert.throws(() => planRollback({ version: 'v6', procs: [], repoRoot: REPO }), /unknown renderer "v6"/);
-  assert.throws(() => planRollback({ version: 'v3', procs: [], repoRoot: '' }), /repo root/);
+  assert.throws(() => planRollback({ version: 'v5', procs: [], repoRoot: '' }), /repo root/);
 });
 
 test('appPaths are built from the repo root (no machine paths baked in)', () => {
@@ -106,7 +107,7 @@ test('appPaths are built from the repo root (no machine paths baked in)', () => 
 
 test('CLI: plan reads processes on stdin and prints the plan; a bad version exits 2', () => {
   const cli = fileURLToPath(new URL('./rollback-core.mjs', import.meta.url));
-  const ok = spawnSync(process.execPath, [cli, 'plan', '--version', 'v3', '--repo', REPO], { input: '\uFEFF' + JSON.stringify([OWNER, OWNER_GPU, TRAILER]), encoding: 'utf8' });
+  const ok = spawnSync(process.execPath, [cli, 'plan', '--version', 'v5', '--repo', REPO], { input: '\uFEFF' + JSON.stringify([OWNER, OWNER_GPU, TRAILER]), encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stderr);
   const plan = JSON.parse(ok.stdout);
   assert.deepEqual(plan.stop.map((s) => s.pid), [38980]);

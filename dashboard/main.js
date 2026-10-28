@@ -137,7 +137,7 @@ function latest() {
   try { return JSON.parse(fs.readFileSync(path.join(DATA, 'latest.json'), 'utf8')); } catch { return null; }
 }
 
-// Renderer switch. v5 (dashboard-v5/) is the app. v2-v4 are quarantined in legacy/
+// Renderer switch. v5 (dashboard-v5/) is the app. v2-v4 (legacy/) were removed 2026-10-28;
 // (frozen, never loaded by default) and only come back as a rollback: data/.ui-version
 // holding exactly "v2" | "v3" | "v4" (`tools\rollback.ps1 v3` writes it and restarts
 // the app). A missing or unreadable file, or any other value, loads v5. Every
@@ -155,8 +155,8 @@ function createWindow(show = true) {
     icon: path.join(DIR, 'icon.png'), show,
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
   });
-  const uiv = uiVersion();   // "v5" → dashboard-v5 (the app); "v2" | "v3" | "v4" → legacy/dashboard-vN (rollback only)
-  if (uiSwitch.isLegacy(uiv)) console.log(`[ui] legacy renderer ${uiv} (legacy/) — rollback mode`);
+  const uiv = uiVersion();   // always loads dashboard-v5; a flag still naming v2–v4 is only logged
+  if (uiSwitch.isLegacy(uiv)) { console.log(`[ui] renderer ${uiv} was removed 2026-10-28 — loading v5`); appLog.event('ui-legacy-removed', { asked: uiv }); }
   else win.setBackgroundColor('#0d0d0f');   // v5's page colour, so the pre-paint frame doesn't flash
   win.loadFile(uiSwitch.rendererPage(SCAN_DIR, uiv));
   // Close-to-tray: keep the app (and tray) alive when the user closes the window,

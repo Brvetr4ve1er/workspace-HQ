@@ -5,7 +5,7 @@
 // `-p --output-format stream-json --verbose` its `tail` is line-delimited JSON.
 // That tail is not an internal detail: THREE renderer surfaces display it
 // verbatim — legacy/dashboard-v4 work/agent-pane.js, legacy/dashboard-v4
-// automate/sessions.js and legacy/dashboard-v3 summoning/view.js (rollback-only renderers).
+// automate/sessions.js and legacy/dashboard-v3 summoning/view.js (removed 2026-10-28; tag cleanup-base-2026-10-28).
 //
 // It gets read constantly, because the app's most common events reload the
 // window: `hq:capture-save` and `hq:scan` both spawnSync then `win.reload()`,

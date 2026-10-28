@@ -10,7 +10,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const win = path.win32;
-export const UI_VERSIONS = ['v2', 'v3', 'v4', 'v5'];
+export const UI_VERSIONS = ['v5'];
+// v2–v4 (legacy/) were removed 2026-10-28; asking for one gets a restore hint instead of a restart.
+export const REMOVED_VERSIONS = ['v2', 'v3', 'v4'];
 
 // 'v3' / 'V3' / ' v3 ' → 'v3'; anything else → null.
 export function validVersion(v) {
@@ -84,6 +86,8 @@ export function matchOwnerApp(proc, repoRoot) {
 // then their leftover children), and how to relaunch.
 export function planRollback({ version, procs, repoRoot }) {
   const v = validVersion(version);
+  const asked = String(version ?? '').trim().toLowerCase();
+  if (!v && REMOVED_VERSIONS.includes(asked)) throw new Error(`renderer "${asked}" was removed 2026-10-28 — restore it with: git checkout cleanup-base-2026-10-28 -- legacy dashboard/ui-version.js tools/rollback-core.mjs`);
   if (!v) throw new Error(`unknown renderer "${version}" — use one of ${UI_VERSIONS.join(', ')}`);
   if (!repoRoot) throw new Error('repo root required');
   const list = Array.isArray(procs) ? procs : (procs ? [procs] : []);
@@ -95,7 +99,7 @@ export function planRollback({ version, procs, repoRoot }) {
   const paths = appPaths(repoRoot);
   return {
     version: v,
-    target: v === 'v5' ? 'dashboard-v5/index.html' : `legacy/dashboard-${v}/index.html`,
+    target: 'dashboard-v5/index.html',
     uiVersionFile: paths.uiVersionFile,
     stop: mains.map((p) => ({ pid: pid(p), commandLine: String(p.CommandLine ?? p.commandLine ?? '') })),
     children,

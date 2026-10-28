@@ -1,6 +1,6 @@
 // node --test dashboard/ui-version.test.mjs — the renderer switch main.js createWindow() uses.
-// v5 is the app; v2–v4 live in legacy/ and load only when data/.ui-version (or HQ_UI_VERSION
-// for one launch) says exactly so. Flag files here are temp files, never the real data/.
+// v5 is the only renderer; v2–v4 (legacy/) were removed 2026-10-28, so a flag (data/.ui-version or
+// HQ_UI_VERSION for one launch) that still names one is reported by isLegacy and loads v5. Flag files here are temp files, never the real data/.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -59,11 +59,11 @@ test('HQ_UI_VERSION overrides the file for one launch only when it is valid', (t
   assert.equal(resolveUiVersion({ env: { HQ_UI_VERSION: 'v9' }, readFlag: flagDir(t).readFlag }), 'v5', 'invalid override + no file');
 });
 
-test('rendererPage: v5 is dashboard-v5, v2..v4 are legacy/dashboard-vN, and every page exists', () => {
+test('rendererPage: every value loads dashboard-v5 (the legacy renderers were removed), and it exists', () => {
   assert.equal(rendererPage(REPO, 'v5'), path.join(REPO, 'dashboard-v5', 'index.html'));
   for (const v of ['v2', 'v3', 'v4']) {
-    assert.equal(isLegacy(v), true);
-    assert.equal(rendererPage(REPO, v), path.join(REPO, 'legacy', `dashboard-${v}`, 'index.html'));
+    assert.equal(isLegacy(v), true, 'still recognised, so main.js can log the removed request');
+    assert.equal(rendererPage(REPO, v), path.join(REPO, 'dashboard-v5', 'index.html'));
   }
   assert.equal(isLegacy('v5'), false);
   // defensive: a value that slipped past resolveUiVersion never builds a path from it
@@ -71,8 +71,8 @@ test('rendererPage: v5 is dashboard-v5, v2..v4 are legacy/dashboard-vN, and ever
     assert.equal(isLegacy(odd), false);
     assert.equal(rendererPage(REPO, odd), path.join(REPO, 'dashboard-v5', 'index.html'));
   }
-  // rollback stays one command only while the quarantined pages are on disk
-  for (const v of ['v2', 'v3', 'v4', 'v5']) assert.ok(fs.existsSync(rendererPage(REPO, v)), `missing ${rendererPage(REPO, v)}`);
+  assert.ok(fs.existsSync(rendererPage(REPO, 'v5')));
+  for (const v of ['v2', 'v3', 'v4']) assert.equal(fs.existsSync(path.join(REPO, 'legacy', `dashboard-${v}`, 'index.html')), false, `legacy ${v} is gone (restore from tag cleanup-base-2026-10-28)`);
 });
 
 test('main.js loads the main window through this module (no second copy of the rule)', () => {
