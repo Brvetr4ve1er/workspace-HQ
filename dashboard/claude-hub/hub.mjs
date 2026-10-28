@@ -13,13 +13,8 @@ import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
 import { contextFor } from './context.mjs';
-import { harvest } from './harvest.mjs';
-import { importExportFile, ingestWebConversation, ingestWebProject } from './ingest-web.mjs';
-import { parseWebConversation, parseWebProject, newReport, noteUnknown } from './parse-web.mjs';
 import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
 import { readHqProjects, autoLink } from './link.mjs';
-import { importChatGPTFile } from './ingest-chatgpt.mjs';
-import { importMetaFile } from './ingest-meta.mjs';
 import { syncDocs, watchDocs } from './ingest-docs.mjs';
 
 // A docs pass that could not read a notes root (EPERM/EACCES/EBUSY on the vault Prompts folder, the memory root, a CLAUDE.md)
@@ -287,59 +282,6 @@ function main() {
     clearTimeout(changedTimer);
     changedTimer = setTimeout(flushChanged, Math.max(0, Math.min(300, changedFirst + CHANGED_MAX_WAIT_MS - now)));
   };
-  // ---- claude.ai (H4). Not routed through serial(): each item is ONE synchronous store.tx with its tombstone check in
-  // the same turn, so forget (also one synchronous tx) cannot interleave with an item, and web ids never collide with
-  // code: ids. Keeping a long import out of the queue keeps live Code ingest, forget and syncPush responsive.
-  let importing = false, importEmitAt = 0;
-  const emitImport = (p, force = false) => {
-    const now = Date.now();
-    if (force || now - importEmitAt > 500) { importEmitAt = now; emit('progress', { kind: 'import', ...p }); }
-  };
-  const lastImport = () => { try { return JSON.parse((store && store.getMeta('last_import')) || 'null'); } catch { return null; } };
-  function runImport(zipPath, source = 'claude', expect = null) {
-    importing = true;
-    const tmpRoot = path.join(path.dirname(path.resolve(dbFile)), 'tmp');
-    // Instagram / Facebook: source 'meta' until the ZIP says which (the report carries it); no temp files (read in memory)
-    const run = source === 'chatgpt' ? importChatGPTFile : source === 'meta' ? (st, z, o) => importMetaFile(st, z, { ...o, expect }) : importExportFile;
-    const ev = (p, force) => emitImport({ ...p, source }, force);
-    run(store, zipPath, { tmpRoot, onProgress: (p) => ev(p), onImported: (ids) => markChanged(ids) })
-      .then((report) => {
-        const src = source === 'meta' && report && typeof report.source === 'string' ? report.source : source;   // instagram | facebook
-        store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: true, source: src, report }));
-        emitImport({ phase: 'done', done: report.conversations.seen, total: report.conversations.seen, report, source: src }, true);
-        markChanged([]);
-      })
-      .catch((e) => {   // a .catch AFTER the .then: it also covers a throw in the success body (setMeta, emit)
-        const error = msg(e);
-        try { store.setMeta('last_import', JSON.stringify({ at: new Date().toISOString(), ok: false, source, error })); } catch { /* the event still carries it */ }
-        try { ev({ phase: 'failed', done: 0, total: 0, error }, true); } catch { /* never an unhandled rejection */ }
-        lastError = error;
-      })
-      .finally(() => { importing = false; });
-  }
-  function pushItems(items) {
-    const report = newReport(), ids = [];
-    try {
-      for (const it of items) {
-        if (it && it.kind === 'project') {
-          report.projects.seen++;
-          const p = parseWebProject(it.data);
-          if (!p.ok) { report.projects.skipped++; continue; }
-          noteUnknown(report, p.unknown); ingestWebProject(store, p.project, report);
-        } else if (it && it.kind === 'conversation') {
-          report.conversations.seen++;
-          const c = parseWebConversation(it.data);
-          if (!c.ok) { report.conversations.skipped++; continue; }
-          noteUnknown(report, c.unknown); report.messages.skipped += c.skipped; report.messages.empty += c.empty;
-          if (ingestWebConversation(store, c.conv, report) === 'imported') ids.push('web:' + c.conv.uuid);
-        } else report.conversations.skipped++;
-      }
-      store.setMeta('last_sync_at', new Date().toISOString());
-    } finally {   // items written before a throwing one are still announced; the error then propagates
-      if (ids.length) markChanged(ids);
-    }
-    return report;
-  }
   const dbBytes = () => { let n = 0; for (const f of [dbFile, dbFile + '-wal']) { try { n += fs.statSync(f).size; } catch { /* absent */ } } return n; };
 
   // ---- indexing. Everything that writes (backfill run, watch ingest, sweep, forget) goes through one queue, so a reindex
@@ -418,56 +360,11 @@ function main() {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
       counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0, documents: 0 }, dbBytes: dbBytes(),
       lastError: lastError || docsNote || readerNote || (store && store.getMeta('last_error')) || null,
-      lastErrorAt: metaOrNull('last_error_at'), lastImport: lastImport(), importing }),   // H1's fields unchanged + lastErrorAt
-    importExport: (a) => {
-      if (!writer) notOwner();
-      const zipPath = a && typeof a.zipPath === 'string' ? a.zipPath : '';
-      if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importExport needs an absolute .zip path');
-      if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
-      if (importing) throw new Error('an import is already running');
-      runImport(zipPath, 'claude');
-      return { started: true };
-    },
-    importChatGPT: (a) => {
-      if (!writer) notOwner();
-      const zipPath = a && typeof a.zipPath === 'string' ? a.zipPath : '';
-      if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importChatGPT needs an absolute .zip path');
-      if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
-      if (importing) throw new Error('an import is already running');
-      runImport(zipPath, 'chatgpt');
-      return { started: true };
-    },
-    // Instagram / Facebook "Download your information" ZIP (ingest-meta.mjs). expect: 'instagram' | 'facebook' | null (either).
-    importMeta: (a) => {
-      if (!writer) notOwner();
-      const zipPath = a && typeof a.zipPath === 'string' ? a.zipPath : '';
-      const expect = a && (a.expect === 'instagram' || a.expect === 'facebook') ? a.expect : null;
-      if (!zipPath || !path.isAbsolute(zipPath) || !/\.zip$/i.test(zipPath)) throw new Error('importMeta needs an absolute .zip path');
-      if (!fs.existsSync(zipPath)) throw new Error('no such file: ' + path.basename(zipPath));
-      if (importing) throw new Error('an import is already running');
-      runImport(zipPath, 'meta', expect);
-      return { started: true };
-    },
+      lastErrorAt: metaOrNull('last_error_at') }),   // H1's fields + lastErrorAt (the H4/H6 import fields went with the importers, 2026-10-28)
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
     socialSummary: () => { if (!store) throw new Error('the index is not open yet'); return store.socialSummary(); },
-    // P3: one usage row per successful prompt run (main only). Writer + queue, like forget.
-    promptUse: (a) => {
-      if (!writer) notOwner();
-      if (!store) throw new Error('the index is not open yet');
-      const r = a && typeof a === 'object' ? a : {};
-      const row = { promptId: r.promptId, target: r.target, projectId: r.projectId, conversationId: r.conversationId, at: new Date().toISOString() };
-      return serial(() => store.addPromptUse(row));
-    },
-    promptStats: () => { if (!store) throw new Error('the index is not open yet'); return store.promptStats(); },
     getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
-    syncState: () => (store ? store.syncState() : { conversations: {}, projects: {}, forgotten: [] }),
-    syncPush: (a) => {
-      if (!writer) notOwner();
-      const items = a && Array.isArray(a.items) ? a.items : [];
-      if (!items.length || items.length > 50) throw new Error('syncPush needs 1–50 items');
-      return pushItems(items);
-    },
     stats: (a) => (store ? store.stats(a) : { from: a.from, to: a.to, tzOffsetMin: 0, days: [], projects: [],
       totals: { chats: 0, active_ms: 0, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } }),
     link: (a) => {
@@ -481,15 +378,6 @@ function main() {
     search: (a) => (store ? store.search(a) : []),
     // H5 Ask grounding (read-only: readers answer it too). No open index is an error, never an empty answer.
     contextFor: (a) => { if (!store) throw new Error('the index is not open yet'); return contextFor(store, a); },
-    // P2 prompt harvest (spec 2026-10-15 §6.2). Read-only: readers answer it too. No open index is an error, never [].
-    promptCandidates: (a) => {
-      if (!store) throw new Error('the index is not open yet');
-      const pool = store.harvestPool();
-      const r = harvest(pool.rows, { promptBodies: store.promptBodies(), hidden: store.hiddenCandidates(), limit: a && a.limit });
-      return { candidates: r.candidates, pooled: pool.pooled, capped: pool.capped, hidden: r.hidden };
-    },
-    // Hide = a tombstone (kind 'candidate'); writes, so it takes its turn in the queue like forget.
-    hideCandidate: (a) => { if (!writer) notOwner(); return serial(() => store.hideCandidate(a && a.key)); },
     reindex: () => { if (!writer) notOwner(); resetNext = true; progress = { done: 0, total: 0 }; runIndex(); return { started: true }; },
     // forget writes, so it takes its turn in the queue: run beside an in-flight ingest of the same transcript, it would be
     // undone by that ingest's remaining batches (they re-create the rows it removed; the tombstone is only checked on

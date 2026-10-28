@@ -21,7 +21,6 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const social = require('./social-bridge');   // SOCIAL BINDING: ingest tendril + outbox routes
-const claudeRoutes = require('./claude-bridge-routes');   // Claude Hub H4: /claude/sync-state, /claude/sync
 
 const PORT = 47821;
 const HOST = '127.0.0.1';
@@ -174,7 +173,6 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
     // SOCIAL BINDING outbox/accounts routes (ingest still flows through /ingest/social
     // below). handleRoute returns true once it has answered the request.
     if (url.startsWith('/social/') && social.handleRoute(req, res, { url, send, token, dataDir })) return;
-    if (url.startsWith('/claude/') && claudeRoutes.handleRoute(req, res, { url, send, token })) return;
 
     if (req.method === 'POST' && (routes.has(url) || url.startsWith('/ingest/'))) {
       const rt = routes.get(url);

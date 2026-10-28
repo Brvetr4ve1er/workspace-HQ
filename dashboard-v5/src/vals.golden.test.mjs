@@ -460,24 +460,11 @@ add('claude.composer-new', ccAt({ ccOpen: true }, []));
 add('claude.composer-streaming', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID }, [ccTurn()]));
 add('claude.composer-edits-done', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID, ccMode: 'edits' }, [ccTurn({ mode: 'edits', status: 'done', usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, endedAt: Date.parse('2026-10-05T10:00:00Z') })]));
 add('claude.composer-error', ccAt({ ccOpen: true, ccConv: 'code:' + CC_SID }, [ccTurn({ status: 'error', error: 'stopped after 10 min', endedAt: Date.parse('2026-10-05T10:00:00Z') })]));
-// ---- Claude Hub H4: claude.ai import strip + web Continue
-const CI_REP = { files: { conversations: true, projects: true }, conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 },
-  messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 }, unknownFields: { mystery_field: 1 }, truncated: false };
-const CI_HUB = { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: HUB_COUNTS, lastImport: null, importing: false };
-const CI_HQ = { ...P3_HQ, claudeHub: { importExport() {} } };
-const ciAt = (imp, hub = CI_HUB) => ({ hq: CI_HQ, live: (L) => { L.claudeHub = hub; L.claudeImport = imp; }, state: tabSub('claude', 'chats') });
-add('claude.import-running', ciAt({ kind: 'import', phase: 'conversations', done: 12, total: 0 }));
-add('claude.import-done', ciAt({ kind: 'import', phase: 'done', done: 5, total: 5, report: CI_REP }));
-add('claude.import-failed', ciAt({ kind: 'import', phase: 'failed', done: 0, total: 0, error: 'not a zip file' }));
-add('claude.import-reader', ciAt(null, { ...CI_HUB, role: 'reader' }));
-add('claude.import-last', ciAt(null, { ...CI_HUB, lastImport: { at: '2026-10-04T08:00:00.000Z', ok: true, report: CI_REP } }));
-// ---- AI archive H6: document hits + in-place view, drop confirm card, System ChatGPT report, ChatGPT source filter
+// ---- AI archive H6: document hits + in-place view; claude.ai web Continue (the importers were removed 2026-10-28)
+const CI_HQ = { ...P3_HQ, claudeHub: {} };
 const H6_DOCS = [{ id: 'memory:1', source: 'memory', title: 'Tea rule', snippet: 'offer \u0002tea\u0003', mtime_ms: 1759320000000 }];
 add('claude.h6-doc-hits', { hq: CI_HQ, live: (L) => { L.claudeLib = { ...L.claudeLib, q: 'tea', hits: [], docHits: H6_DOCS }; }, state: tabSub('claude', 'chats') });
 add('claude.h6-doc-open', { hq: CI_HQ, live: (L) => { L.claudeLib = { ...L.claudeLib, doc: { id: 'memory:1', source: 'memory', title: 'Tea rule', text: 'a\n\nb', mtime_ms: 1759320000000 } }; }, state: tabSub('claude', 'chats') });
-add('claude.h6-drop-card', { hq: CI_HQ, live: (L) => { L.claudeImports = { folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 39845888, kind: 'chatgpt' }], refused: [], error: null }; }, state: tabSub('claude', 'chats') });
-add('system.h6-chatgpt-report', { hq: CI_HQ, live: (L) => { L.claudeHub = { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 4, messages: 10, documents: 5 }, lastImport: { at: '2026-10-25T10:00:00Z', ok: true, source: 'chatgpt', report: { source: 'chatgpt', conversations: { imported: 4 }, messages: { imported: 10 }, branches: { skipped: 2 }, files: { other: [] }, memory: { found: false, imported: 0 } } } }; }, state: tabSub('system', 'machine') });
-add('claude.h6-chatgpt-filter', { hq: CI_HQ, live: (L) => { L.claudeLib = { ...L.claudeLib, convs: [] }; }, state: (c) => ({ ...tabSub('claude', 'chats')(c), clSrc: 'chatgpt' }) });
 add('claude.web-continue', { hq: CC_HQ, live: (L) => {
   L.claudeLib.thread = { conversation: { id: 'web:g-web', source: 'web', title: 'Golden web chat', project_id: 'web:chats' }, messages: [], hasMore: false };
   L.claudeLib.projects = [{ id: 'web:chats', source: 'web', key: 'chats', name: 'claude.ai chats', hq_project_id: null, link_state: 'none', conversations: 1, last_at: CL_AT }];
@@ -498,64 +485,6 @@ add('home.canvas-pins', { state: () => ({ tab: 'home', canvasPins: ['Board One/n
 add('overlay.stat-card-saving', { hq: { statCardSave() {} }, state: { settingsOpen: true, statCardSaving: true } });
 add('claude.canvas-note-nobridge',{ state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
 add('claude.canvas-pushed-boards', { hq: P3_HQ, live: (L) => { L.canvasBoards = A.canvasBoards({ boards: [{ name: 'Board Two', nodes: [] }, { name: 'bad/name', nodes: [] }] }); }, state: (c) => ({ ...tabSub('claude', 'canvas')(c), canvasNoteOpen: true }) });
-// Prompt library P1 — Claude › Prompts › Library (spec 2026-10-15 §6.3)
-const PR_HQ = { claudeHub: { documents() {}, promptStats() {} }, claudePrompts: { status() {}, open() {} } };
-const PR_ROWS = [
-  { id: 'prompt:g1', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\review-a-pr.md', title: 'Golden review prompt', mtime_ms: 1, meta: { tags: ['review', 'code'] }, variables: ['project', 'file'] },
-  { id: 'prompt:g2', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\weekly.md', title: 'Golden weekly digest', mtime_ms: 2, meta: { tags: 'notes' }, variables: [] },
-];
-const PR_STATUS = (o = {}) => ({ vault: 'VEEMO CORTEX', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true, ...o });
-const prLive = (P) => (L) => { L.prompts = { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false, ...P }; };
-const PR_AT = tabSub('claude', 'prompts');   // tabSub returns a (c) => patch function: pass it as `state` itself, or call it with c
-add('claude.prompts-list', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [{ prompt_id: 'prompt:g1', uses: 2, last_at: '2026-10-01T10:00:00Z' }], status: PR_STATUS() }), state: PR_AT });
-add('claude.prompts-not-run', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }), state: PR_AT });
-add('claude.prompts-no-obsidian', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS({ obsidian: false }) }), state: PR_AT });
-add('claude.prompts-nofolder', { hq: PR_HQ, live: prLive({ rows: [], stats: [], status: PR_STATUS({ folder: { exists: false } }) }), state: PR_AT });
-add('claude.prompts-empty', { hq: PR_HQ, live: prLive({ rows: [], stats: [], status: PR_STATUS() }), state: PR_AT });
-add('claude.prompts-error', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, error: 'Claude Hub: hub not running', status: PR_STATUS() }), state: PR_AT });
-add('claude.prompts-nobridge', { live: prLive({}), state: PR_AT });   // no `hq` → render() passes null (vals.golden.test.mjs render: `sc.hq === undefined ? null`)
-add('claude.prompts-nohits', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS(), q: 'zzz', hits: [] }), state: (c) => ({ ...PR_AT(c), prQuery: 'zzz', prSearched: true }) });
-add('claude.prompts-for-project', { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }), state: (c) => ({ ...PR_AT(c), prFor: 'a' }) });   // 'a' = the base DATA project the `project.a.*` scenarios open
-// Prompt library P3 — run modal + pack dialog (spec 2026-10-15 §6.3). Run states patch the Library scenario with state.run / state.pack.
-const RN_ID = 'prompt:g1';
-const rnRun = (o) => (c) => ({ ...PR_AT(c), run: { id: RN_ID, projectId: null, vars: {}, target: 'chat', mode: 'read-only', phase: 'edit', error: null, missing: [], result: null, ...o } });
-const rnPack = (o) => (c) => ({ ...PR_AT(c), pack: { phase: 'plan', plan: RN_PLAN, result: null, error: null, ...o } });
-const RN_PLAN = { planId: 'pack-' + '0'.repeat(16), source: 'placeholder-pack.zip', total: 3, skipped: { notMd: 1, tooBig: 0, tooMany: 0, duplicate: 0, unreadable: 0 },
-  notes: [{ name: 'review-a-pr.md', title: 'Review a PR like a staff engineer', exists: true }, { name: 'standup-notes.md', title: 'Standup notes', exists: false }, { name: 'bug-triage.md', title: 'Bug triage', exists: false }] };
-const RN_BASE = { hq: PR_HQ, live: prLive({ rows: PR_ROWS, stats: [], status: PR_STATUS() }) };
-add('claude.run-chat-edit', { ...RN_BASE, state: rnRun({}) });
-add('claude.run-chat-ready', { ...RN_BASE, state: rnRun({ projectId: 'a', vars: { file: 'a.js' } }) });
-add('claude.run-missing', { ...RN_BASE, state: rnRun({ projectId: 'a', phase: 'error', error: 'fill in {{file}}', missing: ['file'] }) });
-add('claude.run-copy-done', { ...RN_BASE, state: rnRun({ target: 'claude.ai', phase: 'done', result: { ok: true, target: 'claude.ai', title: 'x', usage: 'recorded' } }) });
-add('claude.run-not-counted', { ...RN_BASE, state: rnRun({ target: 'chatgpt', phase: 'done', result: { ok: true, target: 'chatgpt', title: 'x', usage: 'not recorded: read-only hub (another WorkspaceHQ owns the index)' } }) });
-add('claude.pack-plan', { ...RN_BASE, state: rnPack({}) });
-add('claude.pack-done', { ...RN_BASE, state: rnPack({ phase: 'done', result: { imported: 2, masked: 0, skipped: { exists: 1, failed: 0 } } }) });
-add('claude.pack-error', { ...RN_BASE, state: rnPack({ phase: 'error', plan: null, error: 'that ZIP is over 50 MB' }) });
-// P2 harvest candidates + Promote dialog (placeholder text)
-const HC_HQ = { ...PR_HQ, claudeHub: { ...PR_HQ.claudeHub, promptCandidates() {}, hideCandidate() {} }, claudePrompts: { ...PR_HQ.claudePrompts, promote() {} } };
-const HC_AT = (o) => (c) => ({ ...PR_AT(c), ...o });
-const HC1 = 'cand:' + '1'.repeat(40), HC2 = 'cand:' + '2'.repeat(40);
-const HC_ROWS = () => [
-  { key: HC1, text: 'Placeholder prompt one: review the placeholder module and list what to change, file by file.', score: 11, sessions: 3, lastAt: '2026-10-01T10:00:00Z',
-    reasons: [{ key: 'reuse', points: 9, text: 'used in 3 sessions' }, { key: 'turns', points: 2, text: 'followed by 8 assistant messages' }],
-    sources: [{ kind: 'code', conversationId: 'code:sess-a1', at: '2026-10-01T10:00:00Z', project: 'project-a' }, { kind: 'history', documentId: 'history:sess-a1:0', at: '2026-09-20T09:00:00Z', project: 'project-a' }] },
-  { key: HC2, text: 'Placeholder prompt two: draft a placeholder plan with steps, owners and checks for each step.', score: -4, sessions: 1, lastAt: '2026-09-01T10:00:00Z',
-    reasons: [{ key: 'reuse', points: 0, text: 'seen in 1 session' }, { key: 'turns', points: 0, text: 'no assistant message followed it' }, { key: 'length', points: 1, text: '300+ characters' }, { key: 'library', points: -5, text: 'already a prompt note' }],
-    sources: [{ kind: 'chatgpt', conversationId: 'chatgpt:placeholder-1', at: '2026-09-01T10:00:00Z', project: null }] },
-];
-const HC_LIVE = (o = {}) => (L) => { L.candidates = { rows: HC_ROWS(), pooled: { messages: 42, history: 17 }, capped: { messages: false, history: false }, hidden: 0, error: null, busy: false, loaded: true, ...o }; };
-const HC_ITEM = (t) => ({ key: HC1, title: t, text: 'Placeholder prompt one: review the placeholder module.', source: { kind: 'code', conversation: 'code:sess-a1', at: '2026-10-01T10:00:00Z' } });
-add('claude.candidates-list', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', hcSel: [HC1] }) });
-add('claude.candidates-capped', { hq: HC_HQ, live: HC_LIVE({ capped: { messages: true, history: true }, hidden: 3 }), state: HC_AT({ prView: 'candidates' }) });
-add('claude.candidates-loading', { hq: HC_HQ, live: HC_LIVE({ rows: null, busy: true }), state: HC_AT({ prView: 'candidates' }) });
-add('claude.candidates-empty', { hq: HC_HQ, live: HC_LIVE({ rows: [], pooled: { messages: 12, history: 3 } }), state: HC_AT({ prView: 'candidates' }) });
-add('claude.candidates-error', { hq: HC_HQ, live: HC_LIVE({ error: 'Claude Hub: timeout' }), state: HC_AT({ prView: 'candidates' }) });
-add('claude.candidates-nobridge', { live: HC_LIVE(), state: HC_AT({ prView: 'candidates' }) });
-add('claude.promote-ask-single', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', promote: { seq: 1, keys: [HC1], items: [HC_ITEM('Placeholder prompt one')], phase: 'ask', clash: null, results: [], error: null } }) });
-add('claude.promote-ask-multi', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', hcSel: [HC1, HC2], promote: { seq: 1, keys: [HC1, HC2], items: [HC_ITEM('Placeholder prompt one'), { ...HC_ITEM('Placeholder prompt two'), key: HC2 }], phase: 'ask', clash: null, results: [], error: null } }) });
-add('claude.promote-clash', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', promote: { seq: 1, keys: [HC1], items: [HC_ITEM('Placeholder prompt one')], phase: 'clash', clash: { next: 'placeholder-prompt-one-2.md' }, results: [], error: null } }) });
-add('claude.promote-done', { hq: HC_HQ, live: HC_LIVE(), state: HC_AT({ prView: 'candidates', promote: { seq: 1, keys: [HC1, HC2], items: [HC_ITEM('Placeholder prompt one'), { ...HC_ITEM('Placeholder prompt two'), key: HC2 }], phase: 'done', clash: null,
-  results: [{ title: 'Placeholder prompt one', ok: true, name: 'placeholder-prompt-one.md' }, { title: 'Placeholder prompt two', ok: false, error: 'not written — a note with that name is there; promote it alone to save it as placeholder-prompt-two-2.md' }], error: null } }) });
 // P6 Automations: kind / source / category chips, nothing matching, Show more, Rescan running, an interactive confirm
 add('auto.interactive', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libKind: 'interactive' }) });
 add('auto.source-skill', { state: (c) => ({ ...tabSub('automations', 'runnable')(c), libSource: 'skill' }) });

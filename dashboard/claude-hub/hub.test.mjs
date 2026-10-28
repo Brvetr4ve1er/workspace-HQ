@@ -9,10 +9,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { makeClaudeHome, userLine, titleLine } from './__fixtures__/make-fixture.mjs';
-import { zipFiles, exportJson } from './__fixtures__/make-export.mjs';
 import { makeDocsHome, historyLine } from './__fixtures__/make-docs.mjs';
-import { writeChatGPTZip } from './__fixtures__/make-chatgpt-export.mjs';
-import { writeFacebookZip } from './__fixtures__/make-meta-export.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
 import { acquireLock, resolveClaudeRoot, splitCommandLine, docsProblem } from './hub.mjs';
@@ -807,81 +804,6 @@ test('a reader takes over as writer once the writer exits', async () => {
   await b.stop();
 });
 
-function exportZip(dir) {
-  const j = exportJson(), z = path.join(dir, 'claude-export.zip');
-  zipFiles(z, [{ name: 'conversations.json', data: j.conversations }, { name: 'projects.json', data: j.projects }]);
-  return z;
-}
-const importDone = (h, n = 1) => h.until(() => h.events.filter((e) => e.event === 'progress' && e.data.kind === 'import' && ['done', 'failed'].includes(e.data.phase)).length >= n, 20000);
-const lastImportEvent = (h) => h.events.filter((e) => e.event === 'progress' && e.data.kind === 'import').at(-1).data;
-
-test('importExport: started at once, progress with kind import, report in health, idempotent, tmp cleaned (H4)', async () => {
-  const dir = tmp('hub-imp-');
-  const { home } = makeClaudeHome(dir);
-  const db = path.join(dir, 'data', 'hub.sqlite'); fs.mkdirSync(path.dirname(db), { recursive: true });
-  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
-  try {
-    await h.healthy();
-    const zip = exportZip(dir);
-    assert.deepEqual((await h.req('importExport', { zipPath: zip })).result, { started: true });
-    assert.ok(await importDone(h));
-    const ev = lastImportEvent(h);
-    assert.equal(ev.phase, 'done'); assert.equal(ev.report.conversations.imported, 3);
-    assert.ok(h.events.some((e) => e.event === 'progress' && e.data.kind === 'import' && e.data.phase === 'unzip'));
-    const health = (await h.req('health')).result;
-    assert.equal(health.lastImport.ok, true); assert.equal(health.lastImport.report.projects.imported, 1); assert.equal(health.importing, false);
-    assert.equal((await h.req('listConversations', { source: 'web' })).result.length, 3);
-    assert.equal(health.counts.conversations, 6, '3 Code + 3 claude.ai');
-    assert.deepEqual(fs.readdirSync(path.join(dir, 'data', 'tmp')), [], 'job folder removed');
-    // the importer announces the chats it saved (every 200 and at the end), so the Chats list re-pulls them
-    assert.ok(await h.until(() => ['web:web-chat-1', 'web:web-chat-2', 'web:web-chat-3'].every((id) => h.events.some((e) => e.event === 'changed' && e.data.ids.includes(id)))),
-      'changed carries the imported web ids (debounced, so wait for it)');
-    await h.req('importExport', { zipPath: zip });
-    assert.ok(await importDone(h, 2));
-    assert.equal(lastImportEvent(h).report.conversations.unchanged, 3);
-    assert.equal((await h.req('health')).result.counts.conversations, 6);
-  } finally { await h.stop(); }
-});
-
-test('importExport: bad input is refused or fails honestly, never leaves files (H4)', async () => {
-  const dir = tmp('hub-impbad-');
-  const { home } = makeClaudeHome(dir);
-  const h = startHub({ HQ_CLAUDE_HOME: home }, path.join(dir, 'hub.sqlite'));
-  try {
-    await h.healthy();
-    assert.match((await h.req('importExport', { zipPath: 'relative.zip' })).error, /absolute \.zip path/);
-    assert.match((await h.req('importExport', { zipPath: path.join(dir, 'missing.zip') })).error, /no such file: missing\.zip/);
-    const junk = path.join(dir, 'junk.zip'); fs.writeFileSync(junk, 'not a zip');
-    assert.equal((await h.req('importExport', { zipPath: junk })).ok, true);
-    assert.ok(await importDone(h));
-    const ev = lastImportEvent(h);
-    assert.equal(ev.phase, 'failed'); assert.match(ev.error, /not a zip file/);
-    assert.equal((await h.req('health')).result.lastImport.ok, false);
-    assert.deepEqual(fs.readdirSync(path.join(dir, 'tmp')), []);
-  } finally { await h.stop(); }
-});
-
-test('syncState / syncPush: uuids, newer wins, forgotten stays forgotten, changed ids (H4)', async () => {
-  const dir = tmp('hub-sync-');
-  const { home } = makeClaudeHome(dir);
-  const h = startHub({ HQ_CLAUDE_HOME: home }, path.join(dir, 'hub.sqlite'));
-  try {
-    await h.healthy();
-    await h.req('importExport', { zipPath: exportZip(dir) }); assert.ok(await importDone(h));
-    const st = (await h.req('syncState')).result;
-    assert.equal(st.conversations['web-chat-1'], '2026-10-01T09:10:00.000Z'); assert.equal(st.projects['web-proj-1'], '2026-10-01T08:00:00.000Z');
-    assert.equal((await h.req('forget', { conversationId: 'web:web-chat-1' })).result, true);
-    const newer = (uuid, text) => ({ kind: 'conversation', data: { uuid, name: 'Synced ' + uuid, updated_at: '2026-10-05T09:00:00Z', chat_messages: [{ uuid: uuid + '-m', sender: 'human', created_at: '2026-10-05T09:00:00Z', text }] } });
-    const r = (await h.req('syncPush', { items: [newer('web-chat-1', 'should stay forgotten'), newer('web-chat-3', 'synced text'), { kind: 'weird' }] })).result;
-    assert.equal(r.conversations.forgotten, 1); assert.equal(r.conversations.imported, 1); assert.equal(r.conversations.skipped, 1);
-    assert.deepEqual((await h.req('syncState')).result.forgotten, ['web-chat-1']);
-    assert.ok(await h.until(() => h.events.some((e) => e.event === 'changed' && e.data.ids.includes('web:web-chat-3'))));
-    const conv = (await h.req('getConversation', { id: 'web:web-chat-3' })).result;
-    assert.deepEqual(conv.messages.map((m) => m.text), ['synced text']);
-    assert.match((await h.req('syncPush', { items: [] })).error, /1–50 items/);
-  } finally { await h.stop(); }
-});
-
 test('contextFor over stdio: a question gets cited snippets inside its budget; FTS-hostile text is fine (H5, Review Focus 1)', async () => {
   const dir = tmp('hub-ctx-');
   const { home } = makeClaudeHome(dir);
@@ -951,49 +873,6 @@ test('H6 documents: the Hub indexes HQ_CLAUDE_HOME notes/history + HQ_VAULT_DIR 
   } finally { await h.stop(); }
 });
 
-test('H6 importChatGPT: progress carries source chatgpt, lastImport records it, chats are listed; a claude.ai ZIP fails with the reason', async () => {
-  const dir = tmp('hub-h6-cg-');
-  const home = path.join(dir, '.claude'); fs.mkdirSync(path.join(home, 'projects'), { recursive: true });
-  const db = path.join(dir, 'hub.sqlite');
-  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_VAULT_DIR: path.join(dir, 'vault') }, db);
-  try {
-    await h.healthy();
-    assert.equal((await h.req('importChatGPT', { zipPath: 'relative.zip' })).ok, false);
-    const zip = writeChatGPTZip(path.join(dir, 'chatgpt.zip'));
-    assert.deepEqual((await h.req('importChatGPT', { zipPath: zip })).result, { started: true });
-    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.kind === 'import' && e.data.phase === 'done' && e.data.source === 'chatgpt')));
-    const health = (await h.req('health')).result;
-    assert.equal(health.lastImport.ok, true); assert.equal(health.lastImport.source, 'chatgpt');
-    assert.equal(health.lastImport.report.conversations.imported, 4);
-    assert.equal((await h.req('listConversations', { source: 'chatgpt' })).result.length, 4);
-    const claude = path.join(dir, 'claude.zip');
-    zipFiles(claude, [{ name: 'conversations.json', data: '[]' }, { name: 'projects.json', data: '[]' }]);
-    assert.deepEqual((await h.req('importChatGPT', { zipPath: claude })).result, { started: true });
-    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'failed' && /claude\.ai export/.test(e.data.error))));
-    assert.equal((await h.req('health')).result.lastImport.ok, false);
-  } finally { await h.stop(); }
-});
-
-test('importMeta: an Instagram or Facebook ZIP imports, lastImport names the network; expect refuses the other one', async () => {
-  const dir = tmp('hub-meta-');
-  const home = path.join(dir, '.claude'); fs.mkdirSync(path.join(home, 'projects'), { recursive: true });
-  const db = path.join(dir, 'hub.sqlite');
-  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_VAULT_DIR: path.join(dir, 'vault') }, db);
-  try {
-    await h.healthy();
-    assert.equal((await h.req('importMeta', { zipPath: 'relative.zip' })).ok, false);
-    const fb = path.join(dir, 'facebook.zip'); writeFacebookZip(fb);
-    assert.deepEqual((await h.req('importMeta', { zipPath: fb })).result, { started: true });
-    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'done' && e.data.source === 'facebook')));
-    const health = (await h.req('health')).result;
-    assert.equal(health.lastImport.source, 'facebook'); assert.equal(health.lastImport.report.conversations.imported, 1);
-    assert.equal((await h.req('listConversations', { source: 'facebook' })).result.length, 1);
-    assert.ok((await h.req('listDocuments', { source: 'social' })).result.length > 0);
-    assert.deepEqual((await h.req('importMeta', { zipPath: fb, expect: 'instagram' })).result, { started: true });
-    assert.ok(await h.until(() => h.events.some((e) => e.event === 'progress' && e.data.phase === 'failed' && /not an Instagram export/.test(e.data.error))));
-  } finally { await h.stop(); }
-});
-
 test('docsProblem: an unreadable notes root surfaces as a counts-and-paths line; a clean pass clears it (final review: errors surface)', () => {
   const p = path.join('placeholder-vault', '40_Resources', 'Prompts'), m = path.join('placeholder-home', 'projects');
   assert.equal(docsProblem({ changed: [], removed: [], skipped: 0, unreadable: [] }), null, 'clean pass: nothing to show');
@@ -1002,7 +881,7 @@ test('docsProblem: an unreadable notes root surfaces as a counts-and-paths line;
     'notes unreadable (2): prompt (EPERM) ' + p + '; memory (EBUSY) ' + m);
 });
 
-test('P1: prompt rows from HQ_VAULT_DIR carry tags/variables; promptStats is real (empty) and readers may ask', async () => {
+test('P1: prompt rows from HQ_VAULT_DIR carry tags/variables (the docs ingest still indexes them)', async () => {
   const dir = tmp('hub-p1-');
   const fx = makeDocsHome(dir);
   const db = path.join(dir, 'hub.sqlite');
@@ -1012,94 +891,5 @@ test('P1: prompt rows from HQ_VAULT_DIR carry tags/variables; promptStats is rea
     const [p] = (await h.req('listDocuments', { source: 'prompt' })).result;
     assert.deepEqual(p.meta.tags, ['review', 'code']);
     assert.deepEqual(p.variables, ['project', 'file']);
-    assert.deepEqual((await h.req('promptStats')).result, []);
   } finally { await h.stop(); }
-});
-
-// ---- P2 prompt harvest ops. A chatgpt chat is seeded straight into the db: the Hub's code-index rebuild (resetCode) never touches it.
-function seedHarvest(db) {
-  const s = openStore(db);
-  s.ensureConversation({ id: 'chatgpt:g1', source: 'chatgpt', projectId: null, nativeId: 'g1' });
-  let text = 'Placeholder harvested prompt for the hub test'; while (text.length < 130) text += ' placeholder words';
-  s.addMessages('chatgpt:g1', [{ id: 'chatgpt:g1:u1', nativeId: 'u1', parentId: null, role: 'user', at: '2026-09-03T10:00:00Z', text, toolName: null, isSidechain: false },
-    { id: 'chatgpt:g1:a1', nativeId: 'a1', parentId: 'u1', role: 'assistant', at: '2026-09-03T10:00:05Z', text: 'ok', toolName: null, isSidechain: false }]);
-  s.close();
-  return text;
-}
-
-test('promptCandidates scores the pool with reasons; hideCandidate tombstones it for good', async () => {
-  const dir = tmp('hub-harvest-');
-  const { home } = makeClaudeHome(dir);
-  const db = path.join(dir, 'hub.sqlite');
-  const text = seedHarvest(db);
-  const a = startHub({ HQ_CLAUDE_HOME: home }, db);
-  try {
-    assert.ok(await a.until(() => a.events.some((e) => e.event === 'ready')));
-    const r = (await a.req('promptCandidates', {})).result;
-    const c = r.candidates.find((x) => x.text === text);
-    assert.ok(c, 'the seeded chatgpt prompt is a candidate');
-    assert.match(c.key, /^cand:[0-9a-f]{40}$/);
-    assert.deepEqual(c.reasons.map((x) => x.key), ['reuse', 'turns']);
-    assert.equal(c.reasons[1].text, 'followed by 1 assistant message');
-    assert.equal(c.sources[0].conversationId, 'chatgpt:g1');
-    assert.equal(r.capped.messages, false);
-    assert.equal(typeof r.pooled.messages, 'number');
-    const bad = await a.req('hideCandidate', { key: 'nope' });
-    assert.equal(bad.ok, false); assert.match(bad.error, /not a candidate key/);
-    assert.equal((await a.req('hideCandidate', { key: c.key })).result, true);
-    const after = (await a.req('promptCandidates', {})).result;
-    assert.equal(after.candidates.some((x) => x.key === c.key), false);
-    assert.equal(after.hidden, 1);
-    await a.req('reindex');
-    assert.equal((await a.req('promptCandidates', {})).result.candidates.some((x) => x.key === c.key), false);
-  } finally { await a.stop(); }
-});
-
-test('hideCandidate on a reader is refused with the reason; promptCandidates still answers', async () => {
-  const dir = tmp('hub-harvest-two-');
-  const { home } = makeClaudeHome(dir);
-  const db = path.join(dir, 'hub.sqlite');
-  seedHarvest(db);
-  const a = startHub({ HQ_CLAUDE_HOME: home }, db);
-  try {
-    assert.ok(await a.until(() => a.events.some((e) => e.event === 'ready')));
-    const b = startHub({ HQ_CLAUDE_HOME: home }, db);
-    try {
-      assert.ok(await b.until(() => b.events.some((e) => e.event === 'ready')));
-      assert.equal((await b.req('health')).result.role, 'reader');
-      const r = await b.req('promptCandidates', { limit: 5 });
-      assert.equal(r.ok, true); assert.ok(r.result.candidates.length >= 1);
-      const hide = await b.req('hideCandidate', { key: r.result.candidates[0].key });
-      assert.equal(hide.ok, false); assert.match(hide.error, /read-only hub \(another WorkspaceHQ owns the index\)/);
-    } finally { await b.stop(); }
-  } finally { await a.stop(); }
-});
-
-test('P3: promptUse writes one row (writer, Hub clock); readers refuse; promptStats moves', async () => {
-  const dir = tmp('hub-p3-');
-  const { home } = makeClaudeHome(dir);
-  const env = { HQ_CLAUDE_HOME: home, HQ_VAULT_DIR: path.join(dir, 'vault') };
-  const db = path.join(dir, 'hub.sqlite');
-  const A = 'prompt:' + 'c'.repeat(40);
-  const a = startHub(env, db);
-  try {
-    await a.healthy();
-    const t0 = Date.now();
-    const w = await a.req('promptUse', { promptId: A, target: 'terminal', projectId: 'project-a' });
-    assert.equal(w.ok, true, w.error); assert.equal(w.result, true);
-    const st = (await a.req('promptStats')).result;
-    assert.equal(st.length, 1); assert.equal(st[0].prompt_id, A); assert.equal(st[0].uses, 1);
-    assert.ok(Date.parse(st[0].last_at) >= t0 - 1000, 'at is the Hub clock, not a caller value');
-    const junk = await a.req('promptUse', { promptId: A, target: 'https://evil.example' });
-    assert.equal(junk.ok, false); assert.match(junk.error, /promptUse: /);
-    assert.equal((await a.req('promptStats')).result[0].uses, 1);
-    assert.equal(a.events.filter((e) => e.event === 'changed' && JSON.stringify(e.data).includes(A)).length, 0, 'usage is not a changed event');
-    const b = startHub(env, db);
-    try {
-      assert.ok(await b.until(() => b.events.some((e) => e.event === 'ready')));
-      const r = await b.req('promptUse', { promptId: A, target: 'chat' });
-      assert.equal(r.ok, false); assert.match(r.error, /read-only hub/);
-      assert.equal((await b.req('promptStats')).result[0].uses, 1, 'readers may read the count');
-    } finally { await b.stop(); }
-  } finally { await a.stop(); }
 });

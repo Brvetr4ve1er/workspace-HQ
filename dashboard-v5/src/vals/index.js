@@ -22,23 +22,18 @@ import { automationsVals } from './automations.js';
 import { claudeVals } from './claude.js';
 import { claudeLibVals } from './claude-lib.js';
 import { claudeChatVals } from './claude-chat.js';
-import { claudeImportVals } from './claude-import.js';
 import { historyVals } from './history.js';
 import { systemVals } from './system.js';
 import { lifeVals } from './life.js';
 import { extrasVals } from './extras.js';
 import { claudeVaultVals } from './claude-vault.js';
-import { promptsVals } from './prompts.js';
-import { candidatesVals } from './prompt-candidates.js';
-import { runVals } from './run.js';
-import { claudeImportsVals } from './claude-imports.js';
 import { githubVals } from './github.js';
 import { accountsVals } from './accounts.js';
 import { socialVals } from './social.js';
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, claudeImportVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, claudeImportsVals, promptsVals, candidatesVals, runVals, githubVals, accountsVals, socialVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, socialVals,
 ];
 
 export function renderVals() {

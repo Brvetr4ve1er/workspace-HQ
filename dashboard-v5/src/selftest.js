@@ -16,7 +16,7 @@ import { gapsOf } from './live/adapter.mjs';
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false, prView: 'library', hcSel: [], promote: null, run: null, pack: null,
+const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false };
@@ -128,7 +128,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, claudeImport: LV.claudeImport, claudeImports: LV.claudeImports, prompts: LV.prompts, candidates: LV.candidates };
+    const LV = W.store.live, savedLive = { canvasBoards: LV.canvasBoards, llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -160,31 +160,6 @@ export async function run(W = window.WHQ) {
         { id: 'm3', role: 'assistant', at: new Date().toISOString(), text: 'Hi' },
       ] };
       const clLib = (o) => () => { LV.claudeHub = CL_READY; LV.claudeLib = { projects: [{ id: 'p1', name: 'project-a', conversations: 2 }], convs: CL_CONVS, convsMore: true, filters: {}, q: '', hits: null, noTerms: false, thread: null, stats: null, error: null, busy: false, ...o }; };
-      // Prompt library P1 — Library states (live.prompts as the store leaves it)
-      const PR_ROWS = [
-        { id: 'prompt:st1', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\review-a-pr.md', title: 'Selftest review prompt', mtime_ms: 1, meta: { tags: ['review'] }, variables: ['project', 'file'] },
-        { id: 'prompt:st2', source: 'prompt', path: 'C:\\placeholder\\vault\\40_Resources\\Prompts\\weekly.md', title: 'Selftest weekly digest', mtime_ms: 2, meta: {}, variables: [] },
-      ];
-      const PR_ST = (o = {}) => ({ vault: 'VEEMO CORTEX', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true, ...o });
-      const prLib = (P) => () => { LV.prompts = { rows: null, stats: null, status: null, q: '', hits: null, error: null, statsErr: null, busy: false, ...P }; };
-      // P2 harvest candidates (placeholder text)
-      const HC1 = 'cand:' + '1'.repeat(40), HC2 = 'cand:' + '2'.repeat(40);
-      const HC_ROWS = [
-        { key: HC1, text: 'Placeholder prompt one: review the placeholder module and list what to change, file by file.', score: 11, sessions: 3, lastAt: '2026-10-01T10:00:00Z',
-          reasons: [{ key: 'reuse', points: 9, text: 'used in 3 sessions' }, { key: 'turns', points: 2, text: 'followed by 8 assistant messages' }],
-          sources: [{ kind: 'code', conversationId: 'code:sess-a1', at: '2026-10-01T10:00:00Z', project: 'project-a' }] },
-        { key: HC2, text: 'Placeholder prompt two: draft a placeholder plan with steps, owners and checks for each step.', score: -4, sessions: 1, lastAt: '2026-09-01T10:00:00Z',
-          reasons: [{ key: 'reuse', points: 0, text: 'seen in 1 session' }, { key: 'library', points: -5, text: 'already a prompt note' }],
-          sources: [{ kind: 'chatgpt', conversationId: 'chatgpt:placeholder-1', at: '2026-09-01T10:00:00Z', project: null }] },
-      ];
-      const hcLive = (o = {}) => () => { LV.candidates = { rows: HC_ROWS.slice(), pooled: { messages: 42, history: 17 }, capped: { messages: false, history: false }, hidden: 0, error: null, busy: false, loaded: true, ...o }; };
-      // P3 run modal + pack dialog (placeholder text)
-      const PR_A = PR_ROWS[0].id, PROMPTS_LIVE = prLib({ rows: PR_ROWS, stats: [], status: PR_ST() }), FIRST_PROJECT_ID = (M.P0[0] || {}).id || null;
-      const RUN0 = (o = {}) => ({ run: { id: PR_A, projectId: null, vars: {}, target: 'chat', mode: 'read-only', phase: 'edit', error: null, missing: [], result: null, ...o } });
-      const PACK_PLAN = { planId: 'pack-' + '0'.repeat(16), source: 'placeholder-pack.zip', total: 3, skipped: { notMd: 1, tooBig: 0, tooMany: 0, duplicate: 0, unreadable: 0 },
-        notes: [{ name: 'review-a-pr.md', title: 'Review a PR', exists: true }, { name: 'standup-notes.md', title: 'Standup notes', exists: false }, { name: 'bug-triage.md', title: 'Bug triage', exists: false }] };
-      const HC_ITEM = (key, title) => ({ key, title, text: 'Placeholder prompt text.', source: { kind: 'code', conversation: 'code:sess-a1', at: '2026-10-01T10:00:00Z' } });
-      const hcDlg = (phase, o = {}) => ({ prView: 'candidates', promote: { seq: 1, keys: [HC1], items: [HC_ITEM(HC1, 'Placeholder prompt one')], phase, clash: null, results: [], error: null, ...o } });
       const STATES = [
         ['ask-empty', at('home'), { askOpen: true, askHistory: [] }],
         ['ask-streaming', at('home'), { askOpen: true, askHistory: ASK_STREAMING }],
@@ -243,36 +218,6 @@ export async function run(W = window.WHQ) {
         ['cl-projects', at('claude', 'projects'), { clLinkPick: 'p1' }, clLib({ projects: [{ id: 'p1', name: 'project-a', path: 'C:\placeholder\project-a', conversations: 2, last_at: CL_CONVS[0].last_at, hq_project_id: (M.P0[0] || {}).id || null, link_state: 'auto' }] })],
         ['cl-history-activity', at('history', 'trends'), {}, clLib({ stats: { from: '2026-09-06', to: '2026-10-05', tzOffsetMin: 0, days: [{ day: '2026-10-04', chats: 1, messages: 3, active_ms: 60000 }], projects: [{ project_id: 'p1', name: 'project-a', chats: 1, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 }], totals: { chats: 1, active_ms: 60000, tokens_in: 5, tokens_out: 9, tokens_cache_read: 0, tokens_cache_write: 0 } } })],
         M.P0[0] && ['cl-page-chats', at('projects', 'grid', M.P0[0].id), {}, () => { clLib({})(); LV.claudeLib.byHq = { [M.P0[0].id]: CL_CONVS }; }],
-        ['prompts-list', at('claude', 'prompts'), {}, prLib({ rows: PR_ROWS, stats: [{ prompt_id: 'prompt:st1', uses: 2, last_at: '2026-10-01T10:00:00Z' }], status: PR_ST() })],
-        ['prompts-no-obsidian', at('claude', 'prompts'), {}, prLib({ rows: PR_ROWS, stats: [], status: PR_ST({ obsidian: false }) })],
-        ['prompts-nofolder', at('claude', 'prompts'), {}, prLib({ rows: [], stats: [], status: PR_ST({ folder: { exists: false } }) })],
-        ['prompts-folder-error', at('claude', 'prompts'), {}, prLib({ rows: [], stats: [], status: PR_ST({ folder: { exists: false, error: '40_Resources/Prompts leads outside the vault — refusing' } }) })],
-        ['prompts-empty', at('claude', 'prompts'), {}, prLib({ rows: [], stats: [], status: PR_ST() })],
-        ['prompts-error', at('claude', 'prompts'), {}, prLib({ rows: PR_ROWS, error: 'Claude Hub: hub not running', status: PR_ST() })],
-        ['prompts-nohits', at('claude', 'prompts'), { prQuery: 'zzz', prSearched: true }, prLib({ rows: PR_ROWS, stats: [], status: PR_ST(), q: 'zzz', hits: [] })],
-        ['prompts-for-project', at('claude', 'prompts'), { prFor: (M.P0[0] || {}).id || null }, prLib({ rows: PR_ROWS, stats: [], status: PR_ST() })],
-        ['project-run-a-prompt', at('projects', 'grid', (M.P0[0] || {}).id), {}, prLib({ rows: PR_ROWS, stats: [], status: PR_ST() })],
-        ['run-chat-edit', at('claude', 'prompts'), RUN0(), PROMPTS_LIVE],
-        ['run-chat-ready', at('claude', 'prompts'), RUN0({ projectId: FIRST_PROJECT_ID, vars: { file: 'placeholder.js' }, mode: 'edits' }), PROMPTS_LIVE],
-        ['run-missing', at('claude', 'prompts'), RUN0({ phase: 'error', error: 'fill in {{file}}', missing: ['file'] }), PROMPTS_LIVE],
-        ['run-running', at('claude', 'prompts'), RUN0({ target: 'terminal', phase: 'running' }), PROMPTS_LIVE],
-        ['run-copy-done', at('claude', 'prompts'), RUN0({ target: 'claude.ai', phase: 'done', result: { ok: true, target: 'claude.ai', title: 'x', usage: 'recorded' } }), PROMPTS_LIVE],
-        ['run-not-counted', at('claude', 'prompts'), RUN0({ target: 'chatgpt', phase: 'done', result: { ok: true, target: 'chatgpt', title: 'x', usage: 'not recorded: read-only hub (another WorkspaceHQ owns the index)', dry: true } }), PROMPTS_LIVE],
-        ['pack-picking', at('claude', 'prompts'), { pack: { phase: 'picking', plan: null, result: null, error: null } }, PROMPTS_LIVE],
-        ['pack-plan', at('claude', 'prompts'), { pack: { phase: 'plan', plan: PACK_PLAN, result: null, error: null } }, PROMPTS_LIVE],
-        ['pack-writing', at('claude', 'prompts'), { pack: { phase: 'writing', plan: PACK_PLAN, result: null, error: null } }, PROMPTS_LIVE],
-        ['pack-done', at('claude', 'prompts'), { pack: { phase: 'done', plan: PACK_PLAN, result: { imported: 2, masked: 1, skipped: { exists: 1, failed: 0 } }, error: null } }, PROMPTS_LIVE],
-        ['pack-error', at('claude', 'prompts'), { pack: { phase: 'error', plan: null, result: null, error: 'that ZIP is over 50 MB' } }, PROMPTS_LIVE],
-        ['cand-list', at('claude', 'prompts'), { prView: 'candidates', hcSel: [HC1] }, hcLive()],
-        ['cand-loading', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ rows: null, busy: true })],
-        ['cand-empty', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ rows: [], pooled: { messages: 12, history: 3 } })],
-        ['cand-error', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ error: 'Claude Hub: timeout' })],
-        ['cand-capped', at('claude', 'prompts'), { prView: 'candidates' }, hcLive({ capped: { messages: true, history: true }, hidden: 3 })],
-        ['promote-ask-single', at('claude', 'prompts'), hcDlg('ask'), hcLive()],
-        ['promote-ask-multi', at('claude', 'prompts'), hcDlg('ask', { keys: [HC1, HC2], items: [HC_ITEM(HC1, 'Placeholder prompt one'), HC_ITEM(HC2, 'Placeholder prompt two')] }), hcLive()],
-        ['promote-saving', at('claude', 'prompts'), hcDlg('saving'), hcLive()],
-        ['promote-clash', at('claude', 'prompts'), hcDlg('clash', { clash: { next: 'placeholder-prompt-one-2.md' } }), hcLive()],
-        ['promote-done', at('claude', 'prompts'), hcDlg('done', { results: [{ title: 'Placeholder prompt one', ok: true, name: 'placeholder-prompt-one.md' }, { title: 'Placeholder prompt two', ok: false, error: 'not written — a note with that name is there; promote it alone to save it as placeholder-prompt-two-2.md' }] }), hcLive()],
         // Claude Hub H3 — composer (logic/claude-chat.js): every visible state, both themes, both snapshot ends
         ...(() => {
           const SID = '00000000-0000-4000-8000-000000000001';
@@ -289,17 +234,10 @@ export async function run(W = window.WHQ) {
             ['cc-error', at('claude', 'chats'), cont, () => { LV.claudeChat = { turns: [turn({ status: 'error', error: 'stopped after 10 min', endedAt: Date.now() })] }; }],
             ['cc-edits-done', at('claude', 'chats'), { ...cont, ccMode: 'edits' }, () => { LV.claudeChat = { turns: [turn({ mode: 'edits', status: 'done', usage: { in: 6, out: 40, cacheRead: 0, cacheWrite: 0 }, endedAt: Date.now() })] }; }],
             ['cc-seeded', at('claude', 'chats'), cont, () => { LV.claudeChat = { turns: [turn({ seeded: { chars: 30000, trimmed: true } })] }; }],
-            ['ci-running', at('claude', 'chats'), {}, () => { LV.claudeImport = { kind: 'import', phase: 'conversations', done: 12, total: 0 }; }],
-            ['ci-done', at('claude', 'chats'), {}, () => { LV.claudeImport = { kind: 'import', phase: 'done', done: 5, total: 5, report: { conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 }, messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 }, unknownFields: { mystery_field: 1 }, truncated: false } }; }],
-            ['ci-failed', at('claude', 'chats'), {}, () => { LV.claudeImport = { kind: 'import', phase: 'failed', done: 0, total: 0, error: 'not a zip file' }; }],
             ['h6-doc-hits', at('claude', 'chats'), {}, clLib({ q: 'tea', hits: [], docHits: [{ id: 'memory:1', source: 'memory', title: 'Tea rule', snippet: 'offer \u0002tea\u0003', mtime_ms: 1759320000000 }, { id: 'claude-md:2', source: 'claude-md', title: 'CLAUDE.md — p', snippet: '\u0002tea\u0003', mtime_ms: 1759320000000 }] })],
             ['h6-doc-open', at('claude', 'chats'), {}, clLib({ doc: { id: 'memory:1', source: 'memory', title: 'Tea rule', text: 'line one\n\nline two', project_path: 'C:\\fake\\p', mtime_ms: 1759320000000 } })],
             ['h6-doc-loading', at('claude', 'chats'), {}, clLib({ doc: { id: 'memory:1', loading: true } })],
             ['h6-doc-error', at('claude', 'chats'), {}, clLib({ doc: { id: 'memory:1', error: 'That document is no longer in the index (its file was removed or it was forgotten).' } })],
-            ['h6-drop-card', at('claude', 'chats'), {}, () => { LV.claudeImports = { folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 39845888, kind: 'chatgpt' }, { dropId: 'd2', file: 'claude.zip', bytes: 1000, kind: 'claude' }], refused: [], error: null }; }],
-            ['h6-drop-card-reader', at('home'), {}, () => { LV.claudeHub = { ...(LV.claudeHub || {}), state: 'ready', role: 'reader' }; LV.claudeImports = { folder: { exists: true, name: 'WorkspaceHQ Imports' }, found: [{ dropId: 'd1', file: 'chatgpt-export.zip', bytes: 1, kind: 'chatgpt' }], refused: [], error: null }; }],
-            ['h6-system-report', at('system', 'machine'), {}, () => { LV.claudeHub = { state: 'ready', role: 'writer', counts: { projects: 1, conversations: 4, messages: 10, documents: 5 }, lastImport: { at: '2026-10-25T10:00:00Z', ok: true, source: 'chatgpt', report: { source: 'chatgpt', conversations: { imported: 4, unchanged: 0, forgotten: 0, skipped: 3 }, messages: { imported: 10, skipped: 0, empty: 1 }, branches: { skipped: 2 }, files: { other: ['chat.html'] }, memory: { found: false, imported: 0 } } } }; LV.claudeImports = { folder: { exists: false, name: 'WorkspaceHQ Imports' }, found: [], refused: [{ file: 'photos.zip', error: 'Not a ChatGPT or claude.ai export (looked for conversations.json)' }], error: null }; }],
-            ['h6-chatgpt-filter', at('claude', 'chats'), { clSrc: 'chatgpt' }, clLib({ convs: [] })],
             ['cc-web', at('claude', 'chats'), { ccOpen: true, ccConv: 'web:st-web' }, () => { LV.claudeLib = { ...LV.claudeLib, thread: { conversation: { id: 'web:st-web', source: 'web', title: 'Selftest web chat', project_id: 'web:chats' }, messages: [], hasMore: false }, projects: [{ id: 'web:chats', source: 'web', hq_project_id: null }] }; }],
           ];
         })(),

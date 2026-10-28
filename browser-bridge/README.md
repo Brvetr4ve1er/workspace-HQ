@@ -127,19 +127,10 @@ restarted app. Until you reload, 0.2.0 keeps sending without claiming, and the a
 still records its results. A 0.3.0 extension talking to an app that hasn't been
 restarted refuses to send and asks you to restart workspace-hq.
 
-## claude.ai live sync (0.4.0, optional)
+## claude.ai live sync — removed in 0.5.0
 
-Off by default. Press **Sync claude.ai** in the popup: Chrome asks once to allow `https://claude.ai/*` (an optional
-permission), then the extension reads YOUR claude.ai chats with claude.ai's own page requests — read-only `GET`s, at most
-one every 2 s, only while a claude.ai tab is open and you are logged in — and posts them to WorkspaceHQ on this PC
-(`POST /claude/sync`). Every 5 minutes it fetches up to 20 changed chats (newest first); the popup shows the last sync
-time and status. It never writes to claude.ai. These requests are not a public API: on HTTP 429/5xx it backs off; when a
-response looks different it **pauses** ("claude.ai changed, sync paused") until you press Sync again. A chat over 4 MB is
-skipped and counted — import your claude.ai data export in WorkspaceHQ (Claude > Chats > Import claude.ai export) for
-those and for your full history. Only the first claude.ai organization is synced. Untick **on** to stop.
-
-After updating these files, reload the extension yourself at `chrome://extensions` (WorkspaceHQ Bridge -> reload) —
-nothing reloads an unpacked extension on its own. 0.3.0 keeps working without the claude.ai section.
+The optional claude.ai sync (0.4.0) was removed on 2026-10-28 with the app's importers; restore both from the git tag
+`cleanup-base-2026-10-28`. Reload the extension at `chrome://extensions` after updating.
 
 ## How Claude uses it
 

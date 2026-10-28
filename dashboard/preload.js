@@ -47,13 +47,8 @@ contextBridge.exposeInMainWorld('hq', {
     link: (id, hqId, state) => ipcRenderer.invoke('hq:claude-hub:link', id, hqId, state),
     forget: (target) => ipcRenderer.invoke('hq:claude-hub:forget', target),
     reindex: () => ipcRenderer.invoke('hq:claude-hub:reindex'),
-    // Prompt library P2: harvest candidates (scored, with reasons) and Hide (a tombstone)
-    promptCandidates: (opts) => ipcRenderer.invoke('hq:claude-hub:prompt-candidates', opts),
-    hideCandidate: (key) => ipcRenderer.invoke('hq:claude-hub:hide-candidate', key),
-    importExport: (kind, opts) => ipcRenderer.invoke('hq:claude-hub:import', kind, opts),
     documents: (opts) => ipcRenderer.invoke('hq:claude-hub:documents', opts),
     document: (id) => ipcRenderer.invoke('hq:claude-hub:document', id),
-    promptStats: () => ipcRenderer.invoke('hq:claude-hub:prompt-stats'),
     socialSummary: () => ipcRenderer.invoke('hq:claude-hub:social-summary'),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
@@ -76,25 +71,6 @@ contextBridge.exposeInMainWorld('hq', {
   socialCancel: (id) => ipcRenderer.invoke('hq:social-cancel', id),   // Social › Inbox Discard: staged → canceled only (never publishes)
   vaultOpen: (name, how) => ipcRenderer.invoke('hq:vault-open', name, how),   // Life › Notes: 'open' | 'search' in Obsidian, a scanned vault only
   statCardSave: (dataUrl) => ipcRenderer.invoke('hq:stat-card-save', dataUrl),   // Save stat card PNG: main picks the path, the renderer never names one
-  // Prompt library P1: status (folder there? Obsidian installed?) + open a prompt note (main finds the file itself)
-  claudePrompts: {
-    status: () => ipcRenderer.invoke('hq:claude-prompts:status'),
-    open: (id, how) => ipcRenderer.invoke('hq:claude-prompts:open', id, how),
-    promote: (p) => ipcRenderer.invoke('hq:claude-prompts:promote', p),
-    run: (req) => ipcRenderer.invoke('hq:claude-prompts:run', req),   // P3: main reads + fills the note; chat streams on hq:claude-chat:event
-    importPack: (req) => ipcRenderer.invoke('hq:claude-prompts:import-pack', req),   // P3: {from} -> plan (writes nothing); {planId} -> writes new notes only
-    exportPack: () => ipcRenderer.invoke('hq:claude-prompts:export-pack'),
-  },
-  // AI archive H6: the imports drop folder — announced once, imported only after the owner confirms
-  claudeImports: {
-    pending: () => ipcRenderer.invoke('hq:claude-imports:pending'),
-    dismiss: (dropId) => ipcRenderer.invoke('hq:claude-imports:dismiss', dropId),
-    on: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('hq:claude-imports:event', handler);
-      return () => ipcRenderer.removeListener('hq:claude-imports:event', handler);
-    },
-  },
   claudeChat: {
     send: (req) => ipcRenderer.invoke('hq:claude-chat:send', req),
     cancel: (turnId) => ipcRenderer.invoke('hq:claude-chat:cancel', turnId),

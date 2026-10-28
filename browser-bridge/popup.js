@@ -414,29 +414,6 @@ getCfg().then((cfg) => {
   $('masto').value = cfg.mastodonHost || '';
 });
 
-// ---- claude.ai live sync (0.4.0). The permission prompt must run inside the click (a user gesture).
-async function renderClaude() {
-  const { hq_claude } = await chrome.storage.local.get('hq_claude');
-  const s = { on: false, status: 'off', message: 'Off — nothing is read from claude.ai.', ...(hq_claude || {}) };
-  $('claude-on').checked = !!s.on;
-  $('claude-status').textContent = s.message;
-  $('claude-status').dataset.state = s.status;
-  $('claude-last').textContent = s.lastSyncAt ? 'last sync ' + new Date(s.lastSyncAt).toLocaleString() : 'never synced';
-  $('claude-sync').disabled = s.status === 'syncing';
-}
-async function claudeTurn(on) {
-  if (on) {
-    const granted = await chrome.permissions.request({ origins: ['https://claude.ai/*'] }).catch(() => false);
-    if (!granted) { $('claude-on').checked = false; $('claude-status').textContent = 'Permission not granted — nothing is read from claude.ai.'; return; }
-  }
-  $('claude-status').textContent = on ? 'Reading claude.ai…' : 'Turning off…';
-  await chrome.runtime.sendMessage({ type: 'claude:set', on }).catch(() => null);
-  renderClaude();
-}
-$('claude-on').addEventListener('change', (e) => claudeTurn(e.target.checked));
-$('claude-sync').addEventListener('click', () => claudeTurn(true));
-renderClaude();
-setInterval(renderClaude, POLL_MS);
 
 refresh();
 setInterval(refresh, POLL_MS);

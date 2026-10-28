@@ -1,5 +1,6 @@
 // Claude library render values (H2): Chats (+ Projects, project page, History, System in Task 10).
 import { chatsView, projectsView, activityView, pageChats, hubWhy } from '../logic/claude-lib.js';
+import { hubDocHit, hubDocument } from '../live/adapter.mjs';
 
 export function claudeLibVals(ctx) {
   const { S, LIVE, sub, tabStyle, projects, onPage } = ctx;
@@ -10,9 +11,16 @@ export function claudeLibVals(ctx) {
   const pv = projectsView(L, projects, S), byHq = L.byHq || {}, pageErr = L.pageErr || {};
   const pageId = onPage && S.route ? S.route.id : '', pageProj = projects.find((p) => p.id === pageId) || null, pageRows = pageId ? pageChats(byHq[pageId]) : [];
   const hub = LIVE.claudeHub;
+  // AI archive H6: memory notes, CLAUDE.md files, prompt notes and history lines that match, and one opened in place
+  const doc = L.doc || null, d = doc && !doc.loading && !doc.error ? hubDocument(doc) : null;
+  const hits = Array.isArray(L.docHits) ? L.docHits.map((h) => hubDocHit(h)) : [];
   return {
     isChats: sub === 'chats',
-    clSrcChips: [['all', 'All'], ['code', 'Code'], ['web', 'claude.ai'], ['chatgpt', 'ChatGPT'], ['instagram', 'Instagram'], ['facebook', 'Facebook']].map(([k, l]) => chip(S.clSrc === k, () => this.clSetFilter('clSrc', k), l)),
+    cdHasHits: hits.length > 0, cdHits: hits.map((h) => ({ ...h, open: () => this.cdOpenDoc(h.id) })),
+    cdHitsText: hits.length === 1 ? '1 note or document matches' : hits.length + ' notes and documents match',
+    cdOpen: !!doc, cdLoading: !!(doc && doc.loading), cdHasError: !!(doc && doc.error), cdError: doc && doc.error ? String(doc.error) : '',
+    cdDoc: d || { title: '', badge: '', project: '', when: '', lines: [] }, cdClose: () => this.cdCloseDoc(),
+    clSrcChips: [['all', 'All'], ['code', 'Code']].map(([k, l]) => chip(S.clSrc === k, () => this.clSetFilter('clSrc', k), l)),
     clSinceChips: [['all', 'Any time'], ['7', '7 days'], ['30', '30 days']].map(([k, l]) => chip(S.clSince === k, () => this.clSetFilter('clSince', k), l)),
     clProjChips: [chip(!S.clProj, () => this.clSetFilter('clProj', ''), 'All projects')].concat(projs.map((p) => chip(S.clProj === p.id, () => this.clSetFilter('clProj', p.id), p.name || p.key))),
     clQuery: S.clQuery, onClQuery: (e) => this.onClQuery(e), clSearch: () => this.clSearch(), clClearSearch: () => this.clClearSearch(),

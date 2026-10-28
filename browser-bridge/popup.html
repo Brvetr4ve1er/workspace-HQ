@@ -57,18 +57,6 @@
     <div class="note">Claude stages posts here. Nothing is sent until you press approve &amp; send; skip cancels a post for good.</div>
   </section>
 
-  <section id="claude" class="blk">
-    <div class="appr-head">
-      <span class="k">claude.ai</span>
-      <span class="grow"></span>
-      <label class="mini" title="Turn claude.ai live sync on or off"><input type="checkbox" id="claude-on" /> on</label>
-      <button id="claude-sync" class="mini" title="Allow reading claude.ai (asked once) and sync now — read-only">Sync claude.ai</button>
-    </div>
-    <div id="claude-status" class="m" role="status">Off — nothing is read from claude.ai.</div>
-    <div id="claude-last" class="meta"></div>
-    <div class="note">Reads your own claude.ai chats with claude.ai's own page requests — read-only, at most one every 2 s, only while a claude.ai tab is open — and sends them only to WorkspaceHQ on this PC. These requests are not a public API: claude.ai may change or rate-limit them; sync then pauses and says so. Importing your claude.ai data export in WorkspaceHQ keeps working regardless. Only your first claude.ai organization is synced.</div>
-  </section>
-
   <label class="row">
     <input type="checkbox" id="paused" />
     <span>pause capture</span>

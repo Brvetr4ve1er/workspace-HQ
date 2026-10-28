@@ -664,21 +664,6 @@ test('claudeChat: an {error} answer is returned, adds no turn; no bridge says so
   st.stop(); s2.stop();
 });
 
-test('claude.ai import events land in live.claudeImport and never touch the backfill bar; done re-asks health', async () => {
-  const h = hubHq({ state: 'ready', role: 'writer', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 } });
-  const st = createStore(DATA(), h.hq); await st.start(); await settle();
-  const healthCalls = () => h.calls.health;
-  const before = healthCalls();
-  h.fire({ event: 'progress', data: { kind: 'import', phase: 'conversations', done: 4, total: 0 } }); await settle();
-  assert.deepEqual(st.live.claudeImport, { kind: 'import', phase: 'conversations', done: 4, total: 0 });
-  assert.equal(st.live.claudeHub.state, 'ready', 'an import progress event is not a backfill');
-  assert.deepEqual(st.live.claudeHub.backfill, { done: 3, total: 3 });
-  h.fire({ event: 'progress', data: { kind: 'import', phase: 'done', done: 5, total: 5, report: {} } }); await settle();
-  assert.equal(st.live.claudeImport.phase, 'done');
-  assert.ok(healthCalls() > before, 'health re-asked after the import ended');
-  st.stop();
-});
-
 function h6Hq() {
   let pushImports = null;
   const calls = [];
@@ -719,140 +704,18 @@ test('H6: openClaudeDocument loads in place; an unknown id says so; close clears
   assert.equal(st.live.claudeLib.doc, null);
 });
 
-test('H6: claudeImports — pending on start, found/gone/error pushes', async () => {
-  const { hq, push } = h6Hq();
-  const st = createStore(DATA(), hq);
-  st.start();
-  await new Promise((r) => setTimeout(r, 20));
-  assert.deepEqual(st.live.claudeImports.found.map((f) => f.dropId), ['d0']);
-  push({ event: 'found', data: { dropId: 'd1', file: 'cg.zip', bytes: 5, kind: 'chatgpt' } });
-  push({ event: 'found', data: { dropId: 'd1', file: 'cg.zip', bytes: 5, kind: 'chatgpt' } });   // a replay never doubles
-  assert.deepEqual(st.live.claudeImports.found.map((f) => f.dropId), ['d0', 'd1']);
-  push({ event: 'gone', data: { dropId: 'd0' } });
-  push({ event: 'error', data: { file: 'x.zip', error: 'Not a ChatGPT or claude.ai export (looked for conversations.json)' } });
-  assert.deepEqual(st.live.claudeImports.found.map((f) => f.dropId), ['d1']);
-  assert.equal(st.live.claudeImports.refused[0].file, 'x.zip');
-  st.stop();
-});
-
-test('P1 prompts: loads notes + stats + status, searches, re-reads on a prompt change, errors say why', async () => {
-  let fail = false;
-  const seen = [];   // libHq records only its own methods; these overrides record here
-  const { hq, fire } = libHq({
-    documents: (o) => (seen.push(['documents', [o]]), Promise.resolve(fail ? { error: 'timeout' } : o && o.q ? [{ id: 'prompt:a' }] : [{ id: 'prompt:a', source: 'prompt', title: 'A', variables: [] }])),
-    promptStats: () => Promise.resolve([]),
-  });
-  hq.claudePrompts = { status: () => Promise.resolve({ vault: 'v', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: false }),
-    open: (id, how) => Promise.resolve({ ok: true, how }) };
-  const st = createStore(DATA(), hq); await st.start();
-  assert.equal(st.live.prompts.rows, null, 'nothing fetched until the Library asks');
-  await st.refreshPrompts();
-  assert.equal(st.live.prompts.rows.length, 1);
-  assert.deepEqual(st.live.prompts.stats, []);
-  assert.equal(st.live.prompts.status.obsidian, false);
-  assert.ok(seen.some(([n, a]) => n === 'documents' && a[0].source === 'prompt' && a[0].limit === 200));
-  await st.searchPrompts('staff');
-  assert.deepEqual(st.live.prompts.hits, [{ id: 'prompt:a' }]);
-  const before = seen.length;
-  fire({ event: 'changed', data: { ids: [], documents: ['memory:x'] } }); await settle(); await settle();
-  assert.ok(!seen.slice(before).some(([n]) => n === 'documents'), 'a memory note change does not re-read the Library');
-  fire({ event: 'changed', data: { ids: [], documents: ['prompt:a'] } }); await settle(); await settle();
-  assert.ok(seen.slice(before).some(([n]) => n === 'documents'), 'a prompt note edited in Obsidian re-reads the Library');
-  fail = true; await st.refreshPrompts();
-  assert.equal(st.live.prompts.error, 'Claude Hub: timeout');
-  assert.deepEqual(await st.openPrompt('prompt:a', 'file'), { ok: true, how: 'file' });
-  st.stop();
-});
-
-test('P1 prompts: a failed search error lifts on a good search or a cleared one, and the view leaves the error state', async () => {
-  let fail = false;
-  const { hq } = libHq({
-    documents: (o) => Promise.resolve(o && o.q ? (fail ? { error: 'timeout' } : [{ id: 'prompt:a' }]) : [{ id: 'prompt:a', source: 'prompt', title: 'A', variables: [] }]),
-    promptStats: () => Promise.resolve([]),
-  });
-  const st = createStore(DATA(), hq); await st.start();
-  await st.refreshPrompts();
-  fail = true; await st.searchPrompts('staff');
-  assert.equal(st.live.prompts.error, 'Claude Hub: timeout');
-  fail = false; await st.searchPrompts('staff');
-  assert.equal(st.live.prompts.error, null, 'a successful search lifts the search error');
-  fail = true; await st.searchPrompts('staff');
-  assert.ok(st.live.prompts.error);
-  await st.searchPrompts('');
-  assert.equal(st.live.prompts.error, null, 'clearing the search lifts it too');
-  assert.equal(st.live.prompts.rows.length, 1, 'rows were never lost');
-  st.stop();
-});
-
-test('P1 prompts: no bridge → refreshPrompts is a no-op, openPrompt says why', async () => {
-  const st = createStore(DATA(), null);
-  await st.refreshPrompts();
-  assert.equal(st.live.prompts.rows, null);
-  assert.match((await st.openPrompt('prompt:a', 'file')).error, /WorkspaceHQ app/);
-});
-
-test('P2 candidates: nothing until asked; loads; errors say why; a prompt-note change re-scores', async () => {
-  let fail = false, asked = 0;
-  const { hq, fire } = libHq({ promptCandidates: (o) => (asked++, Promise.resolve(fail ? { error: 'timeout' }
-    : { candidates: [{ key: 'cand:' + '1'.repeat(40), text: 'x', reasons: [], sources: [] }], pooled: { messages: 1, history: 0 }, capped: { messages: false, history: false }, hidden: 0 })) });
-  const st = createStore(DATA(), hq); await st.start();
-  assert.equal(st.live.candidates.rows, null); assert.equal(asked, 0);
-  await st.refreshCandidates();
-  assert.equal(st.live.candidates.rows.length, 1); assert.equal(st.live.candidates.loaded, true); assert.equal(st.live.candidates.error, null);
-  fail = true; await st.refreshCandidates();
-  assert.equal(st.live.candidates.error, 'Claude Hub: timeout');
-  assert.equal(st.live.candidates.rows.length, 1, 'an error keeps the last rows but the view shows the error');
-  fail = false;
-  fire({ event: 'changed', data: { ids: [], documents: ['prompt:abc'] } });
-  await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0));
-  assert.equal(asked, 3);
-  fire({ event: 'changed', data: { ids: [], documents: ['memory:abc'] } });
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(asked, 3, 'only prompt documents move the −5 term');
-});
-
-test('P2 candidates: no bridge → refreshCandidates is a no-op', async () => {
-  const st = createStore(DATA(), null);
-  await st.refreshCandidates();
-  assert.equal(st.live.candidates.rows, null);
-});
-
-test('adoptClaudeTurn registers the run\'s turn and replays events that arrived first; runPrompt refreshes usage', async () => {
-  let chatCb = null, statsAsked = 0, packs = 0;
-  const hq = {
-    claudeChat: { on: (cb) => { chatCb = cb; return () => {}; }, send: async () => ({ error: 'unused' }), cancel: async () => false },
-    claudeHub: { health: async () => ({ state: 'ready' }), on: () => () => {}, documents: async () => [], promptStats: async () => { statsAsked++; return []; } },
-    claudePrompts: {
-      status: async () => ({ folder: { exists: true } }),
-      run: async (req) => {
-        chatCb({ turnId: 'ct-run-1', kind: 'session', sessionId: '00000000-0000-4000-8000-000000000009', mode: 'read-only' });   // beats the answer
-        chatCb({ turnId: 'ct-run-1', kind: 'delta', text: 'Placeholder' });
-        return req.target === 'chat' ? { ok: true, target: 'chat', title: 'Review a PR', turnId: 'ct-run-1', usage: 'recorded' } : { error: 'fill in {{file}}', missing: ['file'] };
-      },
-      importPack: async (req) => { packs++; return req.planId ? { imported: 1, masked: 0, skipped: { exists: 0, failed: 0 } } : { planId: 'pack-1', notes: [] }; },
-      exportPack: async () => ({ file: 'x.zip', notes: 1 }),
-    },
-  };
+test('adoptClaudeTurn registers a turn main started and replays events that arrived first; once only', async () => {
+  let chatCb = null;
+  const hq = { claudeChat: { on: (cb) => { chatCb = cb; return () => {}; }, send: async () => ({ error: 'unused' }), cancel: async () => false },
+    claudeHub: { health: async () => ({ state: 'ready' }), on: () => () => {} } };
   const st = createStore(DATA(), hq);
   await st.start();
-  const before = statsAsked;
-  const r = await st.runPrompt({ promptId: 'prompt:a', target: 'chat', projectId: 'p1' });
-  assert.equal(r.turnId, 'ct-run-1');
-  const t = st.live.claudeChat.turns.find((x) => x.turnId === 'ct-run-1');
-  assert.ok(t, 'the run\'s turn is in the composer list');
-  assert.equal(t.prompt, 'Prompt · Review a PR'); assert.equal(t.mode, 'read-only'); assert.equal(t.projectId, 'p1');
-  assert.match(JSON.stringify(t), /Placeholder/, 'the delta that arrived before the answer was replayed');
-  await new Promise((res) => setTimeout(res, 0));
-  assert.ok(statsAsked > before, 'a recorded run re-asks promptStats');
-  assert.equal(st.adoptClaudeTurn({ turnId: 'ct-run-1', prompt: 'again' }), false, 'a turn is adopted once');
-  assert.deepEqual(await st.runPrompt({ promptId: 'prompt:a', target: 'terminal' }), { error: 'fill in {{file}}', missing: ['file'] });
-  assert.equal(st.live.claudeChat.turns.length, 1);
-  assert.equal((await st.packImport({ from: 'zip' })).planId, 'pack-1');
-  const s2 = statsAsked;
-  assert.equal((await st.packImport({ planId: 'pack-1' })).imported, 1);
-  await new Promise((res) => setTimeout(res, 0));
-  assert.ok(statsAsked > s2, 'an import that wrote notes refreshes the Library');
-  assert.deepEqual(await st.packExport(), { file: 'x.zip', notes: 1 });
-  assert.equal(packs, 2);
-  assert.deepEqual(await createStore(DATA(), null).runPrompt({}), { error: 'This window has no app bridge' });
+  chatCb({ turnId: 'ct-1', kind: 'session', sessionId: '00000000-0000-4000-8000-000000000009', mode: 'read-only' });   // beats the adopt
+  chatCb({ turnId: 'ct-1', kind: 'delta', text: 'Placeholder' });
+  assert.equal(st.adoptClaudeTurn({ turnId: 'ct-1', projectId: 'p1', prompt: 'Placeholder question' }), true);
+  const t = st.live.claudeChat.turns.find((x) => x.turnId === 'ct-1');
+  assert.ok(t); assert.equal(t.projectId, 'p1');
+  assert.match(JSON.stringify(t), /Placeholder/, 'the delta that arrived first was replayed');
+  assert.equal(st.adoptClaudeTurn({ turnId: 'ct-1', prompt: 'again' }), false, 'a turn is adopted once');
+  st.stop();
 });

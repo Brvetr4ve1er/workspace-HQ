@@ -26,21 +26,8 @@
 //   ask-claude-chip · vault-preview-confirm
 // H3 in-app chat scenarios (same rules; claudeChat.send/cancel overridden to emit events by hand):
 //   claude-chat-stream-stop · claude-chat-mode-readonly
-// H4 claude.ai import scenario (same rules; claudeHub.importExport answered by the fake, progress events emitted by hand):
-//   claude-import-progress
-// H6 archive scenarios (same rules; the fake watcher events are emitted by hand, the fake Hub answers documents):
-//   imports-drop-confirm · search-documents
-// P1 prompt library scenarios (same rules; the fake FAKE_PROMPTS / claudePrompts answer):
-//   prompts-library-open — Library lists the fake notes; Open in Obsidian -> claudePrompts.open(id,'obsidian'); Obsidian missing -> one Open-file fallback; Run opens the run modal and sends nothing
-//   prompts-empty-states — no folder / empty folder / Hub error each say why
-//   prompts-project-shortcut — project page "Run a prompt" opens Claude > Prompts with the project chip; x clears it
-// P2 harvest scenarios (same rules; fake FAKE_CANDIDATES / claudePrompts.promote / claudeHub.hideCandidate):
-//   prompts-promote-confirm — one confirm before any write; a clash asks once more; a batch clash is reported, never renamed
-//   prompts-candidates-hide — Hide is permanent and said so; a reader refusal shows and keeps the row; a Hub error is an error
-// P3 run + pack scenarios (same rules; fake claudePrompts.run / importPack / exportPack):
-//   prompts-run-chat — modal gates Run on project + {{file}}; main sends the chat (page never does); turn streams to done in Chats
-//   prompts-run-copy — copy targets say the quota note, honest done status, a usage miss is said; Escape closes
-//   prompts-pack-import — plan lists rows + kept/skipped, one confirm writes, done report; export toast
+// H6 archive scenario (same rules; the fake Hub answers documents):
+//   search-documents
 // Social tab + every-button scenarios (2026-10-27; same rules):
 //   social-discard — Inbox Discard asks once, the second click calls socialCancel(id); "already publishing" said in words
 //   canvas-pin-remove — Pin to Home shows the card on Home across a reload; Remove asks once, then canvasRemove(board, id)
@@ -136,12 +123,11 @@ async function fresh(t) {
   if (!await t.evaluate('!!window.hqFake')) return ['window.hqFake missing · start the harness with --preload=fake'];
   await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L._libRescan = false; L._canvasBusy = false;
     if (L.store && L.store.live && L.store.live.claudeChat) L.store.live.claudeChat.turns.length = 0;
-    if (L.store && L.store.live) L.store.live.claudeImport = null;
     L.setState({ snapOffset: 0, confirm: null, confirmHash: null, confirmPreview: null, commit: null, sheet: null, levelUp: null, onboard: null,
     askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, toasts: [],
     // Phase 3 surface state back to app.js's defaults (contract K-4)
     vault: null, whatsNewOpen: false, whatsNewMissing: {}, sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', prQuery: '', prSearched: false, prFor: null, prView: 'library', hcSel: [], promote: null,
+    clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '',
     ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
     projSearch: '', projStatus: 'all', canvasNoteOpen: false, canvasDraft: '', canvasBoard: null, canvasSaving: false, askChecking: false, route: null,
     canvasPins: [], canvasRemoveAsk: null, canvasRemoving: null, statCardSaving: false, canvasBoardOpen: false, canvasBoardDraft: '', canvasCreating: false, canvasClearAsk: null, canvasClearing: null });
@@ -1127,72 +1113,6 @@ const SCENARIOS = {
       await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; L.store.live.claudeChat.turns.length = 0; L.setState({ ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false }); return true; })()`);
     }
   },
-  async 'claude-import-progress'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const fails = [];
-    const status = `((document.querySelector('[data-ci="status"]') || {}).textContent || '')`;
-    const click = `document.querySelector('[data-ci="go"]').click()`;
-    try {
-      await t.evaluate(`WHQ.app.logic.go('claude', 'chats')`);
-      if (!(await t.waitFor(`!!document.querySelector('[data-ci="go"]')`, 5000))) return ['the import button never rendered'];
-      await t.evaluate(click);
-      if (!(await t.waitFor(`hqFake.calls('claudeHub.importExport').length === 1`, 3000))) fails.push('importExport was not called');
-      if (!(await t.waitFor(`${status} === 'Unpacking the export…'`, 3000))) fails.push('no running status after start: ' + (await t.evaluate(status)));
-      await t.evaluate(`hqFake.emit('hq:claude-hub:event', { event: 'progress', data: { kind: 'import', phase: 'conversations', done: 7, total: 0 } })`);
-      if (!(await t.waitFor(`${status} === 'Reading chats… 7 read'`, 3000))) fails.push('progress not shown: ' + (await t.evaluate(status)));
-      if (!(await t.evaluate(`document.querySelector('[data-ci="go"]').disabled`))) fails.push('the button stays enabled while an import runs');
-      if ((await t.evaluate(`WHQ.app.logic.store.live.claudeHub && WHQ.app.logic.store.live.claudeHub.state`)) === 'indexing') fails.push('an import event was treated as a backfill');
-      await t.evaluate(`hqFake.emit('hq:claude-hub:event', { event: 'progress', data: { kind: 'import', phase: 'done', done: 5, total: 5, report: { conversations: { seen: 5, imported: 3, unchanged: 0, forgotten: 0, skipped: 2 }, messages: { imported: 5, skipped: 1, empty: 1 }, projects: { seen: 2, imported: 1, unchanged: 0, forgotten: 0, skipped: 1 }, unknownFields: {}, truncated: false } } })`);
-      if (!(await t.waitFor(`/^Imported 3 chats/.test(${status})`, 3000))) fails.push('done not shown: ' + (await t.evaluate(status)));
-      const lines = await t.evaluate(`[...document.querySelectorAll('[data-ci="report"] span')].map((s) => s.textContent)`);
-      if (lines[0] !== 'Chats: 3 imported · 0 unchanged · 0 forgotten · 2 skipped') fails.push('report line: ' + lines[0]);
-      if (await t.evaluate(`document.querySelector('[data-ci="go"]').disabled`)) fails.push('the button is not re-enabled after the import');
-      await t.evaluate(`hqFake.set('claudeHub.importExport', () => ({ error: 'an import is already running' }))`);
-      await t.evaluate(click);
-      if (!(await t.waitFor(`document.body.textContent.includes('an import is already running')`, 3000))) fails.push('a refused import is not toasted');
-      await t.evaluate(`hqFake.set('claudeHub.importExport', () => ({ canceled: true }))`);
-      await t.evaluate(click);
-      await t.sleep(300);
-      if (!/^Imported 3 chats/.test(await t.evaluate(status))) fails.push('a canceled dialog changed the status');
-    } finally {
-      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; if (L.store && L.store.live) L.store.live.claudeImport = null; L.setState({}); })()`);
-    }
-    return fails.concat(t.errors());
-  },
-
-  // H5 (spec §9 Ask, §11 ask-claude-chip): the 7th chip is off by default, is sent as include.claude, persists as the
-  // extra key "claude" only while on, and the answer's meta line names the chat it drew from.
-  // H6 (spec §2/§6.3, §9): a ZIP the watcher found is offered ONCE as a non-modal card — Import sends kind auto + the dropId
-  // (no file path from the page), the card goes at once, "Not now" dismisses by dropId; the card never guesses a chat count.
-  async 'imports-drop-confirm'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const fails = [];
-    const found = (id, file, kind) => `hqFake.emit('hq:claude-imports:event', { event: 'found', data: { dropId: '${id}', file: '${file}', bytes: 39845888, kind: '${kind}' } })`;
-    try {
-      await t.evaluate(`WHQ.app.logic.go('home')`);
-      await t.evaluate(found('d1', 'chatgpt-export.zip', 'chatgpt'));
-      if (!(await t.waitFor(`!!document.querySelector('[data-di="card"]')`, 3000))) return ['the drop card never rendered'];
-      const text = await t.evaluate(`document.querySelector('[data-di="card"]').textContent`);
-      if (!/Import ChatGPT export \(chatgpt-export\.zip, /.test(text)) fails.push('card text: ' + text);
-      if (/chats\)/.test(text)) fails.push('the card guessed a chat count');
-      await t.evaluate(`document.querySelector('[data-di="confirm"]').click()`);
-      if (!(await t.waitFor(`hqFake.calls('claudeHub.importExport').length === 1`, 3000))) fails.push('importExport was not called');
-      const c = await t.evaluate(`JSON.stringify(hqFake.calls('claudeHub.importExport'))`);
-      if (!c.includes('"auto"') || !c.includes('"dropId":"d1"')) fails.push('wrong importExport args: ' + c);
-      if (!(await t.waitFor(`!document.querySelector('[data-di="card"]')`, 3000))) fails.push('the card stayed after Import');
-      await t.evaluate(found('d2', 'claude.zip', 'claude'));
-      if (!(await t.waitFor(`!!document.querySelector('[data-di="dismiss"]')`, 3000))) fails.push('second card missing');
-      await t.evaluate(`document.querySelector('[data-di="dismiss"]').click()`);
-      if (!(await t.waitFor(`hqFake.calls('claudeImports.dismiss').length === 1`, 3000))) fails.push('dismiss was not called');
-      if (!(await t.waitFor(`!document.querySelector('[data-di="card"]')`, 3000))) fails.push('the card stayed after Not now');
-    } finally {
-      await t.evaluate(`(() => { hqFake.reset(true); const L = WHQ.app.logic; if (L.store && L.store.live) { L.store.live.claudeImport = null; L.store.live.claudeImports = { folder: null, found: [], refused: [], error: null }; } L.setState({}); })()`);
-    }
-    return fails.concat(t.errors());
-  },
-
-  // H6 (spec §6.3 Search): memory notes / CLAUDE.md files that match show with a source badge, the snippet markers never
-  // leak into the text, a hit opens the document in place (read-only, one document() call), Close closes it.
   async 'search-documents'(t) {
     const bad = await fresh(t); if (bad) return bad;
     const fails = [];
@@ -1313,199 +1233,6 @@ const SCENARIOS = {
     return out.concat(t.errors());
   },
 
-  async 'prompts-library-open'(t) {
-    const pre = await fresh(t); if (pre) return pre;
-    const out = [];
-    const opens = () => t.evaluate(`hqFake.calls('claudePrompts.open').map((c) => c.args)`);
-    const click = (sel) => t.evaluate(`(() => { const b = document.querySelector(${JSON.stringify(sel)}); if (!b) return false; b.click(); return true; })()`);
-    await t.evaluate(`(() => { WHQ.app.logic.go('claude', 'prompts'); return true; })()`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 2`, 8000)) return ['the Library did not list the 2 fake prompt notes'];
-    const text = await t.evaluate(`document.querySelector('[data-pr="lib"]').textContent`);
-    for (const want of ['Review a PR like a staff engineer', 'review-a-pr.md', '#review #code', '{{project}} {{file}}', 'used 3×', 'not run yet', 'uses your Claude quota', '2 prompt notes · fake-vault/40_Resources/Prompts'])
-      if (!text.includes(want)) out.push('Library text lacks: ' + want);
-    if (!await click('[data-pr="obsidian"]')) out.push('no Open in Obsidian button');
-    else if (!await t.waitFor(`hqFake.calls('claudePrompts.open').length === 1`)) out.push('Open in Obsidian did not reach main');
-    else if (JSON.stringify((await opens())[0]) !== JSON.stringify(['prompt:' + 'a'.repeat(40), 'obsidian'])) out.push('open args: ' + JSON.stringify(await opens()));
-    // Obsidian missing: main answers with fallback 'file' → exactly one Open-file retry
-    await t.evaluate(`(() => { hqFake.set('claudePrompts.open', (id, how) => (how === 'obsidian' ? { error: 'Obsidian is not installed — use Open file', fallback: 'file' } : { ok: true, how })); return true; })()`);
-    await click('[data-pr="obsidian"]');
-    if (!await t.waitFor(`hqFake.calls('claudePrompts.open').length === 3`)) out.push('no Open-file fallback after "Obsidian is not installed"');
-    else if ((await opens())[2][1] !== 'file') out.push('the fallback was not Open file: ' + JSON.stringify(await opens()));
-    // main says Obsidian is absent → no Obsidian buttons, the note says why, Open file stays
-    await t.evaluate(`(() => { hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: false }); WHQ.app.logic.prLoad(); return true; })()`);
-    if (!await t.waitFor(`!document.querySelector('[data-pr="obsidian"]') && !!document.querySelector('[data-pr="no-obsidian"]') && !!document.querySelector('[data-pr="file"]')`)) out.push('Obsidian-absent state not shown');
-    // Run opens the run modal (P3); opening it sends, launches and copies nothing
-    await click('[data-pr="run"]');
-    await t.sleep(300);
-    for (const m of ['claudeChat.send', 'claudeQuest']) if ((await t.evaluate(`hqFake.calls(${JSON.stringify(m)}).length`)) !== 0) out.push('Run called ' + m);
-    if (!await t.waitFor(`!!document.querySelector('[data-rn="dialog"]')`)) out.push('Run did not open the run modal');
-    if ((await t.evaluate(`hqFake.calls('claudePrompts.run').length`)) !== 0) out.push('opening the run modal ran something');
-    // search: FTS hits ∪ tag/title matches
-    await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ prQuery: 'weekly' }); L.prSearch(); return true; })()`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 1 && document.querySelector('[data-pr="row"]').textContent.includes('Weekly notes digest')`)) out.push('search did not narrow to the weekly note');
-    return out.concat(t.errors());
-  },
-
-  async 'prompts-empty-states'(t) {
-    const pre = await fresh(t); if (pre) return pre;
-    const out = [];
-    const empty = () => t.evaluate(`(() => { const e = document.querySelector('[data-pr="empty"]'); return e ? e.textContent : ''; })()`);
-    await t.evaluate(`(() => { hqFake.set('claudeHub.documents', []); hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: false }, obsidian: true }); WHQ.app.logic.go('claude', 'prompts'); WHQ.app.logic.prLoad(); return true; })()`);
-    if (!await t.waitFor(`(document.querySelector('[data-pr="empty"]') || {}).textContent?.startsWith('No prompts folder yet — create fake-vault/40_Resources/Prompts')`)) out.push('no-folder text: ' + await empty());
-    await t.evaluate(`(() => { hqFake.set('claudePrompts.status', { vault: 'fake-vault', rel: '40_Resources/Prompts', folder: { exists: true }, obsidian: true }); WHQ.app.logic.prLoad(); return true; })()`);
-    if (!await t.waitFor(`(document.querySelector('[data-pr="empty"]') || {}).textContent?.includes('has no prompt notes yet')`)) out.push('empty-folder text: ' + await empty());
-    await t.evaluate(`(() => { hqFake.set('claudeHub.documents', { error: 'hub not running' }); WHQ.app.logic.prLoad(); return true; })()`);
-    if (!await t.waitFor(`(document.querySelector('[data-pr="empty"]') || {}).textContent?.startsWith('Claude Hub: hub not running')`)) out.push('Hub-error text: ' + await empty());
-    if (await t.evaluate(`document.querySelectorAll('[data-pr="row"]').length`) !== 0) out.push('rows shown under a Hub error');
-    return out.concat(t.errors());
-  },
-
-  async 'prompts-project-shortcut'(t) {
-    const pre = await fresh(t); if (pre) return pre;
-    const out = [];
-    const p = await t.evaluate(`(() => { const L = WHQ.app.logic; const p = L.M.P0[0]; L.go('projects', 'grid'); L.openProject(p.id); return { id: p.id, name: p.name }; })()`);   // same route as the gaps scenario (cdp-gate.mjs: M.P0 + go + openProject)
-    if (!await t.waitFor(`!!document.querySelector('[data-pr="page-run"]')`)) return ['the project page has no "Run a prompt" button'];
-    await t.evaluate(`(() => { document.querySelector('[data-pr="page-run"]').click(); return true; })()`);
-    if (!await t.waitFor(`WHQ.app.logic.state.tab === 'claude' && WHQ.app.logic.state.sub.claude === 'prompts' && !!document.querySelector('[data-pr="for"]')`)) return out.concat(['Run a prompt did not open Claude › Prompts with the project chip']);
-    const chip = await t.evaluate(`document.querySelector('[data-pr="for"]').textContent`);
-    if (!chip.includes('For ' + p.name)) out.push('chip text: ' + chip);
-    if (await t.evaluate(`WHQ.app.logic.state.prFor`) !== p.id) out.push('prFor is not the project id');
-    if (!await t.waitFor(`document.querySelectorAll('[data-pr="row"]').length === 2 && document.querySelector('[data-pr="row"]').textContent.includes('uses this project')`)) out.push('the {{project}} prompt is not first / not marked');
-    await t.evaluate(`(() => { document.querySelector('[data-pr="for"] button').click(); return true; })()`);
-    if (!await t.waitFor(`!document.querySelector('[data-pr="for"]')`)) out.push('✕ did not clear the project context');
-    return out.concat(t.errors());
-  },
-  async 'prompts-promote-confirm'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const out = [];
-    const calls = async () => JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.promote').map((c) => c.args[0]))`));
-    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
-    await t.evaluate(`document.querySelector('[data-hc="cand-tab"]').click()`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-hc="row"]').length === 3`)) out.push('the 3 fake candidates are not listed');
-    const why = await t.evaluate(`document.querySelector('[data-hc="row"]').textContent`);
-    if (!/used in 3 sessions \+9/.test(why) || !/Claude Code · project-a/.test(why)) out.push('row lacks its reasons/origin: ' + why.slice(0, 200));
-    // single: the confirm comes first; nothing is written before it
-    await t.evaluate(`document.querySelector('[data-hc="promote"]').click()`);
-    if (!await t.waitFor(`!!document.querySelector('[data-hc="dialog"]')`)) out.push('no confirm dialog');
-    if ((await calls()).length !== 0) out.push('promote ran before the confirm');
-    // a clash asks once more; only "Save as the new name" sends the offered name
-    await t.evaluate(`hqFake.set('claudePrompts.promote', (p) => p && p.name ? { path: '40_Resources/Prompts/' + p.name, name: p.name, id: 'prompt:' + 'c'.repeat(40), masked: 0 }
-      : { error: 'a prompt note with this name is already there', exists: true, next: 'placeholder-clash-2.md' })`);
-    await t.evaluate(`document.querySelector('[data-hc="go"]').click()`);
-    if (!await t.waitFor(`!!document.querySelector('[data-hc="clash"]')`)) out.push('no clash step');
-    if ((await calls()).length !== 1) out.push('clash: expected exactly one promote call so far');
-    await t.evaluate(`document.querySelector('[data-hc="save-as"]').click()`);
-    if (!await t.waitFor(`(document.querySelector('[data-hc="results"]') || {}).textContent?.includes('placeholder-clash-2.md')`)) out.push('no result after Save as');
-    const c2 = await calls();
-    if (c2.length !== 2 || c2[1].name !== 'placeholder-clash-2.md' || c2[0].name !== undefined) out.push('calls: ' + JSON.stringify(c2).slice(0, 300));
-    if (!c2[0] || c2[0].source?.kind !== 'code' || c2[0].tags?.[0] !== 'harvested') out.push('promote lacks provenance/tags');
-    await t.press('Escape');
-    if (!await t.waitFor(`!document.querySelector('[data-hc="dialog"]')`)) out.push('Escape did not close the dialog');
-    // multi: tick two, ONE confirm, a batch clash is reported and never sent with a name
-    await t.evaluate(`hqFake.set('claudePrompts.promote', (p) => /two/i.test(p.title) ? { error: 'a prompt note with this name is already there', exists: true, next: 'two-2.md' }
-      : { path: '40_Resources/Prompts/one.md', name: 'one.md', id: 'prompt:' + 'd'.repeat(40), masked: 0 })`);
-    await t.evaluate(`[...document.querySelectorAll('[data-hc="check"]')].slice(0, 2).forEach((b) => b.click())`);
-    await t.evaluate(`document.querySelector('[data-hc="promote-sel"]').click()`);
-    if (!await t.waitFor(`!!document.querySelector('[data-hc="dialog"]')`)) out.push('multi: no confirm dialog');
-    await t.evaluate(`document.querySelector('[data-hc="go"]').click()`);
-    if (!await t.waitFor(`(document.querySelector('[data-hc="results"]') || {}).textContent?.includes('not written')`)) out.push('multi: clash not reported');
-    const c3 = (await calls()).slice(2);
-    if (c3.length !== 2 || c3.some((p) => p.name !== undefined)) out.push('multi calls: ' + JSON.stringify(c3).slice(0, 300));
-    await t.evaluate(`document.querySelector('[data-hc="cancel"]').click()`);
-    return out.concat(t.errors());
-  },
-  async 'prompts-candidates-hide'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const out = [];
-    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
-    await t.evaluate(`document.querySelector('[data-hc="cand-tab"]').click()`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-hc="row"]').length === 3`)) out.push('candidates not listed');
-    await t.evaluate(`document.querySelector('[data-hc="hide"]').click()`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-hc="row"]').length === 2`)) out.push('hidden row still listed');
-    const k = await t.evaluate(`hqFake.calls('claudeHub.hideCandidate').map((c) => c.args[0]).join(',')`);
-    if (k !== 'cand:' + '1'.repeat(40)) out.push('hideCandidate args: ' + k);
-    if (!await t.waitFor(`document.body.textContent.includes('will not be offered again')`)) out.push('no permanent-hide toast');
-    await t.evaluate(`hqFake.set('claudeHub.hideCandidate', { error: 'read-only hub (another WorkspaceHQ owns the index)' })`);
-    await t.evaluate(`document.querySelector('[data-hc="hide"]').click()`);
-    if (!await t.waitFor(`document.body.textContent.includes('read-only hub')`)) out.push('reader refusal not shown');
-    if (await t.evaluate(`document.querySelectorAll('[data-hc="row"]').length`) !== 2) out.push('a refused hide removed the row');
-    // a Hub error is an error, never "no candidates"
-    await t.evaluate(`hqFake.set('claudeHub.promptCandidates', { error: 'timeout' }); WHQ.app.logic.hcLoad()`);
-    if (!await t.waitFor(`(document.querySelector('[data-hc="empty"]') || {}).textContent?.startsWith('Claude Hub: timeout — ')`)) out.push('Hub error not shown as an error');
-    return out.concat(t.errors());
-  },
-  async 'prompts-run-chat'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const out = [];
-    const runCalls = async () => JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.run').map((c) => c.args[0]))`));
-    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-pr="run"]').length >= 1`)) return out.concat('no Run button on the Library rows');
-    await t.evaluate(`document.querySelector('[data-pr="run"]').click()`);
-    if (!await t.waitFor(`!!document.querySelector('[data-rn="dialog"]')`)) return out.concat('no run modal');
-    const go = await t.evaluate(`document.querySelector('[data-rn="go"]').textContent`);
-    if (!/uses your Claude quota/.test(go)) out.push('Chat target lacks the quota label: ' + go);
-    if (!await t.evaluate(`document.querySelector('[data-rn="go"]').disabled`)) out.push('Run is enabled before a project and {{file}} are given');
-    if (await t.evaluate(`[...document.querySelectorAll('[data-rn="field"]')].length`) !== 1) out.push('expected exactly one field ({{file}}; {{project}} comes from the project)');
-    await t.evaluate(`document.querySelector('[data-rn="project"]').click()`);
-    await t.evaluate(`(() => { const i = document.querySelector('[data-rn="field"]'); i.value = 'placeholder.js'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-    if (!await t.waitFor(`!document.querySelector('[data-rn="go"]').disabled`)) out.push('Run still disabled after filling');
-    if ((await runCalls()).length !== 0) out.push('run was sent before the click');
-    await t.evaluate(`document.querySelector('[data-rn="go"]').click()`);
-    if (!await t.waitFor(`!document.querySelector('[data-rn="dialog"]')`)) out.push('the modal did not close on a started chat');
-    const req = (await runCalls())[0] || null;
-    if (!req || req.target !== 'chat' || req.mode !== 'read-only' || !req.vars || req.vars.file !== 'placeholder.js' || 'text' in req || !req.projectId) out.push('run request: ' + JSON.stringify(req));
-    if (await t.evaluate(`hqFake.calls('claudeChat.send').length`) !== 0) out.push('the page sent the chat itself — main must');
-    if (!await t.waitFor(`WHQ.app.logic.store.live.claudeChat.turns.some((x) => x.prompt.startsWith('Prompt · ') && x.status === 'done')`, 8000)) out.push('the run\'s turn did not stream to done');
-    if (!await t.waitFor(`document.body.textContent.includes('answer from the fake claude')`)) out.push('the streamed answer is not visible in Claude › Chats');
-    return out.concat(t.errors());
-  },
-  async 'prompts-run-copy'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const out = [];
-    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-pr="run"]').length >= 2`)) return out.concat('Library rows missing');
-    await t.evaluate(`document.querySelectorAll('[data-pr="run"]')[1].click()`);   // the fixture prompt without variables
-    if (!await t.waitFor(`!!document.querySelector('[data-rn="dialog"]')`)) return out.concat('no run modal');
-    await t.evaluate(`[...document.querySelectorAll('[data-rn="target"]')].find((b) => /claude\\.ai/.test(b.textContent)).click()`);
-    const note = await t.evaluate(`document.querySelector('[data-rn="dialog"]').textContent`);
-    if (!/uses your Claude quota/.test(note)) out.push('Copy for claude.ai does not say pasting spends the quota');
-    if (await t.evaluate(`!!document.querySelector('[data-rn="mode"]')`)) out.push('mode toggle shown for a copy target');
-    await t.evaluate(`document.querySelector('[data-rn="go"]').click()`);
-    if (!await t.waitFor(`/Copied — paste it in the claude\\.ai tab that opened · counted in the Library/.test((document.querySelector('[data-rn="status"]') || {}).textContent || '')`)) out.push('no honest done status');
-    await t.evaluate(`hqFake.set('claudePrompts.run', (r) => ({ ok: true, target: r.target, title: 'x', usage: 'not recorded: read-only hub (another WorkspaceHQ owns the index)' }))`);
-    await t.evaluate(`[...document.querySelectorAll('[data-rn="target"]')].find((b) => /ChatGPT/.test(b.textContent)).click()`);
-    await t.evaluate(`document.querySelector('[data-rn="go"]').click()`);
-    if (!await t.waitFor(`/not counted: read-only hub/.test((document.querySelector('[data-rn="status"]') || {}).textContent || '')`)) out.push('a usage miss is not said');
-    const reqs = JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.run').map((c) => c.args[0].target))`));
-    if (JSON.stringify(reqs) !== '["claude.ai","chatgpt"]') out.push('targets sent: ' + JSON.stringify(reqs));
-    await t.press('Escape');
-    if (!await t.waitFor(`!document.querySelector('[data-rn="dialog"]')`)) out.push('Escape did not close the run modal');
-    return out.concat(t.errors());
-  },
-  async 'prompts-pack-import'(t) {
-    const bad = await fresh(t); if (bad) return bad;
-    const out = [];
-    await t.evaluate(`WHQ.app.logic.go('claude','prompts')`);
-    if (!await t.waitFor(`!!document.querySelector('[data-pk="import-zip"]')`)) return out.concat('no Import pack button');
-    await t.evaluate(`document.querySelector('[data-pk="import-zip"]').click()`);
-    if (!await t.waitFor(`document.querySelectorAll('[data-rp="row"]').length === 3`)) return out.concat('the plan rows are not listed');
-    const txt = await t.evaluate(`document.querySelector('[data-rp="dialog"]').textContent`);
-    if (!/already there — kept/.test(txt) || !/Skipped: 1 not a \.md file/.test(txt)) out.push('plan lacks the kept/skipped lines: ' + txt.slice(0, 300));
-    const label = await t.evaluate(`document.querySelector('[data-rp="confirm"]').textContent`);
-    if (label.trim() !== 'Copy 2 notes into Prompts') out.push('confirm label: ' + label);
-    if (await t.evaluate(`hqFake.calls('claudePrompts.importPack').length`) !== 1) out.push('more than the plan call before the confirm');
-    await t.evaluate(`document.querySelector('[data-rp="confirm"]').click()`);
-    if (!await t.waitFor(`/Imported 2 notes · 1 already there \\(kept\\)/.test((document.querySelector('[data-rp="done"]') || {}).textContent || '')`)) out.push('no done report');
-    const args = JSON.parse(await t.evaluate(`JSON.stringify(hqFake.calls('claudePrompts.importPack').map((c) => c.args[0]))`));
-    if (JSON.stringify(args) !== JSON.stringify([{ from: 'zip' }, { planId: 'pack-' + '0'.repeat(16) }])) out.push('importPack calls: ' + JSON.stringify(args));
-    await t.press('Escape');
-    if (!await t.waitFor(`!document.querySelector('[data-rp="dialog"]')`)) out.push('Escape did not close the pack dialog');
-    await t.evaluate(`document.querySelector('[data-pk="export"]').click()`);
-    if (!await t.waitFor(`document.body.textContent.includes('Exported 2 prompt notes to prompts-pack-2026-10-25.zip')`)) out.push('no export toast');
-    return out.concat(t.errors());
-  },
-  // Social › Inbox Discard (2026-10-27): the first click only asks, the second calls hq.socialCancel with that post's
-  // id and toasts; main's refusal ("already publishing") is said in plain words and nothing else is called.
   async 'social-discard'(t) {
     const pre = await fresh(t); if (pre) return pre;
     const out = [];
@@ -1703,7 +1430,7 @@ const SCENARIOS = {
         const L = WHQ.app.logic, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const names = [...L.M.P0, ...(L.M.at(0).archived || [])].map((p) => p.name).filter((n) => n && n.length > 2).sort((a, b) => b.length - a.length);
         const mask = (s) => { let o = s; for (const n of names) o = o.split(n).join('‹project›'); return o; };
-        const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, promote: null, pack: null, run: null,
+        const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null,
           askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, whatsNewOpen: false, focus: null,
           toasts: [], route: null, snapOffset: 0, soDiscardAsk: null, clOpen: false, ccOpen: false, canvasNoteOpen: false, pageMore: false };
         const reset = async () => {
