@@ -1,4 +1,4 @@
-// Satellites (mini HUD, tray) deep-link into the main window. These pin the
+// Satellites (tray) deep-link into the main window. These pin the
 // route whitelist and the window choreography: create if missing, restore +
 // show + focus, push now or once after did-finish-load (latest route wins).
 import { test } from 'node:test';

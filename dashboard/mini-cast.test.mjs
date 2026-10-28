@@ -1,73 +1,15 @@
-// node --test dashboard/mini-cast.test.mjs — the pure halves of the mini HUD
-// (mini.js) and the quick-run palette (cast.js): deep-link routes, honest counts,
+// node --test dashboard/mini-cast.test.mjs — the pure half of the quick-run palette
+// (cast.js; the mini HUD was cut 2026-10-28): deep-link routes, honest counts,
 // last-outcome labels. Placeholder ids only (public repo).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const mini = require('./mini.js');
 const cast = require('./cast.js');
-const { cleanRoute } = require('./nav-bridge.js');
 
 const NOW = Date.parse('2026-10-05T12:00:00Z');
 const daysAgo = (d) => new Date(NOW - d * 86400000).toISOString();
-
-// ---- mini HUD -------------------------------------------------------------------
-test('count buttons deep-link where the design says, and nav-bridge accepts each route', () => {
-  assert.deepEqual(mini.countRoute('secrets'), { tab: 'tasks', sub: 'ideas' });
-  assert.deepEqual(mini.countRoute('uncommitted'), { tab: 'projects', sort: 'dirty' });
-  assert.deepEqual(mini.countRoute('unpushed'), { tab: 'projects' });
-  assert.equal(mini.countRoute('nope'), null);
-  for (const k of ['secrets', 'uncommitted', 'unpushed']) assert.deepEqual(cleanRoute(mini.countRoute(k)), mini.countRoute(k), k);
-  const r = mini.countRoute('secrets'); r.tab = 'x';
-  assert.equal(mini.countRoute('secrets').tab, 'tasks', 'callers get a copy');
-});
-
-test('next action opens its project only when topQuest.projectId is a valid id', () => {
-  assert.deepEqual(mini.nextActionRoute({ title: 't', projectId: 'project-a' }), { tab: 'projects', projectId: 'project-a' });
-  assert.deepEqual(cleanRoute(mini.nextActionRoute({ projectId: 'project-a' })), { tab: 'projects', projectId: 'project-a' });
-  assert.equal(mini.nextActionRoute({ title: 't' }), null, 'K-6 absent → plain show-main');
-  assert.equal(mini.nextActionRoute({ projectId: '../x' }), null);
-  assert.equal(mini.nextActionRoute({ projectId: 7 }), null);
-  assert.equal(mini.nextActionRoute(null), null);
-});
-
-test('counts: an absent or garbage field reads "—", never a made-up 0', () => {
-  assert.equal(mini.countText(undefined), '—');
-  assert.equal(mini.countText(null), '—');
-  assert.equal(mini.countText('3'), '—');
-  assert.equal(mini.countText(NaN), '—');
-  assert.equal(mini.countText(-1), '—');
-  assert.equal(mini.countText(0), '0');
-  assert.equal(mini.countText(38), '38');
-  assert.equal(mini.countTone('secrets', 1), 'red');
-  assert.equal(mini.countTone('uncommitted', 38), 'orange');
-  assert.equal(mini.countTone('unpushed', 2), 'orange');
-  assert.equal(mini.countTone('secrets', 0), 'quiet');
-  assert.equal(mini.countTone('secrets', undefined), 'quiet');
-  assert.match(mini.countTitle('secrets', undefined), /not reported/);
-  assert.match(mini.countTitle('uncommitted', 1), /^1 uncommitted change —/);
-  assert.match(mini.countTitle('uncommitted', 38), /^38 uncommitted changes —/);
-});
-
-test('level line is "lv N · X xp" and tolerates a missing payload', () => {
-  assert.equal(mini.levelText({ level: 4, xp: 842 }), 'lv 4 · 842 xp');
-  assert.equal(mini.levelText(null), 'lv – · – xp');
-  assert.equal(mini.levelText({ level: 4 }), 'lv 4 · – xp');
-  assert.equal(mini.levelTitle({ level: 4, xpToNext: 158, streak: 3 }), '158 xp to lv 5 · 3-day scan streak');
-  assert.equal(mini.levelTitle({ level: 9, xpToNext: 0 }), 'max level');
-  assert.equal(mini.tierTone('red'), 'red');
-  assert.equal(mini.tierTone('purple'), 'quiet');
-  assert.equal(mini.clampPct(140), 100);
-  assert.equal(mini.clampPct(undefined), 0);
-});
-
-test('errText strips Electron’s remote-method prefix', () => {
-  assert.equal(mini.errText(new Error("Error invoking remote method 'hq:mini-data': Error: boom")), 'boom');
-  assert.equal(cast.errText('plain'), 'plain');
-  assert.equal(cast.errText(null), 'unknown error');
-});
 
 // ---- quick-run palette ------------------------------------------------------------
 test('ago: minutes, hours, days, "just now", and nothing for a bad time', () => {
@@ -152,7 +94,7 @@ test('castProblem surfaces refusals instead of swallowing them', () => {
 });
 
 // ---- the pages themselves ----------------------------------------------------------
-for (const page of ['mini', 'cast']) {
+for (const page of ['cast']) {
   test(`${page}.html: v5 CSP, tokens, satellite-theme first, no inline script`, () => {
     const html = readFileSync(new URL(`./${page}.html`, import.meta.url), 'utf8');
     const csp = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);

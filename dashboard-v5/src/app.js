@@ -112,7 +112,7 @@ export class Component extends DCLogic {
 
   componentDidMount() {
     this._prev = Object.assign({}, this.state, { sub: Object.assign({}, this.state.sub) }); this._prevProps = Object.assign({}, this.props);
-    // deep links (mini HUD, tray): subscribed first and synchronously, main may push right after load
+    // deep links (tray): subscribed first and synchronously, main may push right after load
     if (this.hq && this.hq.onNavigate) { try { this._offNav = this.hq.onNavigate((r) => this.navigateTo(r)); } catch (e) { console.warn('[nav] subscribe failed', e); } }
     this._onKey = (e) => this.onKey(e);
     this._onResize = () => this.forceUpdate();

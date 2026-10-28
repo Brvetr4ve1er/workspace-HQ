@@ -1,5 +1,5 @@
-// UI preferences held by MAIN, so the main window and every satellite (mini HUD,
-// quick-run, record panel, snip overlay, summon, shards) share one theme and one
+// UI preferences held by MAIN, so the main window and every satellite
+// (quick-run, record panel, snip overlay) share one theme and one
 // reduce-motion switch. IPC-CONTRACT "Pending — v5 clean pass":
 //   hq:ui-prefs-get → prefs · hq:ui-prefs-set(patch) → prefs · push hq:ui-prefs
 // prefs = { theme: 'dark'|'light'|'os', resolved: 'dark'|'light', reduceMotion: bool }
@@ -55,7 +55,7 @@ function init({ ipcMain, app, nativeTheme, BrowserWindow }) {
       fs.renameSync(tmp, file);
     } catch (e) { console.error('[ui-prefs] persist failed (kept in memory)', e); }
   };
-  // EVERY window, not castSend's three: satellites (shards, summon, snip, record panel) theme too.
+  // EVERY window, not castSend's three: satellites (snip, record panel) theme too.
   const broadcast = () => {
     const payload = get();
     for (const w of BrowserWindow.getAllWindows()) {

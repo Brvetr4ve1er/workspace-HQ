@@ -1,5 +1,5 @@
 // Deep links into the main window ("open Projects sorted by uncommitted", "open
-// project X") for satellites: mini HUD count buttons, tray items. IPC-CONTRACT
+// project X") for satellites: tray items. IPC-CONTRACT
 // "Pending — v5 clean pass": hq:open-at(route) → bool · push hq:navigate(route).
 //   route = { tab, sub?, projectId?, sort? }
 //   tab/sub /^[a-z]{2,16}$/ · projectId /^[\w.-]{1,80}$/ · sort ∈ SORTS

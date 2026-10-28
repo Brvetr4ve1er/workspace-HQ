@@ -8,7 +8,7 @@
 //   casts      = main.js castRegistry (Map spellId → { proc, castId, startedAt, timer, chain?, … })
 //                — a running chain holds TWO entries: its own (chain:true, proc:null) and
 //                the active member's (registered by doCast under the member's id).
-//   send(channel, payload) = main.js castSend (main window, mini HUD, quick-run)
+//   send(channel, payload) = main.js castSend (main window, quick-run)
 //   readSpellbook() = parsed data/spellbook.json or null — names/icons for the cast rows
 // returns { scanBegin() → bool, scanEnd(code, err?) → bool, snapshot() }:
 //   scanBegin() is false while a scan is already running (runScan must not start

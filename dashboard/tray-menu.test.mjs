@@ -25,7 +25,7 @@ const SPELLS = [{ id: 'sp-build', name: 'Build', icon: '🔨' }, { id: 'sp-test'
 
 function spyActions() {
   const calls = [];
-  const names = ['show', 'scan', 'toggleHud', 'quickRun', 'summon', 'openAutomations', 'cast',
+  const names = ['show', 'scan', 'quickRun', 'openAutomations', 'cast',
     'pushAll', 'snapshotDirty', 'killServers', 'openUrgent', 'quit'];
   const actions = Object.fromEntries(names.map((n) => [n, (...args) => calls.push([n, ...args])]));
   return { actions, calls };
@@ -77,7 +77,7 @@ test('layout: status line, the core items in design order, Run ▸, quick action
   const items = trayTemplate({ scan: SCAN, hudVisible: true, spells: SPELLS, devServers: 2 }, actions);
   assert.deepEqual(labels(items), [
     'lv 8 · 34 uncommitted · 2 secrets', '─',
-    'Show workspace-hq', 'Scan now (uses Claude)', 'Mini HUD', 'Quick-run… (Ctrl+Alt+X)', 'Summon… (Ctrl+Alt+G)', 'Run',
+    'Show workspace-hq', 'Scan now (uses Claude)', 'Quick-run… (Ctrl+Alt+X)', 'Run',
     '─', 'Quick actions',
     'Push committed work to the remote (2 projects)',
     'Back up projects with uncommitted changes (2)',
@@ -87,15 +87,6 @@ test('layout: status line, the core items in design order, Run ▸, quick action
   ]);
   assert.equal(items[0].enabled, false, 'the status line is not clickable');
   assert.equal(byLabel(items, /^Quick actions$/).enabled, false);
-});
-
-test('Mini HUD is a checkbox reflecting hudVisible', () => {
-  const { actions } = spyActions();
-  const on = byLabel(trayTemplate({ scan: SCAN, hudVisible: true, spells: [] }, actions), /^Mini HUD$/);
-  const off = byLabel(trayTemplate({ scan: SCAN, hudVisible: false, spells: [] }, actions), /^Mini HUD$/);
-  assert.equal(on.type, 'checkbox');
-  assert.equal(on.checked, true);
-  assert.equal(off.checked, false);
 });
 
 test('Run ▸ lists the spells, then Open Automations', () => {
@@ -147,9 +138,7 @@ test('every click reaches the right action, with the right argument', () => {
   const expect = [
     [byLabel(items, /^Show workspace-hq$/), ['show']],
     [byLabel(items, /^Scan now/), ['scan']],
-    [byLabel(items, /^Mini HUD$/), ['toggleHud']],
     [byLabel(items, /^Quick-run/), ['quickRun']],
-    [byLabel(items, /^Summon/), ['summon']],
     [byLabel(run.submenu, /Build$/), ['cast', 'sp-build']],
     [byLabel(run.submenu, /Test$/), ['cast', 'sp-test']],
     [byLabel(run.submenu, /^Open Automations$/), ['openAutomations']],

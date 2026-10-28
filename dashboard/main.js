@@ -37,13 +37,12 @@ const DOCS_ROOT = 'C:\\Users\\ROG STRIX\\Documents';
 const VAULT = path.join(DOCS_ROOT, 'VEEMO CORTEX');
 const PROJECT_NOTES_DIR = path.join(VAULT, '30_Areas', 'Projects');
 const NOTIFY_STATE = path.join(DATA, '.notify-state.json');
-const HUD_STATE = path.join(DATA, '.hud-state.json');
 const QUEST_BOARD = path.join(VAULT, '30_Areas', 'Workspace Status', 'Quest Board.md');
 const DAILY_DIR = path.join(VAULT, '10_Daily');
 // Allow-list of regenerable dirs the reclaim action may delete (npm install / rebuild restores them).
 const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
-let win, tray, watcher, miniWin, qbWatcher, dailyWatcher, castWin = null, canvasWatcher = null;
+let win, tray, watcher, qbWatcher, dailyWatcher, castWin = null, canvasWatcher = null;
 let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
 let navBridge = null;   // v5 M4: nav-bridge init() result ({ openAt }) — tray Show / Open Automations
 let claudeHub = null;   // Claude Hub host (claude-hub-host.js), set in whenReady
@@ -52,9 +51,7 @@ const activeDevServers = new Map();
 // Push the live browser tab (from the bridge extension) to any open windows so
 // the "Working On Now" card updates in real time, without waiting for a scan.
 function pushBrowserTab(live) {
-  for (const w of [win, miniWin]) {
-    if (w && !w.isDestroyed()) { try { w.webContents.send('hq:browser-tab', live); } catch { /* window closing */ } }
-  }
+  if (win && !win.isDestroyed()) { try { win.webContents.send('hq:browser-tab', live); } catch { /* window closing */ } }
 }
 // The renderer asks for the current live tab on load (the window may open after
 // several bridge flushes have already landed).
@@ -170,33 +167,7 @@ function createWindow(show = true) {
   win.on('closed', () => { win = null; });
 }
 
-// ---- mini HUD: small always-on-top ambient widget ----------------------
-// A second frameless window that floats LV/XP/HP/streak + the single most urgent
-// quest while you work. Clicking the quest row opens the full console; the whole
-// card is draggable to reposition (see -webkit-app-region in mini.html).
-function miniPayload() {
-  const s = latest(); if (!s) return null;
-  const a = s.account;
-  const rank = { red: 0, orange: 1, yellow: 2 };
-  const top = (s.quests || [])
-    .filter((q) => q.status === 'open' || q.status === 'in_progress')
-    .sort((x, y) => (rank[x.tier] - rank[y.tier]) || (y.xp - x.xp) || (y.age_days - x.age_days))[0];
-  const xpPct = a.xp_to_next ? (a.xp_into_level / (a.xp_into_level + a.xp_to_next)) * 100 : 100;
-  const counts = trayMenu.scanCounts(s);   // v5 M4 (K-6): the tray status line's numbers, so HUD and tray agree
-  const topProj = top && top.project_id ? (s.projects || []).find((p) => p && p.id === top.project_id) : null;
-  return {
-    level: a.level, title: a.title || '',
-    xpPct: Math.round(xpPct), xp: a.xp, xpToNext: a.xp_to_next,
-    hp: a.health_index, streak: a.streak?.scan_days ?? 0,
-    openQuests: a.totals.open_quests, redQuests: a.totals.red_quests,
-    secrets: counts.secrets, uncommitted: counts.uncommitted, unpushed: counts.unpushed,
-    topQuest: top ? { title: top.title, tier: top.tier, xp: top.xp, projectId: top.project_id || null, project: topProj ? topProj.name || topProj.id : null } : null,
-    spells: topSpells(3),   // one-click cast buttons on the HUD
-  };
-}
-function pushMini() { if (miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('hq:mini-update', miniPayload()); }
-
-// ---- live machine HUD: CPU% (delta-sampled) + RAM% + orphaned dev-server count -----
+// ---- live machine vitals: CPU% (delta-sampled) + RAM% + orphaned dev-server count -----
 let lastCpu = null, machineTimer = null;
 function cpuTimes() { let idle = 0, total = 0; for (const c of os.cpus()) { for (const t of Object.values(c.times)) total += t; idle += c.times.idle; } return { idle, total }; }
 function machineSample() {
@@ -208,49 +179,12 @@ function machineSample() {
 }
 function pushMachine() {
   const s = machineSample();   // sample ONCE per tick (delta-based CPU%), then fan out
-  if (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) miniWin.webContents.send('hq:machine', s);
   if (win && !win.isDestroyed()) win.webContents.send('hq:machine', s);   // v4.1 Phase 3: main window (truth rail) gets vitals too
 }
 function startMachineSampler() { if (machineTimer) return; lastCpu = cpuTimes(); machineTimer = setInterval(pushMachine, 2500); }
 
-function hudPrefVisible() {
-  try { return JSON.parse(fs.readFileSync(HUD_STATE, 'utf8')).miniVisible !== false; } catch { return true; }
-}
-function saveHudPref(v) {
-  try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(HUD_STATE, JSON.stringify({ miniVisible: v })); } catch {}
-}
-
-function createMiniWindow() {
-  const wa = screen.getPrimaryDisplay().workArea;
-  const W = 286, H = 196, margin = 16;   // +32px for the spell-shortcut row
-  miniWin = new BrowserWindow({
-    width: W, height: H,
-    x: wa.x + wa.width - W - margin,
-    y: wa.y + wa.height - H - margin,
-    frame: false, transparent: true, resizable: false, movable: true,
-    alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
-    fullscreenable: false, maximizable: false, minimizable: false,
-    backgroundColor: '#00000000', title: 'WorkspaceHQ HUD',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
-  });
-  // float above fullscreen apps too, on every virtual desktop
-  miniWin.setAlwaysOnTop(true, 'screen-saver');
-  miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  miniWin.loadFile(path.join(DIR, 'mini.html'));
-  miniWin.on('closed', () => { miniWin = null; });
-}
-function showMini() {
-  if (!miniWin || miniWin.isDestroyed()) createMiniWindow(); else miniWin.show();
-  saveHudPref(true); updateTray();
-}
-function hideMini() {
-  if (miniWin && !miniWin.isDestroyed()) miniWin.hide();
-  saveHudPref(false); updateTray();
-}
-function toggleMini() { (miniWin && !miniWin.isDestroyed() && miniWin.isVisible()) ? hideMini() : showMini(); }
-
 // Tray menu (v5 M4 / S7): the layout is data in tray-menu.js (pure, unit-tested —
-// status line, Show, Scan now, Mini HUD ✓, Quick-run…, Summon…, Run ▸, then the
+// status line, Show, Scan now, Quick-run…, Run ▸, then the
 // Quick actions below a separator); main hands it the state and the actions, with
 // the same confirms, notifications and rescans as the pre-v5 menu. Show and Open
 // Automations go through nav-bridge openAt (v3 ignores the hq:navigate push, so
@@ -263,16 +197,12 @@ function trayNotify(title, body) {
   if (Notification.isSupported()) new Notification({ title, body, icon: path.join(DIR, 'icon.png') }).show();
 }
 function buildTrayMenu() {
-  // the HUD window doesn't exist yet on the first build (createTray runs first) → the saved pref
-  const hudVisible = miniWin && !miniWin.isDestroyed() ? miniWin.isVisible() : hudPrefVisible();
   return Menu.buildFromTemplate(trayMenu.trayTemplate(
-    { scan: latest(), hudVisible, spells: topSpells(3), devServers: activeDevServers.size },
+    { scan: latest(), spells: topSpells(3), devServers: activeDevServers.size },
     {
       show: () => showMainAt({ tab: 'home' }),
       scan: () => { if (!runScan()) trayNotify('WorkspaceHQ', liveState.snapshot().scan.state === 'running' ? 'A scan is already running.' : 'The scan didn’t start.'); },
-      toggleHud: toggleMini,
       quickRun: openCastPalette,
-      summon: openSummon,
       openAutomations: () => showMainAt({ tab: 'automations' }),
       cast: (id) => castFromShell(id),
       pushAll: (unpushed) => confirmThen(`Push ${unpushed.length} repo(s)?`, unpushed.map((p) => p.name).join(', '), () => { const ok = gitEach(unpushed, ['push']); trayNotify('⬆ Pushed', `${ok}/${unpushed.length} repos`); runScan(); }),
@@ -350,13 +280,7 @@ function applyDone(ids) {
   fs.writeFileSync(path.join(DATA, 'quest-overrides.json'), JSON.stringify(ov, null, 2));
   const s = latest();
   if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini();
-  // organic feedback: an XP drip sprouts on the desktop even when the app is hidden
-  try {
-    const xp = list.length * 60;   // rough until the ledger settles on next scan — so the line says est.
-    const wa = screen.getPrimaryDisplay().workArea;
-    spawnShard({ widget: 'xp-drip', payload: { text: `+~${xp} XP est. · ${list.length} quest${list.length > 1 ? 's' : ''} cleared` }, x: wa.x + wa.width - 270, y: wa.y + wa.height - 100, ttl: 6000, clickThrough: true });
-  } catch { /* shards are garnish, never block the core loop */ }
+  rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray();
   return true;
 }
 
@@ -432,7 +356,7 @@ function runScan() {
   ps.on('close', (code) => {
     end(code);
     if (win) win.setTitle('WorkspaceHQ');
-    if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); pushMini(); }
+    if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); }
     else if (win) dialog.showErrorBox('Scan failed', `Pipeline exited ${code}. See workspace hq/logs.`);
   });
   return true;
@@ -505,243 +429,9 @@ ipcMain.handle('hq:capture-save', (_e, text) => {
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(arr, null, 2));
   // re-assemble the current scan (fast — no collector) so the dump shows as a side-quest
   const s = latest();
-  if (s) { spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }); rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); }
+  if (s) { spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }); rebuildData(); if (win && !win.isDestroyed()) win.reload(); }
   return true;
 });
-
-// ============================================================================
-// ORGANIC UI — shards. WorkspaceHQ grows interface anywhere on the desktop.
-// A shard is a small frameless always-on-top window materialized at any screen
-// position, floating over every app (incl. fullscreen). Built-in widgets
-// (note / timer / quest / hp / xp-drip) render instantly; any other summon text
-// is CONJURED: Claude generates a self-contained HTML widget on the fly.
-// Notes + conjured widgets persist across restarts via data/shards.json.
-// ============================================================================
-const SHARDS_FILE = path.join(DATA, 'shards.json');
-const shards = new Map();   // id -> { win, cfg }
-let summonWin = null, summonAt = null;
-
-function readShardsFile() { return readJsonStore(SHARDS_FILE, () => [], Array.isArray); }
-function persistShards() {
-  const keep = [...shards.values()].map(({ cfg, win }) => {
-    if (!cfg.persist || !win || win.isDestroyed()) return null;
-    const [x, y] = win.getPosition(); const [w, h] = win.getSize();
-    return { id: cfg.id, widget: cfg.widget, payload: cfg.payload, persist: true, x, y, w, h };
-  }).filter(Boolean);
-  try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(SHARDS_FILE, JSON.stringify(keep, null, 2)); } catch {}
-}
-
-const SHARD_SIZES = { note: [260, 200], timer: [220, 130], quest: [340, 158], hp: [260, 104], 'xp-drip': [250, 80], custom: [360, 300] };
-
-function spawnShard(cfg) {
-  const id = cfg.id || ('sh_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
-  const [dw, dh] = SHARD_SIZES[cfg.widget] || [320, 220];
-  const w = cfg.w || dw, h = cfg.h || dh;
-  let x = cfg.x, y = cfg.y;
-  if (x == null || y == null) {
-    const pt = screen.getCursorScreenPoint();
-    x = pt.x - Math.round(w / 2); y = pt.y + 12;
-  }
-  // clamp to the work area of whichever display the shard lands on
-  const wa = screen.getDisplayNearestPoint({ x, y }).workArea;
-  x = Math.max(wa.x, Math.min(x, wa.x + wa.width - w));
-  y = Math.max(wa.y, Math.min(y, wa.y + wa.height - h));
-  const sw = new BrowserWindow({
-    width: w, height: h, x, y,
-    frame: false, transparent: true, resizable: false, movable: true,
-    alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
-    fullscreenable: false, maximizable: false, minimizable: false,
-    backgroundColor: '#00000000', title: 'HQ Shard',
-    // REDUCED preload (MA): conjured HTML never sees the full hq bridge
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'organic', 'shard-preload.js') },
-  });
-  sw.setAlwaysOnTop(true, 'screen-saver');                       // float over fullscreen apps
-  sw.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // conjured HTML stays LOCAL: no navigation, no popups, ever
-  sw.webContents.on('will-navigate', (e) => e.preventDefault());
-  sw.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  sw.loadFile(path.join(DIR, 'organic', 'shard.html'));
-  const full = { ...cfg, id, w, h };
-  sw.webContents.once('did-finish-load', () => { if (!sw.isDestroyed()) sw.webContents.send('shard:init', full); });
-  if (cfg.clickThrough) sw.setIgnoreMouseEvents(true);
-  sw.on('moved', () => { if (full.persist) persistShards(); });
-  sw.on('closed', () => { shards.delete(id); persistShards(); });
-  shards.set(id, { win: sw, cfg: full });
-  if (cfg.persist) persistShards();
-  if (cfg.ttl) setTimeout(() => { if (!sw.isDestroyed()) sw.close(); }, cfg.ttl);
-  console.log(`[shard] spawned ${cfg.widget} ${id} @ ${x},${y}`);
-  return id;
-}
-
-function updateShard(id, payloadPatch) {
-  const s = shards.get(id); if (!s || s.win.isDestroyed()) return;
-  s.cfg.payload = { ...s.cfg.payload, ...payloadPatch };
-  s.win.webContents.send('shard:init', s.cfg);
-  if (s.cfg.persist) persistShards();
-}
-
-function topQuestPayload() {
-  const s = latest(); if (!s) return null;
-  const rank = { red: 0, orange: 1, yellow: 2 };
-  const top = (s.quests || [])
-    .filter((q) => q.status === 'open' || q.status === 'in_progress')
-    .sort((x, y) => (rank[x.tier] - rank[y.tier]) || (y.xp - x.xp) || (y.age_days - x.age_days))[0];
-  if (!top) return null;
-  const proj = (s.projects || []).find((p) => p.id === top.project_id);
-  return { id: top.id, title: top.title, tier: top.tier, xp: top.xp, project: proj ? proj.name : '' };
-}
-
-// ---- widget library (Organic UI v2 · P1): conjures become durable creations ----
-// Every successful generation is saved keyed by normalized prompt; summoning a
-// matching prompt re-spawns instantly from cache instead of re-generating.
-const LIB_FILE = path.join(DATA, 'shard-library.json');
-const normPrompt = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-function readLibrary() { return readJsonStore(LIB_FILE, () => [], Array.isArray); }
-function saveLibrary(items) { try { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(LIB_FILE, JSON.stringify(items, null, 2)); } catch {} }
-function libUpsert(prompt, html) {
-  const items = readLibrary();
-  const key = normPrompt(prompt);
-  const now = new Date().toISOString();
-  const i = items.findIndex((x) => x.key === key);
-  if (i >= 0) items[i] = { ...items[i], html, updated_at: now };
-  else items.push({ key, prompt, html, created_at: now, updated_at: now });
-  saveLibrary(items);
-}
-function libFind(text) {
-  const q = normPrompt(text);
-  if (!q) return null;
-  const items = readLibrary();
-  const exact = items.find((x) => x.key === q);
-  if (exact) return exact;
-  const prefix = items.filter((x) => x.key.startsWith(q));
-  return prefix.length === 1 ? prefix[0] : null;   // only unambiguous prefixes
-}
-function libraryPayload() {
-  return { items: readLibrary().map(({ key, prompt, updated_at }) => ({ key, prompt, updated_at })) };
-}
-
-// Conjuring: Claude writes a bespoke self-contained widget for whatever was asked.
-// A placeholder shard appears instantly (organic feedback), then morphs when ready.
-// generateInto is shared by fresh conjures AND the ↻ regen button on existing shards.
-function conjureShard(prompt, at) {
-  const id = spawnShard({ widget: 'custom', payload: { status: 'conjuring', prompt }, persist: true, ...at });
-  generateInto(id, prompt);
-  return id;
-}
-function generateInto(id, prompt) {
-  const gen = `Generate a tiny self-contained desktop widget for: "${prompt.replace(/"/g, "'")}"
-
-HARD RULES:
-- Reply with ONLY an HTML fragment (no \`\`\` fences, no <html>/<head>/<body>).
-- Everything inline: <style scoped to your own class names> + optional inline <script>.
-- NO external resources of any kind (no URLs, no fonts, no images, no fetch/XHR/WebSocket).
-- Card look from the host page's CSS variables (already defined there: use them, never redefine them, no :root rules, no hard-coded palette): background var(--card); 1px solid var(--frame) border; border-radius 10px; text var(--text), secondary text var(--muted); accents var(--gold) and var(--purple); font-family var(--term).
-- Max footprint ~340x260px. It must be immediately useful and interactive if the request implies it (buttons, counters, inputs all work via inline JS).
-- If the request implies live time, use setInterval. State can live in JS variables only.`;
-  // MA: routed through the sessions registry — tracked, killable, presence-visible
-  const r = claudeSessions.start({
-    label: `conjure: ${prompt.slice(0, 32)}`, input: gen, timeoutMs: 120000,
-    onDone: ({ status, output }) => {
-      const html = output.trim().replace(/^```(html)?\s*/i, '').replace(/```\s*$/, '').trim();
-      if (status !== 'done' || !html || !/</.test(html)) { updateShard(id, { status: 'error', error: 'generation returned nothing usable' }); return; }
-      updateShard(id, { status: 'ready', html });
-      libUpsert(prompt, html);   // durable: joins the widget library for instant re-summon
-      console.log(`[shard] conjured "${prompt.slice(0, 40)}" (${html.length}b) -> library`);
-    },
-  });
-  if (r.error) updateShard(id, { status: 'error', error: r.error });
-}
-
-// Summon router: known words materialize built-ins; everything else is conjured.
-// A built-in with nothing to show answers { ok:false, reason, message } instead of a
-// shard id, so the palette can stay open and say so (IPC-CONTRACT hq:shard-summon).
-const SUMMON_MISS = { 'no-quest': 'No open quest right now', 'no-scan': 'No scan data yet — run a scan first', error: 'Couldn’t open that widget' };
-const summonMiss = (reason) => ({ ok: false, reason, message: SUMMON_MISS[reason] });
-function summonWidget(text, at = {}) {
-  const t = String(text || '').trim();
-  if (!t) return false;
-  let m;
-  if ((m = t.match(/^n(?:ote)?[:\s]+(.+)/i))) return spawnShard({ widget: 'note', payload: { text: m[1] }, persist: true, ...at });
-  if ((m = t.match(/^timer\s+(\d+)\s*m?(?:in)?s?$/i)) || (m = t.match(/^(\d+)\s*m(?:in)?s?$/i)))
-    return spawnShard({ widget: 'timer', payload: { minutes: Math.max(1, Math.min(180, +m[1])) }, ...at });
-  if (/^quests?$/i.test(t)) { const q = topQuestPayload(); return q ? spawnShard({ widget: 'quest', payload: q, ...at }) : summonMiss(latest() ? 'no-quest' : 'no-scan'); }
-  if (/^(hp|stats?|hud)$/i.test(t)) { const p = miniPayload(); return p ? spawnShard({ widget: 'hp', payload: p, ...at }) : summonMiss('no-scan'); }
-  if (/^lib(rary)?$/i.test(t)) return spawnShard({ widget: 'library', payload: libraryPayload(), w: 380, h: 300, ...at });
-  // library hit: a past creation matching this prompt re-materializes instantly
-  const hit = libFind(t);
-  if (hit) return spawnShard({ widget: 'custom', payload: { status: 'ready', prompt: hit.prompt, html: hit.html }, persist: true, ...at });
-  return conjureShard(t, at);
-}
-
-// Summon palette: Ctrl+Alt+G anywhere in Windows -> tiny prompt at the cursor.
-function openSummon() {
-  if (summonWin && !summonWin.isDestroyed()) { summonWin.focus(); return; }
-  const pt = screen.getCursorScreenPoint();
-  summonAt = { x: pt.x - 30, y: pt.y + 10 };   // shards materialize where summoned
-  const W = 470, H = 104;
-  const wa = screen.getDisplayNearestPoint(pt).workArea;
-  summonWin = new BrowserWindow({
-    width: W, height: H,
-    x: Math.max(wa.x, Math.min(pt.x - Math.round(W / 2), wa.x + wa.width - W)),
-    y: Math.max(wa.y, Math.min(pt.y + 16, wa.y + wa.height - H)),
-    frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: true,
-    fullscreenable: false, minimizable: false, maximizable: false,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(DIR, 'organic', 'summon-preload.js') },
-  });
-  summonWin.setAlwaysOnTop(true, 'screen-saver');
-  summonWin.loadFile(path.join(DIR, 'organic', 'summon.html'));
-  summonWin.on('blur', () => { if (summonWin && !summonWin.isDestroyed()) summonWin.close(); });
-  summonWin.on('closed', () => { summonWin = null; });
-}
-
-// Answer first, close after: a miss leaves the palette open with r.message (summon.js);
-// a spawn closes it (the new shard's focus has usually blurred it shut already).
-ipcMain.handle('hq:shard-summon', (_e, text) => {
-  let r;
-  try { r = summonWidget(text, summonAt || {}); } catch (e) { console.error('[summon] failed:', e); r = summonMiss('error'); }
-  if (typeof r === 'string' && summonWin && !summonWin.isDestroyed()) summonWin.close();
-  return r;
-});
-ipcMain.handle('hq:shard-summon-cancel', () => { if (summonWin && !summonWin.isDestroyed()) summonWin.close(); return true; });
-// shard self-service: resolve the calling shard by its webContents
-function shardOfSender(e) { return [...shards.values()].find((v) => !v.win.isDestroyed() && v.win.webContents === e.sender); }
-ipcMain.handle('hq:shard-close', (e) => { const s = shardOfSender(e); if (s) s.win.close(); return true; });
-ipcMain.handle('hq:shard-save', (e, patch) => {
-  const s = shardOfSender(e); if (!s) return false;
-  s.cfg.payload = { ...s.cfg.payload, ...patch };
-  if (s.cfg.persist) persistShards();
-  return true;
-});
-// widget library: spawn / delete from the library browser shard
-ipcMain.handle('hq:shard-lib-spawn', (e, key) => {
-  const item = readLibrary().find((x) => x.key === key); if (!item) return false;
-  const s = shardOfSender(e);
-  const at = {};
-  if (s && !s.win.isDestroyed()) { const [x, y] = s.win.getPosition(); at.x = x + 40; at.y = y + 40; }
-  return spawnShard({ widget: 'custom', payload: { status: 'ready', prompt: item.prompt, html: item.html }, persist: true, ...at });
-});
-ipcMain.handle('hq:shard-lib-delete', (e, key) => {
-  saveLibrary(readLibrary().filter((x) => x.key !== key));
-  const s = shardOfSender(e);
-  if (s && s.cfg.widget === 'library') updateShard(s.cfg.id, libraryPayload());
-  return true;
-});
-// ↻ regen: a conjured shard rewrites itself in place (fresh generation, same spot)
-ipcMain.handle('hq:shard-regen', (e) => {
-  const s = shardOfSender(e); if (!s || s.cfg.widget !== 'custom' || !s.cfg.payload?.prompt) return false;
-  updateShard(s.cfg.id, { status: 'conjuring', html: null });
-  generateInto(s.cfg.id, s.cfg.payload.prompt);
-  return true;
-});
-
-function respawnShards() {
-  for (const cfg of readShardsFile()) {
-    if (!cfg || !cfg.widget) continue;
-    // conjured shards revive in their ready state; skip ones that never finished
-    if (cfg.widget === 'custom' && cfg.payload?.status !== 'ready') continue;
-    try { spawnShard(cfg); } catch (err) { console.error('[shard] respawn failed:', err); }
-  }
-}
 
 // ---- Scoped Claude launcher: open an interactive Claude session cd'd to a project ----
 // v5 M4 (K-5): the snip bar's "send to Claude" — screenCapture.init gets the project
@@ -960,7 +650,7 @@ ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
     const end = (code, err) => { if (settled) return; settled = true; try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
     runNodeAsync(path.join(COLLECTOR, 'collector.mjs'))
       .then(() => runNodeAsync(path.join(COLLECTOR, 'assemble.mjs'), ['--date', s.scan.id]))
-      .then(() => { end(0); rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini(); })
+      .then(() => { end(0); rebuildData(); if (win && !win.isDestroyed()) win.reload(); })
       .catch((err) => { end(Number.isInteger(err && err.exitCode) ? err.exitCode : -1, err); console.error('[do-commit] rescan failed:', err && err.message); });
   }
   return { ok: true };
@@ -1028,7 +718,7 @@ ipcMain.handle('hq:archive-project', (_e, projId) => {
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2));
   const s = latest();
   if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload(); pushMini();
+  rebuildData(); if (win && !win.isDestroyed()) win.reload();
   return true;
 });
 ipcMain.handle('hq:revive-project', (_e, projId) => {
@@ -1147,7 +837,7 @@ function recordCast(entry) {
 
 const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
 function castSend(channel, payload) {
-  for (const w of [win, miniWin, castWin]) {
+  for (const w of [win, castWin]) {
     if (w && !w.isDestroyed()) try { w.webContents.send(channel, payload); } catch {}
   }
 }
@@ -1548,10 +1238,8 @@ ipcMain.handle('hq:note-save', (_e, id, note) => {
   return true;
 });
 
-// mini HUD IPC
-ipcMain.handle('hq:mini-data', () => miniPayload());
+// satellite IPC (quick-run palette)
 ipcMain.handle('hq:show-main', () => { if (!win) createWindow(true); else win.show(); if (win) win.focus(); return true; });
-ipcMain.handle('hq:mini-hide', () => { hideMini(); return true; });
 ipcMain.handle('hq:kill-servers', () => {
   let n = 0;
   for (const [, proc] of activeDevServers) { if (proc && proc.pid) { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); n++; } }
@@ -1580,7 +1268,7 @@ if (!app.requestSingleInstanceLock()) {
       watcher = fs.watch(DATA, (_evt, file) => {
         if (file !== 'latest.json') return;
         clearTimeout(t);
-        t = setTimeout(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); pushMini(); }, 800);
+        t = setTimeout(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); }, 800);
       });
     } catch (e) { console.error('watchData failed:', e); }
   }
@@ -1607,24 +1295,17 @@ if (!app.requestSingleInstanceLock()) {
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();
-    if (hudPrefVisible()) createMiniWindow();   // ambient HUD floats even when started to tray
     watchData();
     watchQuestBoard();   // two-way: ticking a quest in Obsidian completes it here
     watchDailyNotes();   // two-way for daily notes (`wq:<id>` tasks)
     bridge = startBridge({ dataDir: DATA, onLive: pushBrowserTab });   // browser extension ingest
-    startMachineSampler();   // live CPU/RAM/servers strip for the mini HUD
-    try { globalShortcut.register('CommandOrControl+Alt+G', openSummon); } catch (e) { console.error('summon hotkey failed:', e); }
+    startMachineSampler();   // live CPU/RAM/servers for the main window
     // v3 STUDIO — mount the main-process capture wire (owns its IPC + panel/overlay windows).
     try { screenCapture.init({ ipcMain, app, BrowserWindow, screen, desktopCapturer, globalShortcut, getProjects: studioProjects, launchClaude: studioLaunchClaude }); } catch (e) { console.error('studio init failed:', e); }   // v5 M4: K-5 send-to-Claude seams
     // The two "still free" global hotkeys the design specifies. Shift-variants
     // and Ctrl+Alt+L are registered inside screen-capture.js.
     try { globalShortcut.register('CommandOrControl+Alt+S', () => screenCapture.snipArm('region')); } catch (e) { console.error('studio snip hotkey failed:', e); }
     try { globalShortcut.register('CommandOrControl+Alt+R', () => screenCapture.recToggle()); } catch (e) { console.error('studio rec hotkey failed:', e); }
-    respawnShards();   // sticky notes + conjured widgets grow back where you left them
-    // dev/test hook: `electron . --summon="timer 5"` materializes a shard on launch
-    const sArg = process.argv.find((a) => a.startsWith('--summon='));
-    if (sArg) setTimeout(() => summonWidget(sArg.slice(9).replace(/^["']|["']$/g, '')), 1200);
-    if (process.argv.includes('--summon-open')) setTimeout(openSummon, 1200);   // dev/test hook: opens the summon palette (gates)
     // Quick-cast palette: the spellbook must be reachable faster than a terminal.
     const CAST_HOTKEY = 'CommandOrControl+Alt+X';
     try { globalShortcut.register(CAST_HOTKEY, openCastPalette); } catch (e) { console.error('cast hotkey failed:', e); }
@@ -1642,7 +1323,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => { if (process.platform === 'darwin') return; /* stay resident in tray */ });
   app.on('before-quit', () => {
     app.isQuitting = true;
-    try { persistShards(); } catch {}   // sticky shards remember their spots
     if (machineTimer) clearInterval(machineTimer);
     try { globalShortcut.unregisterAll(); } catch {}
     for (const w of [watcher, qbWatcher, dailyWatcher, canvasWatcher]) if (w) try { w.close(); } catch {}

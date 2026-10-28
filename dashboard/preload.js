@@ -186,29 +186,9 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:cast-done', handler);
     return () => ipcRenderer.removeListener('hq:cast-done', handler);
   },
-  // organic UI (shards): summon palette + shard self-service
-  shardSummon: (text) => ipcRenderer.invoke('hq:shard-summon', text),
-  shardSummonCancel: () => ipcRenderer.invoke('hq:shard-summon-cancel'),
-  shardClose: () => ipcRenderer.invoke('hq:shard-close'),
-  shardSave: (patch) => ipcRenderer.invoke('hq:shard-save', patch),
-  shardLibSpawn: (key) => ipcRenderer.invoke('hq:shard-lib-spawn', key),
-  shardLibDelete: (key) => ipcRenderer.invoke('hq:shard-lib-delete', key),
-  shardRegen: () => ipcRenderer.invoke('hq:shard-regen'),
-  onShardInit: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('shard:init', handler);
-    return () => ipcRenderer.removeListener('shard:init', handler);
-  },
-  // mini HUD bridge
-  getMiniData: () => ipcRenderer.invoke('hq:mini-data'),
+  // quick-run palette bridge
   showMain: () => ipcRenderer.invoke('hq:show-main'),
-  miniHide: () => ipcRenderer.invoke('hq:mini-hide'),
   killServers: () => ipcRenderer.invoke('hq:kill-servers'),
-  onMiniUpdate: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('hq:mini-update', handler);
-    return () => ipcRenderer.removeListener('hq:mini-update', handler);
-  },
   onMachine: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('hq:machine', handler);

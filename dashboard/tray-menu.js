@@ -2,26 +2,25 @@
 // and builds the native menu from what comes back, so the layout is testable
 // without Electron.
 //   trayTemplate(state, actions) → Electron MenuItemConstructorOptions[]
-//     state   = { scan (latest.json or null), hudVisible, spells:[{id,name,icon}],
+//     state   = { scan (latest.json or null), spells:[{id,name,icon}],
 //                 devServers (count of running dev servers, optional, default 0) }
-//     actions = { show, scan, toggleHud, quickRun, summon, openAutomations, cast(id),
+//     actions = { show, scan, quickRun, openAutomations, cast(id),
 //                 pushAll(projects), snapshotDirty(projects), killServers, openUrgent(project), quit }
 //       pushAll/snapshotDirty get the scan projects the label counted, openUrgent the
 //       project it names — main keeps its confirm dialogs, notifications and rescans.
 //   statusLine(scan) → "lv 8 · 34 uncommitted · 2 secrets" (disabled first item)
 //   scanCounts(scan) → { level, uncommitted, secrets, unpushed } — the numbers behind
-//     the status line, also sent to the mini HUD (main.js miniPayload, IPC-CONTRACT
-//     K-6) so the tray and the HUD can never disagree:
+//     the status line:
 //       uncommitted = uncommitted FILES summed over projects (git_safety.dirty)
 //       secrets     = secrets_found summed over projects (risk_security)
 //       unpushed    = PROJECTS with commits not on the remote (git_safety.unpushed)
 //       level       = account.level, or null when the scan has none
-// Design (Satellites board): status line · Show · Scan now (uses Claude) · Mini HUD ✓ ·
-// Quick-run… · Summon… · Run ▸ · ─ · Quick actions · ─ · Quit.
+// Design (Satellites board): status line · Show · Scan now (uses Claude) ·
+// Quick-run… · Run ▸ · ─ · Quick actions · ─ · Quit. (Mini HUD and Summon were cut
+// 2026-10-28 — no use in a month; restore from tag cleanup-base-2026-10-28.)
 //
 // Capability map from the pre-v5 buildTrayMenu (main.js ~247-280), nothing dropped:
-//   Show WorkspaceHQ → Show workspace-hq · Toggle mini HUD → Mini HUD (checkbox) ·
-//   Summon widget → Summon… · Cast a spell… → Quick-run… · Scan now → Scan now (uses Claude) ·
+//   Show WorkspaceHQ → Show workspace-hq · Cast a spell… → Quick-run… · Scan now → Scan now (uses Claude) ·
 //   Cast ▸ favourites + Open Spellbook → Run ▸ spells + Open Automations ·
 //   Push all unpushed / Snapshot all dirty / Kill all dev servers / Open most-urgent →
 //   the same four quick actions, plain-language labels, shown only when they apply.
@@ -72,9 +71,7 @@ function trayTemplate(state, actions) {
     { type: 'separator' },
     { label: 'Show workspace-hq', click: run('show') },
     { label: 'Scan now (uses Claude)', click: run('scan') },
-    { label: 'Mini HUD', type: 'checkbox', checked: !!st.hudVisible, click: run('toggleHud') },
     { label: 'Quick-run… (Ctrl+Alt+X)', click: run('quickRun') },
-    { label: 'Summon… (Ctrl+Alt+G)', click: run('summon') },
     { label: 'Run', submenu: runMenu },
   ];
 
