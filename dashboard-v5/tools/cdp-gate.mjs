@@ -28,8 +28,7 @@
 //   claude-chat-stream-stop · claude-chat-mode-readonly
 // H6 archive scenario (same rules; the fake Hub answers documents):
 //   search-documents
-// Social tab + every-button scenarios (2026-10-27; same rules):
-//   social-discard — Inbox Discard asks once, the second click calls socialCancel(id); "already publishing" said in words
+// Every-button scenario (2026-10-27; same rules):
 //   button-sweep — clicks every visible button on every screen from a clean one; fails on errors, "isn't wired" (bar any
 //     KNOWN_CUTS; none left) and clicks that change nothing. Long (~6 min): has its own TIMEOUT below; not part of a quick run.
 import fs from 'node:fs';
@@ -533,7 +532,7 @@ const SCENARIOS = {
       const want3 = ['user:Placeholder question one', 'assistant:Fake answer from the fake model.', 'user:Placeholder question three'];
       if (JSON.stringify(sent3) !== JSON.stringify(want3)) out.push('the model got ' + JSON.stringify(sent3) + ', want only the finished pair + the new question');
       const inc = await t.evaluate(`hqFake.calls('llm.chat').at(-1).args[0].include`);
-      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":false,"social":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
+      if (JSON.stringify(inc) !== '{"scan":true,"tasks":true,"projects":true,"health":false,"browser":false,"vault":false,"claude":false}') out.push('include sent: ' + JSON.stringify(inc) + ', want v3’s defaults');
       // 4. Retry on the stopped answer: that pair goes, the question is asked again at the end
       await t.evaluate(`${btn('Retry')}.click()`);
       if (!await t.waitFor(`${hist}.length === 3 && ${hist}[2].q === 'Placeholder question two' && ${hist}[2].a.status === 'done'`, 5000)) out.push('Retry did not re-ask the stopped question: ' + JSON.stringify(await t.evaluate(`${hist}.map((h) => h.q + '=' + h.a.status)`)));
@@ -592,7 +591,7 @@ const SCENARIOS = {
       if (st !== 'done,error,cancelled') out.push('loaded statuses ' + JSON.stringify(st) + ', want done,error,cancelled');
       if (s.h[1] && s.h[1].reason !== 'interrupted — the window reloaded') out.push('a pending answer did not load as "interrupted — the window reloaded"');
       if (s.h[2] && s.h[2].text !== 'A partial v3 answer') out.push('the stopped v3 answer lost its partial text');
-      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false,"claude":false,"social":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
+      if (JSON.stringify(s.inc) !== '{"scan":false,"tasks":true,"projects":true,"health":true,"browser":false,"vault":false,"claude":false}') out.push('sources loaded as ' + JSON.stringify(s.inc));
       // the panel shows them the way v3 does
       await t.evaluate(`WHQ.app.logic.setState({ askOpen: true })`);
       await t.sleep(150);
@@ -601,7 +600,7 @@ const SCENARIOS = {
           spans: [...a.querySelectorAll('span')].map((x) => x.textContent.trim()) }; })()`);
       if (!ui) out.push('the Ask panel did not open');
       else {
-        if (ui.chips !== 'false,true,true,true,false,false,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false,false,false');   // 8 chips since Instagram & Facebook (2026-10-27)
+        if (ui.chips !== 'false,true,true,true,false,false,false') out.push('chip aria-pressed ' + ui.chips + ', want false,true,true,true,false,false,false');   // 7 chips (the Instagram & Facebook chip went with the Social tab, 2026-10-28)
         if (!ui.spans.includes('grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s')) out.push('no v3 meta line "grounded in Scan · Tasks (trimmed) · Vault: no matching notes · 1.4s"');
         if (!ui.spans.includes('error — interrupted — the window reloaded')) out.push('no "error — interrupted — the window reloaded" meta line');
         if (!ui.spans.some((x) => x.startsWith('stopped · grounded in'))) out.push('no "stopped · …" meta line');
@@ -1076,7 +1075,7 @@ const SCENARIOS = {
         return [...a.querySelectorAll('[aria-label="Context sources"] button')].map((b) => b.textContent.trim() + '=' + b.getAttribute('aria-pressed')); })()`);
       const c0 = await chips();
       if (!c0) return ['the Ask panel did not open'];
-      if (c0.length !== 8 || c0[6] !== 'Claude history=false' || c0[7] !== 'Instagram & Facebook=false') out.push('chips ' + JSON.stringify(c0) + ', want 8: "Claude history" then "Instagram & Facebook", both off');
+      if (c0.length !== 7 || c0[6] !== 'Claude history=false') out.push('chips ' + JSON.stringify(c0) + ', want 7: "Claude history" last, off');
       await t.evaluate(`(() => { const a = document.querySelector('aside[aria-label="Ask"]'); [...a.querySelectorAll('[aria-label="Context sources"] button')][6].click(); return true; })()`);
       await t.sleep(100);
       const inc = await t.evaluate(`localStorage.getItem('hq-oracle-include')`);
@@ -1164,35 +1163,6 @@ const SCENARIOS = {
     return out.concat(t.errors());
   },
 
-  async 'social-discard'(t) {
-    const pre = await fresh(t); if (pre) return pre;
-    const out = [];
-    const POST = { outbox: { actions: [{ id: 'gate-post-1', platform: 'bluesky', op: 'post', text: 'Placeholder gate post', status: 'staged', staged_at: '2026-10-01T00:00:00Z' }] }, accounts: { accounts: [{ platform: 'bluesky', handle: 'placeholder.example' }] } };
-    const BTN = `document.querySelector('[data-so="discard"]')`;
-    const toast = (s) => `WHQ.app.logic.state.toasts.some((x) => x.text === ${JSON.stringify(s)})`;
-    try {
-      await t.evaluate(`hqFake.set('getSocial', ${JSON.stringify(POST)})`);
-      await t.evaluate(`(() => { WHQ.app.logic.go('social', 'inbox'); return true; })()`);
-      if (!await t.waitFor(`!!${BTN} && ${BTN}.textContent.trim() === 'Discard'`, 4000)) return ['no Discard button for the staged post'];
-      await t.evaluate(`${BTN}.click()`);
-      await t.sleep(150);
-      if (await t.evaluate(`hqFake.calls('socialCancel').length`) !== 0) out.push('the first click already canceled');
-      if (await t.evaluate(`${BTN}.textContent.trim()`) !== 'Discard for good?') out.push('the first click did not ask (label ' + JSON.stringify(await t.evaluate(`${BTN}.textContent.trim()`)) + ')');
-      await t.evaluate(`${BTN}.click()`);
-      if (!await t.waitFor(`hqFake.calls('socialCancel').length === 1`, 3000)) return out.concat(['the second click did not call hq.socialCancel']);
-      const args = await t.evaluate(`hqFake.calls('socialCancel')[0].args`);
-      if (JSON.stringify(args) !== '["gate-post-1"]') out.push('socialCancel got ' + JSON.stringify(args));
-      if (!await t.waitFor(toast('Discarded · it can never be sent'), 2000)) out.push('no "Discarded" toast');
-      // main refuses: a claimed post is already publishing
-      await t.evaluate(`(() => { hqFake.set('socialCancel', { error: 'already publishing', status: 'sending' }); WHQ.app.logic.setState({ toasts: [] }); return true; })()`);
-      await t.evaluate(`${BTN}.click()`); await t.sleep(100); await t.evaluate(`${BTN}.click()`);
-      if (!await t.waitFor(toast('It is already being published from the extension — too late to discard'), 2000)) out.push('no plain-words toast for "already publishing"');
-      out.push(...t.errors());
-    } finally {
-      await t.evaluate(`hqFake.reset(true)`).catch(() => {});
-    }
-    return out;
-  },
 
   // Every button, every screen (2026-10-27, owner: "test for other broken buttons"). Needs --preload=fake: each click
   // lands on the recording fake, never on the PC. For each tab × sub, a project page and the overlays, every visible,
@@ -1228,7 +1198,7 @@ const SCENARIOS = {
         const mask = (s) => { let o = s; for (const n of names) o = o.split(n).join('‹project›'); return o; };
         const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null,
           askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, whatsNewOpen: false, focus: null,
-          toasts: [], route: null, snapOffset: 0, soDiscardAsk: null, clOpen: false, ccOpen: false, pageMore: false };
+          toasts: [], route: null, snapOffset: 0, clOpen: false, ccOpen: false, pageMore: false };
         const reset = async () => {
           hqFake.reset(true);
           localStorage.clear(); for (const [k, v] of Object.entries(JSON.parse(window.__sweep.ls))) localStorage.setItem(k, v);

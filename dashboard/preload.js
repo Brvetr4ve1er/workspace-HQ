@@ -49,7 +49,6 @@ contextBridge.exposeInMainWorld('hq', {
     reindex: () => ipcRenderer.invoke('hq:claude-hub:reindex'),
     documents: (opts) => ipcRenderer.invoke('hq:claude-hub:documents', opts),
     document: (id) => ipcRenderer.invoke('hq:claude-hub:document', id),
-    socialSummary: () => ipcRenderer.invoke('hq:claude-hub:social-summary'),
     on: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:claude-hub:event', handler);
@@ -61,14 +60,6 @@ contextBridge.exposeInMainWorld('hq', {
     preview: (conversationId) => ipcRenderer.invoke('hq:claude-vault:preview', conversationId),
     save: (req) => ipcRenderer.invoke('hq:claude-vault:save', req),
   },
-  // Social tab › Vault (VEEMO CORTEX): list 30_Areas/Social + 00_Inbox/Social *.md, open a listed note, save one new note on the owner's Save
-  socialVault: {
-    list: () => ipcRenderer.invoke('hq:social-vault:list'),
-    open: (rel, how) => ipcRenderer.invoke('hq:social-vault:open', rel, how),
-    save: (req) => ipcRenderer.invoke('hq:social-vault:save', req),
-  },
-  socialOpenSite: (platform) => ipcRenderer.invoke('hq:social-open-site', platform),   // a listed platform's home page, to sign in there
-  socialCancel: (id) => ipcRenderer.invoke('hq:social-cancel', id),   // Social › Inbox Discard: staged → canceled only (never publishes)
   vaultOpen: (name, how) => ipcRenderer.invoke('hq:vault-open', name, how),   // Life › Notes: 'open' | 'search' in Obsidian, a scanned vault only
   claudeChat: {
     send: (req) => ipcRenderer.invoke('hq:claude-chat:send', req),
@@ -106,7 +97,6 @@ contextBridge.exposeInMainWorld('hq', {
   githubOpen: (u) => ipcRenderer.invoke('hq:github-open', u),   // only a github.com link listed in the current snapshot
   accountsRefresh: () => ipcRenderer.invoke('hq:accounts-refresh'),   // re-reads Vercel + Supabase through the owner's CLI logins
   accountsOpen: (u) => ipcRenderer.invoke('hq:accounts-open', u),   // only a Vercel / Supabase link listed in the current snapshot
-  getSocial: () => ipcRenderer.invoke('hq:social-read'),
 
   // MA: Claude session presence (registry in claude-sessions.js)
   getSessions: () => ipcRenderer.invoke('hq:sessions-list'),

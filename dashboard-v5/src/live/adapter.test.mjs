@@ -1,7 +1,7 @@
 // Synthetic fixtures only — the real scans are personal and the repo is public.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, gapsOf, GAPS, devPort, dayOf, fmtD, sessions, social, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
+import { toProject, toTask, toIdea, snapshot, metric, weeks, automations, exitLabel, machine, clutter, sites, gapsOf, GAPS, devPort, dayOf, fmtD, sessions, fileUrl, normPath, projectForCwd, riskFlags } from './adapter.mjs';
 import { proj, scan, spell, spellbook, telemetry } from './__fixtures__/synthetic.mjs';
 
 test('toProject maps git, risk, activity and keeps estimates as-is', () => {
@@ -105,11 +105,9 @@ test('clutter and sites degrade to empty on missing blocks', () => {
   assert.deepEqual(sites({ by_domain: [{ domain: 'a.dev', focus_ms: 120000 }, { domain: 'b.com', focus_ms: 60000 }], by_project: [{ domains: ['a.dev'] }] }), [['a.dev', 2, 'Project'], ['b.com', 1, 'Other']]);
 });
 
-test('dates: scan ids are local days; sessions and social map cleanly', () => {
+test('dates: scan ids are local days; sessions map cleanly', () => {
   assert.equal(fmtD(dayOf('2026-10-03')), 'Oct 3');
   assert.equal(sessions([{ jobId: 'j', label: 'Fix', status: 'ended', exitCode: 1, startedAt: 0, tail: 'a\nb' }])[0].status, 'failed');
-  const so = social({ accounts: { accounts: [{ platform: 'bluesky', handle: 'me' }] }, outbox: { actions: [{ id: 'o1', platform: 'bluesky', text: 'hi', status: 'staged' }, { id: 'o2', status: 'sent' }] } });
-  assert.deepEqual([so.POSTS.length, so.POSTS[0].handle, so.connected], [1, '@me', true]);
 });
 
 // ---- clean pass F7: new fields ----------------------------------------------------

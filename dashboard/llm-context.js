@@ -14,8 +14,6 @@
 // 4 KB per section, 12 KB total (~3k tokens) + persona + chat history. When
 // "Claude history" is ticked (Claude Hub H5) it is assembled last with
 // CLAUDE_RESERVE chars held back for it, so the other sections share 9 KB.
-// "Instagram & Facebook" (social) works the same way through the Hub's contextFor scope 'social' (the owner's own Meta
-// exports, ingest-meta.mjs) and is assembled after Claude history with its own reserve.
 'use strict';
 
 const fs = require('node:fs');
@@ -27,9 +25,9 @@ const SECTION_MAX = 4000;
 const TOTAL_MAX = 12000;
 const CLAUDE_RESERVE = 3000;
 const CLAUDE_TIMEOUT_MS = 4000;
-const SECTION_IDS = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude', 'social'];
-const LABEL = { scan: 'scan', tasks: 'tasks', projects: 'projects', health: 'PC health', browser: 'browser', vault: 'vault', claude: 'Claude history', social: 'Instagram & Facebook' };
-const HUB_IDS = ['claude', 'social'];   // assembled last, in this order, each with CLAUDE_RESERVE held back for it
+const SECTION_IDS = ['scan', 'tasks', 'projects', 'health', 'browser', 'vault', 'claude'];
+const LABEL = { scan: 'scan', tasks: 'tasks', projects: 'projects', health: 'PC health', browser: 'browser', vault: 'vault', claude: 'Claude history' };
+const HUB_IDS = ['claude'];   // assembled last, with CLAUDE_RESERVE held back for it
 
 const TIER = { red: 'critical', orange: 'important', yellow: 'housekeeping' };
 const ORGAN_STATUS = { grace: 'healthy', ember: 'warning', blood: 'critical' };

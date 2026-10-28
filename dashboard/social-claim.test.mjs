@@ -572,7 +572,7 @@ function mcp(root, requests) {
 }
 const toolOut = (m) => JSON.parse(m.result.content[0].text);
 
-test('MCP: hq_social_status counts sending; hq_social_outbox lists claimed_at/released_at and filters sending; hq_social_cancel refuses sending', async () => {
+test('MCP: hq_social_outbox lists claimed_at/released_at and filters sending; hq_social_cancel refuses sending', async () => {
   const root = mkdtempSync(join(tmpdir(), 'hq-mcp-claim-'));
   try {
     mkdirSync(join(root, 'mcp', 'workspacehq'), { recursive: true });
@@ -585,13 +585,11 @@ test('MCP: hq_social_status counts sending; hq_social_outbox lists claimed_at/re
     const before = readFileSync(file, 'utf8');
 
     const r = await mcp(root, [
-      { id: 1, method: 'tools/call', params: { name: 'hq_social_status' } },
       { id: 2, method: 'tools/call', params: { name: 'hq_social_outbox', arguments: { status: 'sending' } } },
       { id: 3, method: 'tools/call', params: { name: 'hq_social_outbox' } },
       { id: 4, method: 'tools/call', params: { name: 'hq_social_cancel', arguments: { id: 'act-sending-fresh' } } },
       { id: 5, method: 'tools/list' },
     ]);
-    assert.deepEqual(toolOut(r[1]).outbox, { staged: 2, sending: 3, sent: 1, failed: 1 });
     const sending = toolOut(r[2]);
     assert.deepEqual(sending.actions.map((a) => a.id), ['act-sending-fresh', 'act-sending-stale', 'act-sending-noclaim']);
     assert.equal(sending.actions[0].claimed_at, byId(d, 'act-sending-fresh').claimed_at);

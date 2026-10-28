@@ -39,9 +39,6 @@ export function createStore(DATA, hq) {
 
   const live = {
     sessions: [], sessionOut: {},
-    social: { POSTS: [], MENTIONS: [], ACCOUNTS: [], ACTIVITY: {}, connected: false, loaded: false },
-    socialArchive: { summary: null, error: null, busy: false, sel: null, list: null, listErr: null, q: '', hits: null, doc: null },   // Social › Archive: Hub socialSummary + one kind's documents + search + the open document, raw
-    socialVault: { vault: null, folder: null, exists: false, obsidian: false, notes: null, error: null, busy: false },   // Social › Vault: main's VEEMO CORTEX social-notes listing
     dev: {}, machine: null, browserNow: null,
     llm: null, casts: {},
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
@@ -91,7 +88,6 @@ export function createStore(DATA, hq) {
     get LEARN() { const P = at(0).P0; return at(0).learnings.map((l) => [l.text, (P.find((p) => p.id === l.proj) || {}).name || '', l.at ? A.fmtD(new Date(Date.parse(l.at))) : '']); },
     WEEKS: A.weeks(snaps),
     get SESSIONS() { return live.sessions; },
-    get POSTS() { return live.social.POSTS; }, get MENTIONS() { return live.social.MENTIONS; },
     projectNotes: DATA.projectNotes && typeof DATA.projectNotes === 'object' ? DATA.projectNotes : {},
     weeklyRecap: DATA.weeklyRecap || null, builtAt: DATA.built_at || null,
     get FRESH() { const s = at(0); return A.freshness(s.at, s.enrichAge); },   // how old the live scan + its estimates are (top-bar badge)
@@ -148,84 +144,6 @@ export function createStore(DATA, hq) {
     return { castId: d.castId, spellId: d.spellId, name: d.name || s.name || d.spellId, icon: d.icon || s.icon || '▶', chainId: d.chainId || null, chain: !!d.chain, out: [], status: 'running', t0: t0 || Date.now() };
   }
 
-  function refreshSocial() {
-    if (!hq || !hq.getSocial) return Promise.resolve();
-    return pull(() => hq.getSocial(), (s) => { live.social = { ...A.social(s), loaded: true }; });
-  }
-  // ---- Social tab › Archive (Hub) and › Vault (main). Every answer is checked; a stale reply (newer ask) is dropped.
-  const sa = () => live.socialArchive, sv = () => live.socialVault;
-  const socialSeq = { sum: 0, list: 0, q: 0, doc: 0, vault: 0 };
-  const hubOk = (fn) => !!(hq && hq.claudeHub && hq.claudeHub[fn]);
-  const errOf = (r) => (isObj(r) && r.error ? String(r.error) : null);
-  function refreshSocialArchive() {
-    if (!hubOk('socialSummary')) return Promise.resolve();
-    const my = ++socialSeq.sum; sa().busy = true; emit();
-    return askHq(() => hq.claudeHub.socialSummary()).then((r) => {
-      if (my !== socialSeq.sum) return;
-      sa().busy = false;
-      if (!isObj(r) || errOf(r)) sa().error = 'Claude Hub: ' + (errOf(r) || 'no answer'); else { sa().error = null; sa().summary = { kinds: arr(r.kinds), dms: arr(r.dms) }; }
-      emit();
-    });
-  }
-  function socialArchiveKind(origin, kind) {
-    if (!hubOk('documents')) return Promise.resolve();
-    const my = ++socialSeq.list;
-    sa().sel = origin && kind ? { origin: String(origin), kind: String(kind) } : null; sa().list = null; sa().listErr = null; emit();
-    if (!sa().sel) return Promise.resolve();
-    return askHq(() => hq.claudeHub.documents({ source: 'social', origin: sa().sel.origin, kind: sa().sel.kind, limit: 200 })).then((r) => {
-      if (my !== socialSeq.list) return;
-      if (errOf(r) || !Array.isArray(r)) sa().listErr = 'Claude Hub: ' + (errOf(r) || 'no answer'); else sa().list = r;
-      emit();
-    });
-  }
-  function searchSocialArchive(text) {
-    sa().q = String(text || '').trim().slice(0, 200);
-    const my = ++socialSeq.q;
-    if (!sa().q || !hubOk('documents')) { sa().hits = null; emit(); return Promise.resolve(); }
-    return askHq(() => hq.claudeHub.documents({ source: 'social', q: sa().q, limit: 50 })).then((r) => {
-      if (my !== socialSeq.q) return;
-      sa().hits = Array.isArray(r) ? r : { error: 'Claude Hub: ' + (errOf(r) || 'no answer') };
-      emit();
-    });
-  }
-  function openSocialDoc(id) {
-    if (!hubOk('document')) return Promise.resolve();
-    const my = ++socialSeq.doc; sa().doc = { id: String(id), loading: true }; emit();
-    return askHq(() => hq.claudeHub.document(String(id))).then((r) => {
-      if (my !== socialSeq.doc) return;
-      sa().doc = isObj(r) && r.id ? r : { id: String(id), error: errOf(r) ? 'Claude Hub: ' + errOf(r) : DOC_GONE };
-      emit();
-    });
-  }
-  function closeSocialDoc() { ++socialSeq.doc; sa().doc = null; emit(); }
-  function refreshSocialVault() {
-    if (!hq || !hq.socialVault || !hq.socialVault.list) return Promise.resolve();
-    const my = ++socialSeq.vault; sv().busy = true; emit();
-    return askHq(() => hq.socialVault.list()).then((r) => {
-      if (my !== socialSeq.vault) return;
-      sv().busy = false;
-      if (!isObj(r) || errOf(r) || !Array.isArray(r.notes)) sv().error = errOf(r) || 'no answer from the app';
-      else Object.assign(sv(), { error: null, vault: r.vault || null, folder: r.folder || null, exists: !!r.exists, obsidian: !!r.obsidian, notes: r.notes });
-      emit();
-    });
-  }
-  function openSocialNote(rel, how) {
-    if (!hq || !hq.socialVault || !hq.socialVault.open) return Promise.resolve({ error: 'Opening a vault note needs the WorkspaceHQ app' });
-    return askHq(() => hq.socialVault.open(rel, how)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
-  }
-  function saveSocialNote(req) {
-    if (!hq || !hq.socialVault || !hq.socialVault.save) return Promise.resolve({ error: 'Saving to the vault needs the WorkspaceHQ app' });
-    return askHq(() => hq.socialVault.save(req)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
-  }
-  // Inbox Discard: main cancels the staged post, then the bridge snapshot is read again (the post leaves the list)
-  function discardSocialPost(id) {
-    if (!hq || !hq.socialCancel) return Promise.resolve({ error: 'Discarding needs the WorkspaceHQ app' });
-    return askHq(() => hq.socialCancel(String(id))).then((r) => { refreshSocial(); return isObj(r) ? r : { error: 'no answer' }; });
-  }
-  function openSocialSite(platform) {
-    if (!hq || !hq.socialOpenSite) return Promise.resolve({ error: 'Opening a site needs the WorkspaceHQ app' });
-    return askHq(() => hq.socialOpenSite(platform)).then((r) => (isObj(r) ? r : { error: 'no answer' }));
-  }
   function refreshLlm(force) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
     return pull(() => hq.probeLlm({ force: !!force }), (r) => { live.llm = r || null; });
@@ -307,14 +225,12 @@ export function createStore(DATA, hq) {
         if (e.data.done >= e.data.total) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
       } else if (e.event === 'health' && isObj(e.data)) live.claudeHub = e.data;
       // a Hub that came up after the first health() answered "starting" (a reader never backfills, so no progress follows)
-      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; retryLibLoad(); if (sa().error || (sa().busy === false && !sa().summary)) refreshSocialArchive(); });
+      else if (e.event === 'ready' && hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; retryLibLoad(); });
       // the Hub indexed something new (a live append, a sweep): the card's counts are from the last answer, so ask again
       else if (e.event === 'changed') {
         if (hq.claudeHub.health) pull(() => hq.claudeHub.health(), (h) => { live.claudeHub = isObj(h) ? h : live.claudeHub; });
         if (lib().convs) syncClaudeLib();
         if (lib().stats) refreshClaudeStats();
-        // Social › Archive: an import (or a forget) changed social documents or Instagram / Facebook chats → fresh counts
-        if (sa().summary && ((Array.isArray(e.data && e.data.documents) && e.data.documents.some((d) => String(d).startsWith('social:'))) || (Array.isArray(e.data && e.data.ids) && e.data.ids.some((d) => /^(instagram|facebook):/.test(String(d)))))) { refreshSocialArchive(); if (sa().sel) socialArchiveKind(sa().sel.origin, sa().sel.kind); }
         for (const k of new Set([...Object.keys(lib().byHq), ...Object.keys(lib().pageErr)])) refreshClaudeForProject(k);
         const docIds = Array.isArray(e.data && e.data.documents) ? e.data.documents : [];
         if (docIds.length && lib().q && /[\p{L}\p{N}]/u.test(lib().q)) searchClaude(lib().q);
@@ -325,7 +241,7 @@ export function createStore(DATA, hq) {
       retryLibLoad();
       emit();
     }));
-    reads.push(refreshSocial(), refreshLlm(false));
+    reads.push(refreshLlm(false));
     return Promise.all(reads).then(() => {});
   }
   const lib = () => live.claudeLib;
@@ -463,9 +379,8 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshSocial, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
-    refreshSocialArchive, socialArchiveKind, searchSocialArchive, openSocialDoc, closeSocialDoc, refreshSocialVault, openSocialNote, saveSocialNote, openSocialSite, discardSocialPost,
   };
 }

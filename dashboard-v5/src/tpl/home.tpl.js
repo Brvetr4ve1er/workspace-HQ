@@ -119,9 +119,6 @@ export default String.raw`        <sc-if value="{{ v.home }}" hint-placeholder-v
                   <svg viewBox="0 0 280 56" preserveAspectRatio="none" style="width:100%;height:56px;display:block;margin-top:12px;overflow:visible"><polyline points="{{ home.mom.pts }}" style="fill:none;stroke:var(--gold);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:bevel"></polyline></svg>
                   <div style="font-size:12px;color:var(--faint);margin-top:6px">{{ home.mom.range }}</div>
                 </section>
-                <button onClick="{{ goSocial }}" style="text-align:left;display:flex;gap:10px;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--frame);border-radius:12px;color:var(--text);font-family:var(--term);font-size:13px;cursor:pointer" style-hover="border-color:var(--frame-hi)">
-                  <x-import component-from-global-scope="hq-icon" name="bell" size="16" hint-size="16px,16px"></x-import><span style="flex:1">{{ home.social }}</span><span style="color:var(--faint)">▸</span>
-                </button>
                 <sc-if value="{{ home.hasSuggest }}"><section style="background:var(--card);border:1px solid var(--frame);border-radius:12px;padding:14px 16px">
                   <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">Worth a re-run</div>
                   <div style="display:flex;gap:10px;align-items:center;margin-top:10px"><span style="font-size:18px">{{ home.suggest.icon }}</span><div style="flex:1;min-width:0"><div style="font-size:15px">{{ home.suggest.name }}</div><div style="font-size:12px;color:var(--red)">Failed {{ home.suggest.last.ago }} · {{ home.suggest.last.err }}</div></div></div>

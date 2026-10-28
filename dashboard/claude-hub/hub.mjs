@@ -363,7 +363,6 @@ function main() {
       lastErrorAt: metaOrNull('last_error_at') }),   // H1's fields + lastErrorAt (the H4/H6 import fields went with the importers, 2026-10-28)
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
-    socialSummary: () => { if (!store) throw new Error('the index is not open yet'); return store.socialSummary(); },
     getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
     stats: (a) => (store ? store.stats(a) : { from: a.from, to: a.to, tzOffsetMin: 0, days: [], projects: [],
       totals: { chats: 0, active_ms: 0, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } }),

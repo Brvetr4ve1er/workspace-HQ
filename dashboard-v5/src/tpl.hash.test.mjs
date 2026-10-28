@@ -49,9 +49,10 @@ import tpl from './app.tpl.js';
 // 2026-10-28 feature cleanup — Studio cut: the studio and lightbox fragments removed whole (snip / recorder / capture library had 1 recording and 0 snips ever) (-10096 chars / -10110 bytes)
 // 2026-10-28 feature cleanup — importers + prompt library cut: claude (the claude.ai / ChatGPT / Instagram-Facebook import strip and the whole Prompts sub), ov-settings (claude.ai export row), system (drop-folder + last-import lines), social (both import buttons), project-page (Run a prompt), extras (Promote, Run, Pack dialogs and the drop card) (-30554 chars / -30631 bytes)
 // 2026-10-28 feature cleanup — Canvas + stat card cut: claude (the whole Canvas sub: ＋ Note, ＋ Board, board list + Clear, cards with Pin / Remove), home (Pinned from canvas), ov-settings (Export › Save stat card PNG), ov-misc (level-up Save card) (-13441 chars / -13467 bytes)
-const SHA256 = '138902919c59332815a4180c90e08c291d83cacb585811d45c1ee2e19b940277';
-const LENGTH = 263927;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 264382;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-28 feature cleanup — Social tab cut (the outbox approval gate stays in the extension popup): the social fragment removed whole (Accounts / Inbox / Archive / Vault), home (the posts-awaiting-approval row) (-23142 chars / -23177 bytes)
+const SHA256 = '6144c9f0b529db862868fcc899cfa184540f9766bf17d2457ada43b5a81c3cc9';
+const LENGTH = 240785;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 241205;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

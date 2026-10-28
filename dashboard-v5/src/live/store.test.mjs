@@ -229,19 +229,18 @@ test('sessions map an absolute cwd onto a relative project path (newer scans)', 
   st.stop();
 });
 
-// Regression (review): refreshSocial/refreshLlm called the bridge outside pull(), so a
+// Regression (review): refreshLlm called the bridge outside pull(), so a
 // read that threw synchronously escaped start() and skipped every subscription after it.
 test('a bridge read that throws synchronously is a failed read, not a failed start()', async () => {
   const boom = () => { throw new Error('sync boom'); };
-  const { hq, cbs } = fakeHq({ getSocial: boom, probeLlm: boom });
+  const { hq, cbs } = fakeHq({ probeLlm: boom });
   const st = createStore(DATA(), hq);
   const warn = console.warn; console.warn = () => {};
   try {
     await st.start();
     assert.equal((cbs.uiPrefs || []).length, 1, 'subscriptions still made');
-    await st.refreshSocial(); await st.refreshLlm(true);
+    await st.refreshLlm(true);
   } finally { console.warn = warn; }
-  assert.equal(st.live.social.loaded, false);
   assert.equal(st.live.llm, null);
   st.stop();
 });

@@ -32,7 +32,6 @@ import { libraryLogic } from './logic/library.js';
 import { projectLogic } from './logic/project.js';
 import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
-import { socialLogic } from './logic/social.js';
 import { lifeLogic } from './logic/life.js';
 import { statCardLogic } from './logic/stat-card.js';
 import { renderVals } from './vals/index.js';
@@ -119,7 +118,7 @@ export class Component extends DCLogic {
     // live data → re-render; finished runs → one toast each; main's shared UI prefs → state
     this._offStore = this.store.on(() => { this.announceRuns(); this.followUiPrefs(); this.forceUpdate(); });
     this.store.start();
-    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); if (S.tab === 'social' && !S.route) this.socialLoad(); }   // a cold start on Chats/Projects loads too
+    { const S = this.state; if (S.tab === 'claude' && !S.route && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad(); }   // a cold start on Chats/Projects loads too
     this.followUiPrefs();
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
@@ -155,7 +154,6 @@ export class Component extends DCLogic {
       this.mainRef.current.scrollTop = 0;
       if (!S.reduceMotion) this.mainRef.current.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.22,1,.36,1)' });
     }
-    if (moved && S.tab === 'social' && !S.route) this.socialLoad();   // Social tab: the bridge snapshot + the open sub's data
     if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
     if (moved && S.route && S.route.id) this.store.refreshClaudeForProject && this.store.refreshClaudeForProject(S.route.id);
     if (moved && S.tab === 'history' && !S.route) this.store.refreshClaudeStats && this.store.refreshClaudeStats(30);
@@ -338,7 +336,6 @@ export class Component extends DCLogic {
   // (dashboard/nav-bridge.js); a tab or sub-tab this build doesn't have is ignored.
   navigateTo(r) {
     if (!r || typeof r !== 'object') return;
-    if (r.tab === 'life' && r.sub === 'social') r = { ...r, tab: 'social', sub: 'inbox' };   // Life › Social moved to its own tab (2026-10-27)
     const M = this.M, tab = typeof r.tab === 'string' ? r.tab : '';
     if (!M.NAV.some((n) => n.id === tab)) return;
     const sub = (M.SUBS[tab] || []).some((s) => s[0] === r.sub) ? r.sub : undefined;
@@ -387,5 +384,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, socialLogic, lifeLogic, statCardLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic);
 Component.prototype.renderVals = renderVals;

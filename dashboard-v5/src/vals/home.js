@@ -25,7 +25,6 @@ export function homeVals(ctx) {
     changes, hasChanges: changes.length > 0, noChanges: changes.length === 0, prevLabel: H.fmtD(H.dayAt(off + 1)),
     mom: { value: momVals[momVals.length - 1], delta: (md > 0 ? '▲ +' : md < 0 ? '▼ ' : '± ') + md, deltaColor: S.momentum === 'xp' ? (md > 0 ? 'var(--green)' : 'var(--faint)') : (md < 0 ? 'var(--green)' : md > 0 ? 'var(--orange)' : 'var(--faint)'), label: S.momentum === 'xp' ? 'Total XP · measured from completed work' : 'Uncommitted files · measured', pts: this.sparkPts(momVals, 280, 56), range: H.fmtD(H.dayAt(momSpan[0])) + ' → ' + viewedLabel + ' · based on ' + momVals.length + ' scans' },
     momTabs: [['unc', 'Uncommitted'], ['xp', 'XP']].map(([id, l]) => ({ label: l, on: S.momentum === id ? 'true' : 'false', go: () => this.setState({ momentum: id }), style: { height: 28, padding: '0 8px', fontFamily: 'var(--term)', fontSize: 12, cursor: 'pointer', background: S.momentum === id ? 'var(--ink)' : 'transparent', color: S.momentum === id ? 'var(--text)' : 'var(--muted)', border: '1px solid ' + (S.momentum === id ? 'var(--frame)' : 'transparent') } })),
-    social: LIVE.social.connected ? H.POSTS.length + ' post' + (H.POSTS.length === 1 ? '' : 's') + ' awaiting approval · ' + H.MENTIONS.length + ' recent mentions' : 'Social · connect accounts through the browser extension',
     showRecap: live && !!recap && !S.recapDismissed, recapOpen: S.recapOpen,
     recapRange: recap ? H.fmtD(new Date(recap.week_start + 'T12:00')) + ' – ' + H.fmtD(new Date(recap.week_end + 'T12:00')) : '', recapStats, recapAi: !!(recap && recap.ai_narrative),
     recapText: recap ? String(recap.narrative_md || '').replace(/^#+[^\n]*\n?/gm, '').replace(/[*_`>]/g, '').trim() : '',
@@ -34,7 +33,7 @@ export function homeVals(ctx) {
   return {
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // home
-    home, goTasksIdeas: () => this.go('tasks', 'ideas'), goProjects: () => this.go('projects', 'grid'), goSocial: () => this.go('social', 'inbox'),
+    home, goTasksIdeas: () => this.go('tasks', 'ideas'), goProjects: () => this.go('projects', 'grid'),
     runSuggest: () => home.hasSuggest && this.askRun(suggest), toggleRecap: () => this.setState({ recapOpen: !S.recapOpen }), dismissRecap: () => this.setState({ recapDismissed: true }),
   };
 }

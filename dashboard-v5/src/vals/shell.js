@@ -8,7 +8,7 @@ export function shellVals(ctx) {
   const { S, H, LIVE, off, live, ps, cantWrite, writeReason, snap, viewedLabel, projects, open, unc, unp, sec, level, L, ambientDocked, v, ok, onPage, sub, subs, tabStyle, TR, rows, top, tierCount, TK } = ctx;
   const subTabs = subs.map(([id, label]) => ({ label, go: () => this.setSub(id), style: tabStyle(sub === id), sel: sub === id }));
   const runningSessions = LIVE.sessions.filter((x) => x.status === 'running').length;
-  const navBadge = { tasks: open.length ? [open.length, 'var(--red)'] : null, claude: runningSessions ? [runningSessions, 'var(--gold)'] : null, social: H.POSTS.length ? [H.POSTS.length, 'var(--red)'] : null };
+  const navBadge = { tasks: open.length ? [open.length, 'var(--red)'] : null, claude: runningSessions ? [runningSessions, 'var(--gold)'] : null };
   const GRP = { home: 'work', automations: 'automate', history: 'insight', life: 'life' };
   // current: null (not undefined) on the other tabs: an attribute bound to undefined counts as a
   // never-resolved hole (dc/runtime.js compileAttr); null just removes aria-current
@@ -45,7 +45,6 @@ export function shellVals(ctx) {
     history: 'trends, timeline and milestones · ' + H.N + ' snapshots',
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
     life: 'screen time and notes',
-    social: (LIVE.social && Array.isArray(LIVE.social.ACCOUNTS) ? LIVE.social.ACCOUNTS.length : 0) + ' of ' + H.PLATFORMS.length + ' accounts connected · Instagram & Facebook archive · vault: ' + ((LIVE.socialVault && LIVE.socialVault.vault) || 'VEEMO CORTEX'),
   }[S.tab] || '';
   // ----- toasts -----
   const toasts = S.toasts.map((t) => ({ text: t.text, color: TK[t.kind], ref: this.toastRef(t.id), hasUndo: !!t.undo && !!this._pending['done:' + t.undo], undo: () => this.undoTask(t.undo), hasCancel: !!t.runSpell, cancel: () => this.cancelRun(t.runSpell), close: () => this.dismissToast(t.id), isProgress: t.kind === 'progress' }));

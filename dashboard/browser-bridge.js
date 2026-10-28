@@ -203,18 +203,10 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
   server.listen(port, HOST, () => console.log(`[bridge] listening on http://${HOST}:${port}${token ? ' (token required)' : ''}`));
 
   const browserFile = path.join(dataDir, TENDRILS.find((t) => t.name === 'browser').sidecarPath);
-  const socialDir = path.join(dataDir, 'social');
   return {
     port,
     stop: () => { try { server.close(); } catch { /* already down */ } },
     readActivity: () => readJsonOr(browserFile, null),
-    // Snapshot of the social sidecars for the renderer's SOCIAL realm (read-only;
-    // the extension is the writer). Any missing file → null, realm shows a nudge.
-    readSocial: () => ({
-      inbox: readJsonOr(path.join(socialDir, 'inbox.json'), null),
-      outbox: readJsonOr(path.join(socialDir, 'outbox.json'), null),
-      accounts: readJsonOr(path.join(socialDir, 'accounts.json'), null),
-    }),
   };
 }
 

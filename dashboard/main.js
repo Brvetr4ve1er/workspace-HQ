@@ -58,7 +58,6 @@ ipcMain.handle('hq:browser-live', () => (bridge ? bridge.readActivity()?.live ||
 
 // SOCIAL BINDING: the renderer's SOCIAL realm reads the scraped sidecars (feed/
 // mentions/metrics/outbox/accounts) on demand. Read-only — the extension writes.
-ipcMain.handle('hq:social-read', () => (bridge ? bridge.readSocial() : null));
 
 // Project paths in the data are already absolute (e.g. C:\Users\...\alliance travel);
 // only fall back to joining DOCS_ROOT for legacy relative paths. Reject anything that
@@ -1232,7 +1231,6 @@ if (!app.requestSingleInstanceLock()) {
     claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog, vaultDir: VAULT });   // Claude Hub (spec 2026-10-13): index of every Claude Code session
   require('./claude-vault').init({ ipcMain, hub: claudeHub, dataDir: DATA, vaultDir: VAULT });   // Claude Hub H5: Save to vault (writes only on the owner's Save)
     const claudeChatEngine = require('./claude-chat').init({ ipcMain, send: castSend, app, hub: claudeHub, getProjects: studioProjects, appLog });   // Claude Hub H3 in-app chat (spec 2026-10-13 §8)
-    require('./social-tab').init({ ipcMain, app, shell, vaultDir: VAULT, dataDir: DATA, log: (s) => console.log(s) });   // Social tab: VEEMO CORTEX social notes (hq:social-vault:list/open/save; writes only on the owner's Save) + hq:social-open-site (fixed platform URLs) + hq:social-cancel (Inbox Discard)
     require('./vault-open').init({ ipcMain, app, shell, dataDir: DATA, docsRoot: DOCS_ROOT, log: (s) => console.log(s) });   // Life › Notes: Open in Obsidian / Search for a scanned, Obsidian-registered vault (hq:vault-open)
     require('./pc-health-open').init({ ipcMain, shell, dataDir: DATA });   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });

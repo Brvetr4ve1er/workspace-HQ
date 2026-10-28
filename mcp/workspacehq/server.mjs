@@ -66,7 +66,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 const SOCIAL_PLATFORMS = ['bluesky', 'mastodon', 'reddit', 'x', 'instagram', 'threads', 'facebook', 'linkedin', 'youtube'];
 const SOCIAL_TEXT_MAX = 3000;   // generous staging cap; per-platform limits enforced by the adapter at send
 
-const socialInbox = () => readJson(confined('social', 'inbox.json'), { updated: null, live: null, events: [] });
 const socialOutbox = () => {
   const d = readJson(confined('social', 'outbox.json'), { updated: null, actions: [] });
   if (!d || typeof d !== 'object' || !Array.isArray(d.actions)) return { updated: null, actions: [] };
@@ -212,92 +211,7 @@ const TOOLS = [
       return { started: true, pid: child.pid ?? null, note: 'collector detached; assemble runs on next app scan/relaunch' };
     },
   },
-  // ---- SOCIAL BINDING (read + confirm-gated staging) --------------------------
-  {
-    name: 'hq_social_status',
-    description: 'Social bridge overview: connected accounts (platform + handle), how fresh the scraped data is, event counts by platform, and a pending-outbox summary. Read-only. Empty/stale means the WorkspaceHQ Bridge extension is not running or no social adapter is active.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    run() {
-      const inbox = socialInbox();
-      const accts = readJson(confined('social', 'accounts.json'), { updated: null, accounts: [] });
-      const ob = socialOutbox();
-      const byPlatform = {};
-      for (const e of inbox.events || []) { const p = e.platform || '?'; byPlatform[p] = (byPlatform[p] || 0) + 1; }
-      const pending = ob.actions.filter((a) => a.status === 'staged').length;
-      return {
-        updated: inbox.updated,
-        accounts: (accts.accounts || []).map((a) => ({ platform: a.platform, handle: a.handle })),
-        events_total: (inbox.events || []).length,
-        events_by_platform: byPlatform,
-        // sending: claimed by an approved send, publish in flight (CONTRACT.md 2026-10-07 claim amendment)
-        outbox: { staged: pending, sending: ob.actions.filter((a) => a.status === 'sending').length, sent: ob.actions.filter((a) => a.status === 'sent').length, failed: ob.actions.filter((a) => a.status === 'failed').length },
-      };
-    },
-  },
-  {
-    name: 'hq_social_feed',
-    description: 'Recent timeline/feed posts the bridge scraped from your logged-in social sessions. Read-only. Optional platform filter and limit (default 30, max 200).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        platform: { type: 'string', description: `filter to one platform: ${SOCIAL_PLATFORMS.join(', ')}` },
-        limit: { type: 'number', description: 'max items (default 30, max 200)' },
-      },
-      additionalProperties: false,
-    },
-    run(args) {
-      const plat = args.platform ? normPlatform(args.platform) : null;
-      const lim = Math.min(200, Math.max(1, Math.round(Number(args.limit) || 30)));
-      const items = (socialInbox().events || [])
-        .filter((e) => e.kind === 'feed' && (!plat || e.platform === plat))
-        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
-        .slice(0, lim);
-      return { count: items.length, items };
-    },
-  },
-  {
-    name: 'hq_social_mentions',
-    description: 'Mentions, replies and notifications directed at you, scraped from your logged-in sessions. Read-only. Optional platform filter and limit (default 30, max 200).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        platform: { type: 'string', description: `filter to one platform: ${SOCIAL_PLATFORMS.join(', ')}` },
-        limit: { type: 'number', description: 'max items (default 30, max 200)' },
-      },
-      additionalProperties: false,
-    },
-    run(args) {
-      const plat = args.platform ? normPlatform(args.platform) : null;
-      const lim = Math.min(200, Math.max(1, Math.round(Number(args.limit) || 30)));
-      const items = (socialInbox().events || [])
-        .filter((e) => (e.kind === 'mention' || e.kind === 'notification') && (!plat || e.platform === plat))
-        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
-        .slice(0, lim);
-      return { count: items.length, items };
-    },
-  },
-  {
-    name: 'hq_social_metrics',
-    description: 'Latest follower/engagement metrics per platform, from the most recent metrics snapshot the bridge captured. Read-only. Optional platform filter.',
-    inputSchema: {
-      type: 'object',
-      properties: { platform: { type: 'string', description: `filter to one platform: ${SOCIAL_PLATFORMS.join(', ')}` } },
-      additionalProperties: false,
-    },
-    run(args) {
-      const plat = args.platform ? normPlatform(args.platform) : null;
-      const latestByPlatform = {};
-      for (const e of socialInbox().events || []) {
-        if (e.kind !== 'metrics') continue;
-        if (plat && e.platform !== plat) continue;
-        const cur = latestByPlatform[e.platform];
-        if (!cur || (e.ts || 0) > (cur.ts || 0)) latestByPlatform[e.platform] = e;
-      }
-      return {
-        metrics: Object.values(latestByPlatform).map((e) => ({ platform: e.platform, ts: e.ts, ...(e.metrics || {}) })),
-      };
-    },
-  },
+  // ---- SOCIAL BINDING (confirm-gated staging; the read tools went with the Social tab, 2026-10-28) ----
   {
     name: 'hq_social_post',
     description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it. Reddit top-level posts require target (subreddit, without r/) + title.',

@@ -27,7 +27,6 @@ export const NAV = [
   { id: 'history', label: 'History', glyph: '◷' },
   { id: 'system', label: 'System', glyph: '▣' },
   { id: 'life', label: 'Life', glyph: '♥' },
-  { id: 'social', label: 'Social', glyph: '@' },
 ];
 export const SUBS = {
   projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase']],
@@ -37,17 +36,7 @@ export const SUBS = {
   history: [['trends', 'Trends'], ['timeline', 'Timeline'], ['milestones', 'Milestones']],
   system: [['machine', 'Machine'], ['clutter', 'Workspace clutter']],
   life: [['screen', 'Screen time'], ['notes', 'Notes']],
-  social: [['accounts', 'Accounts'], ['inbox', 'Inbox'], ['archive', 'Archive'], ['vault', 'Vault']],
 };
-// the platforms the browser extension reads (browser-bridge/social.js SOCIAL_ADAPTERS), in display order;
-// site = the home page main may open (dashboard/social-tab.js SITES; Mastodon has no fixed server)
-export const PLATFORMS = [
-  { id: 'instagram', label: 'Instagram', site: 'instagram.com' }, { id: 'facebook', label: 'Facebook', site: 'facebook.com' },
-  { id: 'x', label: 'X', site: 'x.com' }, { id: 'threads', label: 'Threads', site: 'threads.net' },
-  { id: 'linkedin', label: 'LinkedIn', site: 'linkedin.com' }, { id: 'youtube', label: 'YouTube', site: 'youtube.com' },
-  { id: 'reddit', label: 'Reddit', site: 'reddit.com' }, { id: 'bluesky', label: 'Bluesky', site: 'bsky.app' },
-  { id: 'mastodon', label: 'Mastodon', site: null },
-];
 export const ST = {
   risk: { label: 'At risk', color: 'var(--red)', tone: 'red', rank: 0 },
   care: { label: 'Needs care', color: 'var(--orange)', tone: 'orange', rank: 1 },

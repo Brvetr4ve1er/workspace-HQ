@@ -20,7 +20,7 @@ Protocol: newline-delimited JSON-RPC 2.0 on stdin/stdout, MCP protocol version
 | `hq_capture` | `{text}` (≤4000) | Appends `{id, ts, text}` to `data/brain-dump.json` — same store as the Ctrl+Alt+Space box | surfaces as a side-quest on next assemble |
 | `hq_scan_trigger` | — | Spawns `collector/collector.mjs` detached and returns `{started:true}` immediately | raw metrics only; assemble + enrichment on next app scan/relaunch |
 
-The social tools (`hq_social_status/_feed/_mentions/_metrics/_post/_reply/_outbox/_cancel`)
+The social tools (`hq_social_post/_reply/_outbox/_cancel`; the read tools `_status/_feed/_mentions/_metrics` were removed 2026-10-28)
 and their outbox shape are specified in `docs/sync/CONTRACT.md` ("Social bridge sidecars").
 `hq_social_outbox` returns `canceled_at` (or `null`) and `sent_after_cancel` (boolean) on
 every action. `sent_after_cancel: true` means a canceled post went live anyway.
