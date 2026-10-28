@@ -592,3 +592,14 @@ the way a removed card's do.
 5. Planned M3+ additions (session registry, canvas, MCP-triggered scans) enter
    this table as a `Pending` section before implementation, mirroring
    CONTRACT.md's *Pending changes* convention.
+
+## 2026-10-28 — Feature cleanup (channels REMOVED; owner: "do the cleanup")
+
+The one deliberate break of the additive-only rule. These features had no recorded use in a month
+(local audit, docs/audits/, not committed). The rows above stay as history. Restore any cut with
+`git checkout cleanup-base-2026-10-28 -- <paths>` (tag pushed). The v2–v4 legacy renderers never used these channels.
+
+| Cut | Channels / methods removed |
+|---|---|
+| Mini HUD | `getMiniData` `hq:mini-data`, `miniHide` `hq:mini-hide`, push `onMiniUpdate` `hq:mini-update`. `showMain` `hq:show-main` and `killServers` `hq:kill-servers` STAY (quick-run uses them). Tray loses the Mini HUD checkbox. |
+| Summon + desktop shards | `shardSummon` `hq:shard-summon`, `shardSummonCancel`, `shardClose`, `shardSave`, `shardLibSpawn`, `shardLibDelete`, `shardRegen` (`hq:shard-*`), push `onShardInit` `shard:init`; hotkey Ctrl+Alt+G released; the `--summon=` / `--summon-open` dev flags are gone. Tray loses Summon…. data/shards.json, data/shard-library.json and data/.hud-state.json are left on disk, unread. |
