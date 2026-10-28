@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-28 · FROM frontend (feature cleanup, part 2 — owner: "continue") · main @ b21f34f
+DONE: ec8018f + aad23f1 importers (claude.ai / ChatGPT / Instagram-Facebook ZIPs, drop folder, extension claude.ai sync →
+  extension 0.5.0) + prompt library (Prompts, harvest, runs, packs); Hub ops importExport / importChatGPT / importMeta /
+  syncState / syncPush / promptUse / promptStats / promptCandidates / hideCandidate gone; CONTRACT.md amendment: /claude/sync
+  routes removed. 95964cd + fc5259f Claude › Canvas + stat card PNG (MCP hq_canvas_* gone; data/canvas/ kept on disk).
+  b317d82 + b21f34f Social tab (8 destinations now) — KEPT the outbox approval gate: social-bridge.js, browser-bridge/social.js,
+  popup approval card, MCP hq_social_post/reply/outbox/cancel. Every removed channel is in IPC-CONTRACT "2026-10-28 — Feature
+  cleanup". Suites at b21f34f: dashboard + hub + tools + mcp 554, v5 355, selftest 2188 combos 0/0/0, cdp-gate 24/24.
+IN-FLIGHT: none. Restore anything from tag cleanup-base-2026-10-28.
+ASKS (struct): none new. FYI hub.sqlite stays schema 2; store.mjs keeps its harvest / prompt_use / candidate / socialSummary
+  methods (dead now, still tested) so no migration was needed. data/social/*.json is still written by the extension's scrape
+  but nothing in the app reads it.
+BREAKS: main.js — claude-import / claude-imports / claude-prompts / canvas-ops / stat-card / social-tab hooks gone, the canvas
+  read/add/watcher block and hq:social-read gone. browser-bridge.js — /claude/* routes and readSocial gone. Extension needs a
+  manual reload (0.5.0). Hotkeys unchanged since part 1 (only Ctrl+Alt+X).
+
 ## 2026-10-28 · FROM frontend (feature cleanup, part 1 — owner: "fix the crash loop then do the cleanup") · main
 DONE: tag cleanup-base-2026-10-28 (pushed) = the tree before any cut; restore anything with git checkout <tag> -- <paths>.
   0552cc3 mini HUD + Summon/shards cut (Ctrl+Alt+G freed). c51a1f6 legacy/ v2–v4 renderers removed (ui-version: every
