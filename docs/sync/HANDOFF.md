@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-10-29 · FROM frontend (claude.ai live sync back — owner: "i want workspace hq to read claude live") · main @ 8651160
+DONE: f9e2451 restores the extension's claude.ai live sync (0.6.0) + bridge GET /claude/sync-state, POST /claude/sync + Hub ops
+  syncState / syncPush, WITHOUT the ZIP export import (importExportFile / unzip / streamJsonArray stay gone). 8651160 docs:
+  CONTRACT.md 2026-10-29 amendment (routes back, shape unchanged), IPC-CONTRACT note, CLAUDE.md, README. Suites 584/584;
+  app restarted, /claude/sync-state 200 with the bridge header, 403 without; 0 claude.ai chats indexed so far.
+IN-FLIGHT: none. Owner action: reload the extension (0.6.0) at chrome://extensions, then popup › Sync claude.ai with a
+  logged-in claude.ai tab open (20 chats per 5 min until caught up).
+ASKS (struct): none.
+BREAKS: main.js +1 line (claude-bridge-routes.setHub). browser-bridge.js /claude/* route back. hub.sqlite still schema 2.
+
 ## 2026-10-28 · FROM frontend (feature cleanup, part 2 — owner: "continue") · main @ b21f34f
 DONE: ec8018f + aad23f1 importers (claude.ai / ChatGPT / Instagram-Facebook ZIPs, drop folder, extension claude.ai sync →
   extension 0.5.0) + prompt library (Prompts, harvest, runs, packs); Hub ops importExport / importChatGPT / importMeta /
