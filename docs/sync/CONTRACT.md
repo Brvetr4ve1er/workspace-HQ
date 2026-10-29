@@ -232,11 +232,12 @@ successful prompt run (`chat` | `terminal` | `claude.ai` | `chatgpt`), by the Hu
 written by the Hide button through the Hub op `hideCandidate`): that text is never offered as a prompt candidate again.
 No schema or index-version change (`SCHEMA_VERSION` stays 2).
 
-#### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`) — REMOVED 2026-10-28
+#### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`) — RESTORED 2026-10-29
 
-> **2026-10-28 amendment (feature cleanup):** both routes below are gone with the claude.ai importers; the bridge answers
-> them like any unknown route. Extension 0.5.0 no longer calls them (and clears a 0.4.0 `claude-sync` alarm). Rows already
-> written (`web:<uuid>`, `web_sync`) stay in the Hub. Restore from tag `cleanup-base-2026-10-28`.
+> **2026-10-28 amendment (feature cleanup):** both routes below were removed with the claude.ai importers (extension 0.5.0).
+> **2026-10-29 amendment (owner: "i want workspace hq to read claude live"):** both routes are back, unchanged in shape
+> (additive again against 0.5.0); the ZIP export import is NOT (the Hub's `importExport` op stays removed). Client:
+> extension 0.6.0. Rows written before and after keep the same ids and de-dup table.
 
 Same server as `/ingest/*` and `/social/*` (`127.0.0.1:47821`), same auth: header `X-HQ-Bridge: 1` plus
 `X-HQ-Token` when `data/.bridge-token` exists (403 otherwise). Only client: the WorkspaceHQ Bridge extension ≥ 0.4.0.

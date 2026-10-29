@@ -104,7 +104,9 @@ node dashboard-v5/tools/cdp-gate.mjs --port <port> --scenario claude-chat-stream
 
 The Hub also indexes your Claude memory notes, CLAUDE.md files, `~/.claude/history.jsonl` and the prompt notes in `VEEMO CORTEX/40_Resources/Prompts` — all on this PC, masked, read-only on every source. Search shows matching notes with a source badge.
 
-The data-export importers (claude.ai, ChatGPT, Instagram / Facebook, the drop folder, the extension's claude.ai sync) and the prompt library (Prompts, Candidates, runs, packs) were removed on 2026-10-28; restore them from the git tag `cleanup-base-2026-10-28`.
+Your claude.ai chats arrive live through the browser extension (0.6.0): press **Sync claude.ai** in its popup, keep a logged-in claude.ai tab open, and new or changed chats land in Claude › Chats every 5 minutes (read-only, details in [browser-bridge/README.md](browser-bridge/README.md)).
+
+The data-export importers (claude.ai, ChatGPT, Instagram / Facebook ZIPs, the drop folder) and the prompt library (Prompts, Candidates, runs, packs) were removed on 2026-10-28; restore them from the git tag `cleanup-base-2026-10-28`.
 
 Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test).
 
