@@ -13,6 +13,8 @@ import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
 import { contextFor } from './context.mjs';
+import { ingestWebConversation, ingestWebProject } from './ingest-web.mjs';
+import { parseWebConversation, parseWebProject, newReport, noteUnknown } from './parse-web.mjs';
 import { backfill, ingestTracked, sweep, watchRoot, INDEX_VERSION } from './ingest-code.mjs';
 import { readHqProjects, autoLink } from './link.mjs';
 import { syncDocs, watchDocs } from './ingest-docs.mjs';
@@ -282,6 +284,32 @@ function main() {
     clearTimeout(changedTimer);
     changedTimer = setTimeout(flushChanged, Math.max(0, Math.min(300, changedFirst + CHANGED_MAX_WAIT_MS - now)));
   };
+  // ---- claude.ai live sync (H4, restored 2026-10-29 without the export import). Not routed through serial(): each item
+  // is ONE synchronous store.tx with its tombstone check in the same turn, so forget (also one synchronous tx) cannot
+  // interleave with an item, and web ids never collide with code: ids.
+  function pushItems(items) {
+    const report = newReport(), ids = [];
+    try {
+      for (const it of items) {
+        if (it && it.kind === 'project') {
+          report.projects.seen++;
+          const p = parseWebProject(it.data);
+          if (!p.ok) { report.projects.skipped++; continue; }
+          noteUnknown(report, p.unknown); ingestWebProject(store, p.project, report);
+        } else if (it && it.kind === 'conversation') {
+          report.conversations.seen++;
+          const c = parseWebConversation(it.data);
+          if (!c.ok) { report.conversations.skipped++; continue; }
+          noteUnknown(report, c.unknown); report.messages.skipped += c.skipped; report.messages.empty += c.empty;
+          if (ingestWebConversation(store, c.conv, report) === 'imported') ids.push('web:' + c.conv.uuid);
+        } else report.conversations.skipped++;
+      }
+      store.setMeta('last_sync_at', new Date().toISOString());
+    } finally {   // items written before a throwing one are still announced; the error then propagates
+      if (ids.length) markChanged(ids);
+    }
+    return report;
+  }
   const dbBytes = () => { let n = 0; for (const f of [dbFile, dbFile + '-wal']) { try { n += fs.statSync(f).size; } catch { /* absent */ } } return n; };
 
   // ---- indexing. Everything that writes (backfill run, watch ingest, sweep, forget) goes through one queue, so a reindex
@@ -364,6 +392,14 @@ function main() {
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
     getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
+    // claude.ai live sync (the extension, through claude-bridge-routes.js): what the index already has, then the new items
+    syncState: () => (store ? store.syncState() : { conversations: {}, projects: {}, forgotten: [] }),
+    syncPush: (a) => {
+      if (!writer) notOwner();
+      const items = a && Array.isArray(a.items) ? a.items : [];
+      if (!items.length || items.length > 50) throw new Error('syncPush needs 1–50 items');
+      return pushItems(items);
+    },
     stats: (a) => (store ? store.stats(a) : { from: a.from, to: a.to, tzOffsetMin: 0, days: [], projects: [],
       totals: { chats: 0, active_ms: 0, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } }),
     link: (a) => {

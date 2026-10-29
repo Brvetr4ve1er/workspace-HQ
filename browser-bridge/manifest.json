@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "WorkspaceHQ Bridge",
-  "version": "0.5.0",
-  "description": "Streams what you're working on (active-tab focus) and your logged-in social activity to your local WorkspaceHQ app, and posts on your approval.",
+  "version": "0.6.0",
+  "description": "Streams what you're working on (active-tab focus) and your logged-in social activity to your local WorkspaceHQ app, and posts on your approval. Optionally reads your own claude.ai chats (read-only) into the app.",
   "permissions": ["tabs", "storage", "alarms", "idle", "scripting"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*", "https://bsky.app/*", "https://*.reddit.com/*", "https://x.com/*", "https://twitter.com/*", "https://*.linkedin.com/*", "https://*.instagram.com/*", "https://*.threads.net/*", "https://*.threads.com/*", "https://*.facebook.com/*", "https://*.youtube.com/*"],
-  "optional_host_permissions": ["https://*/*"],
+  "optional_host_permissions": ["https://*/*", "https://claude.ai/*"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",

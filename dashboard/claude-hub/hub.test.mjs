@@ -9,6 +9,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { makeClaudeHome, userLine, titleLine } from './__fixtures__/make-fixture.mjs';
+import { exportFixture } from './__fixtures__/make-export.mjs';
 import { makeDocsHome, historyLine } from './__fixtures__/make-docs.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
@@ -802,6 +803,30 @@ test('a reader takes over as writer once the writer exits', async () => {
   assert.equal(h.counts.conversations, 3);
   assert.equal((await b.req('reindex')).ok, true);   // writer-only ops work now
   await b.stop();
+});
+
+test('syncState / syncPush: uuids, newer wins, forgotten stays forgotten, changed ids (H4 live sync)', async () => {
+  const dir = tmp('hub-sync-');
+  const { home } = makeClaudeHome(dir);
+  const h = startHub({ HQ_CLAUDE_HOME: home }, path.join(dir, 'hub.sqlite'));
+  try {
+    await h.healthy();
+    assert.deepEqual((await h.req('syncState')).result, { conversations: {}, projects: {}, forgotten: [] });
+    const f = exportFixture();
+    const first = (await h.req('syncPush', { items: [...f.projects.map((data) => ({ kind: 'project', data })), ...f.conversations.map((data) => ({ kind: 'conversation', data }))] })).result;
+    assert.equal(first.conversations.imported, 3); assert.equal(first.projects.imported, 1);
+    const st = (await h.req('syncState')).result;
+    assert.equal(st.conversations['web-chat-1'], '2026-10-01T09:10:00.000Z'); assert.equal(st.projects['web-proj-1'], '2026-10-01T08:00:00.000Z');
+    assert.equal((await h.req('forget', { conversationId: 'web:web-chat-1' })).result, true);
+    const newer = (uuid, text) => ({ kind: 'conversation', data: { uuid, name: 'Synced ' + uuid, updated_at: '2026-10-05T09:00:00Z', chat_messages: [{ uuid: uuid + '-m', sender: 'human', created_at: '2026-10-05T09:00:00Z', text }] } });
+    const r = (await h.req('syncPush', { items: [newer('web-chat-1', 'should stay forgotten'), newer('web-chat-3', 'synced text'), { kind: 'weird' }] })).result;
+    assert.equal(r.conversations.forgotten, 1); assert.equal(r.conversations.imported, 1); assert.equal(r.conversations.skipped, 1);
+    assert.deepEqual((await h.req('syncState')).result.forgotten, ['web-chat-1']);
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'changed' && e.data.ids.includes('web:web-chat-3'))));
+    const conv = (await h.req('getConversation', { id: 'web:web-chat-3' })).result;
+    assert.deepEqual(conv.messages.map((m) => m.text), ['synced text']);
+    assert.match((await h.req('syncPush', { items: [] })).error, /1–50 items/);
+  } finally { await h.stop(); }
 });
 
 test('contextFor over stdio: a question gets cited snippets inside its budget; FTS-hostile text is fine (H5, Review Focus 1)', async () => {
