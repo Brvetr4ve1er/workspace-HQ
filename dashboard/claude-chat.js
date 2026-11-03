@@ -147,16 +147,27 @@ function resolveClaudeBin(env = process.env, { exists = fs.existsSync } = {}) {
   return { error: NOT_FOUND };
 }
 
-// Launcher-safe tree stop (main.js stopGitTree's rule): children of the launcher first, then the root's tree.
-function killTree(pid, { spawnSync = cp.spawnSync, platform = process.platform } = {}) {
-  if (!Number.isInteger(pid) || pid <= 0) return;
-  if (platform !== 'win32') { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } return; }
-  try {
-    spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-      `Get-CimInstance Win32_Process -Filter 'ParentProcessId=${pid}' | ForEach-Object { taskkill.exe /pid $_.ProcessId /t /f | Out-Null }`],
-    { windowsHide: true, timeout: 15000 });
-  } catch { /* best effort */ }
-  try { spawnSync('taskkill', ['/pid', String(pid), '/t', '/f'], { windowsHide: true, timeout: 15000 }); } catch { /* best effort */ }
+// Launcher-safe tree stop (main.js stopGitTree's rule): children of the launcher first, then the root's
+// tree — once the cmd.exe launcher dies its orphans can't be found through it. Async (the old spawnSync
+// pair froze all of main for the PowerShell + taskkill run, 1-3 s typical): resolves once both steps
+// landed or hit their deadline. The PowerShell sweep ends by killing the root itself, so a quit mid-kill
+// still finishes the sequence; the second step stays as the fallback for a PowerShell that never started.
+function killTree(pid, { spawn = cp.spawn, platform = process.platform, stepMs = 15000 } = {}) {
+  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve();
+  if (platform !== 'win32') { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } return Promise.resolve(); }
+  const step = (cmd, args) => new Promise((done) => {
+    let child;
+    try { child = spawn(cmd, args, { windowsHide: true, stdio: 'ignore' }); } catch { return done(); }
+    if (child.unref) child.unref();   // never holds the app's exit open
+    const timer = setTimeout(done, stepMs);
+    if (timer.unref) timer.unref();
+    const settle = () => { clearTimeout(timer); done(); };
+    child.on('error', settle);
+    child.on('close', settle);
+  });
+  return step('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `Get-CimInstance Win32_Process -Filter 'ParentProcessId=${pid}' | ForEach-Object { taskkill.exe /pid $_.ProcessId /t /f | Out-Null }; taskkill.exe /pid ${pid} /t /f | Out-Null`])
+    .then(() => step('taskkill', ['/pid', String(pid), '/t', '/f']));
 }
 
 function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = () => {}, log = null, env = process.env,
@@ -182,9 +193,13 @@ function createChat({ resolve, bin, spawnFn = cp.spawn, kill = killTree, send = 
   function stop(t) {
     if (t.killed) return;
     t.killed = true;
-    kill(t.proc.pid);
-    t.grace = setTimeout(() => finish(t, null), graceMs);
-    if (t.grace.unref) t.grace.unref();
+    // killTree is async: the grace timer starts only once the kill landed (or hit its deadlines), so
+    // done{stopped} still means the tree is dead — the process 'close' usually reports first anyway
+    Promise.resolve(kill(t.proc.pid)).catch(() => { /* best effort */ }).then(() => {
+      if (t.ended) return;
+      t.grace = setTimeout(() => finish(t, null), graceMs);
+      if (t.grace.unref) t.grace.unref();
+    });
   }
   function finish(t, code) {
     if (t.ended) return;

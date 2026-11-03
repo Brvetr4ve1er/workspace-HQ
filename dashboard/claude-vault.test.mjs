@@ -52,6 +52,18 @@ test('planNote: 30_Areas/Claude/<Project>/<YYYY-MM-DD> <title>.md, the chat’s 
   assert.equal(V.planNote({ conversation: conv({ title: null }), projectName: null }).rel, '30_Areas/Claude/No project/2026-10-01 Untitled chat.md');
 });
 
+test('planNote: a long title is capped so the stem (date prefix + " (n)" clash suffix) passes the save validator', () => {
+  const long = V.planNote({ conversation: conv({ title: 'x'.repeat(300) }), projectName: 'project-a' });
+  const stem = long.rel.split('/').pop().replace(/\.md$/, '');
+  assert.equal([...stem].length, V.NAME_MAX - 4, 'room left for " (9)"');
+  assert.equal(V.safeSegment(stem), stem, 'the stem survives the resolveSavePath round-trip');
+  assert.equal(V.safeSegment(stem + ' (9)'), stem + ' (9)', 'the clash-suffixed stem does too');
+  const emoji = V.planNote({ conversation: conv({ title: '🚀'.repeat(100) }), projectName: 'p' });
+  assert.ok(emoji.title.endsWith('🚀'), 'cut on a code point: no broken surrogate');
+  const dotty = V.planNote({ conversation: conv({ title: 'a'.repeat(44) + '. b' + 'c'.repeat(30) }), projectName: 'p' });
+  assert.equal(dotty.title, 'a'.repeat(44), 'a dot exposed by the cut is trimmed off');
+});
+
 test('choosePath: this chat’s own note is offered for Replace; another chat’s note is never — it gets " (2)" (Review Focus 4)', async () => {
   const vault = tmpVault();
   try {
@@ -267,6 +279,21 @@ test('another chat’s note of the same name: preview takes " (2)"; Replace aime
     const r = await v.save({ path: a.path, markdown: b.markdown, replace: true });
     assert.match(r.error, /belongs to another chat/);
     assert.deepEqual(fs.readFileSync(a.path), aBytes);
+  } finally { fs.rmSync(vault, { recursive: true, force: true }); }
+});
+
+test('a long chat title still saves: preview → save round-trips, the " (n)" clash suffix included', async () => {
+  const vault = tmpVault();
+  try {
+    const title = 'How do I wire the claude.ai live sync into the dashboard bridge routes and the hub';
+    const hub = hubFor({ 'code:s-1': conv({ title }), 'code:s-2': conv({ id: 'code:s-2', title }) });
+    const v = V.createVault({ hub, llm: llmFake(), vaultDir: vault, dataDir: vault, now: NOW });
+    const p = await v.preview('code:s-1');
+    assert.equal(p.error, undefined, p.error);
+    assert.equal(await v.save({ path: p.path, markdown: p.markdown }), true, 'the preview path is one save accepts');
+    const q = await v.preview('code:s-2');   // same long title, another chat: the clash suffix must save too
+    assert.match(q.rel, / \(2\)\.md$/);
+    assert.equal(await v.save({ path: q.path, markdown: q.markdown }), true);
   } finally { fs.rmSync(vault, { recursive: true, force: true }); }
 });
 

@@ -42,7 +42,10 @@ function noteDay(c, now = new Date()) {
 }
 function planNote({ conversation: c, projectName, hqProjectName = null, now = new Date() }) {
   const folder = safeSegment(projectName, 'No project');
-  const title = safeSegment(c && c.title, 'Untitled chat');
+  // the note stem is "<day> <title>" and choosePath may add " (n)": cap the title so the whole stem
+  // (11-cp date prefix + 4-cp clash suffix) stays ≤ NAME_MAX, or resolveSavePath's strict safeSegment
+  // round-trip refuses the save; the cut can expose a trailing dot/space, so trim it off again
+  const title = [...safeSegment(c && c.title, 'Untitled chat')].slice(0, NAME_MAX - 15).join('').replace(/[.\s]+$/, '') || 'Untitled chat';
   const day = noteDay(c, now);
   const link = hqProjectName ? projectNoteName(hqProjectName) : folder;
   return { folder, title, day, link, rel: [...CLAUDE_DIR, folder, day + ' ' + title + '.md'].join('/') };

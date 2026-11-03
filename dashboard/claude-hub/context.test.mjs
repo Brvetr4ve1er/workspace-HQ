@@ -130,7 +130,9 @@ test('formatContext: at most MAX_CHATS chats, in rank order', () => {
   assert.deepEqual(r.hits.map((h) => h.conversationId), ['c0', 'c1', 'c2', 'c3', 'c4', 'c5'].slice(0, MAX_CHATS));
 });
 
-test('social scope: Claude history never sees Instagram / Facebook rows; the social block cites documents and names DM senders', () => {
+// the social scope itself went with the Social tab (2026-10-28 cleanup); indexed social rows still render
+// in Chats, so the Claude chip's source filter keeping them out of Ask stays pinned here
+test('contextFor: Claude history never sees Instagram / Facebook rows still in the index; a stray scope key is ignored', () => {
   const s = seeded();
   conv(s, 'instagram:pal_1', { title: 'Placeholder Pal', source: 'instagram', project: 'instagram:dms', projectName: 'Instagram DMs' });
   s.addMessages('instagram:pal_1', [
@@ -140,14 +142,7 @@ test('social scope: Claude history never sees Instagram / Facebook rows; the soc
   s.upsertDocument({ id: 'social:instagram:posts:x:0', source: 'social', title: 'Instagram · your posts', text: '- 2026-09-30 · Caption: placeholder release poster', meta: { origin: 'instagram', kind: 'posts' } });
   const claude = contextFor(s, { query: 'release', budgetChars: 8000 });
   assert.ok(!claude.text.includes('Placeholder Pal') && !claude.text.includes('release poster'), 'the Claude chip is unchanged');
-  const r = contextFor(s, { query: 'release', budgetChars: 8000, scope: 'social' });
-  assert.ok(r.text.startsWith('INSTAGRAM & FACEBOOK'));
-  assert.match(r.text, /- Instagram · your posts: .*release poster/);
-  assert.match(r.text, /- Instagram DM with "Placeholder Pal", 2026-10-02\n {2}· (Placeholder Pal|you): /);
-  assert.match(r.text, /· Placeholder Pal: the release party/);
-  assert.match(r.text, /· you: see you at the release/);
-  assert.ok(!r.text.includes('Release planning'), 'no Claude chats in the social block');
-  assert.deepEqual(r.cites, ['Instagram · your posts', 'Instagram DM with Placeholder Pal, 2026-10-02']);
-  assert.ok(r.text.length <= 8000);
-  assert.equal(contextFor(s, { query: 'zzzz', budgetChars: 8000, scope: 'social' }).note, 'nothing matched');
+  const stale = contextFor(s, { query: 'release', budgetChars: 8000, scope: 'social' });   // e.g. old renderer state
+  assert.ok(stale.text.startsWith(HEADER), 'a stale social scope gets the Claude block, not a crash');
+  assert.ok(!stale.text.includes('Placeholder Pal') && !stale.text.includes('release poster'));
 });

@@ -264,10 +264,10 @@ const HUB_NOTE = {
   'hub stopped': 'Claude Hub stopped while answering',
   timeout: 'Claude Hub did not answer within 4 s',
 };
-async function claudeSection(claudeHub, query, budgetChars, scope = 'claude') {
+async function claudeSection(claudeHub, query, budgetChars) {
   if (!claudeHub || typeof claudeHub.request !== 'function') return { text: '', cites: [], note: HUB_NOTE['hub not running'] };
   let r;
-  const args = { query: String(query || ''), budgetChars, ...(scope === 'social' ? { scope } : {}) };
+  const args = { query: String(query || ''), budgetChars };
   try { r = await claudeHub.request('contextFor', args, { timeout: CLAUDE_TIMEOUT_MS }); }
   catch (e) { return { text: '', cites: [], note: line(e?.message || e, 80) }; }
   if (r && typeof r.error === 'string') return { text: '', cites: [], note: HUB_NOTE[r.error] || line(r.error, 80) };
@@ -286,7 +286,7 @@ async function assemble({ dataDir, vaultDir, include = {}, query = '', activity 
   const sections = [];
   let used = header.length;
 
-  // Ticking Claude history / Instagram & Facebook holds CLAUDE_RESERVE back for each (they are assembled last, in
+  // Ticking Claude history holds CLAUDE_RESERVE back for it (hub sections are assembled last, in
   // HUB_IDS order): a section's room excludes the reserves of the hub sections still to come.
   const reserveAfter = (id) => HUB_IDS.slice(HUB_IDS.includes(id) ? HUB_IDS.indexOf(id) + 1 : 0).filter((h) => include[h] === true).length * CLAUDE_RESERVE;
   const add = (id, body, extra) => {
@@ -304,7 +304,7 @@ async function assemble({ dataDir, vaultDir, include = {}, query = '', activity 
     if (include[id] !== true) continue;
     try {
       if (HUB_IDS.includes(id)) {
-        const c = await claudeSection(claudeHub, query, Math.min(CLAUDE_RESERVE, TOTAL_MAX - used - 2 - reserveAfter(id)), id);
+        const c = await claudeSection(claudeHub, query, Math.min(CLAUDE_RESERVE, TOTAL_MAX - used - 2 - reserveAfter(id)));
         if (!c.text) sections.push({ id, label: LABEL[id], chars: 0, clipped: false, cites: [], ...(c.note ? { note: c.note } : {}) });
         else add(id, c.text, { cites: c.cites, ...(c.note ? { note: c.note } : {}) });
         continue;

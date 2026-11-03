@@ -281,6 +281,53 @@ test('runner: a turn that never closes after a kill still ends (grace)', async (
   assert.equal(r.ev(turnId).pop().kind, 'done'); assert.equal(r.c.running(), 0);
 });
 
+test('runner: Stop never blocks on the kill, and the grace end waits for the async kill to land', async () => {
+  const sp = fakeSpawn(); const pushed = [];
+  let release; const killLanded = new Promise((res) => { release = res; });
+  const c = createChat({ resolve: async (req) => ({ cwd: DOCS_A, sessionId: null, key: null, prompt: req.text, seeded: null }),
+    bin: () => ({ cmd: 'C:\\fake\\claude.exe', viaCmd: false }), spawnFn: sp.spawnFn,
+    kill: () => killLanded, send: (ch, d) => pushed.push(d), env: {}, graceMs: 1 });
+  const { turnId } = await c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' });
+  assert.equal(c.cancel(turnId), true, 'cancel answers at once — main never waits on the kill');
+  await new Promise((res) => setTimeout(res, 30));
+  assert.equal(pushed.filter((d) => d.kind === 'done').length, 0, 'no done{stopped} while the kill is still running');
+  release();
+  await new Promise((res) => setTimeout(res, 30));
+  const ends = pushed.filter((d) => d.kind === 'done');
+  assert.equal(ends.length, 1); assert.equal(ends[0].stopped, true);
+  assert.equal(c.running(), 0);
+});
+
+const { killTree } = require('./claude-chat.js');
+test('killTree: async — the launcher-children sweep lands before the root taskkill; a hung or missing step is bounded', async () => {
+  const kids = [];
+  const spawn = (cmd, args, opts) => { const k = Object.assign(new EventEmitter(), { cmd, args, opts, unref: () => { k.unrefed = true; } }); kids.push(k); return k; };
+  let settled = false;
+  const p = killTree(4242, { spawn, platform: 'win32' }).then(() => { settled = true; });
+  await tick();
+  assert.equal(kids.length, 1, 'the root taskkill waits for the PowerShell sweep');
+  assert.equal(kids[0].cmd, 'powershell.exe');
+  assert.match(kids[0].args.join(' '), /ParentProcessId=4242/);
+  assert.match(kids[0].args.join(' '), /taskkill\.exe \/pid 4242 \/t \/f/, 'the sweep itself ends the root: a quit mid-kill still finishes');
+  assert.deepEqual(kids[0].opts, { windowsHide: true, stdio: 'ignore' });
+  assert.ok(kids[0].unrefed, 'never holds the app open');
+  kids[0].emit('close', 0);
+  await tick();
+  assert.equal(kids.length, 2);
+  assert.equal(kids[1].cmd, 'taskkill');
+  assert.deepEqual(kids[1].args, ['/pid', '4242', '/t', '/f']);
+  assert.equal(settled, false);
+  kids[1].emit('close', 0);
+  await p;
+  assert.equal(settled, true);
+  const hung = [];
+  await killTree(4242, { spawn: () => { const k = Object.assign(new EventEmitter(), { unref: () => {} }); hung.push(k); return k; }, platform: 'win32', stepMs: 10 });
+  assert.equal(hung.length, 2, 'a step that never closes resolves at its deadline, then the next runs');
+  await killTree(4242, { spawn: () => { throw new Error('spawn ENOENT'); }, platform: 'win32', stepMs: 10 });
+  await killTree(0, { spawn: () => { throw new Error('never spawns'); }, platform: 'win32' });
+  await killTree(-1, { platform: 'win32' });
+});
+
 test('runner: failures say why — exit without result, spawn error, missing binary, resolve error, raw lines kept', async () => {
   const r = rig();
   const t1 = (await r.c.send({ projectId: 'project-a', text: 'x', mode: 'read-only' })).turnId;
