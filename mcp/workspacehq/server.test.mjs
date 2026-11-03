@@ -93,3 +93,37 @@ test('tools/list describes sent_after_cancel on hq_social_outbox', async () => {
   const t = r[5].result.tools.find((x) => x.name === 'hq_social_outbox');
   assert.match(t.description, /sent_after_cancel/);
 });
+
+test('a Reddit post without target+title is refused at stage time (never staged)', async () => {
+  const before = JSON.parse(fs.readFileSync(path.join(root, 'data', 'social', 'outbox.json'), 'utf8')).actions.length;
+  const r = await rpc([{ id: 6, method: 'tools/call', params: { name: 'hq_social_post', arguments: { platform: 'reddit', text: 'no destination' } } }]);
+  assert.equal(r[6].result.isError, true);
+  assert.match(toolResult(r[6]).error, /target.*title/);
+  const after = JSON.parse(fs.readFileSync(path.join(root, 'data', 'social', 'outbox.json'), 'utf8')).actions.length;
+  assert.equal(after, before, 'the refused post never reaches the outbox');
+});
+
+test('a Reddit post WITH target+title stages, and a Reddit reply needs neither', async () => {
+  const r = await rpc([
+    { id: 7, method: 'tools/call', params: { name: 'hq_social_post', arguments: { platform: 'reddit', text: 'hello', target: 'test', title: 'a title' } } },
+    { id: 8, method: 'tools/call', params: { name: 'hq_social_reply', arguments: { platform: 'reddit', text: 'a comment', reply_to: 't3_abc123' } } },
+  ]);
+  assert.equal(r[7].result.isError, undefined, JSON.stringify(r[7]));
+  assert.equal(toolResult(r[7]).status, 'staged');
+  assert.equal(r[8].result.isError, undefined, JSON.stringify(r[8]));
+  assert.equal(toolResult(r[8]).status, 'staged');
+});
+
+test('tool descriptions tell the truth about what the send half can publish and where captures land', async () => {
+  const r = await rpc([{ id: 9, method: 'tools/list' }]);
+  const tool = (n) => r[9].result.tools.find((x) => x.name === n);
+  // hq_social_post/_reply name the platforms the adapter refuses (browser-bridge/social.js)
+  assert.match(tool('hq_social_post').description, /youtube/i);
+  assert.match(tool('hq_social_post').description, /instagram/i);
+  assert.match(tool('hq_social_post').description, /threads/i);
+  assert.match(tool('hq_social_reply').description, /linkedin/i);
+  // hq_capture describes the live capture surface (hq:capture-save), and any
+  // mention of the Ctrl+Alt+Space box says it was retired
+  assert.match(tool('hq_capture').description, /hq:capture-save/);
+  assert.match(tool('hq_capture').description, /retired 2026-09-15/);
+});

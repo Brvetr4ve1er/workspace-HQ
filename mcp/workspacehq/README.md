@@ -17,7 +17,7 @@ Protocol: newline-delimited JSON-RPC 2.0 on stdin/stdout, MCP protocol version
 | `hq_status` | — | Level, XP, health index, open/red quest counts, streak, project count from `data/latest.json` | as of last scan |
 | `hq_quests_list` | — | All quests + side-quests (`id, title, tier/kind, status, project, xp`) with `quest-overrides.json` overlaid | live for completions, rest as of last scan |
 | `hq_quest_done` | `{id}` | Marks a quest/side-quest done in `data/quest-overrides.json` (`{status:'done', completed:'YYYY-MM-DD'}` — the exact `applyDone` mutation). Unknown ids refused against the current scan. Atomic write. | XP settles on next app assemble |
-| `hq_capture` | `{text}` (≤4000) | Appends `{id, ts, text}` to `data/brain-dump.json` — same store as the Ctrl+Alt+Space box | surfaces as a side-quest on next assemble |
+| `hq_capture` | `{text}` (≤4000) | Appends `{id, ts, text}` to `data/brain-dump.json` — same store as the app's own capture (`hq:capture-save`: the v5 palette `capture` verb / System › Clutter "Note for cleanup"; the Ctrl+Alt+Space box was retired 2026-09-15) | surfaces as a side-quest on next assemble |
 | `hq_scan_trigger` | — | Spawns `collector/collector.mjs` detached and returns `{started:true}` immediately | raw metrics only; assemble + enrichment on next app scan/relaunch |
 
 The social tools (`hq_social_post/_reply/_outbox/_cancel`; the read tools `_status/_feed/_mentions/_metrics` were removed 2026-10-28)

@@ -96,6 +96,11 @@ function stageAction(op, args) {
   // one (Reddit). Ignored by platforms that don't use them.
   const target = args.target ? String(args.target).slice(0, 120) : null;
   const title = args.title ? String(args.title).slice(0, 300) : null;
+  // reddit posts can never publish without both (the adapter refuses at send) —
+  // fail at stage time instead of burning a human approval on a dead action
+  if (platform === 'reddit' && op === 'post' && (!target || !title)) {
+    throw new ToolError('Reddit top-level posts need target (subreddit, without r/) + title');
+  }
   const d = socialOutbox();
   const action = {
     id: 'ob-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -181,7 +186,7 @@ const TOOLS = [
   },
   {
     name: 'hq_capture',
-    description: 'Brain-dump capture (same store as the Ctrl+Alt+Space box). Text lands in data/brain-dump.json and surfaces as a side-quest on the next assemble. Max 4000 chars.',
+    description: 'Brain-dump capture (same store as the app\'s own capture — the v5 palette "capture" verb and System > Clutter "Note for cleanup", via hq:capture-save; the old Ctrl+Alt+Space box was retired 2026-09-15). Text lands in data/brain-dump.json and surfaces as a side-quest on the next assemble. Max 4000 chars.',
     inputSchema: {
       type: 'object',
       properties: { text: { type: 'string', maxLength: CAPTURE_MAX, description: 'the thought to capture' } },
@@ -214,7 +219,7 @@ const TOOLS = [
   // ---- SOCIAL BINDING (confirm-gated staging; the read tools went with the Social tab, 2026-10-28) ----
   {
     name: 'hq_social_post',
-    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it. Reddit top-level posts require target (subreddit, without r/) + title.',
+    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it. Reddit top-level posts require target (subreddit, without r/) + title. The send half can only publish posts on bluesky, mastodon, reddit, x and linkedin today: instagram and youtube always refuse (text-only posting unsupported), and threads/facebook refuse until the owner pastes a captured doc_id into browser-bridge/social.js — staging those wastes a human approval on a send that cannot succeed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -230,7 +235,7 @@ const TOOLS = [
   },
   {
     name: 'hq_social_reply',
-    description: 'STAGE a reply for review. Does NOT publish — appends a staged action; you must Approve & Send in the extension popup. reply_to is the target post id/uri/url.',
+    description: 'STAGE a reply for review. Does NOT publish — appends a staged action; you must Approve & Send in the extension popup. reply_to is the target post id/uri/url. The send half can only publish replies on bluesky, mastodon, reddit and x today: linkedin replies are not supported yet, and every other platform\'s send refuses — staging those wastes a human approval on a send that cannot succeed.',
     inputSchema: {
       type: 'object',
       properties: {
