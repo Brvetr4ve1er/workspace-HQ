@@ -17,6 +17,10 @@ const claudeSessions = require('./claude-sessions');   // MA: the Familiar's lea
 const llmLocal = require('./llm-local');               // PC-Brain L3: local model adapter (Ollama/LM Studio)
 const trayMenu = require('./tray-menu');               // v5 M4: tray menu as data (trayTemplate) + scanCounts (tray + mini HUD)
 const { launchClaudeTerminal } = require('./claude-launch');   // v5 M4: hq:claude-quest; HQ_DRY_LAUNCH=1 only logs
+const gitActions = require('./git-actions');     // async push/snapshot for the tray quick actions — the sync versions froze all of main on one hung push/copy
+const dataRefreshMod = require('./data-refresh');   // assemble→bake→reload runner + the latest.json self-write marker
+const bakeFreshness = require('./bake-freshness');  // launch-bake mtime short-circuit
+const { readJsonStore, isPlainObj, emptyTelemetry, telemetryOk } = require('./json-store');   // quarantine-on-corrupt store reads (moved out of main.js for tests)
 const appLog = require('./app-log').create({ appRoot: path.join(__dirname, '..'), env: process.env });   // lifecycle log → logs/app-YYYY-MM-DD.log (app-log.js; gates set HQ_APP_LOG_DIR)
 appLog.attach({ app });   // crashes, hangs, session end, quit — every window
 
@@ -38,6 +42,9 @@ const PROJECT_NOTES_DIR = path.join(VAULT, '30_Areas', 'Projects');
 const NOTIFY_STATE = path.join(DATA, '.notify-state.json');
 const QUEST_BOARD = path.join(VAULT, '30_Areas', 'Workspace Status', 'Quest Board.md');
 const DAILY_DIR = path.join(VAULT, '10_Daily');
+// the data watcher must tell the app's own latest.json writes (refresh runner,
+// runScan, do-commit rescan) from the scheduled scan's (data-refresh.js)
+const selfWrite = dataRefreshMod.selfWriteMarker(path.join(DATA, 'latest.json'));
 // Allow-list of regenerable dirs the reclaim action may delete (npm install / rebuild restores them).
 const RECLAIMABLE_DIRS = new Set(['node_modules', '.next', '.nuxt', 'dist', 'build', 'out', '.output', 'target', '.venv', 'venv', '__pycache__', '.cache', '.parcel-cache', 'coverage', '.turbo']);
 const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes('--start-minimized');
@@ -96,27 +103,11 @@ function mirrorProjectNote(name, id, text, prod) {
 
 // ---- snapshot safety net + bulk git/confirm helpers (Wave 2b) ----------------
 const BACKUPS = path.join(SCAN_DIR, 'backups');
-// Filtered working-tree copy via robocopy (built into Windows): keeps .git + source,
-// drops the heavy regenerable dirs. Non-disruptive, reversible. Returns dest or null.
-function snapshotProject(absPath, name) {
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
-  const dest = path.join(BACKUPS, `${safeFile(name)}-${stamp}`);
-  try { fs.mkdirSync(dest, { recursive: true }); } catch { return null; }
-  const xd = [...RECLAIMABLE_DIRS].flatMap((d) => ['/XD', d]);
-  const r = spawnSync('robocopy', [absPath, dest, '/E', '/R:1', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', ...xd], { encoding: 'utf8', windowsHide: true });
-  // robocopy exit codes 0-7 = success; >=8 = real error
-  if ((r.status ?? 16) >= 8) { try { fs.rmSync(dest, { recursive: true, force: true }); } catch {} return null; }
-  return dest;
-}
-function gitEach(projects, args) {
-  let ok = 0;
-  for (const p of projects) {
-    const cwd = resolveProjectPath(p.path); if (!cwd) continue;
-    const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
-    if (r.status === 0) ok++;
-  }
-  return ok;
-}
+// snapshotProject (filtered robocopy copy) and gitEach now live in
+// git-actions.js, async: the sync versions ran spawnSync on main, so one push
+// hung on a credential prompt — or one multi-GB copy — froze window, tray and
+// every IPC handler with no way to cancel.
+const snapshotOpts = () => ({ backupsDir: BACKUPS, excludeDirs: [...RECLAIMABLE_DIRS] });
 async function confirmThen(message, detail, fn) {
   const { response } = await dialog.showMessageBox(win || undefined, { type: 'warning', buttons: ['Cancel', 'Do it'], defaultId: 0, cancelId: 0, message, detail });
   if (response === 1) await fn();
@@ -203,8 +194,23 @@ function buildTrayMenu() {
       quickRun: openCastPalette,
       openAutomations: () => showMainAt({ tab: 'automations' }),
       cast: (id) => castFromShell(id),
-      pushAll: (unpushed) => confirmThen(`Push ${unpushed.length} repo(s)?`, unpushed.map((p) => p.name).join(', '), () => { const ok = gitEach(unpushed, ['push']); trayNotify('⬆ Pushed', `${ok}/${unpushed.length} repos`); runScan(); }),
-      snapshotDirty: (dirty) => confirmThen(`Snapshot ${dirty.length} dirty repo(s)?`, 'Filtered backup copy to backups/ — safe, non-disruptive.', () => { let ok = 0; for (const p of dirty) { const b = resolveProjectPath(p.path); if (b && snapshotProject(b, p.name)) ok++; } trayNotify('📦 Snapshotted', `${ok}/${dirty.length} repos → backups/`); }),
+      // fire-and-notify: both batches run async + serial (git-actions.js) so main stays live;
+      // per-repo failures land in the completion notification, details on the console
+      pushAll: (unpushed) => confirmThen(`Push ${unpushed.length} repo(s)?`, unpushed.map((p) => p.name).join(', '), async () => {
+        const { ok, failed } = await gitActions.gitEach(unpushed, ['push'], { resolvePath: resolveProjectPath });
+        if (failed.length) console.error('[pushAll] failed:', failed.map((f) => `${f.name} (${f.reason})`).join(', '));
+        trayNotify('⬆ Pushed', `${ok}/${unpushed.length} repos${failed.length ? ` — failed: ${failed.map((f) => f.name).join(', ')}` : ''}`);
+        runScan();
+      }),
+      snapshotDirty: (dirty) => confirmThen(`Snapshot ${dirty.length} dirty repo(s)?`, 'Filtered backup copy to backups/ — safe, non-disruptive.', async () => {
+        let ok = 0; const failed = [];
+        for (const p of dirty) {   // serial: parallel robocopy over several trees thrashes the disk
+          const b = resolveProjectPath(p.path);
+          if (b && await gitActions.snapshotProject(b, p.name, snapshotOpts())) ok++;
+          else failed.push(p.name);
+        }
+        trayNotify('📦 Snapshotted', `${ok}/${dirty.length} repos → backups/${failed.length ? ` — failed: ${failed.join(', ')}` : ''}`);
+      }),
       killServers: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); } activeDevServers.clear(); pushMachine(); updateTray(); },
       openUrgent: (tp) => { const b = resolveProjectPath(tp.path); if (b) shell.openPath(b); },
       quit: () => { appLog.setQuitReason('tray'); app.isQuitting = true; app.quit(); },
@@ -230,30 +236,9 @@ function createTray() {
 // (structure-lane responsibility) so a future ambient/voice surface can consume
 // them honestly — nothing in the app now turns them into OS toasts.
 
-// ---- safe read for a persisted JSON store that gets MODIFIED and written back.
-// A read-modify-write on an unparseable file would OVERWRITE (destroy) it with the
-// empty default — silently erasing the user's accreted history (quests, notes,
-// ideas, learnings). Instead: quarantine the bad file to <file>.corrupt so nothing
-// is lost, and hand back a FRESH empty (makeEmpty() — never a shared reference).
-// Generalizes the readActedOn() pattern below to every write-back store.
-//   ENOENT        -> empty (a first run with no file yet is correct)
-//   real IO error -> rethrow (never mask a disk/permission failure by resetting)
-//   unparseable / wrong shape -> quarantine + log + empty (recoverable, not gone)
-function readJsonStore(file, makeEmpty, ok) {
-  let raw;
-  try { raw = fs.readFileSync(file, 'utf8'); }
-  catch (e) { if (e.code === 'ENOENT') return makeEmpty(); throw e; }
-  try {
-    const v = JSON.parse(raw);
-    if (ok && !ok(v)) throw new Error('unexpected shape');
-    return v;
-  } catch (e) {
-    try { fs.renameSync(file, file + '.corrupt'); } catch { /* best effort — never throw from a read */ }
-    console.error(`[store] corrupt ${path.basename(file)} quarantined to ${path.basename(file)}.corrupt — ${e.message}`);
-    return makeEmpty();
-  }
-}
-const isPlainObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+// ---- readJsonStore / isPlainObj (quarantine-on-corrupt reads for every
+// write-back store) moved to json-store.js (2026-10-31) so the rule is
+// unit-tested; same behavior, same callers, required at the top of this file.
 
 // ---- quest completion (shared by the in-app DONE button and the Obsidian sync) ----
 function readOverrides() {
@@ -273,37 +258,26 @@ function applyDone(ids) {
     ov[id] = { status: 'done', completed: today };
     changed = true;
   }
-  if (!changed) return false;
+  if (!changed) {
+    // overrides can say 'done' while latest.json still shows the quest open when
+    // the last refresh failed — retry instead of leaving the quest stuck
+    if (dataRefresh.lastFailed()) dataRefresh.refresh();
+    return false;
+  }
   fs.mkdirSync(DATA, { recursive: true });
   fs.writeFileSync(path.join(DATA, 'quest-overrides.json'), JSON.stringify(ov, null, 2));
-  const s = latest();
-  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray();
+  // async assemble→bake→reload (data-refresh.js): main no longer freezes ~1-2s,
+  // a failed step is surfaced instead of reloading stale data, and the data
+  // watcher won't echo the write into a second bake + reload
+  dataRefresh.refresh();
   return true;
 }
 
-// Two-way: ticking a `- [x] wq:<quest-id>` line in any daily note completes that quest.
+// Two-way: ticking a `- [x] wq:<quest-id>` line in any daily note completes that
+// quest. daily-notes-watch.js — debounce is PER FILE there (the old shared timer
+// dropped note A's ticks whenever note B changed within the window).
 function watchDailyNotes() {
-  if (!fs.existsSync(DAILY_DIR)) return;
-  try {
-    let t = null;
-    dailyWatcher = fs.watch(DAILY_DIR, (_evt, file) => {
-      if (!file || !file.endsWith('.md')) return;
-      clearTimeout(t);
-      t = setTimeout(() => {
-        let text = '';
-        try { text = fs.readFileSync(path.join(DAILY_DIR, file), 'utf8'); } catch { return; }
-        const ov = readOverrides();
-        const ids = [];
-        for (const line of text.split(/\r?\n/)) {
-          if (!/^\s*[->]?\s*[-*]?\s*\[[xX]\]/.test(line)) continue;
-          const m = line.match(/wq:([A-Za-z0-9_-]+)/);
-          if (m && ov[m[1]]?.status !== 'done') ids.push(m[1]);
-        }
-        if (ids.length) { console.log(`[daily-note] vault→app completion (${file}):`, ids.join(', ')); applyDone(ids); }
-      }, 1200);
-    });
-  } catch (e) { console.error('watchDailyNotes failed:', e); }
+  dailyWatcher = require('./daily-notes-watch').watch({ dir: DAILY_DIR, readOverrides, applyDone });
 }
 
 // Quest/side-quest ids that sit on a CHECKED Tasks line carrying a 🆔 marker. The
@@ -354,7 +328,7 @@ function runScan() {
   ps.on('close', (code) => {
     end(code);
     if (win) win.setTitle('WorkspaceHQ');
-    if (code === 0) { rebuildData(); if (win) win.reload(); updateTray(); }
+    if (code === 0) { selfWrite.note(); rebuildData(); if (win) win.reload(); updateTray(); }   // note first: the data watcher must not echo this scan's own latest.json
     else if (win) dialog.showErrorBox('Scan failed', `Pipeline exited ${code}. See workspace hq/logs.`);
   });
   return true;
@@ -406,7 +380,7 @@ ipcMain.handle('hq:snapshot', async (_e, projPath, name) => {
     message: `Snapshot ${name || 'project'}?`, detail: 'Filtered copy (keeps .git + source, drops node_modules) → backups/. Safe, non-disruptive.',
   });
   if (response !== 1) return false;
-  const dest = snapshotProject(base, name || path.basename(base));
+  const dest = await gitActions.snapshotProject(base, name || path.basename(base), snapshotOpts());
   if (dest && Notification.isSupported()) new Notification({ title: '📦 Snapshot saved', body: dest, icon: path.join(DIR, 'icon.png') }).show();
   return !!dest;
 });
@@ -425,9 +399,9 @@ ipcMain.handle('hq:capture-save', (_e, text) => {
   const arr = readJsonStore(f, () => [], Array.isArray);
   arr.push({ id: `${Date.now().toString(36)}`, ts: new Date().toISOString(), text: t });
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(arr, null, 2));
-  // re-assemble the current scan (fast — no collector) so the dump shows as a side-quest
-  const s = latest();
-  if (s) { spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }); rebuildData(); if (win && !win.isDestroyed()) win.reload(); }
+  // re-assemble the current scan (fast — no collector) so the dump shows as a
+  // side-quest; async via data-refresh.js (was a main-freezing spawnSync chain)
+  dataRefresh.refresh();
   return true;
 });
 
@@ -644,7 +618,7 @@ ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
     const end = (code, err) => { if (settled) return; settled = true; try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
     runNodeAsync(path.join(COLLECTOR, 'collector.mjs'))
       .then(() => runNodeAsync(path.join(COLLECTOR, 'assemble.mjs'), ['--date', s.scan.id]))
-      .then(() => { end(0); rebuildData(); if (win && !win.isDestroyed()) win.reload(); })
+      .then(() => { end(0); selfWrite.note(); rebuildData(); if (win && !win.isDestroyed()) win.reload(); })   // note first: the watcher must not echo this rescan's latest.json
       .catch((err) => { end(Number.isInteger(err && err.exitCode) ? err.exitCode : -1, err); console.error('[do-commit] rescan failed:', err && err.message); });
   }
   return { ok: true };
@@ -698,9 +672,7 @@ ipcMain.handle('hq:learn', (_e, projId, text) => {
     fs.appendFileSync(wif, `- ${stamp}${projName ? ` · [[${projName}]]` : ''} — ${t}\n`);
   } catch {}
   // re-assemble so knowledge XP updates
-  const s = latest();
-  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload();
+  dataRefresh.refresh();   // async assemble→bake→reload (data-refresh.js); failures surfaced, no main freeze
   return true;
 });
 
@@ -710,9 +682,7 @@ ipcMain.handle('hq:archive-project', (_e, projId) => {
   const o = readJsonStore(f, () => ({}), isPlainObj);
   o[projId] = { status: 'archived', archived: new Date().toISOString().slice(0, 10) };
   fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2));
-  const s = latest();
-  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload();
+  dataRefresh.refresh();   // async assemble→bake→reload (data-refresh.js); failures surfaced, no main freeze
   return true;
 });
 ipcMain.handle('hq:revive-project', (_e, projId) => {
@@ -720,9 +690,7 @@ ipcMain.handle('hq:revive-project', (_e, projId) => {
   const o = readJsonStore(f, () => ({}), isPlainObj);
   delete o[projId];
   fs.writeFileSync(f, JSON.stringify(o, null, 2));
-  const s = latest();
-  if (s) spawnSync(process.execPath, [path.join(COLLECTOR, 'assemble.mjs'), '--date', s.scan.id], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  rebuildData(); if (win && !win.isDestroyed()) win.reload();
+  dataRefresh.refresh();   // async assemble→bake→reload (data-refresh.js); failures surfaced, no main freeze
   return true;
 });
 
@@ -731,7 +699,7 @@ ipcMain.handle('hq:revive-project', (_e, projId) => {
 // never built (Wave 5 triage plan). Latent chore-hook the ambient spec forbids.
 // Works for both core quest ids (q-…) and side-quest ids (sq-…) — both live in the
 // same quest-overrides.json store that assemble.mjs reads.
-ipcMain.handle('hq:quest-done', (_e, id) => { if (!id) return false; applyDone(id); return true; });
+ipcMain.handle('hq:quest-done', (_e, id) => (id ? applyDone(id) : false));   // forwards 'newly marked' — true/false per IPC-CONTRACT; false also means 'was already done'
 
 // ==== Casting engine (Spellbook) =============================================
 // Executes ONLY spells present in data/spellbook.json (the scanner's catalog is
@@ -801,8 +769,11 @@ function readSpellbook() {
   try { return JSON.parse(fs.readFileSync(SPELLBOOK_FILE, 'utf8')); } catch { return null; }
 }
 function readTelemetry() {
-  try { return JSON.parse(fs.readFileSync(TELEMETRY_FILE, 'utf8')); }
-  catch { return { version: 1, confirmed_hashes: {}, favorites: [], casts: [], rollup: {} }; }
+  // quarantine-on-corrupt like every other write-back store (json-store.js): the
+  // old bare catch returned the default and the next cast WROTE IT BACK, erasing
+  // favorites, the cast log and the mastery rollup; wrong-shape-but-valid JSON
+  // (e.g. `[]`) passed the parse and crashed recordCast mid-finish instead
+  return readJsonStore(TELEMETRY_FILE, emptyTelemetry, telemetryOk);
 }
 function writeTelemetry(t) {   // atomic: survive a crash mid-cast
   fs.mkdirSync(DATA, { recursive: true });
@@ -849,6 +820,26 @@ ipcMain.handle('hq:sessions-list', () => sessionTails.withTails(claudeSessions.l
 require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
 const liveState = require('./live-state').init({ ipcMain, send: castSend, devServers: activeDevServers, casts: castRegistry, readSpellbook });   // v5 clean pass: hq:live-state
 const commitGuard = require('./commit-guard'); commitGuard.init({ ipcMain, resolveProjectPath });   // v5 clean pass: hq:commit-preview + the do-commit .env guard
+// One shared async assemble→bake→reload for the write handlers (quest done,
+// capture, learn, archive, revive) — data-refresh.js. Holds the scan guard like
+// do-commit's rescan (Scan now refuses while it runs, hq:scan-status shows it),
+// coalesces bursts into one reload, surfaces failures, and marks self-writes so
+// the data watcher doesn't bake + reload a second time.
+const dataRefresh = dataRefreshMod.init({
+  runNode: runNodeAsync,
+  assembleScript: path.join(COLLECTOR, 'assemble.mjs'),
+  buildScript: path.join(DIR, 'build-data.mjs'),
+  latest,
+  scanBegin: () => liveState.scanBegin(),
+  scanEnd: (code, err) => liveState.scanEnd(code, err),
+  marker: selfWrite,
+  onDone: () => { if (win && !win.isDestroyed()) win.reload(); updateTray(); },
+  onError: (err) => {
+    console.error('[data-refresh] failed:', err && err.message);
+    appLog.error('data-refresh', err);
+    trayNotify('WorkspaceHQ', 'Refreshing after that change failed — the window may show stale data (see logs/).');
+  },
+});
 
 // ---- MED-BAY (M2): live PC-health scan + safe fix runner -----------------
 const PC_HEALTH_FILE = path.join(DATA, 'pc-health.json');
@@ -877,7 +868,10 @@ ipcMain.handle('hq:health-fix', (_e, command) => {
 // Windows Terminal when present, classic cmd window otherwise.
 function openChanneled(spell) {
   const cwd = spell.cwd || SCAN_DIR;
-  const quote = (a) => (/[\s"&|<>^]/.test(a) ? `"${String(a).replace(/"/g, '\\"')}"` : a);
+  // cmd.exe has no backslash escape: in `\"` the backslash is literal and the quote
+  // toggles quoting OFF, so anything after (&, |, …) runs as live shell syntax.
+  // Doubling the quote is cmd's own escape and stays inert under cmd /k.
+  const quote = (a) => (/[\s"&|<>^]/.test(a) ? `"${String(a).replace(/"/g, '""')}"` : a);
   const cmdline = [spell.command, ...(spell.args || [])].map(quote).join(' ');
   const wt = spawnSync('where', ['wt'], { encoding: 'utf8', windowsHide: true }).status === 0;
   const child = wt
@@ -1211,14 +1205,18 @@ if (!app.requestSingleInstanceLock()) {
 
   // Watch the data sidecar so the always-open UI refreshes itself when the scheduled
   // scan (register-task.ps1: logon +2min / daily 00:00) lands a new latest.json.
+  // In-app writers (refresh runner, runScan, do-commit rescan) bake + reload
+  // themselves and mark the write — the watcher must not echo them into a second
+  // bake + reload; the defer/skip rules live in data-refresh.js createLatestWatcher.
+  let latestWatch = null;
   function watchData() {
     try {
-      let t = null;
-      watcher = fs.watch(DATA, (_evt, file) => {
-        if (file !== 'latest.json') return;
-        clearTimeout(t);
-        t = setTimeout(() => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); }, 800);
+      latestWatch = dataRefreshMod.createLatestWatcher({
+        isScanRunning: () => liveState.snapshot().scan.state === 'running',
+        marker: selfWrite,
+        onExternal: () => { rebuildData(); if (win && !win.isDestroyed()) win.reload(); updateTray(); },
       });
+      watcher = fs.watch(DATA, (_evt, file) => latestWatch.onEvent(file));
     } catch (e) { console.error('watchData failed:', e); }
   }
 
@@ -1226,7 +1224,11 @@ if (!app.requestSingleInstanceLock()) {
     appLog.watchPower(powerMonitor); appLog.heartbeat();   // suspend / resume / shutdown + a 15-min 'alive' line (app-log.js)
     // Persist as the main dashboard: launch at login, hidden to tray — packaged or not; test instances never register
     require('./login-item').init({ app });
-    rebuildData();
+    // skip the launch bake when data.js is already newer than every input it is
+    // baked from — the hidden autostart usually has nothing new, yet paid a
+    // blocking child process before the window existed (bake-freshness.js)
+    if (!bakeFreshness.dataJsFresh({ dataJs: path.join(DIR, 'data.js'), reportsDir: path.join(VAULT, '30_Areas', 'Workspace Status'), dataDir: DATA, bakeScript: path.join(DIR, 'build-data.mjs') })) rebuildData();
+    else console.log('[build-data] launch bake skipped — data.js is newer than every input');
     require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
     claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog, vaultDir: VAULT });   // Claude Hub (spec 2026-10-13): index of every Claude Code session
     require('./claude-bridge-routes').setHub(claudeHub);   // claude.ai live sync: the extension's /claude/* bridge routes ask this Hub
@@ -1263,6 +1265,7 @@ if (!app.requestSingleInstanceLock()) {
     app.isQuitting = true;
     if (machineTimer) clearInterval(machineTimer);
     try { globalShortcut.unregisterAll(); } catch {}
+    if (latestWatch) try { latestWatch.close(); } catch {}   // no stray debounce timer baking mid-quit
     for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}
     if (bridge) try { bridge.stop(); } catch {}
     try { claudeHub && claudeHub.stop(); } catch {}   // the Hub releases its db lock on stdin close

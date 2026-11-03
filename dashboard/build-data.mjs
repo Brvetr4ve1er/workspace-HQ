@@ -10,14 +10,54 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPORTS_DIR = process.argv[2] || 'C:/Users/ROG STRIX/Documents/VEEMO CORTEX/30_Areas/Workspace Status';
+const OUT = process.env.HQ_DATA_OUT || path.join(__dirname, 'data.js');   // tests point this at a temp file
+// Sidecar cache: parsing every sidecar (15+ MB) dominated the bake, and the
+// history never changes — only the NEWEST sidecar does (assemble rewrites it on
+// every scan). Cache each non-newest file's minified JSON keyed by mtime+size;
+// the newest is always parsed fresh and never cached, so a steady-state bake
+// re-parses one file and rewrites nothing but data.js. Output stays
+// byte-identical to an uncached bake. The cache sits next to data.js; the .js
+// extension is load-bearing — the dashboard/_*.js ignore pattern keeps it out
+// of the public repo.
+const CACHE = path.join(path.dirname(OUT), '_data-cache.js');
+const CACHE_VERSION = 1;
 
-let scans = [];
+let scanJsons = [];   // one minified-JSON string per sidecar, oldest -> newest
+let latestScan = null;
+let cachedCount = 0;
 try {
-  scans = fs.readdirSync(REPORTS_DIR)
+  const files = fs.readdirSync(REPORTS_DIR)
     .filter((f) => /^Workspace Status \d{4}-\d{2}-\d{2}\.json$/.test(f))
-    .sort()
-    .map((f) => JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, f), 'utf8')));
+    .sort();
+  let cache = null;
+  try {
+    const c = JSON.parse(fs.readFileSync(CACHE, 'utf8'));
+    if (c && c.version === CACHE_VERSION && c.reportsDir === REPORTS_DIR && c.entries && typeof c.entries === 'object' && !Array.isArray(c.entries)) cache = c;
+  } catch { /* no / corrupt cache → full parse */ }
+  const entries = {};
+  let dirty = !cache || Object.keys(cache.entries).length !== Math.max(0, files.length - 1);
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const file = path.join(REPORTS_DIR, f);
+    if (i === files.length - 1) {   // newest: parse fresh, keep out of the cache
+      latestScan = JSON.parse(fs.readFileSync(file, 'utf8'));
+      scanJsons.push(JSON.stringify(latestScan));
+      continue;
+    }
+    const st = fs.statSync(file);
+    const hit = cache && cache.entries[f] && cache.entries[f].mtimeMs === st.mtimeMs && cache.entries[f].size === st.size;
+    const json = hit ? cache.entries[f].json : JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf8')));
+    if (hit) cachedCount++; else dirty = true;
+    entries[f] = { mtimeMs: st.mtimeMs, size: st.size, json };
+    scanJsons.push(json);
+  }
+  if (dirty && files.length > 1) {   // atomic: a killed bake must not leave a torn cache
+    const tmp = path.join(path.dirname(OUT), '_data-cache.tmp.js');   // .js suffix: the temp too stays inside the dashboard/_*.js ignore pattern
+    fs.writeFileSync(tmp, JSON.stringify({ version: CACHE_VERSION, reportsDir: REPORTS_DIR, entries }));
+    fs.renameSync(tmp, CACHE);
+  }
 } catch (e) {
+  scanJsons = []; latestScan = null; cachedCount = 0;
   console.error('[build-data] could not read reports dir:', e.message);
 }
 
@@ -62,7 +102,8 @@ const pcHealth = optionalJson('../data/pc-health.json');
 const github = optionalJson('../data/github.json');   // GitHub account snapshot (collector/github.mjs; CONTRACT 2026-10-26)
 const accounts = optionalJson('../data/accounts.json');   // Vercel + Supabase snapshot (collector/accounts.mjs; CONTRACT 2026-10-26)
 const notebooklm = optionalJson('../data/notebooklm.json');
-const data = { scans, latest: scans[scans.length - 1] || null, projectNotes, weeklyRecap, spellbook, telemetry, actedOn, pcHealth, github, accounts, notebooklm, built_at: new Date().toISOString() };
-const out = path.join(__dirname, 'data.js');
-fs.writeFileSync(out, 'window.DATA = ' + JSON.stringify(data) + ';\n');
-console.log(`[build-data] ${scans.length} scan(s) -> ${out} (latest: ${data.latest?.scan.id || 'none'})`);
+// spliced, not JSON.stringify({ scans, latest, ... }): the cached history
+// strings go in verbatim — same JSON bytes, same key order as the old literal
+const tail = JSON.stringify({ projectNotes, weeklyRecap, spellbook, telemetry, actedOn, pcHealth, github, accounts, notebooklm, built_at: new Date().toISOString() });
+fs.writeFileSync(OUT, 'window.DATA = {"scans":[' + scanJsons.join(',') + '],"latest":' + (scanJsons.length ? scanJsons[scanJsons.length - 1] : 'null') + ',' + tail.slice(1) + ';\n');
+console.log(`[build-data] ${scanJsons.length} scan(s), ${cachedCount} from cache -> ${OUT} (latest: ${latestScan?.scan.id || 'none'})`);
