@@ -20,7 +20,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false };
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {} };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -111,6 +111,8 @@ export async function run(W = window.WHQ) {
       ...[1, 2, 3].map((step) => ['onboard-' + step, { onboard: { step, path: '', dev: 'npm run dev', branch: 'main', name: '' } }]),
     ].filter(Boolean);
     const offsets = M.maxOff > 0 ? [0, M.maxOff] : [0];
+    // the money fixture (tools/money.fake-views.json): a JSON module — fetch() can't read file:// in Electron
+    const MONEY = (await import('../tools/money.fake-views.json', { with: { type: 'json' } })).default;
     const base = { askHistory: initial.askHistory };
 
     for (const theme of ['dark', 'light']) {
@@ -129,7 +131,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -251,6 +253,37 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: off }, patch));
             });
           }
+        }
+        // Money: every load state + every inline form / flag the cross product doesn't reach (space-port-money)
+        const MV = { ready: { view: MONEY.full, error: '', loaded: true }, empty: { view: MONEY.empty, error: '', loaded: true },
+          error: { view: null, error: 'selftest: synthetic read error', loaded: true }, loading: { view: null, error: '', loaded: false } };
+        const o0 = MONEY.full.obligations[0], j0 = MONEY.full.jars[0], promo = MONEY.full.slips.find((c) => c.warn);
+        for (const [name, sub, money, mny, extra] of [
+          ['money-empty', 'today', MV.empty, {}],
+          ['money-error', 'today', MV.error, {}],
+          ['money-loading', 'today', MV.loading, {}],
+          ['money-acct-new', 'today', MV.ready, { acct: { name: '', currency: 'DA', balance: '' } }],
+          ['money-acct-confirm', 'today', MV.ready, { acct: { id: MONEY.full.accounts[1].id, name: 'Card', currency: 'USD', balance: '' } }],
+          ['money-ask', 'today', MV.ready, { ask: { type: 'account-archive', payload: { id: 'x' }, question: 'Archive Cash? Its history stays.' } }],
+          ...(M.maxOff > 0 ? [['money-scrubbed', 'today', MV.ready, {}, { snapOffset: 1 }]] : []),
+          ['money-bill-new', 'runway', MV.ready, { bill: { name: '', amount: '', currency: 'DA', kind: 'bill', cadence: 'monthly', firstDue: '2026-11-20', accountId: '' } }],
+          ['money-bill-installment', 'runway', MV.ready, { bill: { name: 'Phone plan', amount: '4000', currency: 'DA', kind: 'installment', cadence: 'monthly', firstDue: '2026-11-15', accountId: '', installmentTotal: '12', paidBefore: '4' } }],
+          ['money-pay-open', 'runway', MV.ready, { pay: { id: o0.id, amount: '', accountId: '' } }],
+          ['money-runway-empty', 'runway', MV.empty, {}],
+          ['money-jar-new', 'jars', MV.ready, { jar: { name: '', target: '', targetDate: '' } }],
+          ['money-jar-move', 'jars', MV.ready, { move: { jarId: j0.id, kind: 'withdraw', amount: '' } }],
+          ['money-jar-cover', 'jars', MV.ready, { cover: { toJarId: j0.id, fromJarId: '', amount: '500' } }],
+          ['money-payday-open', 'jars', MV.ready, { payday: { amount: '', accountId: '' } }],
+          ['money-jars-empty', 'jars', MV.empty, {}],
+          ['money-slip-armed', 'inbox', MV.ready, { armed: { [promo.id]: true } }],
+          ['money-inbox-empty', 'inbox', MV.empty, {}],
+        ]) {
+          // arriving on money (or another sub) re-reads it (app.js componentDidUpdate): let that answer land first
+          if (L.state.tab !== 'money' || L.state.sub.money !== sub) { L.go('money', sub); await rendered(); await sleep(250); }
+          await combo([theme, 'p3:' + name].join(' '), () => {
+            LV.money = money;
+            L.go('money', sub); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, mny }, extra || {}));
+          });
         }
       }
     } finally {

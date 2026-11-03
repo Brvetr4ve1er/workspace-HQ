@@ -4,6 +4,8 @@
 //   node tools/cdp-gate.mjs --port 9342 --scenario boot            (comma list, or "all")
 //   options: --match index.html (page URL substring) · --wait 20000 (ms to wait for the port)
 // Exit 0 every scenario passed · 1 one failed · 2 couldn't connect / bad usage.
+// money scenarios (need --preload=fake; tools/money.fake-views.json is what money.read answers):
+//   money-open-key9 · money-log-spend · money-pay-bill · money-inbox-paste-promo · money-archive-ask · money-button-sweep
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -92,7 +94,7 @@ function driver(cdp) {
     // action, so Enter on a focused button clicks it). {repeat:true} sends one auto-repeat
     // keydown and no keyup, as when the key is held down.
     async press(key, o = {}) {
-      const K = { Enter: ['Enter', 13, '\r'], Escape: ['Escape', 27, ''] }[key];
+      const K = { Enter: ['Enter', 13, '\r'], Escape: ['Escape', 27, ''], 9: ['Digit9', 57, '9'] }[key];   // 9: the money space's destination key
       if (!K) throw new Error('press: no key table entry for ' + key);
       const [code, vk, text] = K, base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
       await cdp.send('Input.dispatchKeyEvent', Object.assign({ type: text ? 'keyDown' : 'rawKeyDown', autoRepeat: !!o.repeat }, base, text ? { text, unmodifiedText: text } : null));
@@ -162,6 +164,33 @@ function preloadMethods() {
   vm.runInNewContext(fs.readFileSync(new URL('../../dashboard/preload.js', import.meta.url), 'utf8'), { require: (m) => { if (m !== 'electron') throw new Error('preload requires ' + m); return electron; } });
   const walk = (o, p, out) => { for (const [k, v] of Object.entries(o || {})) { if (typeof v === 'function') out.push(p + k); else if (v && typeof v === 'object') walk(v, p + k + '.', out); } return out; };
   return walk(exposed.hq, '', []);
+}
+
+// money space (space-port-money): the fixture the fake preload's money.read answers (placeholder data)
+const MONEY_FIX = JSON.parse(fs.readFileSync(new URL('./money.fake-views.json', import.meta.url), 'utf8'));
+// the money screen root, a button by its exact label inside it (optionally inside the card holding `near` text), an input by placeholder
+const MNY = `(() => { const root = () => [...document.querySelectorAll('main div')].find((d) => d.style.maxWidth === '900px' && d.closest('main'));
+  const same = (n, label) => [...n.querySelectorAll('button')].filter((b) => b.textContent.trim() === label).length;
+  // the nearest ancestor that mentions 'near' must hold exactly this one 'label' button (the card, not the list around it)
+  const card = (el, near, label) => { for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) if (n.textContent.includes(near)) return same(n, label) === 1 ? n : null; return null; };
+  const btns = (label, near) => [...(root() || document).querySelectorAll('button')].filter((b) => b.textContent.trim() === label && (!near || card(b, near, label)));
+  return { root, btns, click: (label, near, i = 0) => { const b = btns(label, near)[i]; if (!b) return false; b.click(); return true; },
+    input: (ph) => (root() || document).querySelector('[placeholder="' + ph + '"]'),
+    toasts: () => WHQ.app.logic.state.toasts.map((x) => [x.kind, x.text]) }; })()`;
+const mnyCalls = (t, type) => t.evaluate(`hqFake.calls('money.apply').map((c) => c.args[0])${type ? `.filter((i) => i && i.type === ${JSON.stringify(type)})` : ''}`);
+// fresh() + the money tab on `sub` with no drafts, after the arrival read landed
+async function moneyAt(t, sub) {
+  const pre = await fresh(t); if (pre) return pre;
+  await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ mny: {} }); L.go('money', ${JSON.stringify(sub)}); return true; })()`);
+  if (!await t.waitFor(`WHQ.app.logic.state.tab === 'money' && !!(WHQ.store.live.money && WHQ.store.live.money.view) && !!${MNY}.root()`, 8000)) return ['the money screen never rendered the fixture'];
+  await t.sleep(150);
+  return null;
+}
+// focus an input (by placeholder) and type into it as a person would
+async function mnyType(t, ph, text) {
+  const ok = await t.evaluate(`(() => { const i = ${MNY}.input(${JSON.stringify(ph)}); if (!i) return false; i.focus(); i.select && i.select(); return document.activeElement === i; })()`);
+  if (ok) await t.type(text);
+  return ok;
 }
 
 // ---- scenarios -----------------------------------------------------------------
@@ -1268,6 +1297,140 @@ const SCENARIOS = {
     for (const f of findings) console.log('  ' + line(f));
     const cut = (f) => f.cls === 'not-wired' && f.toasts.some((x) => KNOWN_CUTS.some((re) => re.test(x.replace(/^\w+:/, ''))));
     return findings.filter((f) => !cut(f)).map(line);
+  },
+  // Money: the 9 hotkey opens the space on Today, the arrival re-reads main, the header carries breathing room
+  async 'money-open-key9'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [], saved = await t.evaluate(SNAP_KEYS(['whq3-prefs']));
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ mny: {}, sub: Object.assign({}, L.state.sub, { money: 'today' }) }); L.go('home'); document.activeElement && document.activeElement.blur && document.activeElement.blur(); return true; })()`);
+      await t.sleep(150);
+      // a --hidden harness's first focus opens What's new once (logic/whats-new.js), which blocks the hotkeys: close it
+      await t.send('Page.bringToFront');
+      await t.sleep(200);
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ whatsNewOpen: false }); hqFake.reset(); return true; })()`);
+      await t.sleep(100);
+      await t.press('9');
+      if (!await t.waitFor(`WHQ.app.logic.state.tab === 'money'`, 5000)) return ['pressing 9 did not open the Money space (tab ' + await t.evaluate(`WHQ.app.logic.state.tab`) + ')'];
+      if (await t.evaluate(`WHQ.app.logic.state.sub.money`) !== 'today') out.push('opened on ' + await t.evaluate(`WHQ.app.logic.state.sub.money`) + ', want today');
+      if (!await t.waitFor(`hqFake.calls('money.read').length >= 1`, 3000)) out.push('no money.read on arrival (refresh on arrival)');
+      if (!await t.waitFor(`document.querySelector('main').textContent.includes('breathing room ${MONEY_FIX.full.room.amount}')`, 3000)) out.push('header subtitle lacks "breathing room ' + MONEY_FIX.full.room.amount + '"');
+      else {
+        const sub = await t.evaluate(`WHQ.app.logic.renderVals().screenSub`);
+        if (!sub.startsWith('breathing room ' + MONEY_FIX.full.room.amount)) out.push('screenSub: ' + sub);
+      }
+      const bad = (await t.evaluate(`${MNY}.toasts()`)).filter((x) => x[0] === 'error');
+      if (bad.length) out.push('error toast: ' + JSON.stringify(bad));
+    } finally { await t.evaluate(RESTORE_KEYS(saved)).catch(() => {}); }
+    return out.concat(t.errors());
+  },
+
+  // Money › Today quick log: only form fields go to main (no id / at / date), saved toast after main answered,
+  // amount cleared; an empty amount is main's real refusal, toasted red, and the guard is released
+  async 'money-log-spend'(t) {
+    const pre = await moneyAt(t, 'today'); if (pre) return pre;
+    const out = [];
+    const cash = MONEY_FIX.full.accounts.find((a) => a.name === 'Cash');
+    if (!await mnyType(t, 'amount', '350')) return ['no Amount input on Today'];
+    if (!await t.evaluate(`${MNY}.click('food')`)) out.push('no "food" chip');
+    if (!await t.evaluate(`${MNY}.click('Log it')`)) return out.concat('no Log it button');
+    if (!await t.waitFor(`hqFake.calls('money.apply').length === 1`, 3000)) return out.concat('Log it sent ' + (await mnyCalls(t)).length + ' money.apply calls, want 1');
+    const [intent] = await mnyCalls(t);
+    const want = { type: 'log', amount: '350', currency: 'DA', category: 'Food', accountId: cash.id, note: '' };
+    if (JSON.stringify(intent) !== JSON.stringify(want)) out.push('log intent ' + JSON.stringify(intent) + ', want ' + JSON.stringify(want));
+    for (const k of ['id', 'at', 'date']) if (intent && k in intent) out.push('the renderer minted ' + k);
+    if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'success' && x[1] === 'saved')`, 3000)) out.push('no "saved" toast: ' + JSON.stringify(await t.evaluate(`${MNY}.toasts()`)));
+    if (await t.evaluate(`${MNY}.input('amount').value`) !== '') out.push('Amount not cleared after the save');
+    // empty amount: the fake answers main's real refusal
+    await t.evaluate(`${MNY}.click('Log it')`);
+    if (!await t.waitFor(`hqFake.calls('money.apply').length === 2`, 3000)) out.push('the empty Log it never reached main');
+    if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'error' && x[1] === 'amount needs a number above 0.')`, 3000)) out.push('no red "amount needs a number above 0." toast: ' + JSON.stringify(await t.evaluate(`${MNY}.toasts()`)));
+    if (await t.evaluate(`!!(WHQ.app.logic.state.mny || {}).busy`)) out.push('the double-submit guard stayed on after a refusal');
+    await t.evaluate(`hqFake.reset()`);
+    await t.evaluate(`${MNY}.click('Log it')`);
+    if (!await t.waitFor(`hqFake.calls('money.apply').length === 1`, 3000)) out.push('Log it unusable after the refusal (guard not released)');
+    return out.concat(t.errors());
+  },
+
+  // Money › Runway: Pay opens the inline row (amount prefilled empty, the bill's account), Mark paid sends one intent and closes it
+  async 'money-pay-bill'(t) {
+    const pre = await moneyAt(t, 'runway'); if (pre) return pre;
+    const out = [];
+    const o0 = MONEY_FIX.full.obligations[0];
+    if (!await t.evaluate(`${MNY}.click('Pay', ${JSON.stringify(o0.name)})`)) return ['no Pay on the first bill (' + o0.name + ')'];
+    if (!await t.waitFor(`${MNY}.btns('Mark paid').length === 1`, 3000)) return ['Pay did not open the inline pay row'];
+    await t.evaluate(`${MNY}.click('Mark paid')`);
+    if (!await t.waitFor(`hqFake.calls('money.apply').length === 1`, 3000)) return out.concat('Mark paid did not reach main');
+    const [intent] = await mnyCalls(t);
+    const want = { type: 'obligation-pay', id: o0.id, amount: '', accountId: o0.accountId || MONEY_FIX.full.accounts[0].id };
+    if (JSON.stringify(intent) !== JSON.stringify(want)) out.push('pay intent ' + JSON.stringify(intent) + ', want ' + JSON.stringify(want));
+    if (!await t.waitFor(`${MNY}.btns('Mark paid').length === 0 && !(WHQ.app.logic.state.mny || {}).pay`, 3000)) out.push('the inline pay row stayed open');
+    if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'success' && x[1] === 'saved')`, 3000)) out.push('no "saved" toast');
+    return out.concat(t.errors());
+  },
+
+  // Money › Inbox: paste → one inbox-paste intent; a promo slip needs a second deliberate tap before inbox-confirm goes
+  async 'money-inbox-paste-promo'(t) {
+    const pre = await moneyAt(t, 'inbox'); if (pre) return pre;
+    const out = [];
+    const text = 'Spotify: Get 3 months of Premium for $0.';
+    const promo = MONEY_FIX.full.slips.find((c) => c.warn);
+    const same = MONEY_FIX.full.accounts.find((a) => a.currency === promo.currency);
+    if (!await mnyType(t, 'Several at once? Separate them with a blank line or ---', text)) return ['no paste textarea'];
+    await t.evaluate(`${MNY}.click('Read it')`);
+    if (!await t.waitFor(`hqFake.calls('money.apply').length === 1`, 3000)) return ['Read it did not reach main'];
+    const [paste] = await mnyCalls(t);
+    if (JSON.stringify(paste) !== JSON.stringify({ type: 'inbox-paste', text, from: '' })) out.push('paste intent ' + JSON.stringify(paste));
+    await t.sleep(150);
+    if (!await t.evaluate(`${MNY}.click('Confirm', ${JSON.stringify(promo.merchant)})`)) return out.concat('no Confirm on the promo slip (' + promo.merchant + ')');
+    await t.sleep(200);
+    if ((await mnyCalls(t, 'inbox-confirm')).length) out.push('one tap on a promo slip already sent inbox-confirm');
+    if (!await t.evaluate(`${MNY}.root().textContent.includes('Tap confirm anyway')`)) out.push('the armed slip does not say "Tap confirm anyway"');
+    if (!await t.evaluate(`${MNY}.click('Confirm anyway', ${JSON.stringify(promo.merchant)})`)) return out.concat('the armed button does not read "Confirm anyway"');
+    if (!await t.waitFor(`hqFake.calls('money.apply').filter((c) => c.args[0] && c.args[0].type === 'inbox-confirm').length === 1`, 3000)) return out.concat('the second tap did not send inbox-confirm');
+    const [conf] = await mnyCalls(t, 'inbox-confirm');
+    // the account chip defaults to the slip's same-currency account (vals/money.js); the owner can pick another or "no account"
+    const want = { type: 'inbox-confirm', id: promo.id, category: promo.category, accountId: same ? same.id : '', anyway: true };
+    if (JSON.stringify(conf) !== JSON.stringify(want)) out.push('confirm intent ' + JSON.stringify(conf) + ', want ' + JSON.stringify(want));
+    return out.concat(t.errors());
+  },
+
+  // Money › Jars: Archive asks inline first; Keep it sends nothing and closes the bar; Archive in the bar sends one intent
+  async 'money-archive-ask'(t) {
+    const pre = await moneyAt(t, 'jars'); if (pre) return pre;
+    const out = [];
+    const j0 = MONEY_FIX.full.jars[0];
+    if (!await t.evaluate(`${MNY}.click('Archive', ${JSON.stringify(j0.name)})`)) return ['no Archive on the first jar (' + j0.name + ')'];
+    if (!await t.waitFor(`${MNY}.btns('Keep it').length === 1`, 3000)) return ['Archive did not ask first'];
+    await t.evaluate(`${MNY}.click('Keep it')`);
+    await t.sleep(200);
+    if ((await mnyCalls(t, 'jar-archive')).length) out.push('Keep it sent jar-archive');
+    if (await t.evaluate(`${MNY}.btns('Keep it').length`)) out.push('the ask bar stayed after Keep it');
+    await t.evaluate(`${MNY}.click('Archive', ${JSON.stringify(j0.name)})`);
+    if (!await t.waitFor(`${MNY}.btns('Keep it').length === 1`, 3000)) return out.concat('the second Archive did not ask');
+    // the bar's Archive: the one in the card that holds "Keep it"
+    await t.evaluate(`(() => { const k = ${MNY}.btns('Keep it')[0]; const b = [...k.parentElement.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Archive'); b.click(); return true; })()`);
+    if (!await t.waitFor(`hqFake.calls('money.apply').length === 1`, 3000)) return out.concat('Archive in the bar did not reach main');
+    const calls = await mnyCalls(t);
+    if (JSON.stringify(calls) !== JSON.stringify([{ type: 'jar-archive', id: j0.id }])) out.push('archive calls ' + JSON.stringify(calls));
+    return out.concat(t.errors());
+  },
+
+  // Money: every button on every sub, once each, on the full fixture — none throws or logs an error
+  async 'money-button-sweep'(t) {
+    const out = [];
+    for (const sub of ['today', 'runway', 'jars', 'inbox']) {
+      const pre = await moneyAt(t, sub); if (pre) return pre;
+      const n = await t.evaluate(`${MNY}.root().querySelectorAll('button').length`);
+      for (let i = 0; i < n; i++) {
+        const r = await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ mny: {} }); L.go('money', ${JSON.stringify(sub)}); return true; })()`).then(() => t.sleep(40))
+          .then(() => t.evaluate(`(() => { const b = ${MNY}.root().querySelectorAll('button')[${i}]; if (!b) return null; const label = b.textContent.trim(); b.click(); return label; })()`));
+        await t.sleep(60);
+        if (r === null) break;
+      }
+      await t.evaluate(`(() => { WHQ.app.logic.setState({ mny: {}, toasts: [] }); return true; })()`);
+    }
+    return out.concat(t.errors());
   },
 };
 
