@@ -155,4 +155,11 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:browser-tab', handler);
     return () => ipcRenderer.removeListener('hq:browser-tab', handler);
   },
+  // money space (IPC-CONTRACT hq:money:*). Intents only — main validates every field.
+  money: {
+    read: () => ipcRenderer.invoke('hq:money:read'),
+    apply: (intent) => ipcRenderer.invoke('hq:money:apply', intent),
+    importFile: () => ipcRenderer.invoke('hq:money:import'),
+    exportFile: () => ipcRenderer.invoke('hq:money:export'),
+  },
 });

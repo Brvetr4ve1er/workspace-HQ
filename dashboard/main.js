@@ -1238,6 +1238,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./pc-health-open').init({ ipcMain, shell, dataDir: DATA });   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });
     require('./accounts-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });   // Projects › Accounts: Vercel + Supabase through the owner's CLI logins (hq:accounts-refresh, hq:accounts-open)   // Projects › GitHub: refresh through the owner's gh login + open a listed github.com link (hq:github-refresh, hq:github-open)   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
+    require('./money').init({ ipcMain, dataDir: DATA, getWin: () => win });   // money space: data/money/state.json (IPC-CONTRACT hq:money:*)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();
