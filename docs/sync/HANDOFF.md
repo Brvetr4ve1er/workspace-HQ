@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-03 · FROM frontend (devfleet — owner: "run a devfleet to analyse the app and improve it heavily") · main @ 3536b92
+DONE: 10 subsystem reviewers + 1 adversarial verifier per finding: 53 raw, 49 survived (4 refuted). 7 file-disjoint fixers landed
+  them in 8 commits f1d8c2d..3536b92: main stops freezing (tray push/backup async w/ deadlines — NEW git-actions.js;
+  assemble->bake->ONE reload via NEW data-refresh.js, exit codes honored; startup bake skipped when fresh — bake-freshness.js;
+  json-store.js, daily-notes-watch.js), Hub backfill tx-batched + stats() date-bounded (schema still 2), Save to vault fixed for
+  long titles, async killTree, bridge Host allowlist (DNS rebinding) + no oversize buffering, extension 0.6.1 flush race,
+  renderer double-submit/undo-XP races + output render coalescing, honesty copy, dead glyphs/vals keys, MCP descriptions honest,
+  IPC-CONTRACT/CONTRACT/README drift. Goldens: 18 key paths moved, all attributed (commit 9fe436c). Also docs/design/SPACE-PORT-BRIEF.md.
+  Suites: main-side 652/652 (+68), renderer 378/378 (+23), selftest 2188 0/0/0, cdp-gate 24/24 (button-sweep 442 / 30 screens).
+  Live app restarted on it: bridge 200 for the extension, 403 "bad host" for a rebinding Host; no errors in the day log.
+IN-FLIGHT: none. Follow-ups noted, not done: Run-session / journal Add buttons don't visibly disable during the in-flight guard
+  (clicks are already no-ops); hq_social_post could refuse never-sendable platform combos at stage time.
+ASKS (struct): none.
+BREAKS: main.js — tray pushAll/snapshotDirty + hq:snapshot now async (git-actions.js); applyDone / capture-save / learn /
+  archive / revive refresh through data-refresh.js; latest.json watcher ignores in-app writes (self-write marker). Bridge refuses
+  any Host other than 127.0.0.1 / localhost / [::1]. Extension 0.6.1 needs a manual reload.
+
 ## 2026-10-29 · FROM frontend (claude.ai live sync back — owner: "i want workspace hq to read claude live") · main @ 8651160
 DONE: f9e2451 restores the extension's claude.ai live sync (0.6.0) + bridge GET /claude/sync-state, POST /claude/sync + Hub ops
   syncState / syncPush, WITHOUT the ZIP export import (importExportFile / unzip / streamJsonArray stay gone). 8651160 docs:

@@ -30,7 +30,7 @@ enters git; everything personal lives in gitignored `data/` files.
 - Main process code is **CommonJS** (`require`) in `dashboard/`; renderer and build scripts are ESM.
   The Claude Hub runs as a separate system-Node (≥ 22.13) child process using `node:sqlite`.
 - Files are mostly **CRLF**; style is terse lowercase comments explaining *why*, 1-line-dense code,
-  no semicolail drift — match what you see.
+  semicolons always — match what you see.
 - **New main-process features go in NEW files** (`dashboard/<feature>.js`) with a one-line
   `require('./<feature>').init({ ipcMain, ... })` hook in `main.js`. Never bolt logic into main.js.
 
@@ -238,6 +238,6 @@ Conversion rules for the port chat:
 
 The WorkspaceHQ Claude Code session takes the two Space Port Packages, assigns the nav slots and
 keys, lands renderer + main files per §5, writes the IPC-CONTRACT/CONTRACT rows, re-records goldens
-with attribution, extends selftest + cdp-gate, runs the full suites (today: 584 main-side + 355
-renderer, all green), and commits in small `fe:`/`meta:` commits with a HANDOFF entry. The better
+with attribution, extends selftest + cdp-gate, runs the full suites (today: 652 main-side + 378
+renderer, selftest 2188 combos, cdp-gate 24 scenarios — all green), and commits in small `fe:`/`meta:` commits with a HANDOFF entry. The better
 the package matches §10, the more mechanical that is.
