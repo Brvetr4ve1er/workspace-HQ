@@ -13,7 +13,7 @@ import { exportFixture } from './__fixtures__/make-export.mjs';
 import { makeDocsHome, historyLine } from './__fixtures__/make-docs.mjs';
 import { openStore } from './store.mjs';
 import { backfill, INDEX_VERSION } from './ingest-code.mjs';
-import { acquireLock, resolveClaudeRoot, splitCommandLine, docsProblem } from './hub.mjs';
+import { acquireLock, lockInspector, resolveClaudeRoot, splitCommandLine, docsProblem } from './hub.mjs';
 
 const HUB = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hub.mjs');
 const dirs = [], procs = new Set();
@@ -784,6 +784,36 @@ test('lock owner: the Hub binary may have any name; a pid the query missed but t
   assert.equal(acquireLock(lock, { dbFile: db, inspect: () => null, note: (t) => notes.push(t) }), false);
   assert.ok(notes.some((t) => /alive but the process query did not see it/.test(t)));
   assert.equal(JSON.parse(fs.readFileSync(lock, 'utf8')).pid, live.pid);   // never reclaimed
+});
+
+test('lockInspector: the upgrade tick re-asks about the same live owner from cache, not with a process query per tick', () => {
+  const dir = tmp('hub-lockcache-');
+  const db = path.join(dir, 'hub.sqlite'), lock = db + '.lock';
+  const sleeper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });   // the live "owner"
+  procs.add(sleeper);
+  try {
+    fs.writeFileSync(lock, JSON.stringify({ pid: sleeper.pid, db }));
+    let asked = 0;
+    const hubInfo = () => { asked++; return { name: 'node.exe', commandLine: '"C:\\x\\node.exe" "C:\\x\\hub.mjs" --db "' + db + '"' }; };
+    const cached = lockInspector(hubInfo);
+    for (let i = 0; i < 5; i++) assert.equal(acquireLock(lock, { dbFile: db, inspect: cached }), false, 'the live owner keeps the lock');
+    assert.equal(asked, 1, 'five ticks, one process query');
+    const expired = lockInspector(hubInfo, 0);   // an expired entry is re-asked (bounds how long a reused pid passes for the owner)
+    acquireLock(lock, { dbFile: db, inspect: expired });
+    acquireLock(lock, { dbFile: db, inspect: expired });
+    assert.equal(asked, 3);
+    let call = 0;
+    const flaky = lockInspector((pid) => { if (call++ === 0) throw new Error('query timed out'); return hubInfo(pid); });
+    const notes = [];
+    assert.equal(acquireLock(lock, { dbFile: db, inspect: flaky, note: (t) => notes.push(t) }), false, 'a failed query still counts the live pid as the owner');
+    assert.match(notes.pop(), /assumed live/);
+    assert.equal(acquireLock(lock, { dbFile: db, inspect: flaky }), false);
+    assert.equal(asked, 4, 'the throw was not cached: the next tick asked for real');
+    const blind = lockInspector(() => { asked++; return null; });
+    acquireLock(lock, { dbFile: db, inspect: blind, note: () => {} });
+    acquireLock(lock, { dbFile: db, inspect: blind, note: () => {} });
+    assert.equal(asked, 6, 'a null answer (query missed the pid) is never cached either');
+  } finally { sleeper.kill('SIGKILL'); }
 });
 
 test('a reader takes over as writer once the writer exits', async () => {

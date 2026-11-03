@@ -360,3 +360,67 @@ test('a title-only append reports titled; last_error is timestamped and clears w
   assert.equal(store.getMeta('last_error_file') || '', '');
   store.close();
 });
+
+// ---- batched writes: handle() gathers, flush() writes — no per-line autocommits outside the batch tx ----
+
+// a store whose write methods report whether they ran inside store.tx, and how often each was called
+function countingStore() {
+  const real = openStore(':memory:');
+  let inTx = false;
+  const counts = { outsideTx: 0 };
+  const s = { ...real, tx: (fn) => real.tx(() => { inTx = true; try { return fn(); } finally { inTx = false; } }) };
+  for (const name of ['upsertProject', 'ensureConversation', 'addUsage', 'setTitle', 'addMessages', 'refreshTokens', 'setCursor']) {
+    s[name] = (...a) => { counts[name] = (counts[name] || 0) + 1; if (!inTx) counts.outsideTx++; return real[name](...a); };
+  }
+  return { real, s, counts };
+}
+
+test('every row write runs inside a flush transaction; tokens re-aggregate once per file, not per batch', async () => {
+  const dir = tmp(), root = path.join(dir, 'projects'), folder = path.join(root, 'C--placeholder-batch');
+  fs.mkdirSync(folder, { recursive: true });
+  const f = path.join(folder, 'sess-bt.jsonl');
+  const usage = { input_tokens: 2, output_tokens: 3 };
+  let lines = userLine({ uuid: 'bt-u0', sessionId: 'sess-bt', at: '2026-10-01T09:00:00.000Z', text: 'first prompt' });
+  for (let i = 0; i < 1200; i++) lines += assistantLines({ apiId: 'msg_bt' + i, uuids: ['bt-a' + i], sessionId: 'sess-bt', at: '2026-10-01T10:00:00.000Z', blocks: [{ type: 'text', text: 'reply ' + i }], usage });
+  fs.writeFileSync(f, lines);   // 1201 message lines → two 500-line batch flushes + the final one
+  const { real, s, counts } = countingStore();
+  assert.equal((await ingestFile(s, root, f)).added, 1201);
+  assert.equal(counts.outsideTx, 0, 'no write autocommits outside a transaction');
+  assert.equal(counts.refreshTokens, 1, 'one re-aggregate per file (it SUMs the whole usage table each time)');
+  assert.equal(counts.setTitle, 1, 'one first-prompt attempt, not one per user line');
+  assert.ok(counts.upsertProject <= 4 && counts.ensureConversation <= 4, 'project/conversation written per flush, not per line: ' + JSON.stringify(counts));
+  const c = real.getConversation({ id: 'code:sess-bt' }).conversation;
+  assert.equal(c.title, 'first prompt');
+  assert.deepEqual([c.tokens_in, c.tokens_out], [2400, 3600], 'usage buffered per batch still lands, once per API response');
+  real.close();
+});
+
+test('an already-titled conversation costs one first-prompt probe per ingest, not one per appended user line', async () => {
+  const { root, files } = makeClaudeHome(tmp());
+  const { real, s, counts } = countingStore();
+  await ingestFile(s, root, files.a1);   // the fixture ends on an ai title: 'Release planning'
+  counts.setTitle = 0;
+  let more = '';
+  for (let i = 0; i < 20; i++) more += userLine({ uuid: 'a1-m' + i, sessionId: 'sess-a1', at: '2026-10-05T10:00:00.000Z', text: 'follow-up ' + i });
+  fs.appendFileSync(files.a1, more);
+  await ingestFile(s, root, files.a1);
+  assert.equal(counts.setTitle, 1, 'the sweep of a titled chat probes once per ingest');
+  assert.equal(real.getConversation({ id: 'code:sess-a1' }).conversation.title, 'Release planning', 'the ai title stays');
+  real.close();
+});
+
+test('cwd changing mid-file: the conversation keeps the first, the project path and name take the latest', async () => {
+  const dir = tmp(), root = path.join(dir, 'projects'), folder = path.join(root, 'C--placeholder-cw');
+  fs.mkdirSync(folder, { recursive: true });
+  const f = path.join(folder, 'sess-cw.jsonl');
+  fs.writeFileSync(f,
+    userLine({ uuid: 'cw-1', sessionId: 'sess-cw', at: '2026-10-01T10:00:00.000Z', cwd: 'C:\\placeholder\\first', text: 'one' }) +
+    userLine({ uuid: 'cw-2', sessionId: 'sess-cw', at: '2026-10-01T10:01:00.000Z', cwd: 'C:\\placeholder\\second', text: 'two' }));
+  const s = openStore(':memory:');
+  await ingestFile(s, root, f);
+  assert.equal(s.getConversation({ id: 'code:sess-cw' }).conversation.cwd, 'C:\\placeholder\\first', 'conversation.cwd is first-non-null-wins');
+  const p = s.listProjects({}).find((x) => x.id === 'code:C--placeholder-cw');
+  assert.equal(p.path, 'C:\\placeholder\\second', 'project.path is latest-wins');
+  assert.equal(p.name, 'second');
+  s.close();
+});

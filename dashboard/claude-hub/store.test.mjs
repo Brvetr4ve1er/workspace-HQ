@@ -255,6 +255,27 @@ test('stats token scope: a chat active in the window brings its whole token tota
   s.close();
 });
 
+test('message(at) is indexed: the stats date range bounds the scan, and an older db gains the index on open (schema stays 2)', () => {
+  const f = tmpDb();
+  const s = openStore(f);
+  const has = (db) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'message_at'").get();
+  assert.equal(has(s.db), true);
+  // the shape of stats()' days CTE: without message_at this plans as a full SCAN of message_conv with the at-range as a filter
+  const plan = s.db.prepare(`EXPLAIN QUERY PLAN WITH m AS (
+      SELECT m.conversation_id AS cid, m.at,
+        (julianday(m.at) - julianday(LAG(m.at) OVER (PARTITION BY m.conversation_id ORDER BY m.at, m.rowid))) * 86400000.0 AS gap
+      FROM message m JOIN conversation c ON c.id = m.conversation_id
+      WHERE c.forgotten = 0 AND c.source NOT IN ('instagram', 'facebook') AND m.at >= ? AND m.at < ?)
+    SELECT date(at, ?) AS day, COUNT(DISTINCT cid) AS chats, COUNT(*) AS messages FROM m GROUP BY day ORDER BY day`)
+    .all('2026-10-01T00:00:00.000Z', '2026-10-02T00:00:00.000Z', '+0 minutes').map((r) => r.detail).join('; ');
+  assert.match(plan, /SEARCH m USING INDEX message_at/, plan);
+  s.db.exec('DROP INDEX message_at'); s.close();   // a hub.sqlite written before the index existed
+  const again = openStore(f);
+  assert.equal(has(again.db), true, 'recreated by the additive migration on the next writer open');
+  assert.equal(again.getMeta('schema_version'), '2', 'no schema bump for an additive index');
+  again.close();
+});
+
 test('web_sync helpers, setProjectName, syncState', () => {
   const s = openStore(':memory:');
   assert.equal(s.getSync('conversation', 'u1'), undefined);

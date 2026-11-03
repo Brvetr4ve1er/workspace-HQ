@@ -36,6 +36,9 @@ CREATE INDEX IF NOT EXISTS conversation_last ON conversation(last_at);
 CREATE TABLE IF NOT EXISTS message(id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, native_id TEXT, parent_id TEXT,
   role TEXT NOT NULL, at TEXT, text TEXT NOT NULL DEFAULT '', tool_name TEXT, is_sidechain INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS message_conv ON message(conversation_id, at);
+-- stats() filters on at alone; message_conv leaves conversation_id unbound, so without this the whole index is scanned
+CREATE INDEX IF NOT EXISTS message_at ON message(at);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(text, content='message', content_rowid='rowid',
   tokenize='unicode61 remove_diacritics 2');
 CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN

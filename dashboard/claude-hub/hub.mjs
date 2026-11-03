@@ -106,6 +106,21 @@ export function inspectProcess(pid) {
   return { name: String((j && j.Name) || ''), commandLine: j && typeof j.CommandLine === 'string' ? j.CommandLine : null };
 }
 
+// A reader's upgrade tick re-asks acquireLock about the same live owner every 30 s, and each ask reaches inspectProcess —
+// a synchronous PowerShell spawn that stalls every query the reader is serving. This caches the last good answer per pid:
+// alive() still runs every tick (a dead owner is reclaimed at once), and a cached pid is re-asked once the entry expires,
+// which bounds how long a hard-killed owner's reused pid can pass for the owner. Throws and nulls are never cached.
+export const INSPECT_CACHE_MS = 10 * 60 * 1000;
+export function lockInspector(inspect = inspectProcess, ttlMs = INSPECT_CACHE_MS) {
+  let cached = null;   // { pid, info, at }
+  return (pid) => {
+    if (cached && cached.pid === pid && Date.now() - cached.at < ttlMs) return cached.info;
+    const info = inspect(pid);   // a throw propagates (lockOwner's "assumed live" rule) and caches nothing
+    cached = info ? { pid, info, at: Date.now() } : null;
+    return info;
+  };
+}
+
 // same file, compared on real paths (8.3 short names, junctions) and case-insensitively; a relative path resolves against
 // this process's cwd (the host always passes an absolute --db)
 const realLower = (p) => { const r = path.resolve(p); try { return fs.realpathSync.native(r).toLowerCase(); } catch { return r.toLowerCase(); } };
@@ -236,9 +251,10 @@ function main() {
     };
     attempt();
     // The writer may exit or crash: take its lock when it is free; failing that, retry the read-only open if it gave up.
+    const inspectCached = lockInspector();   // one PowerShell owner check per cache life, not one per tick
     upgradeTimer = setInterval(() => {
       if (stopping || writer) return;
-      if (acquireLock(lockFile, { dbFile, note: diag })) {
+      if (acquireLock(lockFile, { dbFile, note: diag, inspect: inspectCached })) {
         clearTimeout(readerTimer);
         try { store && store.close(); } catch { /* reopening as writer */ }
         store = null;

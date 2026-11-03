@@ -62,10 +62,22 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
 
   let offset = start, pending = [], pendingLen = 0, skipping = false;
   let added = 0, bad = 0, skippedLong = 0, batch = [], titled = false;
-  const flush = () => {
+  // Row writes used to run per line, each its own autocommit outside the batch tx (breaking the header's promise).
+  // handle() only gathers them now; flush() applies them once per batch, matching the store's merge rules:
+  // conversation.cwd is first-non-null-wins, project.path and gitBranch/model latest-non-null-wins.
+  let projCwd = null, convCwd = null, lastBranch = null, lastModel = null, convDirty = false;
+  let usagePending = [], firstPrompt = null, titleTried = false;   // one apiId can repeat in usagePending: upUsage MAX-merges
+  const flush = (final = false) => {
     store.tx(() => {
+      if (projCwd !== null) { store.upsertProject({ id: projectId, source: 'code', key: folder, name: path.win32.basename(projCwd) || folder, path: projCwd }); projCwd = null; }
+      if (convDirty) { store.ensureConversation({ id: convId, source: 'code', projectId, nativeId: sessionId, cwd: convCwd, gitBranch: lastBranch, model: lastModel }); convCwd = null; lastBranch = null; lastModel = null; convDirty = false; }
+      for (const [apiId, u] of usagePending) store.addUsage(convId, apiId, u);
+      usagePending = [];
       if (batch.length) added += store.addMessages(convId, batch);
-      store.refreshTokens(convId);
+      // one first-prompt attempt per ingest, ever: the candidate is never empty, so a false answer means the chat is
+      // already titled and retrying would only repeat the SELECT each attempt costs
+      if (!titled && !titleTried && firstPrompt !== null) { titleTried = true; if (store.setTitle(convId, firstPrompt, 'first-prompt')) titled = true; }
+      if (final) store.refreshTokens(convId);   // once per file: it SUMs the chat's whole usage table, so per batch it was quadratic
       store.setCursor({ file: rel, size: st.size, mtimeMs: st.mtimeMs, offset, head, sessionId });
     });
     batch = [];
@@ -77,14 +89,15 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
     // The parser already masked every text on its full length before cutting it (parse-code.mjs); masking again here is
     // defence in depth (masking is idempotent: a second pass over masked text finds nothing), kept so text that reaches
     // the store is masked even if a future parser path forgets to.
-    if (p.kind === 'title') { if (store.setTitle(convId, maskSecrets(p.title).text, p.source)) titled = true; return; }   // titles reach lists and search hits too
+    if (p.kind === 'title') { if (store.setTitle(convId, maskSecrets(p.title).text, p.source)) titled = true; return; }   // titles reach lists and search hits too; rare, so per line is fine
     if (p.kind !== 'message') return;
-    if (p.cwd) store.upsertProject({ id: projectId, source: 'code', key: folder, name: path.win32.basename(p.cwd) || folder, path: p.cwd });
+    if (p.cwd) { projCwd = p.cwd; if (convCwd === null) convCwd = p.cwd; convDirty = true; }
     // Claude Code's own lines ('API Error…', 'No response requested.') carry model '<synthetic>'; the latest non-null model
     // wins in the store, so a session ending on one would otherwise record '<synthetic>' in place of the real model.
     const model = p.model === '<synthetic>' ? null : p.model;
-    store.ensureConversation({ id: convId, source: 'code', projectId, nativeId: sessionId, cwd: p.cwd, gitBranch: p.gitBranch, model });
-    if (p.usage && p.apiId) store.addUsage(convId, p.apiId, p.usage);
+    if (model) { lastModel = model; convDirty = true; }
+    if (p.gitBranch) { lastBranch = p.gitBranch; convDirty = true; }
+    if (p.usage && p.apiId) usagePending.push([p.apiId, p.usage]);
     if (!p.text) return;
     const text = maskSecrets(p.text).text;   // defence in depth, see above
     // Message ids are scoped to the conversation: a resumed/forked session copies its parent's lines with the
@@ -92,7 +105,10 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
     // transcript is ingested second (the owner's tree: ~25% of lines). nativeId keeps the raw uuid.
     const id = 'code:' + sessionId + ':' + (p.uuid || '@' + offset);
     batch.push({ id, nativeId: p.uuid, parentId: p.parentUuid, role: p.role, at: p.at, text, toolName: p.toolName, isSidechain: p.isSidechain });
-    if (p.role === 'user' && !p.isSidechain && store.setTitle(convId, cutText(firstLine(text), 80), 'first-prompt')) titled = true;
+    if (firstPrompt === null && p.role === 'user' && !p.isSidechain) {
+      const cand = cutText(firstLine(text), 80);
+      if (cand.trim()) firstPrompt = cand;   // an all-blank first line is no candidate: a later user line still gets the chance
+    }
   };
 
   const stream = fs.createReadStream(file, { start, end: st.size - 1, highWaterMark: chunkSize });
@@ -119,7 +135,7 @@ export async function ingestFile(store, root, file, { chunkSize = 1 << 20, maxLi
       from = nl + 1;
     }
   }
-  flush();   // the offset excludes a partial last line, which is re-read next time
+  flush(true);   // the offset excludes a partial last line, which is re-read next time
   return { added, bad, skippedLong, reset, titled };
 }
 
