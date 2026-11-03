@@ -104,6 +104,9 @@ this row omits `baseline` entirely; treat a missing field as `{state:'none'}`.
 | `getBrowserLive()` | `hq:browser-live` | — | live activity object \| `null` | main |
 | **Social bridge** | | | | |
 | `getSocial()` | `hq:social-read` | — | `{inbox, outbox, accounts}` from `data/social/*` (read-only snapshot) \| `null` | main (SOCIAL realm) |
+| **Med-Bay (M2) — PC health scan + safe fix runner** (rows backfilled 2026-10-31 — the handlers shipped with M2 and were only referenced obliquely by the 2026-10-26 sections below) | | | | |
+| `healthScan()` | `hq:health-scan` | — | re-runs the unelevated probe (`collector/pc-health.mjs`, via `runNodeAsync`) and rebuilds `data.js` (sync bake, blocks main; no window reload), then answers the parsed `data/pc-health.json` object (shape: CONTRACT.md 2026-10-26) \| `null` (sidecar unreadable) \| `{error}` (probe failed) | Med-Bay (RE-EXAMINE) |
+| `healthFix(command)` | `hq:health-fix` | `command` string — must appear **verbatim** as a `danger:'safe'` fix in the CURRENT `data/pc-health.json`; unknown/altered strings and every `caution`/`admin` fix are refused | `{ok:false, output:'refused: not a whitelisted read-only fix'}` \| `{ok: exit===0, output}` (`powershell.exe` via `spawnSync`, 30 s timeout, output clipped to 6 000 chars; main blocked for the run) | Med-Bay (fix buttons) |
 | **PC-Brain — local model (owns `dashboard/llm-local.js`, `dashboard/llm-context.js`)** | | | | |
 | `probeLlm(opts?)` | `hq:llm:probe` | `{force?:boolean}` | `{available, runtime?:'ollama'\|'lmstudio', endpoint?, models?:[{id,size}], reason?}` — cached 30 s unless `force` | Med-Bay status row, ORACLE realm |
 | `llm.warm()` | `hq:llm:warm` | — | `{status:'warm'\|'skipped'\|'unavailable'\|'error', model?, reason?}` — loads the chat model into VRAM (8k ctx, keep_alive 30 m); coalesced, ≤ 1 load/min | ORACLE realm |

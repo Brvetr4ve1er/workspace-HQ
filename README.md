@@ -27,31 +27,23 @@ pixel mascot called Bit.
 | folder | what |
 |---|---|
 | `collector/` | The scan. Plain Node + git over the local filesystem, no prompts. An optional enrichment step asks the `claude` CLI for the soft fields (completion %, risk, insights). It is skipped when the CLI isn't installed. |
-| `dashboard/` | The Electron app (Electron 32): main process, tray, global hotkeys, and the IPC every renderer uses. |
+| `dashboard/` | The Electron app (Electron 32): main process, tray, the quick-run global hotkey, and the IPC every renderer uses. |
 | `dashboard-v5/` | The renderer. Vanilla JS, no framework, no build step. |
 | `mcp/workspacehq/` | The `workspacehq` MCP server that Claude Code sessions bind through `.mcp.json` ([tools](mcp/workspacehq/README.md)). |
-| `browser-bridge/` | Browser extension. It reports the active tab to the app. It also uses your logged-in sessions on Bluesky, Mastodon, Reddit, X, LinkedIn, Instagram, Threads, Facebook and YouTube to read your feeds, mentions, notifications and post stats into the app. It publishes a post that Claude staged only when you press approve & send ([how approval works](browser-bridge/README.md)). |
+| `browser-bridge/` | Browser extension. It reports the active tab to the app. Its read-only scrape also uses your logged-in sessions on Bluesky, Mastodon, Reddit, X, LinkedIn, Instagram, Threads, Facebook and YouTube to write your feeds, mentions, notifications and post stats to `data/social/*.json` — currently nothing reads those files: the Social tab and the MCP read tools went in the 2026-10-28 cleanup (see below). It publishes a post that Claude staged only when you press approve & send ([how approval works](browser-bridge/README.md)). |
 | `schema/`, `spellbook/` | Scan data schema; curated automation ("spell") definitions. |
 | `tools/trailer/` | Renders the two trailers to video. |
 | `docs/` | Data contract (`docs/sync/CONTRACT.md`), IPC contract, design notes. |
 
 In the app: Home (changes since the last scan, the next action, Scan now), Projects (grid, map,
 project pages, and a commit sheet that refuses to commit `.env` files; it doesn't scan file contents
-for keys), Tasks, Automations, Claude sessions, History, System, Life and Studio (snips, screen
-recordings).
+for keys), Tasks, Automations, Claude sessions, History, System and Life.
 
 In v5, Ask answers questions from your scan data with a local model (Ollama or LM Studio, on
 localhost).
 
-Global hotkeys:
-
-| keys | what |
-|---|---|
-| `Ctrl+Alt+G` | summon |
-| `Ctrl+Alt+X` | quick-run |
-| `Ctrl+Alt+S` / `Ctrl+Alt+Shift+S` | snip |
-| `Ctrl+Alt+R` / `Ctrl+Alt+Shift+R` | open or close the recorder panel (press Rec there to record) · stop a running recording |
-| `Ctrl+Alt+L` | Studio |
+One global hotkey: `Ctrl+Alt+X` (quick-run). The summon, snip, recorder and Studio hotkeys went
+with their features on 2026-10-28.
 
 ## Run it (PowerShell)
 
@@ -106,7 +98,7 @@ The Hub also indexes your Claude memory notes, CLAUDE.md files, `~/.claude/histo
 
 Your claude.ai chats arrive live through the browser extension (0.6.0): press **Sync claude.ai** in its popup, keep a logged-in claude.ai tab open, and new or changed chats land in Claude › Chats every 5 minutes (read-only, details in [browser-bridge/README.md](browser-bridge/README.md)).
 
-The data-export importers (claude.ai, ChatGPT, Instagram / Facebook ZIPs, the drop folder) and the prompt library (Prompts, Candidates, runs, packs) were removed on 2026-10-28; restore them from the git tag `cleanup-base-2026-10-28`.
+The data-export importers (claude.ai, ChatGPT, Instagram / Facebook ZIPs, the drop folder), the prompt library (Prompts, Candidates, runs, packs), Studio (snips, screen recordings), the Summon palette, and the Social tab with its MCP read tools (`hq_social_status/feed/mentions/metrics`) were removed on 2026-10-28; restore them from the git tag `cleanup-base-2026-10-28`.
 
 Test overrides: `HQ_CLAUDE_BIN` is the absolute path of the `claude` the in-app chat runs (tests and gates point it at the `dashboard/__fixtures__` fake via `make-fake-claude.mjs`; never spend real quota in a test).
 

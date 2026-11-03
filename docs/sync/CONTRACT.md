@@ -8,14 +8,14 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 
 | File | Consumed by | Notes |
 |---|---|---|
-| `data/latest.json` | `build-data.mjs` → `window.DATA.latest` + `main.js` (tray, mini-HUD, shards, quest IPC) | the character sheet |
+| `data/latest.json` | `build-data.mjs` → `window.DATA.latest` + `main.js` (tray, quest IPC; the mini-HUD and shards readers went in the 2026-10-28 cleanup) | the character sheet |
 | `VEEMO CORTEX/…/Workspace Status *.json` | `build-data.mjs` → `window.DATA.scans[]` | time-machine history |
 | `data/spellbook.json` | `build-data.mjs` → `window.DATA.spellbook` | arsenal |
 | `data/spell-telemetry.json` | `build-data.mjs` → `window.DATA.telemetry` | mastery pips, collection meter |
 | `data/weekly-recap.json` | `build-data.mjs` → `window.DATA.weeklyRecap` | Weekly Saga card |
 | `data/quest-overrides.json` | written by `main.js` (quest-done, Obsidian sync), read by `assemble.mjs` | two-way |
-| `data/brain-dump.json` | written by capture window, read by `assemble.mjs` | routed to side-quests |
-| `data/shards.json` | runtime state of organic-UI shards — **main.js only**, not part of the scan | don't validate |
+| `data/brain-dump.json` | written by `main.js` (`hq:capture-save` — v5 palette capture / Note for cleanup; the capture window was retired 2026-09-15) and the MCP `hq_capture` tool, read by `assemble.mjs` | routed to side-quests |
+| `data/shards.json` | former organic-UI shard state — left on disk, **unread** since the 2026-10-28 cleanup | don't validate |
 | `data/browser-activity.json` | written by `main.js` bridge server (extension ingest), read by `assemble.mjs` → `latest.json.browser` | runtime state, **don't validate**; rolling 3-day window |
 
 ## Load-bearing fields in `latest.json` (renderer will crash/blank without these)
@@ -75,15 +75,17 @@ New producer/consumer pair, parallel to the browser tendril: the **WorkspaceHQ
 Bridge** extension scrapes your logged-in social sessions and the app relay
 (`dashboard/social-bridge.js`, a new tendril) writes sidecars under `data/social/`;
 the MCP server (`mcp/workspacehq/server.mjs`; it lived in `dashboard-v3/mcp/` until
-2026-10-06) reads them via `hq_social_*` tools.
+2026-10-06) works the outbox via `hq_social_post/_reply/_outbox/_cancel` (the read
+tools `hq_social_status/_feed/_mentions/_metrics` went in the 2026-10-28 cleanup, so
+`inbox.json` / `accounts.json` are currently written but unread).
 **Not consumed by `build-data.mjs`/the renderer** — no `latest.json` field, no
 golden fixture. All `data/social/*` is **gitignored** (personal content + session).
 
 | File | Written by | Read by | Shape |
 |---|---|---|---|
-| `data/social/inbox.json` | app relay (extension ingest) | `hq_social_feed/_mentions/_metrics` | tendril doc: `{updated, live, events[]}`; each event `{platform, kind:'feed'\|'mention'\|'notification'\|'metrics', id, ts, author?, text?, url?, uri?, counts?{likes,reposts,replies}, metrics?{followers,following,posts}}` |
+| `data/social/inbox.json` | app relay (extension ingest) | nothing since 2026-10-28 (`hq_social_feed/_mentions/_metrics` removed with the Social tab; restore from tag `cleanup-base-2026-10-28`) | tendril doc: `{updated, live, events[]}`; each event `{platform, kind:'feed'\|'mention'\|'notification'\|'metrics', id, ts, author?, text?, url?, uri?, counts?{likes,reposts,replies}, metrics?{followers,following,posts}}` |
 | `data/social/outbox.json` | `hq_social_post/_reply` (stage), `hq_social_cancel` + popup Skip (cancel), extension (claim + send result), owner (release) | `hq_social_outbox`, extension popup | `{updated, actions[]}`; action `{id, platform, op:'post'\|'reply', text, reply_to?, target?, title?, status:'staged'→'sending'→'sent'\|'failed', 'staged'→'canceled', 'staged'→'sent'\|'failed' (unclaimed: a 0.2.0 extension, or a late report for a released claim), staged_at, claimed_at?, released_at?, sent_at?, canceled_at?, result?{url,uri}, error?, by}`. `target`/`title` are additive optional platform routing (Reddit subreddit + title). `canceled_at` (additive, optional) is set by the popup's Skip route; the MCP cancel leaves it absent. `sent_after_cancel?:true` (additive, optional, with `sent_at` + `result`) marks a `canceled` action the extension then reported as published — see the 2026-10-06 amendment. `'sending'`, `claimed_at`, `released_at` are additive (2026-10-07 claim amendment): `claimed_at` is stamped by the claim and kept on the settled `sent`/`failed` entry; a release removes it and stamps `released_at`. |
-| `data/social/accounts.json` | extension (on connect) | `hq_social_status` | `{updated, accounts[]}`; account `{platform, handle, display?, connected_at}` |
+| `data/social/accounts.json` | extension (on connect) | nothing since 2026-10-28 (`hq_social_status` removed with the Social tab; restore from tag `cleanup-base-2026-10-28`) | `{updated, accounts[]}`; account `{platform, handle, display?, connected_at}` |
 
 **Write-gate invariant (load-bearing):** MCP `hq_social_post/_reply` only ever
 append an action with `status:"staged"`. **Nothing transitions to `sent` except by a
@@ -231,6 +233,8 @@ successful prompt run (`chat` | `terminal` | `claude.ai` | `chatgpt`), by the Hu
 (2026-10-25, P2, additive) `tombstone` gains kind `candidate` (`native_id` = `cand:<sha1 of the normalized prompt text>`,
 written by the Hide button through the Hub op `hideCandidate`): that text is never offered as a prompt candidate again.
 No schema or index-version change (`SCHEMA_VERSION` stays 2).
+(2026-10-28, cleanup) The prompt library's removal ended the `prompt_use` and candidate-tombstone writes (ops
+`promptUse` / `hideCandidate` are gone); the tables and store methods stay so the schema stays 2. Recorded 2026-10-31.
 
 #### Local bridge routes — Claude Hub live sync (H4, 2026-10-16; `dashboard/claude-bridge-routes.js`) — RESTORED 2026-10-29
 
@@ -254,7 +258,7 @@ Stored as Hub rows `web:<uuid>` (`source='web'`), de-duplicated through `web_syn
 
 Written only by `dashboard/claude-vault.js`, one note per owner-confirmed Save. Names: `safeSegment` (no `/:*?"<>|[]#^`, no control chars, no leading dot / trailing dot or space, DOS device names prefixed `_`, ≤ 60 code points); a name used by another chat takes ` (2)`…` (9)`. Frontmatter (YAML; strings JSON-quoted): `source` (`claude-code` | `claude.ai` | `chatgpt` — H6, additive), `conversation` (Hub id — how a later Save recognises "this chat's own note"), `project` (`"[[<WorkspaceHQ project note or Claude project name>]]"`), `created` (YYYY-MM-DD), `chat_date`, `title`, `drafted_by` ("local model <id>, from N chat messages"), `tags: [claude]`. Body: `# <title>`, a `Project: [[…]]` line, then the owner-edited Summary / Decisions / To-dos / Links. The structure lane's pipeline never writes here; Ask's Vault source reads these notes like any other (they carry no `generated_by: workspacehq-pipeline`).
 
-### `VEEMO CORTEX/40_Resources/Prompts/<slug>.md` — prompt notes (frontend lane, owner's vault; prompt library P1 format, P2 writes)
+### `VEEMO CORTEX/40_Resources/Prompts/<slug>.md` — prompt notes (frontend lane, owner's vault; prompt library P1 format, P2 writes) — WRITERS REMOVED 2026-10-28
 
 The owner's prompt library; the vault is the source of truth (spec 2026-10-15 §6.1). The Hub only reads the folder (top level,
 `*.md`, H6 `ingest-docs.mjs`). WorkspaceHQ writes only NEW notes the owner confirmed (Promote, from phase P2), through
@@ -270,6 +274,14 @@ candidate; `source.kind` ∈ `code` | `web` | `chatgpt` | `history`, `source.con
 (`code:<sessionId>`, `web:<uuid>`, `chatgpt:<id>` or `history:<sessionId>:<offset>`), `tags: [harvested]` by default.
 (2026-10-25, P3) Import pack also writes here: new notes only (an existing name is skipped and counted), names `slugify(<entry
 base name>).md`, bodies masked, a note without frontmatter given `title` + `tags: [imported]`, atomic through `writePromptNote`. Export pack only reads the folder.
+
+> **2026-10-31 amendment (recording the 2026-10-28 feature cleanup):** the writers above are gone —
+> Promote (`claudePrompts.promote`), the P3 import/export pack and `writePromptNote` in
+> `dashboard/claude-prompts.js` were removed with the prompt library on 2026-10-28
+> (IPC-CONTRACT.md 2026-10-28 row; restore from tag `cleanup-base-2026-10-28`), so WorkspaceHQ no
+> longer writes this folder. The note FORMAT above stays authoritative: the Hub still reads the
+> folder (`dashboard/claude-hub/ingest-docs.mjs`, H6) and `dashboard/claude-prompt-note.js` still
+> parses the slug/frontmatter shape for the Hub store.
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
