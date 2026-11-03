@@ -225,7 +225,7 @@ function richLive(L, store) {
 // ---- scenarios ---------------------------------------------------------------------------
 // { name, data: 'base'|'empty', hq, width, props, live(L, store), setup(c), state: patch | (c, M) => patch }
 // names are file-safe (GOLDEN_DUMP writes <name>.json): letters, digits, '.', '-'
-const TABS = ['home', 'projects', 'tasks', 'automations', 'claude', 'history', 'system', 'life'];
+const TABS = ['home', 'projects', 'tasks', 'automations', 'claude', 'history', 'system', 'life', 'money'];
 const DIAG = ['git', 'security', 'standing', 'insights', 'roadmap'];
 const SCEN = [];
 const add = (name, o = {}) => SCEN.push({ name, ...o });

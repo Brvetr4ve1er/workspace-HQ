@@ -45,6 +45,7 @@ export function shellVals(ctx) {
     history: 'trends, timeline and milestones · ' + H.N + ' snapshots',
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
     life: 'screen time and notes',
+    money: LIVE.money && LIVE.money.view ? (LIVE.money.view.hasAccounts ? 'breathing room ' + LIVE.money.view.room.amount + ' · payday ' + LIVE.money.view.payday : 'no accounts yet') + ' · local only, never synced' : 'accounts, bills, jars and receipts · local only',
   }[S.tab] || '';
   // ----- toasts -----
   const toasts = S.toasts.map((t) => ({ text: t.text, color: TK[t.kind], ref: this.toastRef(t.id), hasUndo: !!t.undo && !!this._pending['done:' + t.undo], undo: () => this.undoTask(t.undo), hasCancel: !!t.runSpell, cancel: () => this.cancelRun(t.runSpell), close: () => this.dismissToast(t.id), isProgress: t.kind === 'progress' }));

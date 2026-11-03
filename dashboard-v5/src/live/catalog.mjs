@@ -27,6 +27,7 @@ export const NAV = [
   { id: 'history', label: 'History', glyph: '◷' },
   { id: 'system', label: 'System', glyph: '▣' },
   { id: 'life', label: 'Life', glyph: '♥' },
+  { id: 'money', label: 'Money', glyph: '◈' },
 ];
 export const SUBS = {
   projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase']],
@@ -36,6 +37,7 @@ export const SUBS = {
   history: [['trends', 'Trends'], ['timeline', 'Timeline'], ['milestones', 'Milestones']],
   system: [['machine', 'Machine'], ['clutter', 'Workspace clutter']],
   life: [['screen', 'Screen time'], ['notes', 'Notes']],
+  money: [['today', 'Today'], ['runway', 'Runway'], ['jars', 'Jars'], ['inbox', 'Inbox']],
 };
 export const ST = {
   risk: { label: 'At risk', color: 'var(--red)', tone: 'red', rank: 0 },

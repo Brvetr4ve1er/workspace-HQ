@@ -17,6 +17,7 @@ import claude from './tpl/claude.tpl.js';
 import history from './tpl/history.tpl.js';
 import system from './tpl/system.tpl.js';
 import life from './tpl/life.tpl.js';
+import money from './tpl/money.tpl.js';   // money space (space-port-money), 2026-11-03
 import prompt from './tpl/prompt.tpl.js';
 import ambient from './tpl/ambient.tpl.js';
 import navBottom from './tpl/nav-bottom.tpl.js';
@@ -35,7 +36,7 @@ import extras from './tpl/extras.tpl.js';   // v5 additions (no design slice); e
 import toasts from './tpl/toasts.tpl.js';
 
 export default [
-  shell, home, projects, projectPage, tasks, automations, claude, history, system, life,
+  shell, home, projects, projectPage, tasks, automations, claude, history, system, life, money,
   prompt, ambient, navBottom, ovScrub, ovRuns, ovAsk, ovPalette, ovFocus,
   ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, extras, toasts,
 ].join('');

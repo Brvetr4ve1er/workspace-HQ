@@ -41,6 +41,7 @@ export function createStore(DATA, hq) {
     sessions: [], sessionOut: {},
     dev: {}, machine: null, browserNow: null,
     llm: null, casts: {},
+    money: { view: null, error: '', loaded: false },   // money space: last view from hq:money:* (main owns the data)
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
     accounts: null,   // a fresher data/accounts.json than the baked DATA.accounts (refreshAccounts)
@@ -175,6 +176,26 @@ export function createStore(DATA, hq) {
     }
   }
 
+  // money space (spec: space-port-money). Main owns the data; every answer carries a fresh view.
+  // A refused write must not blank a view already on screen — only a failed FIRST read shows the error state.
+  function takeMoney(r) {
+    if (r && typeof r.error === 'string') { if (!live.money.view) live.money = { view: null, error: r.error, loaded: true }; return r; }
+    if (r && r.view) live.money = { view: r.view, error: '', loaded: true };
+    return r;
+  }
+  function refreshMoney() {
+    if (!hq || !hq.money || !hq.money.read) return Promise.resolve();
+    return pull(() => hq.money.read(), (r) => { takeMoney(r); });
+  }
+  // writes: resolve main's answer as-is (logic/money.js toasts r.error / r.note); never reject
+  function applyMoney(intent) {
+    if (!hq || !hq.money || !hq.money.apply) return Promise.resolve({ error: 'money needs the desktop bridge' });
+    return Promise.resolve().then(() => hq.money.apply(intent)).then(takeMoney, (e) => ({ error: (e && e.message) || String(e) })).finally(emit);
+  }
+  function importMoney() {
+    if (!hq || !hq.money || !hq.money.importFile) return Promise.resolve({ error: 'money needs the desktop bridge' });
+    return Promise.resolve().then(() => hq.money.importFile()).then(takeMoney, (e) => ({ error: (e && e.message) || String(e) })).finally(emit);
+  }
   function refreshLlm(force) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
     return pull(() => hq.probeLlm({ force: !!force }), (r) => { live.llm = r || null; });
@@ -283,6 +304,7 @@ export function createStore(DATA, hq) {
       emit();
     }));
     reads.push(refreshLlm(false));
+    if (hq.money) reads.push(refreshMoney());
     return Promise.all(reads).then(() => {});
   }
   const lib = () => live.claudeLib;
@@ -421,7 +443,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshLlm, refreshMoney, applyMoney, importMoney, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
   };

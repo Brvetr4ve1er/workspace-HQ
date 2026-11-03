@@ -44,6 +44,7 @@ export const CHANGES = [
   { text: 'A project’s Next lists its own side quests and the scan’s suggestions; its page shows every risk flag and its git risk.', needs: 'questTerminal' },
   { text: 'Automations also lists the interactive Claude skills and commands (they use Claude quota), with kind, source and category filters and a Rescan.', needs: 'rescanLib' },
   { text: 'Projects can be searched by name or stack and filtered by status, and “capture <text>” in the command palette saves an idea.', needs: 'paletteCapture' },
+  { text: 'Money is a new space (key 9): breathing room until payday, bills on a runway, jars, and a paste-a-receipt inbox. All local in data/money/, nothing synced.', needs: 'mnyApply' },
 ];
 
 // ---- pure helpers (unit-tested) ------------------------------------------------

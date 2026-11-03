@@ -33,6 +33,7 @@ import { projectLogic } from './logic/project.js';
 import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
 import { lifeLogic } from './logic/life.js';
+import { moneyLogic } from './logic/money.js';
 import { statCardLogic } from './logic/stat-card.js';
 import { renderVals } from './vals/index.js';
 
@@ -59,11 +60,11 @@ export class Component extends DCLogic {
     setReduceFlag(!!P.reduceMotion);
     return {
       tab: saved.tab || this.props.startTab || 'home',
-      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen' }, saved.sub || {})),
+      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
-      vw: window.innerWidth, completed: [], recentDone: [], dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
+      vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
       scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: [], askDraft: '',
@@ -157,6 +158,7 @@ export class Component extends DCLogic {
     if (moved && S.tab === 'claude' && (S.sub.claude === 'chats' || S.sub.claude === 'projects')) this.clLoad();
     if (moved && S.route && S.route.id) this.store.refreshClaudeForProject && this.store.refreshClaudeForProject(S.route.id);
     if (moved && S.tab === 'history' && !S.route) this.store.refreshClaudeStats && this.store.refreshClaudeStats(30);
+    if (moved && S.tab === 'money') this.store.refreshMoney();   // money: "today" moves on its own (due dates, payday) — re-read on arrival
   }
 
   // ---------- helpers ----------
@@ -384,5 +386,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic);
 Component.prototype.renderVals = renderVals;

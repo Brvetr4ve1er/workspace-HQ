@@ -51,9 +51,10 @@ import tpl from './app.tpl.js';
 // 2026-10-28 feature cleanup — Canvas + stat card cut: claude (the whole Canvas sub: ＋ Note, ＋ Board, board list + Clear, cards with Pin / Remove), home (Pinned from canvas), ov-settings (Export › Save stat card PNG), ov-misc (level-up Save card) (-13441 chars / -13467 bytes)
 // 2026-10-28 feature cleanup — Social tab cut (the outbox approval gate stays in the extension popup): the social fragment removed whole (Accounts / Inbox / Archive / Vault), home (the posts-awaiting-approval row) (-23142 chars / -23177 bytes)
 // 2026-10-31 honesty fixes, each hunk with its <!-- v5: reason --> marker: tasks (a noFilterMatch box — an empty tier filter is not "Board clear"), ov-scrub (the overlay names the screens that follow the date; Life / clutter / the live rail pin to the latest scan), shell (read-only banner drops "social" — the tab was cut 2026-10-28), life (the stale social.tpl.js pointer marker reworded) (+773 chars / +774 bytes)
-const SHA256 = '341c442949501b82a9bb75173f62c08c432f4e613ea7405771525c9c72245ef5';
-const LENGTH = 241558;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 241979;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-03 money space (space-port-money, ported from the Ember money app): the money fragment joined after life, nothing else moved (+57015 chars / +57084 bytes — the package's own measured delta)
+const SHA256 = '8a34a5faf4d43e339bb617a0fa0d8d708d5f90749b9c8223ba2757baacc0b8cf';
+const LENGTH = 298573;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 299063;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
