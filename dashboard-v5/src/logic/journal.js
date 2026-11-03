@@ -9,10 +9,13 @@ export const journalLogic = {
     if (!txt) { this.toast('info', 'Write something first'); return; }   // an empty Add said nothing (button sweep, 2026-10-27)
     const kind = this.state.journalKind;
     const fn = kind === 'learning' ? () => this.hq.learn(pid, txt) : kind === 'decision' ? () => this.hq.logDecision(pid, txt) : () => this.hq.saveNote(pid, txt);
+    if (this._journalBusy) return;   // Enter (or Add) re-fires while the save's round-trip is pending: the draft is still in state, so a second call would append the same text to the vault again — one write, not duplicates
+    this._journalBusy = true;
     // main answers true once written and false when it couldn't (project not in the latest scan,
     // empty text); anything but true is reported, never a silent no-op
     let ok = null, why = '';
     try { ok = await fn(); } catch (e) { why = (e && e.message) || String(e); }
+    finally { this._journalBusy = false; }   // released on failure too, so a retry isn't locked out
     if (ok !== true) { this.toast('error', 'Not saved · ' + (why || (ok && ok.error) || (kind === 'decision' ? 'the decision' : kind === 'learning' ? 'the learning' : 'the note') + ' wasn’t written')); return; }
     this.setState((s) => ({ journalAdds: Object.assign({}, s.journalAdds, { [pid]: [{ k: kind, t: txt, d: 'Today' }].concat(s.journalAdds[pid] || []) }), journalDraft: '' }));
     this.toast('success', kind === 'decision' ? 'Decision logged in the project’s vault note' : kind === 'learning' ? 'Learning saved · +knowledge xp' : 'Note saved · mirrored to the vault');

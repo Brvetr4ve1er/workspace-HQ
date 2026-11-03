@@ -16,21 +16,27 @@ export const tasksLogic = {
     FX().sfx('done'); FX().floatText(p.x, p.y - 10, '+' + t.xp + ' xp'); FX().asciiBurst && FX().asciiBurst(p.x, p.y, '✓');
     FX().event('cheer', 'Nice. +' + t.xp + ' xp');
     this.toast('success', 'Done · ' + t.title, { undo: id });
-    FX().coinFly(p.x, p.y, this._xpEl).then(() => this.gainXp(t.xp));
     this.defer('done:' + id, () => {
       this.hq.actedOn && this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, resolved: true, marked_done: true, via: focused ? 'focus' : 'board', seconds: secs });
       this.call(() => this.hq.markQuestDone(id), 'Couldn’t save');   // main re-assembles today and reloads
     });
-    if (focused) this._pending['done:' + id].focusSecs = secs;   // Undo still keeps the time that was spent
+    const pend = this._pending['done:' + id];
+    if (focused) pend.focusSecs = secs;   // Undo still keeps the time that was spent
+    // the XP gain waits for the coin animation (~700ms) and the Undo toast outlives it
+    // (WRITE_DELAY); the pending entry makes the race explicit — an Undo marks it undone
+    // (the gain never happens), a landed coin marks it gained (only then does Undo subtract).
+    // The entry object outlives its map slot, so a write that already fired still gains.
+    FX().coinFly(p.x, p.y, this._xpEl).then(() => { if (!pend.undone) { pend.gained = true; this.gainXp(t.xp); } });
   },
   undoTask(id) {
     const p = this._pending['done:' + id];
     const t = this.M.T0.find((x) => x.id === id) || this.M.IDEAS.find((x) => x.id === id);
     if (!p) { this.toast('info', 'Already saved · it can’t be undone from here'); return; }
+    p.undone = true;   // the coin still in flight must not gain XP for an undone task (completeTask)
     clearTimeout(p.timer); delete this._pending['done:' + id];
     // the focus session happened even if the task isn't done: log it the way endFocus would
     if (t && p.focusSecs >= 5 && this.hq && this.hq.actedOn) this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, seconds: p.focusSecs, resolved: false, via: 'focus' });
-    const xp = (t && t.xp) || 0;
+    const xp = p.gained ? (t && t.xp) || 0 : 0;   // never subtract XP the coin hadn't granted yet
     this.setState((s) => ({ completed: s.completed.filter((x) => x !== id), xp: s.xp - xp, displayXp: s.xp - xp, toasts: s.toasts.filter((k) => k.undo !== id) }));
     this.toast('info', 'Restored · ' + (t ? t.title : 'task'));
   },

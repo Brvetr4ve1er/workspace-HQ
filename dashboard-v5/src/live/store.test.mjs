@@ -658,6 +658,112 @@ test('H6: openClaudeDocument loads in place; an unknown id says so; close clears
   assert.equal(st.live.claudeLib.doc, null);
 });
 
+// ---- renderer-data fixes (fleet 2026-10-31) --------------------------------------------------
+
+// finding: searchClaude dereferenced hq.claudeHub outside any guard — the search box
+// renders bridgeless (dev harness, nobridge, an older preload), so Enter threw a TypeError
+test('searchClaude without a bridge, or with a bridge that has no claudeHub, is a safe no-op', async () => {
+  const none = createStore(DATA(), null);
+  await assert.doesNotReject(() => none.searchClaude('hello'));
+  assert.equal(none.live.claudeLib.hits, null);
+  await none.searchClaude('!!!');   // the no-terms path still answers bridgeless
+  assert.equal(none.live.claudeLib.noTerms, true);
+  const { hq } = fakeHq();          // the shared fake has no claudeHub (an older preload)
+  const st = createStore(DATA(), hq);
+  await st.start();
+  await assert.doesNotReject(() => st.searchClaude('hello'));
+  assert.equal(st.live.claudeLib.hits, null);
+  st.stop();
+});
+
+// finding: every cast/session output chunk forced a full app re-render (one IPC task each);
+// they now coalesce through the 50ms emitSoon the chat deltas already use
+test('cast/session output coalesces renders: state lands at once, one emit per window; a settle emits at once', async () => {
+  const { hq, push } = fakeHq();
+  const st = createStore(DATA(), hq);
+  await st.start();
+  let emits = 0; st.on(() => emits++);
+  push.castOutput({ castId: 'c1', spellId: 'grimoire:scan', chunk: 'a' });
+  push.castOutput({ castId: 'c1', spellId: 'grimoire:scan', chunk: 'b' });
+  push.sessionOutput({ jobId: 'j1', chunk: 'out' });
+  assert.deepEqual(st.live.casts.c1.out, ['a', 'b'], 'state applied immediately');
+  assert.equal(st.live.sessionOut.j1, 'out');
+  assert.equal(emits, 0, 'no render per chunk');
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(emits, 1, 'one coalesced render');
+  push.castDone({ castId: 'c1', spellId: 'grimoire:scan', outcome: 'resolved', exit_code: 0, duration_ms: 100 });
+  assert.equal(emits, 2, 'the stream end renders at once');
+  st.stop();
+});
+
+// finding: pull() swallowed failed reads into console.warn only, invisible to the selftest
+// gate — they are now counted (the warn stays; selftest.js folds readFailures into errors)
+test('failed reads are counted in readFailures: rejected IPC reads and adapter throws alike', async () => {
+  const bad = [{ get jobId() { throw new Error('adapter boom'); }, status: 'done' }];
+  const { hq } = fakeHq({ getSessions: bad, liveState: () => Promise.reject(new Error('ipc gone')) });
+  const st = createStore(DATA(), hq);
+  const warns = [];
+  const warn = console.warn; console.warn = (...a) => { warns.push(a); };
+  try { await st.start(); } finally { console.warn = warn; }
+  assert.equal(st.readFailures.count, 2);
+  assert.ok(st.readFailures.samples.some((s) => /adapter boom/.test(s)), 'a throw inside the apply mapping is counted');
+  assert.ok(st.readFailures.samples.some((s) => /ipc gone/.test(s)), 'a rejected read is counted');
+  assert.equal(warns.length, 2, 'the warn convention stays');
+  assert.ok(warns.every((a) => a[0] === '[store] read failed'));
+  st.stop();
+});
+
+// finding (downgraded → corrected fix): settled casts were kept forever; now the oldest
+// settled top-level rows are evicted past CAST_CAP (150), a chain parent together with its
+// chainId members, never a running row or a parent with a running member
+const seededCast = (castId, o = {}) => ({ castId, spellId: 'grimoire:scan', name: 'S', icon: '▶', chainId: o.chainId || null, chain: !!o.chain, out: [], status: o.done ? 'ok' : 'running', ...(o.done ? { done: true, meta: '1s' } : {}), t0: o.t0 });
+test('settled casts are capped: the oldest settled parent goes with its members; running rows survive', async () => {
+  const { hq, push } = fakeHq();
+  const st = createStore(DATA(), hq);
+  await st.start();
+  const t0 = Date.now() - 1_000_000;
+  st.live.casts.par = seededCast('par', { chain: true, done: true, t0 });
+  st.live.casts.m1 = seededCast('m1', { chainId: 'par', done: true, t0: t0 + 1 });
+  st.live.casts.run = seededCast('run', { t0: t0 + 2 });   // older than everything, still running
+  for (let i = 0; i < 149; i++) st.live.casts['s' + i] = seededCast('s' + i, { done: true, t0: t0 + 10 + i });
+  push.castDone({ castId: 'znew', spellId: 'grimoire:scan', outcome: 'resolved', exit_code: 0, duration_ms: 10 });   // the 151st settled top-level row
+  assert.equal(st.live.casts.par, undefined, 'the oldest settled parent is evicted');
+  assert.equal(st.live.casts.m1, undefined, 'its member goes with it (never orphaned to top level)');
+  assert.ok(st.live.casts.run, 'a running row is never evicted');
+  assert.ok(st.live.casts.znew, 'the newest settle stays');
+  assert.equal(Object.values(st.live.casts).filter((c) => !c.chainId && c.done).length, 150);
+  st.stop();
+});
+test('a settled chain parent whose member is still running is not evicted', async () => {
+  const { hq, push } = fakeHq();
+  const st = createStore(DATA(), hq);
+  await st.start();
+  const t0 = Date.now() - 1_000_000;
+  st.live.casts.par = seededCast('par', { chain: true, done: true, t0 });
+  st.live.casts.m1 = seededCast('m1', { chainId: 'par', t0: t0 + 1 });   // member still running
+  for (let i = 0; i < 150; i++) st.live.casts['s' + i] = seededCast('s' + i, { done: true, t0: t0 + 10 + i });
+  push.castDone({ castId: 'znew', spellId: 'grimoire:scan', outcome: 'resolved', exit_code: 0, duration_ms: 10 });
+  assert.ok(st.live.casts.par, 'the parent waits for its member');
+  assert.ok(st.live.casts.m1);
+  assert.equal(st.live.casts.s0, undefined, 'the next-oldest settled row went instead');
+  st.stop();
+});
+test('sessionOut keeps the newest 50 buffers by last write; a re-written buffer is refreshed', async () => {
+  const { hq, push } = fakeHq();
+  const st = createStore(DATA(), hq);
+  await st.start();
+  for (let i = 0; i < 55; i++) push.sessionOutput({ jobId: 'j' + i, chunk: 'x' });
+  assert.equal(Object.keys(st.live.sessionOut).length, 50);
+  assert.equal(st.live.sessionOut.j4, undefined, 'the five oldest are gone');
+  assert.equal(st.live.sessionOut.j5, 'x');
+  push.sessionOutput({ jobId: 'j5', chunk: 'y' });   // refreshes j5's recency
+  push.sessionOutput({ jobId: 'j55', chunk: 'x' });  // evicts the oldest, now j6
+  assert.equal(st.live.sessionOut.j5, 'xy', 'the refreshed buffer survives');
+  assert.equal(st.live.sessionOut.j6, undefined);
+  assert.equal(Object.keys(st.live.sessionOut).length, 50);
+  st.stop();
+});
+
 test('adoptClaudeTurn registers a turn main started and replays events that arrived first; once only', async () => {
   let chatCb = null;
   const hq = { claudeChat: { on: (cb) => { chatCb = cb; return () => {}; }, send: async () => ({ error: 'unused' }), cancel: async () => false },

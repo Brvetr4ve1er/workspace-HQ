@@ -20,3 +20,14 @@ test('selftest LOCAL_KEYS/SESSION_KEYS cover every storage key in the renderer',
   const missing = [...used].filter((k) => !listed.has(k));
   assert.deepEqual(missing, [], 'add to selftest.js LOCAL_KEYS/SESSION_KEYS: ' + missing.join(', '));
 });
+
+// the store counts failed reads (pull() warns AND counts — live/store.test.mjs covers the
+// counter); the selftest must fold that counter into its error total, or an adapter crash
+// on real boot data stays invisible to the gate (it hooks console.error, not console.warn)
+test('selftest folds the store’s readFailures counter into its error count', () => {
+  const self = fs.readFileSync(path.join(SRC, 'selftest.js'), 'utf8');
+  assert.match(self, /W\.store\.readFailures/, 'selftest.js must read store.readFailures');
+  assert.match(self, /stats\.errors \+= rf\.count/, 'readFailures must count as gate errors');
+  const store = fs.readFileSync(path.join(SRC, 'live', 'store.js'), 'utf8');
+  assert.match(store, /readFailures\.count\+\+/, 'store.js must keep counting failed reads');
+});

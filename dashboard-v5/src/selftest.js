@@ -3,7 +3,8 @@
 // theme × time-machine end (live, oldest) × every tab and sub-tab plus the
 // first project's page × every overlay, then preview states × theme × overlay
 // on Home — and counts what broke:
-//   errors      console.error calls, uncaught errors, unhandled rejections
+//   errors      console.error calls, uncaught errors, unhandled rejections,
+//               and the store's failed-read count (boot reads included)
 //   unresolved  template bindings that never resolved (WHQ.unresolved, boot included)
 //   failures    runtime render failures (WHQ.failures, boot included)
 // Read-only by construction: it drives setState / go / openProject / setProps
@@ -286,6 +287,11 @@ export async function run(W = window.WHQ) {
     window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onRejection);
   }
+  // store reads that failed (live/store.js pull() warns AND counts them): an adapter crash
+  // on real boot data no-ops a whole read with only a console.warn, which the hooks above
+  // never see — fold the store's own counter in so the gate goes red, boot reads included
+  const rf = W && W.store && W.store.readFailures;
+  if (rf && rf.count) { stats.errors += rf.count; for (const s of rf.samples) if (samples.length < 25) samples.push('store read failed · ' + s); }
   const summary = { combos: stats.combos, errors: stats.errors, unresolved: W ? W.unresolved.size : -1, failures: W && W.failures ? W.failures.count : -1 };
   const detail = { ms: Math.round(performance.now() - t0), samples, holes: [...holes].map(([k, at]) => k + ' @ ' + at), lastFailure: W && W.failures ? W.failures.last : '' };
   window.__selftestDetail = detail;

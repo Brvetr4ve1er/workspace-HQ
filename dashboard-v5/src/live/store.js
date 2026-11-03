@@ -99,15 +99,28 @@ export function createStore(DATA, hq) {
   const offs = [];
   const sub = (fn) => { try { const off = fn(); if (typeof off === 'function') offs.push(off); } catch (e) { console.error('[store] subscribe failed', e); } };
   // `p` may be a promise or a thunk (a thunk that throws synchronously becomes a rejected read)
+  // Failed reads stay a warn (the screen must boot without that data), but they are counted:
+  // a crash inside an adapter mapping on real boot data would otherwise no-op the whole read
+  // with only a warn line, invisible to the selftest gate (it counts console.error only).
+  const readFailures = { count: 0, samples: [] };
   const pull = (p, fn) => {
     if (typeof p === 'function') { try { p = p(); } catch (e) { p = Promise.reject(e); } }
-    return Promise.resolve(p).then(fn).catch((e) => console.warn('[store] read failed', e)).finally(emit);
+    return Promise.resolve(p).then(fn).catch((e) => {
+      readFailures.count++;
+      if (readFailures.samples.length < 10) readFailures.samples.push(String((e && e.stack) || (e && e.message) || e).slice(0, 300));
+      console.warn('[store] read failed', e);
+    }).finally(emit);
   };
 
   // Claude Hub H3 — in-app chat turns. Events can beat the send() answer, so unknown turnIds wait in `pending`.
   const pendingChat = [];
   let chatTimer = null;
+  // one coalesced emit per 50ms for streaming output (chat deltas, cast/session chunks);
+  // state is applied at once, only the render is deferred — stream ends still emit() directly
   const emitSoon = () => { if (chatTimer) return; chatTimer = setTimeout(() => { chatTimer = null; emit(); }, 50); };
+  // live.sessionOut keys ordered by last write, oldest first (eviction, onSessionOutput)
+  const SESSION_OUT_CAP = 50;
+  const sessionOutOrder = new Set();
   const applyChat = (e) => {
     if (!e || typeof e !== 'object' || typeof e.turnId !== 'string') return false;
     const turns = live.claudeChat.turns, i = turns.findIndex((t) => t.turnId === e.turnId);
@@ -142,6 +155,24 @@ export function createStore(DATA, hq) {
   function castRow(d, t0) {
     const s = spellRow.get(d.spellId) || {};
     return { castId: d.castId, spellId: d.spellId, name: d.name || s.name || d.spellId, icon: d.icon || s.icon || '▶', chainId: d.chainId || null, chain: !!d.chain, out: [], status: 'running', t0: t0 || Date.now() };
+  }
+  // Settled casts stay for the Runs overlay until the next window reload, but not without
+  // bound: over CAST_CAP settled top-level rows, the oldest (by t0) go. A chain parent goes
+  // together with its chainId member rows — the Runs overlay resolves members through the
+  // parent, so dropping the parent alone would float them to the top level — and a row still
+  // running, or a parent with a running member, is never evicted.
+  const CAST_CAP = 150;
+  function evictSettledCasts() {
+    const rows = Object.values(live.casts);
+    const members = new Map();
+    for (const c of rows) if (c.chainId) { const l = members.get(c.chainId); l ? l.push(c) : members.set(c.chainId, [c]); }
+    const settled = rows.filter((c) => !c.chainId && c.done && !(members.get(c.castId) || []).some((m) => !m.done));
+    const extra = settled.length - CAST_CAP;
+    if (extra <= 0) return;
+    for (const c of settled.sort((a, b) => (a.t0 || 0) - (b.t0 || 0)).slice(0, extra)) {
+      delete live.casts[c.castId];
+      for (const m of members.get(c.castId) || []) delete live.casts[m.castId];
+    }
   }
 
   function refreshLlm(force) {
@@ -189,7 +220,16 @@ export function createStore(DATA, hq) {
     if (hq.onSessionOutput) sub(() => hq.onSessionOutput((d) => {
       if (!d || !d.jobId) return;
       live.sessionOut[d.jobId] = ((live.sessionOut[d.jobId] || '') + String(d.chunk || '')).slice(-20000);
-      emit();
+      // newest SESSION_OUT_CAP buffers by last write: a window left open across many sessions
+      // must not hold every finished session's 20k tail forever (evicted ones fall back to the
+      // session row's own tail in vals/claude.js). Recency gets its own ledger — object key
+      // order can't be trusted for numeric-looking ids.
+      sessionOutOrder.delete(d.jobId); sessionOutOrder.add(d.jobId);
+      if (sessionOutOrder.size > SESSION_OUT_CAP) {
+        const oldest = sessionOutOrder.keys().next().value;
+        sessionOutOrder.delete(oldest); delete live.sessionOut[oldest];
+      }
+      emitSoon();   // chunks arrive one IPC task each; a full render per chunk is jank (same coalescer as chat deltas)
     }));
     if (hq.onDevStatus) sub(() => hq.onDevStatus((d) => { if (d && d.id) { live.dev = { ...live.dev, [d.id]: d.running ? { since: msOf(d.since) || Date.now() } : null }; emit(); } }));
     if (hq.onMachine) sub(() => hq.onMachine((m) => { live.machine = m || null; emit(); }));
@@ -200,7 +240,7 @@ export function createStore(DATA, hq) {
       const c = live.casts[d.castId] || (live.casts[d.castId] = castRow(d));
       String(d.chunk || '').split(/\r?\n/).filter(Boolean).forEach((l) => c.out.push((d.stream === 'err' ? '✗ ' : '') + l));
       if (c.out.length > 400) c.out = c.out.slice(-400);
-      emit();
+      emitSoon();   // chunks arrive one IPC task each; a full render per chunk is jank (same coalescer as chat deltas)
     }));
     if (hq.onCastDone) sub(() => hq.onCastDone((d) => {
       if (!d || !d.castId) return;
@@ -209,7 +249,8 @@ export function createStore(DATA, hq) {
       // a chain settles with exit_code null (its member's cast has the code); null or missing reads "exit code unknown"
       c.meta = Math.round((d.duration_ms || 0) / 1000) + 's' + (d.outcome === 'resolved' ? '' : d.timed_out ? ' · timed out' : ' · ' + A.exitLabel(d.exit_code));
       c.done = true;
-      emit();
+      evictSettledCasts();
+      emit();   // a settle flips a visible status (and flushes any coalesced output) at once
     }));
     // subscribe before asking, so nothing that happens in between is lost
     if (hq.onScanStatus) sub(() => hq.onScanStatus((s) => { if (isObj(s)) { scanPushed = true; live.scan = s; emit(); } }));
@@ -310,6 +351,7 @@ export function createStore(DATA, hq) {
     lib().q = String(q || '');
     const my = ++seq.search, stale = () => my !== seq.search;
     if (!/[\p{L}\p{N}]/u.test(lib().q)) { fresh(); lib().hits = null; lib().docHits = null; lib().noTerms = lib().q.trim() !== ''; emit(); return Promise.resolve(); }
+    if (!hq || !hq.claudeHub) return Promise.resolve();   // the dev harness / an older preload has no Hub: the search box still renders, so Enter must be a no-op, not a TypeError (hubCall's guard only covers calls made through it)
     lib().noTerms = false; fresh();
     const docs = hq.claudeHub.documents
       ? hubCall(() => hq.claudeHub.documents({ q: lib().q, limit: 20 }), (r) => { lib().docHits = Array.isArray(r) ? r : []; }, stale)
@@ -377,7 +419,7 @@ export function createStore(DATA, hq) {
   function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); clearTimeout(chatTimer); chatTimer = null; }
 
   return {
-    model, live, bridge: !!hq, hq,
+    model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshLlm, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
