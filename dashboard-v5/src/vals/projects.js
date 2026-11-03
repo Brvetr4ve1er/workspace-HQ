@@ -50,7 +50,7 @@ export function projectsVals(ctx) {
     // P7 search + status chips: "shown / total", an empty state that says why
     projSearch: pq, onProjSearch: (e) => this.setState({ projSearch: e.target.value }), projStatuses,
     projCount: shownProjects.length + ' / ' + projects.length + ' project' + (projects.length === 1 ? '' : 's'),
-    noProjMatch: projFiltered && shownProjects.length === 0 && projects.length > 0, projFiltered,
+    noProjMatch: projFiltered && shownProjects.length === 0 && projects.length > 0,
     clearProjFilters: () => this.setState({ projSearch: '', projStatus: 'all' }),
     tiles, towers, mapCard, mapOpen: () => hp && this.openProject(hp.id),
   };

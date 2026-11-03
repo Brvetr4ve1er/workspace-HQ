@@ -50,9 +50,10 @@ import tpl from './app.tpl.js';
 // 2026-10-28 feature cleanup — importers + prompt library cut: claude (the claude.ai / ChatGPT / Instagram-Facebook import strip and the whole Prompts sub), ov-settings (claude.ai export row), system (drop-folder + last-import lines), social (both import buttons), project-page (Run a prompt), extras (Promote, Run, Pack dialogs and the drop card) (-30554 chars / -30631 bytes)
 // 2026-10-28 feature cleanup — Canvas + stat card cut: claude (the whole Canvas sub: ＋ Note, ＋ Board, board list + Clear, cards with Pin / Remove), home (Pinned from canvas), ov-settings (Export › Save stat card PNG), ov-misc (level-up Save card) (-13441 chars / -13467 bytes)
 // 2026-10-28 feature cleanup — Social tab cut (the outbox approval gate stays in the extension popup): the social fragment removed whole (Accounts / Inbox / Archive / Vault), home (the posts-awaiting-approval row) (-23142 chars / -23177 bytes)
-const SHA256 = '6144c9f0b529db862868fcc899cfa184540f9766bf17d2457ada43b5a81c3cc9';
-const LENGTH = 240785;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 241205;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-10-31 honesty fixes, each hunk with its <!-- v5: reason --> marker: tasks (a noFilterMatch box — an empty tier filter is not "Board clear"), ov-scrub (the overlay names the screens that follow the date; Life / clutter / the live rail pin to the latest scan), shell (read-only banner drops "social" — the tab was cut 2026-10-28), life (the stale social.tpl.js pointer marker reworded) (+773 chars / +774 bytes)
+const SHA256 = '341c442949501b82a9bb75173f62c08c432f4e613ea7405771525c9c72245ef5';
+const LENGTH = 241558;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 241979;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

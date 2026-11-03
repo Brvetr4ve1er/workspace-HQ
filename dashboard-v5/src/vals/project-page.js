@@ -124,9 +124,9 @@ function projectPage(p, { off, live, tasks, cantWrite, tabStyle, actText, viewed
     archive: () => { if (!can()) return; this.setState({ pageMore: false }); this.sheet({ act: 'archive', id: p.id, title: 'Archive ' + p.name + '?', body: 'It leaves counts, tasks and the map. Files are not touched, and you can restore it any time from Projects › Archived.', ok: 'Archive', danger: true }); },
     brief: [['is', p.stack.slice(0, 3).join(' · ') || '—', 'var(--text)', ''], ['done', p.pct + '%', 'var(--text)', 'est'], ['last', p.lastCommit ? '"' + p.lastCommit + '"' + (p.lastDays != null ? ' · ' + p.lastDays + 'd ago' : '') : 'no commits yet', 'var(--text)', ''], ['wip', p.dirty == null ? 'unknown · no git' : p.dirty + ' uncommitted files', p.dirty ? 'var(--orange)' : 'var(--green)', ''], ['next', nextText, 'var(--accent-text)', '']].map((b) => ({ k: b[0], v: b[1], color: b[2], est: b[3] === 'est' })),
     recent: p.recent.map((f) => ({ name: f.split(/[\\/]/).pop(), open: async () => { if (!this.hq) return; openFailed(await this.call(() => this.hq.openFile(p.path, f), 'Couldn’t open ' + f), f); } })), hasRecent: p.recent.length > 0,
-    next: nextItems, hasNext: nextItems.length > 0, noNext: nextItems.length === 0, nextCount: nextItems.length,
+    next: nextItems, noNext: nextItems.length === 0, nextCount: nextItems.length,
     gaps, hasGaps: gaps.length > 0,
-    journal: jr, hasJournal: jr.length > 0, noJournal: jr.length === 0, mirrorNote: 'notes, decisions and learnings · mirrored to your Obsidian vault',
+    journal: jr, noJournal: jr.length === 0, mirrorNote: 'notes, decisions and learnings · mirrored to your Obsidian vault',
     jKinds: [['note', 'Note'], ['decision', 'Decision'], ['learning', 'Learned']].map(([id, l]) => ({ label: l, go: () => this.setState({ journalKind: id }), style: Object.assign(tabStyle(S.journalKind === id), { height: 30, padding: '0 10px', fontSize: 12 }) })),
     diagTabs, diag: rowsD, secretAlert: p.secrets > 0, secretText: p.secrets + ' likely secret' + (p.secrets > 1 ? 's' : '') + (p.secretWhere ? ' · ' + p.secretWhere : '') + ' · regex match, check it before rotating.',
   };

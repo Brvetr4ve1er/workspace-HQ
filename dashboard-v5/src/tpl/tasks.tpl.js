@@ -43,6 +43,8 @@ export default String.raw`        <sc-if value="{{ v.tasks }}" hint-placeholder-
                     <div style="font-size:14px;color:var(--muted);margin-top:8px">Tasks come from the scan. When it finds something worth doing, it shows up here — no chores to keep the list alive.</div>
                   </div>
                 </sc-if>
+                <!-- v5: an empty tier filter is not a clear board: say so, offer the way back -->
+                <sc-if value="{{ noFilterMatch }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--muted)">No open task matches this filter. <button type="button" onClick="{{ clearTaskFilter }}" style="background:none;border:0;padding:0;color:var(--link);font-family:var(--term);font-size:13px;cursor:pointer;text-decoration:underline">Show all</button></div></sc-if>
                 <sc-if value="{{ hasCleared }}" hint-placeholder-val="{{ false }}">
                   <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 14px;border:1px dashed var(--green)">
                     <span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--green)">Cleared this session · +{{ clearedXp }} xp</span>

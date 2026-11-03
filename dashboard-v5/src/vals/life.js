@@ -1,4 +1,4 @@
-// Life render values: screen time, notes / vaults. (Social moved to its own tab 2026-10-27: vals/social.js.)
+// Life render values: screen time, notes / vaults. (The Social tab was removed 2026-10-28.)
 // Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
 
 export function lifeVals(ctx) {

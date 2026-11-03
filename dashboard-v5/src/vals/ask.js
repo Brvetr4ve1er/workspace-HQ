@@ -62,7 +62,7 @@ export function askVals(ctx) {
     askSubmit: (e) => this.askButton(e),
     askBtnLabel: busy ? (canStop ? 'Stop' : 'Answering…') : 'Ask', askInputRef: this._askInput,
     // v3 parity: source chips, New chat, starter prompts, the offline box
-    askSources, askBusy: busy,
+    askSources,
     askNew: () => this.newAsk(), askNewOff: empty, askNewStyle: btn(empty, { height: 34 }),
     askEmpty: empty, askPrompts: AS.PROMPTS.map((q) => ({ q, go: () => this.submitAsk(q, { keepDraft: true }), off: promptsOff, style: btn(promptsOff, { height: 'auto', minHeight: 32, padding: '6px 10px', textAlign: 'left', color: 'var(--text)' }) })),
     askOffline: !!off, askOffTitle: off ? off.title : '', askOffPre: off ? off.pre : '', askOffCmd: off ? off.cmd : '', askOffPost: off ? off.post : '',

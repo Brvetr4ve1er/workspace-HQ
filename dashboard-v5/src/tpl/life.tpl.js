@@ -1,4 +1,4 @@
-// Life screen (v.life): screen time, notes. (Social: social.tpl.js since 2026-10-27.)
+// Life screen (v.life): screen time, notes. (The Social tab was removed 2026-10-28.)
 // Cut verbatim from lines 702-769 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 export default String.raw`        <sc-if value="{{ v.life }}" hint-placeholder-val="{{ false }}">
@@ -23,7 +23,7 @@ export default String.raw`        <sc-if value="{{ v.life }}" hint-placeholder-v
                 <sc-if value="{{ noSites }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:var(--muted)">No browser data yet. Install the extension to see where time goes.</div></sc-if>
               </div>
             </sc-if>
-            <!-- v5: Social moved to its own tab (social.tpl.js, 2026-10-27) -->
+            <!-- v5: Social tab removed 2026-10-28 -->
             <sc-if value="{{ isNotes }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;flex-direction:column;gap:26px;max-width:860px">
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:16px">

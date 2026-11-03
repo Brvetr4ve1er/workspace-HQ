@@ -59,7 +59,7 @@ export default String.raw`<div data-hq-theme="{{ themeName }}" style="position:r
   <sc-if value="{{ isPast }}" hint-placeholder-val="{{ false }}">
     <div style="flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 16px;background:var(--bg2);border-bottom:2px solid var(--blue);font-size:13px;position:relative;z-index:25">
       <span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--blue)">Read-only</span>
-      <span>Viewing {{ viewedLabel }} · write actions are off · machine, runs and social stay live</span>
+      <span>Viewing {{ viewedLabel }} · write actions are off · machine and runs stay live</span><!-- v5: Social tab cut 2026-10-28; the banner still named it -->
       <button onClick="{{ backToLive }}" style="margin-left:auto;height:30px;padding:0 12px;background:var(--blue);color:#fff;border:1px solid var(--frame);border-radius:8px;font-family:var(--term);font-size:13px;cursor:pointer">● Back to live</button>
     </div>
   </sc-if>

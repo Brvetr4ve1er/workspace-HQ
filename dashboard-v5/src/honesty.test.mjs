@@ -35,6 +35,8 @@ const DENY = [
   'Nothing is uploaded anywhere', // the default scan's enrichment step sends findings to Claude
   '✓ Start tracking',            // onboarding only copies the config entry
   'Since level',                 // the level-up stats are not deltas since the previous level
+  'every screen follows this date', // Life, clutter and the live rail pin to the latest scan (store.js at(0))
+  'social stay live',            // the Social tab was removed 2026-10-28; no social surface stays live
 ];
 
 function filesUnder(dir) {

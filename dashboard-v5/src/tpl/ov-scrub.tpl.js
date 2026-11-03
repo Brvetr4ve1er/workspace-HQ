@@ -22,7 +22,8 @@ export default String.raw`  <sc-if value="{{ scrubOpen }}" hint-placeholder-val=
         <div><div style="font-size:22px;line-height:1;color:var(--accent-text)">{{ scrubSel.xp }}</div><div style="font-size:12px;color:var(--muted)">xp</div></div>
         <div><div style="font-size:22px;line-height:1">{{ scrubSel.changes }}</div><div style="font-size:12px;color:var(--muted)">changes</div></div>
       </div>
-      <div style="font-size:12px;color:var(--faint);margin-top:10px">Showing {{ scrubSel.label }} · every screen follows this date</div>
+      <!-- v5: Life, clutter and the live rail pin to the latest scan (store.js at(0)); name the screens that DO follow the date -->
+      <div style="font-size:12px;color:var(--faint);margin-top:10px">Showing {{ scrubSel.label }} · Home, projects, tasks and history follow this date · everything else shows the latest data</div>
     </div>
   </sc-if>
 

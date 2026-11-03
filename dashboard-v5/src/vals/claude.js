@@ -15,7 +15,7 @@ export function claudeVals(ctx) {
     term: () => this.sessionTerminal(selS.id) } : null;
   const composerProjs = projects.map((p) => ({ label: p.name, go: () => this.setState({ composerProj: p.id }), style: Object.assign(tabStyle(S.composerProj === p.id), { height: 28, padding: '0 8px', fontSize: 12 }) }));
   return {
-    isSessions: sub === 'sessions', sessions, hasSessions: sessions.length > 0, sessionDetail: sessionDetail || {}, hasDetail: !!sessionDetail, composer: S.composer, onComposer: (e) => this.setState({ composer: e.target.value }), startSession: () => this.startSession(), composerProjs,
+    isSessions: sub === 'sessions', sessions, sessionDetail: sessionDetail || {}, hasDetail: !!sessionDetail, composer: S.composer, onComposer: (e) => this.setState({ composer: e.target.value }), startSession: () => this.startSession(), composerProjs,
     // Run needs a project picked (sendClaude clears it for a task without one)
     cantStartSession: cantWrite || !this.proj(S.composerProj),
   };

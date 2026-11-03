@@ -67,7 +67,7 @@ export function systemVals(ctx) {
     // Re-examine (v3 Med-Bay): hq.healthScan(), no reload
     sysScan: () => this.reexamine(), sysScanLabel: examining ? 'Scanning…' : 'Re-examine', sysScanOff: examining || !canScan, sysScanTip: canScan ? SCAN_TIP : SCAN_OFF,
     hasFixed: fixedN > 0, fixedNote: fixedN + ' fixed this session · Re-examine to confirm',
-    vitals, clutter, hasClutter: clutter.length > 0, noClutter: clutter.length === 0,
+    vitals, clutter, noClutter: clutter.length === 0,
     mdRam: list(D.ram), mdCpu: list(D.cpu), mdHasRam: list(D.ram).length > 0, mdHasCpu: list(D.cpu).length > 0, mdHasNow: list(D.ram).length + list(D.cpu).length > 0,
     mdDisk: disk, mdHasDisk: disk.length > 0, mdDiskNote: diskNote, mdCanOpen: canOpen, mdOpenTip: canOpen ? 'Open this folder in Explorer' : OPEN_OFF,
     mdGpus: list(D.gpus), mdHasGpus: list(D.gpus).length > 0, mdLive: list(D.live).map((c) => ({ ...c, color: tone(c.warn) })), mdHasLive: list(D.live).length > 0,

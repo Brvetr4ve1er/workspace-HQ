@@ -20,7 +20,10 @@ export function tasksVals(ctx) {
   return {
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     // tasks
-    isRanked: sub === 'ranked' || sub === 'byproject', isIdeas: sub === 'ideas', taskFilters, taskRows, noTasks: taskRows.length === 0, ideaRows, noIdeas: ideaRows.length === 0,
+    // "Board clear" means the BOARD: an empty tier filter gets its own honest line (mirrors projects' noProjMatch)
+    isRanked: sub === 'ranked' || sub === 'byproject', isIdeas: sub === 'ideas', taskFilters, taskRows, noTasks: taskRows.length === 0 && open.length === 0,
+    noFilterMatch: open.length > 0 && taskRows.length === 0, clearTaskFilter: () => this.setState({ taskFilter: 'all' }),
+    ideaRows, noIdeas: ideaRows.length === 0,
     cleared, hasCleared: cleared.length > 0, clearedXp: this.sum(cleared, (c) => c.xp),
   };
 }

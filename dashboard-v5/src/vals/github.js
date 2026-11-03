@@ -38,7 +38,7 @@ export function githubVals(ctx) {
       { k: 'Open PRs', v: String(T.openPrs), color: 'var(--text)' },
       { k: 'Cloned here', v: T.cloned + ' / ' + live.length, color: 'var(--text)' },
     ] : [],
-    ghWaiting: rows(G.waiting), ghHasWaiting: ok && G.waiting.length > 0, ghWaitingMore: more(G.waiting),
+    ghWaiting: rows(G.waiting), ghWaitingMore: more(G.waiting),
     ghNoWaiting: ok && !G.partial && G.waiting.length === 0,
     ghMine: rows(G.mine), ghHasMine: ok && G.mine.length > 0, ghMineMore: more(G.mine),
     ghIssues: rows(G.issues), ghHasIssues: ok && G.issues.length > 0, ghIssuesMore: more(G.issues),

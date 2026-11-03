@@ -53,7 +53,7 @@ export function automationsVals(ctx) {
   const libTotal = H.autoTotal || 0, libBg = H.AUTOS.length, libTerm = INTER.length;
   const libIntro = libTotal + ' thing' + (libTotal === 1 ? ' is' : 's are') + ' catalogued. ' + libBg + ' run' + (libBg === 1 ? 's' : '') + ' here in the background and ' + libTerm + ' open' + (libTerm === 1 ? 's' : '') + ' in a terminal; the rest are reference only, so they have no Run button here.';
   return {
-    isRunnable: sub === 'runnable', isLibrary: sub === 'library', isScheduled: sub === 'scheduled', autos, shelf, hasShelf: shelf.length > 0, noShelf: shelf.length === 0, lib, libIntro, scheduled: H.SCHEDULED, autoQuery: S.autoQuery || '', onAutoQuery: (e) => this.setState({ autoQuery: e.target.value, libShow: LIB_PAGE }), noAutos: autos.length === 0,
+    isRunnable: sub === 'runnable', isLibrary: sub === 'library', isScheduled: sub === 'scheduled', autos, shelf, noShelf: shelf.length === 0, lib, libIntro, scheduled: H.SCHEDULED, autoQuery: S.autoQuery || '', onAutoQuery: (e) => this.setState({ autoQuery: e.target.value, libShow: LIB_PAGE }), noAutos: autos.length === 0,
     // P6 filters: kind / source / category chips (counts = what each chip would show), "N of M", Clear, Show more
     libKinds: lv.kinds.map(chipOf('kind')),
     libSources: [allChip('source', srcAll, !lf.source)].concat(lv.sources.map(chipOf('source'))),
