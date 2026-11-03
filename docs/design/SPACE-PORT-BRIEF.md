@@ -92,9 +92,12 @@ logic-mixin methods; effects → store subscriptions or logic called from `start
 
 ## 5. What a "Space" is, and every file it touches
 
-A Space = one top-level destination in the left nav. Today there are **8** (keys 1–8): Home,
-Projects, Tasks, Automations, Claude, History, System, Life. **Slots 9 and 0 are free** — exactly
-two spaces fit without displacing anything.
+A Space = one top-level destination in the left nav. Today there are **9** (keys 1–9): Home,
+Projects, Tasks, Automations, Claude, History, System, Life, Money (landed 2026-11-03 from
+`space-port-money`). **Slot 0 (the 10th) is free** — the next space takes it; keys are positional
+(`app.js` onKey: `0` opens NAV[9]; the rail digit is `(i + 1) % 10`), so it needs no hotkey plumbing.
+Reference port to imitate: Money (`dashboard/money.js`, `dashboard-v5/src/{tpl,vals,logic}/money*`,
+commits 1c9659e..44fed17).
 
 Adding a space touches, renderer-side:
 

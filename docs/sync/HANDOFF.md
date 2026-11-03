@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-03 · FROM frontend (money space — owner: "merge the Money space from money-manager-") · main @ 44fed17
+DONE: space-port-money landed by its MANUAL path (origin/main is 76a7d1a but this tree is 53 commits past it, post-cleanup:
+  the patch fails plain and conflicts 19 files under --3way). 1c9659e contract rows · 469dca7 main (dashboard/money.js +
+  dashboard/money/, one main.js hook, preload money group, README test line) · 34a3db1 renderer (tpl/vals/logic/store, nav, icon,
+  palette, What's new, fake preload, goldens) · 44fed17 gates (selftest + 6 cdp scenarios). ADAPTED: Money is the 9th destination
+  on KEY 9 (package said 10th / key 0 — written while Studio was still #9); the key0 cdp scenario became money-open-key9.
+  Ember's Yassir fixture moved 22:10Z -> 12:10Z (local-day parse read Oct 9 on this UTC+2 PC; parser untouched).
+  Gates: main side 662/662, money 229/229 (+10/10 module), renderer 387/387, selftest 2188 -> 2528 combos (+340, the
+  package's number) 0/0/0 on real scans, cdp-gate 30/30 (button-sweep 512 buttons / 34 screens). Goldens: 137 mny keys x 147
+  scenarios + nav/moreNav 9th entry + v.money + What's new + palGroups (2), 0 removed, 4 added -> 151; tpl +57015 chars (=pkg).
+  Live app restarted: up, clean log; data/money/ not created until the first write (correct). Package package.json NOT merged.
+IN-FLIGHT: none. SPACE-PORT-BRIEF.md now says slot 0 is the only free one (for the second app).
+ASKS (owner): press 9 -> Money; Import an Ember export (Me > Export my data); paste a few real RedotPay / bank / BaridiMob
+  SMS into Inbox — misreads go back to the Ember chat for a parser rule. Day boundaries follow THIS PC's zone (Europe/Paris).
+BREAKS: none — additive only (4 new hq:money:* channels, data/money/state.json gitignored).
+
+---
+
 ## 2026-11-03 · FROM frontend (devfleet — owner: "run a devfleet to analyse the app and improve it heavily") · main @ 3536b92
 DONE: 10 subsystem reviewers + 1 adversarial verifier per finding: 53 raw, 49 survived (4 refuted). 7 file-disjoint fixers landed
   them in 8 commits f1d8c2d..3536b92: main stops freezing (tray push/backup async w/ deadlines — NEW git-actions.js;
