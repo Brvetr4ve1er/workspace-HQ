@@ -42,8 +42,10 @@ token. Per site:
 It also reports each logged-in account's handle and display name. All of it
 goes to `127.0.0.1` only: the app keeps the posts and counts in
 `data/social/inbox.json` (rolling 7-day window) and the accounts in
-`data/social/accounts.json`, and Claude reads them through the MCP tools
-(`hq_social_feed`, `hq_social_mentions`, `hq_social_metrics`, `hq_social_status`).
+`data/social/accounts.json`. **Currently nothing reads those files**: the MCP
+read tools (`hq_social_feed`, `hq_social_mentions`, `hq_social_metrics`,
+`hq_social_status`) and the app's Social tab were removed 2026-10-28 (restore
+from the git tag `cleanup-base-2026-10-28`).
 
 **It also publishes posts, but only ones you approved.** When you click
 **approve & send** in the popup, the extension posts that exact text from your
@@ -125,7 +127,9 @@ After updating these files, reload the extension at `chrome://extensions`
 an unpacked extension on its own. The claim step needs extension **0.3.0** and a
 restarted app. Until you reload, 0.2.0 keeps sending without claiming, and the app
 still records its results. A 0.3.0 extension talking to an app that hasn't been
-restarted refuses to send and asks you to restart workspace-hq.
+restarted refuses to send and asks you to restart workspace-hq. **0.6.1**
+(2026-10-31) fixes focus sessions queued during an in-flight flush being dropped
+and a trailing-slash endpoint breaking only the claude.ai sync — reload to get it.
 
 ## claude.ai live sync (0.6.0, optional)
 

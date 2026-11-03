@@ -150,8 +150,16 @@ async function flush() {
       },
       body: JSON.stringify({ v: 1, sent_at: now, events, live }),
     });
-    if (res.ok) await setState({ queue: [], lastOk: now, lastError: '' });
-    else await setState({ lastError: 'HTTP ' + res.status });
+    if (res.ok) {
+      // remove only the events THIS flush sent, matched by identity — a blanket
+      // queue:[] erased sessions transition() appended while the POST was in
+      // flight. Same key the app dedupes on (browser-bridge.js TENDRILS), so a
+      // double-send from overlapping flushes is harmless server-side.
+      const key = (e) => `${e.ts}|${e.domain}|${e.path}|${e.focus_ms}`;
+      const sent = new Set(events.map(key));
+      const cur = await getState();
+      await setState({ queue: (cur.queue || []).filter((e) => !sent.has(key(e))), lastOk: now, lastError: '' });
+    } else await setState({ lastError: 'HTTP ' + res.status });
   } catch (e) {
     await setState({ lastError: String((e && e.message) || e) });
   }

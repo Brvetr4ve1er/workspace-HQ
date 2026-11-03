@@ -11,11 +11,18 @@
 //
 // Security posture (a personal, localhost-only tool):
 //   - binds 127.0.0.1 only — never reachable off-machine.
+//   - every request must carry a loopback Host header (see isLocalHost). A DNS
+//     rebinding page (attacker.com re-resolving to 127.0.0.1) reaches the bind
+//     SAME-ORIGIN — no preflight, custom headers allowed — but it cannot
+//     present a loopback Host, so it dies at 403 before any routing.
 //   - every ingest route requires the custom `X-HQ-Bridge: 1` header. A
 //     malicious web page can't send a custom header without a CORS preflight,
 //     and we only approve preflight for extension origins — so pages are
 //     blocked while extensions (host-permission, bypassing CORS) get through.
 //   - optional: drop a token in data/.bridge-token to also require X-HQ-Token.
+//     Residual risk the Host check can't close: any LOCAL process (or any
+//     installed extension — CORS reflects every extension origin) can speak
+//     loopback with the right headers; the token is what gates those.
 
 const http = require('node:http');
 const fs = require('node:fs');
@@ -36,6 +43,17 @@ const clampStr = (s, n) => (typeof s === 'string' ? s.slice(0, n) : '');
 
 function readJsonOr(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+
+// Host allowlist — the DNS-rebinding guard (see posture above). Only the three
+// loopback spellings, bare or with this server's own port; anything else
+// (a foreign name, a missing Host, another port) is rejected before routing.
+function isLocalHost(hostHeader, port) {
+  const h = String(hostHeader || '').toLowerCase();
+  for (const base of ['127.0.0.1', 'localhost', '[::1]']) {
+    if (h === base || h === `${base}:${port}`) return true;
+  }
+  return false;
 }
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -154,6 +172,12 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
   }
 
   const server = http.createServer((req, res) => {
+    // rebinding guard first — before CORS, auth and every route.
+    if (!isLocalHost(req.headers.host, port)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'bad host' }));
+      return;
+    }
     const origin = req.headers.origin || '';
     const isExt = origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://');
     if (isExt) {
@@ -182,11 +206,16 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
       if (req.headers['x-hq-bridge'] !== '1') return send(403, { ok: false, error: 'missing bridge header' });
       if (token && req.headers['x-hq-token'] !== token) return send(401, { ok: false, error: 'bad token' });
       // Accumulate raw Buffer chunks and decode ONCE at end (a per-chunk string
-      // concat corrupts multibyte UTF-8 split across a TCP boundary). Bound by
-      // byte length; on overflow flag + still answer 413 from 'end' — never
+      // concat corrupts multibyte UTF-8 split across a TCP boundary). On
+      // overflow drop what's buffered and keep draining — never hold an
+      // unbounded body in RAM — and still answer 413 from 'end', never
       // req.destroy() (that wedged the extension's send queue).
       const chunks = []; let size = 0, tooBig = false;
-      req.on('data', (c) => { chunks.push(c); size += c.length; if (size > MAX_BODY) tooBig = true; });
+      req.on('data', (c) => {
+        size += c.length;
+        if (size > MAX_BODY) { tooBig = true; chunks.length = 0; return; }   // keep draining, keep nothing
+        if (!tooBig) chunks.push(c);
+      });
       req.on('end', async () => {
         if (tooBig) return send(413, { ok: false, error: 'too big' });
         let payload;
@@ -212,4 +241,4 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
   };
 }
 
-module.exports = { startBridge, BRIDGE_PORT: PORT, BROWSER_WINDOW_DAYS };
+module.exports = { startBridge, isLocalHost, BRIDGE_PORT: PORT, BROWSER_WINDOW_DAYS };

@@ -98,6 +98,12 @@ test('app client: bridge headers, token, 409 and offline are app errors', async 
   await assert.rejects(app.push('{}'), (e) => e.kind === 'app' && /owns the Claude index/.test(e.message));
   const off = X.claudeAppClient({ endpoint: 'http://127.0.0.1:1', token: '' }, async () => { throw new Error('refused'); });
   await assert.rejects(off.state(), (e) => e.kind === 'app' && /not reachable/.test(e.message));
+  // a pasted trailing slash must not become '//claude/...' (the bridge routes on the raw string → 404)
+  const slashed = [];
+  const sl = X.claudeAppClient({ endpoint: 'http://127.0.0.1:47821/', token: '' },
+    async (url) => { slashed.push(url); return resp({ json: { ok: true, conversations: {}, projects: {}, forgotten: [] } }); });
+  await sl.state();
+  assert.deepEqual(slashed, ['http://127.0.0.1:47821/claude/sync-state']);
 });
 
 test('every top-level name is claude-prefixed (shared classic-script global scope)', () => {
@@ -188,10 +194,10 @@ test('tick: unticking "on" mid-run stops the reads and the status stays off', as
   assert.equal(fake.store.hq_claude.status, 'off');
 });
 
-test('manifest 0.6.0, background wiring, popup controls and the risk note', () => {
+test('manifest 0.6.1, background wiring, popup controls and the risk note', () => {
   const read = (f) => fs.readFileSync(new URL('../browser-bridge/' + f, import.meta.url), 'utf8');
   const m = JSON.parse(read('manifest.json'));
-  assert.equal(m.version, '0.6.0'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
+  assert.equal(m.version, '0.6.1'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
   assert.ok(!m.host_permissions.some((h) => h.includes('claude.ai')), 'claude.ai stays optional, granted on the owner\'s click');
   const bg = read('background.js');
   assert.match(bg, /importScripts\('claude-sync\.js'\)/);

@@ -94,10 +94,13 @@ async function claudeSyncRun(d) {
 }
 
 function claudeAppClient(cfg, fetchFn) {
+  // popup.js saves the endpoint as typed, so a pasted trailing slash survives;
+  // strip it like every other bridge caller or '//claude/...' misses the route (404).
+  const base = String(cfg.endpoint || '').replace(/\/+$/, '');
   const headers = { 'Content-Type': 'application/json', 'X-HQ-Bridge': '1', ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}) };
   const call = async (path, opts) => {
     let r;
-    try { r = await fetchFn(cfg.endpoint + path, { ...opts, headers }); }
+    try { r = await fetchFn(base + path, { ...opts, headers }); }
     catch (e) { throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (' + String((e && e.message) || e).slice(0, 60) + ') — open the app.'); }
     if (r.status === 409) throw claudeSyncErr('app', 'Another WorkspaceHQ window owns the Claude index — sync from that one.');
     if (!r.ok) throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (HTTP ' + r.status + ') — open the app.');

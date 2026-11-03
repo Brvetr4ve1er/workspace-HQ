@@ -7,7 +7,8 @@
 //   INGEST (extension -> app):  the `socialTendril` descriptor plugs into the
 //     existing /ingest/<route> machinery. The extension POSTs scraped
 //     feed/mention/notification/metrics events; they land in
-//     data/social/inbox.json (rolling 7-day window) for the MCP read tools.
+//     data/social/inbox.json (rolling 7-day window). Nothing in the app reads it
+//     since the MCP read tools and the Social tab were removed 2026-10-28.
 //
 //   OUTBOX (app <-> extension):  handleRoute() serves the reverse channel the
 //     tendril model doesn't cover:
@@ -282,8 +283,10 @@ function handleRoute(req, res, { url, send, token, dataDir }) {
   return false;
 }
 
-// The ONE staged → canceled rule (CONTRACT.md "cancel never publishes" + 2026-10-27 amendment). Used by the popup's
-// POST /social/outbox/cancel and WorkspaceHQ's Social › Inbox Discard (hq:social-cancel, dashboard/social-tab.js).
+// The ONE staged → canceled rule (CONTRACT.md "cancel never publishes" + 2026-10-27 amendment). Called only by the
+// popup's POST /social/outbox/cancel (handleRoute above); the app's Social › Inbox Discard (hq:social-cancel,
+// dashboard/social-tab.js) went with the Social tab 2026-10-28 (IPC-CONTRACT.md cleanup row). MCP hq_social_cancel
+// is a separate twin in mcp/workspacehq/server.mjs that obeys the same staged-only gate but does NOT call this function.
 // Synchronous on purpose (see ATOMICITY above): read, check, flip, write in one turn of the event loop.
 // → { code, body } with the HTTP status the relay answers; anything not staged leaves the file untouched.
 function cancelStaged(outboxFile, rawId) {
@@ -303,9 +306,15 @@ function cancelStaged(outboxFile, rawId) {
 }
 
 // Bounded body reader — accumulate raw chunks, decode once (multibyte-safe).
+// On overflow drop the buffer and keep draining (never hold an unbounded body
+// in RAM); the 413 is answered from 'end', never req.destroy().
 function readBody(req, cb) {
   const chunks = []; let size = 0, tooBig = false;
-  req.on('data', (c) => { chunks.push(c); size += c.length; if (size > MAX_RESULT_BODY) tooBig = true; });
+  req.on('data', (c) => {
+    size += c.length;
+    if (size > MAX_RESULT_BODY) { tooBig = true; chunks.length = 0; return; }   // keep draining, keep nothing
+    if (!tooBig) chunks.push(c);
+  });
   req.on('end', () => {
     if (tooBig) return cb('too big');
     try { cb(null, JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); }
