@@ -121,3 +121,25 @@ test('snapshotProject: a timeout counts as failure and cleans up (injected runne
   assert.equal(dest, null);
   assert.deepEqual(fs.readdirSync(backups), []);
 });
+
+// tech-debt #1 (loop iteration 3): the last unbounded spawnSync calls on IPC paths (hq:draft-commit's git diff,
+// hq:spellbook-rescan's collector run) move onto run() — which then needs stdout and an env.
+test('run: stdoutMax captures stdout up to the cap (and never more)', async () => {
+  const r = await run(process.execPath, ['-e', "process.stdout.write('x'.repeat(5000))"], { timeoutMs: 10000, stdoutMax: 1000 });
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout.length, 1000, 'capped');
+  const none = await run(process.execPath, ['-e', "process.stdout.write('hi')"], { timeoutMs: 10000 });
+  assert.equal(none.stdout, '', 'without stdoutMax, stdout is not kept (the old behaviour)');
+});
+
+test('run: env reaches the child', async () => {
+  const r = await run(process.execPath, ['-e', 'process.stdout.write(String(process.env.HQ_RUN_ENV_PROBE))'], { timeoutMs: 10000, stdoutMax: 100, env: { ...process.env, HQ_RUN_ENV_PROBE: 'yes' } });
+  assert.equal(r.stdout, 'yes');
+});
+
+test('run: a child that never ends is stopped at the deadline and reported, the caller never hangs', async () => {
+  const t0 = Date.now();
+  const r = await run(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { timeoutMs: 800, stdoutMax: 100 });
+  assert.equal(r.timedOut, true);
+  assert.ok(Date.now() - t0 < 12000, 'settled');
+});

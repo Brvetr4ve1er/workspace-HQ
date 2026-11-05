@@ -28,19 +28,23 @@ function stopTree(pid) {
 // spawn and resolve { status, timedOut, error, stderr } — never rejects, never
 // blocks main. stdin is closed so a credential/terminal prompt fails fast
 // instead of hanging forever; stderr's tail is kept for the failure report.
-function run(command, args, { timeoutMs = 0, cwd } = {}) {
+// stdoutMax > 0 keeps stdout up to that many chars (hq:draft-commit reads a diff); env overrides the child's environment
+// (hq:spellbook-rescan runs a collector script as Node via ELECTRON_RUN_AS_NODE).
+function run(command, args, { timeoutMs = 0, cwd, stdoutMax = 0, env } = {}) {
   return new Promise((resolve) => {
     let proc;
-    try { proc = spawn(command, args, { cwd, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] }); }
-    catch (e) { return resolve({ status: null, timedOut: false, error: e, stderr: '' }); }
-    let stderr = '', timedOut = false, timer = null, backstop = null, done = false;
+    try { proc = spawn(command, args, { cwd, env, windowsHide: true, stdio: ['ignore', stdoutMax > 0 ? 'pipe' : 'ignore', 'pipe'] }); }
+    catch (e) { return resolve({ status: null, timedOut: false, error: e, stderr: '', stdout: '' }); }
+    let stderr = '', stdout = '', timedOut = false, timer = null, backstop = null, done = false;
     const settle = (status, error) => {
       if (done) return;
       done = true;
       if (timer) clearTimeout(timer);
       if (backstop) clearTimeout(backstop);
-      resolve({ status, timedOut, error, stderr: stderr.slice(-400) });
+      resolve({ status, timedOut, error, stderr: stderr.slice(-400), stdout: stdout.slice(0, stdoutMax) });
     };
+    // keep reading past the cap (a full pipe would stall the child), just stop keeping it
+    proc.stdout?.on('data', (b) => { if (stdout.length < stdoutMax) stdout += String(b); });
     proc.stderr?.on('data', (b) => { if (stderr.length < 4096) stderr += String(b); });
     proc.on('error', (e) => settle(null, e));
     proc.on('close', (code) => settle(code));

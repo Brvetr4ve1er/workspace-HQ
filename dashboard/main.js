@@ -12,6 +12,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { spawnSync, spawn } = require('node:child_process');
+// taskkill stays sync (several run at quit, while the process exits) but is never unbounded: a wedged kill can't freeze main
+const TASKKILL_OPTS = { windowsHide: true, timeout: 10000 };
 const { startBridge } = require('./browser-bridge');
 const claudeSessions = require('./claude-sessions');   // MA: the Familiar's leash
 const llmLocal = require('./llm-local');               // PC-Brain L3: local model adapter (Ollama/LM Studio)
@@ -211,7 +213,7 @@ function buildTrayMenu() {
         }
         trayNotify('📦 Snapshotted', `${ok}/${dirty.length} repos → backups/${failed.length ? ` — failed: ${failed.join(', ')}` : ''}`);
       }),
-      killServers: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); } activeDevServers.clear(); pushMachine(); updateTray(); },
+      killServers: () => { for (const [, proc] of activeDevServers) { if (proc && proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS); } activeDevServers.clear(); pushMachine(); updateTray(); },
       openUrgent: (tp) => { const b = resolveProjectPath(tp.path); if (b) shell.openPath(b); },
       quit: () => { appLog.setQuitReason('tray'); app.isQuitting = true; app.quit(); },
     }));
@@ -538,7 +540,10 @@ ipcMain.handle('hq:draft-commit', async (_e, projPath) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return { error: 'bad path' };
   // unstaged + staged diff; cap to avoid blowing token budget
-  const diff = (spawnSync('git', ['-C', cwd, 'diff', 'HEAD'], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }).stdout || '').slice(0, 30000);
+  // async + bounded (was an unbounded spawnSync: a huge repo's diff froze all of main); only the first 30k chars are used
+  const gd = await gitActions.run('git', ['-C', cwd, 'diff', 'HEAD'], { timeoutMs: 20000, stdoutMax: 30000 });
+  if (gd.timedOut) return { error: 'git diff took longer than 20 s — write this commit message by hand' };
+  const diff = gd.stdout || '';
   if (!diff.trim()) return { error: 'no diff to summarize' };
   const prompt = `Write a single conventional-commit message for this diff. Format: "type(scope): summary" then blank line then 1-3 bullet points if useful. Reply with ONLY the message text, no fences.\n\n${diff}`;
   const local = await llmLocal.run({ prompt, timeoutMs: 30000 });
@@ -929,7 +934,7 @@ function doCast(spell, { notifyOutcome = false, chainId = null, onDone = null } 
   });
   const mins = Math.max(1, Number(spell.timeout_min) || 10);
   entry.timer = setTimeout(() => {
-    if (proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { windowsHide: true });
+    if (proc.pid) spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS);
     finish(null, true);
   }, mins * 60000);
   return { castId };
@@ -1019,10 +1024,10 @@ ipcMain.handle('hq:spell-cancel', (_e, spellId) => {
     // between-links state to catch).
     entry.halted = true;
     const m = entry.activeMember && castRegistry.get(entry.activeMember);
-    if (m?.proc?.pid) spawnSync('taskkill', ['/pid', String(m.proc.pid), '/f', '/t'], { windowsHide: true });
+    if (m?.proc?.pid) spawnSync('taskkill', ['/pid', String(m.proc.pid), '/f', '/t'], TASKKILL_OPTS);
     return true;
   }
-  if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
+  if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], TASKKILL_OPTS);
   return true;   // the close handler records the fizzle
 });
 ipcMain.handle('hq:spellbook-get', () => readSpellbook());
@@ -1036,8 +1041,9 @@ ipcMain.handle('hq:spell-favorite', (_e, spellId) => {
 });
 // Fast relearn: rescan the arsenal only (no pipeline), rebuild the bundle, reload.
 ipcMain.handle('hq:spellbook-rescan', async () => {
-  const r = spawnSync(process.execPath, [path.join(COLLECTOR, 'spellbook.mjs')], { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
-  if (r.status !== 0) return { error: (r.stderr || '').slice(0, 300) || 'scanner failed' };
+  // async + bounded (was an unbounded spawnSync over a 962-command scan: the window froze until it finished)
+  const r = await gitActions.run(process.execPath, [path.join(COLLECTOR, 'spellbook.mjs')], { timeoutMs: 120000, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+  if (r.status !== 0) return { error: r.timedOut ? 'the automations rescan took longer than 2 min — stopped' : (r.stderr || '').slice(0, 300) || 'scanner failed' };
   rebuildData();
   if (win && !win.isDestroyed()) win.reload();
   return { ok: true };
@@ -1158,7 +1164,7 @@ ipcMain.handle('hq:dev-start', (_e, id) => {
 ipcMain.handle('hq:dev-stop', (_e, id) => {
   const proc = activeDevServers.get(id);
   if (proc && proc.pid) {
-    const r = spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']);
+    const r = spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS);
     activeDevServers.delete(id);
     sendDevStatus({ id, running: false });
     return r.status === 0;
@@ -1185,7 +1191,7 @@ ipcMain.handle('hq:note-save', (_e, id, note) => {
 ipcMain.handle('hq:show-main', () => { if (!win) createWindow(true); else win.show(); if (win) win.focus(); return true; });
 ipcMain.handle('hq:kill-servers', () => {
   let n = 0;
-  for (const [, proc] of activeDevServers) { if (proc && proc.pid) { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t']); n++; } }
+  for (const [, proc] of activeDevServers) { if (proc && proc.pid) { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS); n++; } }
   activeDevServers.clear(); pushMachine();
   return n;
 });
@@ -1274,11 +1280,11 @@ if (!app.requestSingleInstanceLock()) {
     // no orphaned incantations: kill any live cast trees on the way out
     for (const [, entry] of castRegistry) {
       if (entry.timer) clearTimeout(entry.timer);
-      if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
+      if (entry.proc?.pid) spawnSync('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], TASKKILL_OPTS);
     }
     castRegistry.clear();
     // same for live dev servers and in-flight Claude sessions — no orphans on quit
-    for (const [, proc] of activeDevServers) { if (proc?.pid) try { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { windowsHide: true }); } catch {} }
+    for (const [, proc] of activeDevServers) { if (proc?.pid) try { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS); } catch {} }
     activeDevServers.clear();
     try { claudeSessions.killAll(); } catch {}
   });
