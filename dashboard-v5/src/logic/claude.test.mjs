@@ -102,3 +102,26 @@ test('the pre-checks still answer before the guard: no project / no text never a
   await c.startSession();
   assert.equal(f.called('sessionStart').length, 1, 'the guard was never left armed');
 });
+
+// the guard above is an instance field (no re-render), so Run used to stay visually enabled
+// for the whole spawn; the state mirror greys it out and comes back on success AND failure
+test('Run is greyed out while the start is in flight, and comes back after success or failure', async () => {
+  let release;
+  const { c } = make({ sessionStart: () => new Promise((r) => { release = r; }) });
+  c.setState({ composer: 'Fix the build', composerProj: 'a', tab: 'claude', sub: Object.assign({}, c.state.sub, { claude: 'sessions' }) });
+  assert.equal(c.renderVals().cantStartSession, false, 'enabled before Run');
+  const run = c.startSession();
+  assert.equal(c.state.sessionStarting, true);
+  assert.equal(c.renderVals().cantStartSession, true, 'greyed out while in flight');
+  release({ jobId: 'j-1' });
+  await run;
+  assert.equal(c.state.sessionStarting, false);
+  c.setState({ composer: 'Again' });
+  assert.equal(c.renderVals().cantStartSession, false, 'enabled again after success');
+
+  const bad = make({ sessionStart: () => Promise.reject(new Error('spawn failed')) });
+  bad.c.setState({ composer: 'Fix the build', composerProj: 'a' });
+  await bad.c.startSession();
+  assert.equal(bad.c.state.sessionStarting, false, 'cleared after a throw');
+  assert.equal(bad.c.renderVals().cantStartSession, false, 'enabled again after a failure');
+});

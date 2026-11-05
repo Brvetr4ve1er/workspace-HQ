@@ -97,3 +97,23 @@ test('the pre-checks still answer before the guard: empty text never arms it', a
   await c.addJournal();
   assert.equal(f.called('saveNote').length, 1, 'the guard was never left armed');
 });
+
+// the guard is an instance field (no re-render), so Add used to stay visually enabled for the
+// whole save; the state mirror greys it out and comes back on success AND failure
+test('Add is greyed out while the save is in flight, and comes back after success or failure', async () => {
+  let release;
+  const { c } = make({ saveNote: () => new Promise((r) => { release = r; }) }, { journalDraft: 'A note' });
+  assert.equal(c.renderVals().cantAddJournal, false, 'enabled before Add');
+  const add = c.addJournal();
+  assert.equal(c.state.journalBusy, true);
+  assert.equal(c.renderVals().cantAddJournal, true, 'greyed out while in flight');
+  release(true);
+  await add;
+  assert.equal(c.state.journalBusy, false);
+  assert.equal(c.renderVals().cantAddJournal, false, 'enabled again after success');
+
+  const bad = make({ learn: () => Promise.reject(new Error('vault locked')) }, { journalKind: 'learning', journalDraft: 'Lesson' });
+  await bad.c.addJournal();
+  assert.equal(bad.c.state.journalBusy, false, 'cleared after a throw');
+  assert.equal(bad.c.renderVals().cantAddJournal, false, 'enabled again after a failure');
+});

@@ -73,7 +73,7 @@ export class Component extends DCLogic {
       lastScan: scanAt && !isNaN(scanAt) ? (scanAt.toDateString() === new Date().toDateString() ? '' : M.fmtD(scanAt) + ' ') + hhmm(scanAt) : (M.at(0).id || '—'),
       projSort: 'worst', taskFilter: 'all', hoverProj: null, diagTab: 'git', pageMore: false,
       journalAdds: {}, journalDraft: '', journalKind: 'note', autoQuery: '', trendRange: 30, lifeRange: 'window',
-      recapOpen: false, recapDismissed: P.recapSeen === (M.weeklyRecap && M.weeklyRecap.week_end), sessionSel: null, composer: '', composerProj: (M.P0[0] || {}).id || null,
+      recapOpen: false, recapDismissed: P.recapSeen === (M.weeklyRecap && M.weeklyRecap.week_end), sessionSel: null, sessionStarting: false, journalBusy: false, composer: '', composerProj: (M.P0[0] || {}).id || null,
       momentum: 'unc', fixed: [], sinceDismissed: P.sinceSeen === M.at(0).id, actTab: 'runs', compareOff: null, commitSel: 0, onboard: null, notifLog: [],
       // What's new · trailers (logic/whats-new.js): open, and trailers whose video failed to play (id → true)
       whatsNewOpen: false, whatsNewMissing: {},

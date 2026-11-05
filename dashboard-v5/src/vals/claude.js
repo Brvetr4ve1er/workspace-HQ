@@ -17,6 +17,6 @@ export function claudeVals(ctx) {
   return {
     isSessions: sub === 'sessions', sessions, sessionDetail: sessionDetail || {}, hasDetail: !!sessionDetail, composer: S.composer, onComposer: (e) => this.setState({ composer: e.target.value }), startSession: () => this.startSession(), composerProjs,
     // Run needs a project picked (sendClaude clears it for a task without one)
-    cantStartSession: cantWrite || !this.proj(S.composerProj),
+    cantStartSession: cantWrite || !this.proj(S.composerProj) || !!S.sessionStarting,   // greyed out while a Run is in flight (logic/claude.js guard)
   };
 }

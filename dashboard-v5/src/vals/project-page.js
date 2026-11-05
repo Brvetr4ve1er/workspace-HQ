@@ -19,6 +19,7 @@ export function projectPageVals(ctx) {
   }
   return {
     // journal composer (was in moreVals(), app-more.js)
+    cantAddJournal: cantWrite || !!S.journalBusy,   // greyed out while a save is in flight (logic/journal.js guard)
     journalDraft: S.journalDraft, onJournal: (e) => this.setState({ journalDraft: e.target.value }), journalKey: (e) => { if (e.key === 'Enter') { e.preventDefault(); this.addJournal(); } }, addJournal: () => this.addJournal(),
     // RECONSTRUCTED (see the note in vals/overlays.js): from here to the end of this object.
     pg,

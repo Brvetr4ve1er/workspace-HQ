@@ -21,9 +21,10 @@ export const claudeLogic = {
     if (!p || !this.hq.sessionStart) return this.denied('Pick a project first');
     if (this._sessionStarting) return;   // Run double-clicked while hq:session-start is in flight: both clicks pass the checks (the composer clears only after the answer), and each spawn spends Claude quota — one session, not two (same idiom as _scanStarting)
     this._sessionStarting = true;
+    this.setState({ sessionStarting: true });   // the field above is the guard; this mirror only greys Run out while the spawn is in flight
     let r;
     try { r = await this.call(() => this.hq.sessionStart({ cwd: p.path, task: txt, label: txt.slice(0, 60) }), 'Session didn’t start'); }
-    finally { this._sessionStarting = false; }   // released on failure too, so the next Run tries again
+    finally { this._sessionStarting = false; this.setState({ sessionStarting: false }); }   // released on failure too, so the next Run tries again
     if (!r || !r.jobId) return;
     this.setState({ sessionSel: r.jobId, composer: '' });
     FX().sfx('run'); FX().event('look', 'Claude is on it.');
