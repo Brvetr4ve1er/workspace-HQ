@@ -59,7 +59,14 @@ export function sanitizeTransactions(v) {
 // accepts this file's own shape AND a raw Ember export (ember-state-v1 carries the same three keys at top level)
 export function sanitizeState(v) {
   if (!isRec(v)) return defaultState();
-  return { v: STATE_VERSION, money: sanitizeMoney(v.money), transactions: sanitizeTransactions(v.transactions), inbox: sanitizeInbox(v.inbox) };
+  const money = sanitizeMoney(v.money);
+  // payments are the authority over their Bills rows: a row whose payment was undone (void) is gone, even when an
+  // older backup's import (union by id) brings it back — nothing could remove it otherwise (tx-undo refuses bill rows,
+  // the runway has nothing left to undo). A row a LIVE payment still points at always stays.
+  const voided = new Set(), live = new Set();
+  for (const p of money.payments) if (p.txId) (p.void ? voided : live).add(p.txId);
+  const transactions = sanitizeTransactions(v.transactions).filter((t) => !voided.has(t.id) || live.has(t.id));
+  return { v: STATE_VERSION, money, transactions, inbox: sanitizeInbox(v.inbox) };
 }
 
 // import = union, never replace: Ember's symmetric merges for the slices, id-union for the ledger

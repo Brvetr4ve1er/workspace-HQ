@@ -36,10 +36,18 @@ function create({ dataDir, now = () => new Date(), newId = () => crypto.randomUU
     let raw;
     try { raw = fs.readFileSync(file, 'utf8'); }
     catch (e) { if (e.code === 'ENOENT') return L.store.defaultState(); throw e; }
-    try { return L.store.sanitizeState(JSON.parse(raw)); }
+    try {
+      const v = JSON.parse(raw);
+      // valid JSON of the wrong shape ([…], a number) is as unreadable as garbage: quarantine it too, or the next save overwrites it
+      if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('not a money state object');
+      return L.store.sanitizeState(v);
+    }
     catch (e) {
-      try { fs.renameSync(file, file + '.corrupt'); } catch { /* best effort — never throw from a read */ }
-      console.error(`[money] corrupt state.json quarantined to state.json.corrupt — ${e.message}`);
+      // never overwrite an earlier quarantine (rename replaces on Windows): .corrupt, then .corrupt-2, -3 …
+      let to = file + '.corrupt';
+      for (let i = 2; fs.existsSync(to) && i < 1000; i++) to = file + '.corrupt-' + i;
+      try { fs.renameSync(file, to); } catch { /* best effort — never throw from a read */ }
+      console.error(`[money] corrupt state.json quarantined to ${path.basename(to)} — ${e.message}`);
       return L.store.defaultState();
     }
   }
@@ -113,7 +121,8 @@ function dialogPicker(getWin) {
       const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
       return r && !r.canceled && r.filePaths && r.filePaths[0] ? r.filePaths[0] : null;
     }
-    const opts = { title: 'Export money data', defaultPath: path.join(app.getPath('documents'), `money-${new Date().toISOString().slice(0, 10)}.json`), filters };
+    const d = new Date(), day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');   // the owner's local day (toISOString is UTC: 00:30 here named yesterday)
+    const opts = { title: 'Export money data', defaultPath: path.join(app.getPath('documents'), `money-${day}.json`), filters };
     const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
     return r && !r.canceled && r.filePath ? r.filePath : null;
   };

@@ -135,3 +135,71 @@ test('import refuses a file that is not an export, writes nothing', async () => 
   assert.match((await m.importFile()).error, /not an Ember export/);
   assert.equal(fs.existsSync(m.file), false);
 });
+
+// ---- loop iteration 2 (2026-11-05): four reproduced main-side bugs ----------------------------------------------------
+// a clock the test can jump (two different days), a minute per call otherwise
+function bootAt({ dir, picks = [], start = '2026-11-03T09:00:00Z' } = {}) {
+  dir = dir || fs.mkdtempSync(path.join(os.tmpdir(), 'hq-money-'));
+  let t = Date.parse(start), n = 0;
+  const m = money.create({ dataDir: dir, now: () => new Date(t += 60000), newId: () => 'id' + (++n), pick: async () => picks.shift() });
+  return { m, dir, at: (iso) => { t = Date.parse(iso); } };
+}
+const st = (m) => JSON.parse(fs.readFileSync(m.file, 'utf8'));
+
+test('importing a backup taken before an undo does not resurrect the undone bill payment (payments are the authority)', async () => {
+  const backup = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hq-money-io-')), 'backup.json');
+  const { m } = bootAt({ picks: [backup, backup] });
+  await m.apply({ type: 'account-save', name: 'CCP', currency: 'DA', balance: '50000' });
+  await m.apply({ type: 'obligation-save', name: 'Rent', amount: '18000', firstDue: '2026-11-20', accountId: 'id1' });
+  const paid = await m.apply({ type: 'obligation-pay', id: 'id2' });
+  await m.exportFile();   // the owner's backup, taken after the pay
+  await m.apply({ type: 'obligation-unpay', paymentId: paid.view.obligations[0].undoId });
+  const imp = await m.importFile();
+  assert.equal(imp.view.accounts[0].balance, '50,000 DA', 'was 32,000 DA: an 18,000 DA phantom debit nothing could remove');
+  assert.equal(imp.view.ledgerCount, 0);
+  const s = st(m);
+  assert.ok(s.money.payments.every((p) => p.void), 'the payment stays undone');
+  assert.deepEqual(s.transactions, [], 'its Bills row is gone from disk too');
+});
+
+test('a back-dated slip confirmed after a re-confirmed balance is not counted twice (spend and refund)', async () => {
+  const { m, at } = bootAt();
+  await m.apply({ type: 'account-save', name: 'CCP', currency: 'DA', balance: '50000' });
+  at('2026-11-05T09:00:00Z');
+  await m.apply({ type: 'account-save', id: 'id1', name: 'CCP', currency: 'DA', balance: '48000' });   // already includes the 02 Nov debit
+  const p = await m.apply({ type: 'inbox-paste', text: 'Votre compte a été débité de 2 000 DA le 02/11/2026. Jumia', from: 'CCP' });
+  const c = await m.apply({ type: 'inbox-confirm', id: p.view.slips[0].id, accountId: 'id1', category: 'Other', anyway: true });
+  assert.equal(c.error, undefined);
+  assert.equal(c.view.accounts[0].balance, '48,000 DA', 'was 46,000 DA');
+  assert.equal(st(m).transactions[0].at, undefined, 'a back-dated row carries no instant: the date rule decides');
+  // a same-day slip still lands after the anchor and counts
+  const today = await m.apply({ type: 'inbox-paste', text: 'Votre compte a été débité de 500 DA le 05/11/2026. Yassir', from: 'CCP' });
+  const t2 = await m.apply({ type: 'inbox-confirm', id: today.view.slips.find((x) => x.amount && /500/.test(x.amount)).id, accountId: 'id1', category: 'Transport', anyway: true });
+  assert.equal(t2.view.accounts[0].balance, '47,500 DA', 'same-day behaviour unchanged');
+});
+
+test('a second corrupt file never overwrites the first quarantine; valid JSON of the wrong shape is quarantined too', async () => {
+  const { m, dir } = bootAt();
+  const file = path.join(dir, 'money', 'state.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, '{"v":1,"money":');            // truncated
+  await m.read();
+  fs.writeFileSync(file, 'garbage #2');
+  await m.read();
+  fs.writeFileSync(file, '[{"id":"x"}]');               // valid JSON, wrong shape
+  const r = await m.read();
+  assert.ok(r.view, 'still an empty working state');
+  assert.equal(fs.readFileSync(file + '.corrupt', 'utf8'), '{"v":1,"money":', 'the first quarantine is kept');
+  assert.equal(fs.readFileSync(file + '.corrupt-2', 'utf8'), 'garbage #2');
+  assert.equal(fs.readFileSync(file + '.corrupt-3', 'utf8'), '[{"id":"x"}]', 'was: read as empty and overwritten by the next save');
+});
+
+test('paying a USD variable bill with the amount left blank keeps the cents (2-decimal mean, not whole dollars)', async () => {
+  const { m } = bootAt();
+  await m.apply({ type: 'account-save', name: 'Card', currency: 'USD', balance: '100' });
+  await m.apply({ type: 'settings', fxDaPerUsd: '245', paydayDay: '25' });
+  await m.apply({ type: 'obligation-save', name: 'Claude', kind: 'variable', amount: '21.49', currency: 'USD', cadence: 'weekly', firstDue: '2026-11-03', accountId: 'id1' });
+  await m.apply({ type: 'obligation-pay', id: 'id2', amount: '21.49' });
+  await m.apply({ type: 'obligation-pay', id: 'id2' });   // blank = the estimate
+  assert.deepEqual(st(m).money.payments.map((p) => p.amount), [21.49, 21.49], 'was [21.49, 21]');
+});

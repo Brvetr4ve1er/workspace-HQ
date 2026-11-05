@@ -13,6 +13,8 @@ import { sanitizeState } from './store.mjs';
 
 export class MoneyError extends Error {}
 const fail = (msg) => { throw new MoneyError(msg); };
+// 'YYYY-MM-DD' → that day's local noon as ISO (an instant safely inside the owner's day, whatever the zone)
+const localNoonISO = (day) => { const [y, mo, d] = day.split('-').map(Number); return new Date(y, mo - 1, d, 12).toISOString(); };
 
 export const INTENTS = ['account-save', 'account-archive', 'settings', 'log', 'tx-undo', 'obligation-save', 'obligation-archive', 'obligation-pay', 'obligation-unpay', 'jar-save', 'jar-archive', 'jar-move', 'jar-cover', 'split-save', 'payday-run', 'inbox-paste', 'inbox-confirm', 'inbox-reject', 'inbox-clear'];
 export const CATEGORIES = [...INBOX_CATEGORIES];
@@ -126,7 +128,11 @@ export function apply(state, intent, env) {
       // pays the next unpaid cycle: a Bills ledger row + a payment record linked to it (Ember's OBLIGATION_PAY)
       const v = obligationViews(m, today).find((r) => r.obligation.id === id(x.id)) || fail('that bill is gone.');
       if (v.nextDue === null) fail(`${v.obligation.name} is already fully paid.`);
-      const ob = v.obligation, amt = x.amount === undefined || x.amount === '' ? v.estimate : amount(x.amount);
+      // a blank amount pays the estimate. The engine rounds a variable bill's average to a whole unit (right for DA, pinned by
+      // its tests); in USD that drops the cents ($21.49 paid as $21), so USD takes a 2-decimal mean of the same history
+      const blank = x.amount === undefined || x.amount === '', ob = v.obligation;
+      const est = ob.currency === 'USD' && ob.kind === 'variable' && v.history.length ? Math.round(v.history.reduce((t, a) => t + a, 0) / v.history.length * 100) / 100 : v.estimate;
+      const amt = blank ? est : amount(x.amount);
       const amountDA = toDA(amt, ob.currency, m.settings.fxDaPerUsd);
       if (amountDA === null) fail('set your DA rate first — this bill is in USD.');
       const acc = liveAccount(s, x.accountId || ob.accountId), txId = newId();   // '' (no pick) falls back to the bill's own account
@@ -222,7 +228,9 @@ export function apply(state, intent, env) {
         const acc = x.accountId ? liveAccount(s, x.accountId) : null;
         if (acc && acc.currency !== c.currency) fail(`a ${c.currency} refund goes back to a ${c.currency} account.`);
         let money = m;
-        if (acc) money = moneyReducer(m, { type: 'money/income-add', income: { id: newId(), accountId: acc.id, amount: Math.abs(c.amount), date: c.date, at: nowISO, note: `refund · ${c.merchant}`.slice(0, 120) } });
+        // income needs an instant: a back-dated refund gets one on its OWN day (local noon), not now — counted by now, a
+        // refund already inside a balance confirmed since would be counted twice
+        if (acc) money = moneyReducer(m, { type: 'money/income-add', income: { id: newId(), accountId: acc.id, amount: Math.abs(c.amount), date: c.date, at: c.date === today ? nowISO : localNoonISO(c.date), note: `refund · ${c.merchant}`.slice(0, 120) } });
         next = { ...s, money, inbox: inboxReducer(s.inbox, { type: 'inbox/resolve', id: c.id, status: 'confirmed', txId: null, nowISO }) };
         note = acc ? `refund back on ${acc.name}` : 'refund noted';
         break;
@@ -233,7 +241,10 @@ export function apply(state, intent, env) {
       const amountDA = c.amount === 0 ? 0 : toDA(c.amount, c.currency, m.settings.fxDaPerUsd);
       if (amountDA === null) fail('set your DA rate first — this one is in USD.');
       const acc = liveAccount(s, x.accountId);
-      const tx = { id: newId(), amountDA, category: CATEGORIES.includes(x.category) ? x.category : c.suggestedCategory, note: 'from inbox', date: c.date, at: nowISO };
+      const tx = { id: newId(), amountDA, category: CATEGORIES.includes(x.category) ? x.category : c.suggestedCategory, note: 'from inbox', date: c.date };
+      // only a same-day slip gets an instant: the engine counts a row by `at` when it has one, which would count a
+      // back-dated slip that a balance confirmed since already includes; without `at` its date rule decides
+      if (c.date === today) tx.at = nowISO;
       if (acc) tx.accountId = acc.id;
       if (c.currency === 'USD') tx.original = { amount: c.amount, currency: 'USD' };
       next = { ...s, transactions: [tx, ...s.transactions], inbox: inboxReducer(s.inbox, { type: 'inbox/resolve', id: c.id, status: 'confirmed', txId: tx.id, nowISO }) };
