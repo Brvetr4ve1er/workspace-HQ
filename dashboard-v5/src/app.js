@@ -34,6 +34,7 @@ import { githubLogic } from './logic/github.js';
 import { accountsLogic } from './logic/accounts.js';
 import { lifeLogic } from './logic/life.js';
 import { moneyLogic } from './logic/money.js';
+import { briefLogic } from './logic/brief.js';
 import { statCardLogic } from './logic/stat-card.js';
 import { renderVals } from './vals/index.js';
 
@@ -64,7 +65,7 @@ export class Component extends DCLogic {
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
-      vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
+      vw: window.innerWidth, completed: [], recentDone: [], mny: {}, brfBusy: false, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
       scrubOpen: false, paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, askHistory: [], askDraft: '',
@@ -386,5 +387,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic);
 Component.prototype.renderVals = renderVals;

@@ -6,6 +6,8 @@
 // Exit 0 every scenario passed · 1 one failed · 2 couldn't connect / bad usage.
 // money scenarios (need --preload=fake; tools/money.fake-views.json is what money.read answers):
 //   money-open-key9 · money-log-spend · money-pay-bill · money-inbox-paste-promo · money-archive-ask · money-button-sweep
+// Operator Brief scenarios (--preload=fake; the fake's brief.read answers a 3-item placeholder brief):
+//   brief-render · brief-act · brief-dismiss
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -191,6 +193,20 @@ async function mnyType(t, ph, text) {
   const ok = await t.evaluate(`(() => { const i = ${MNY}.input(${JSON.stringify(ph)}); if (!i) return false; i.focus(); i.select && i.select(); return document.activeElement === i; })()`);
   if (ok) await t.type(text);
   return ok;
+}
+
+// Operator Brief (heads Home): the panel's list items and their buttons, found by role + visible label
+const BRF = `(() => { const sec = () => document.querySelector('section[aria-label="Brief: what needs you now"]');
+  const items = () => [...((sec() || document).querySelectorAll('[role="listitem"]'))];
+  const btn = (i, label) => { const it = items()[i]; return it ? [...it.querySelectorAll('button')].find((b) => b.textContent.trim() === label) : null; };
+  return { sec, items, texts: () => items().map((x) => x.textContent.replace(/\\s+/g, ' ').trim()), btn,
+    click: (i, label) => { const b = btn(i, label); if (!b) return false; b.click(); return true; } }; })()`;
+// fresh() + Home with the fake's 3-item brief re-read (an earlier dismiss scenario may have left the store one short)
+async function briefAt(t) {
+  const pre = await fresh(t); if (pre) return pre;
+  await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ brfBusy: false }); L._brfBusy = false; L.store.refreshBrief(); L.go('home'); return true; })()`);
+  if (!await t.waitFor(`${BRF}.items().length === 3`, 8000)) return ['the Brief never rendered the fixture’s 3 items (got ' + await t.evaluate(`${BRF}.items().length`) + ')'];
+  return null;
 }
 
 // ---- scenarios -----------------------------------------------------------------
@@ -1430,6 +1446,44 @@ const SCENARIOS = {
       }
       await t.evaluate(`(() => { WHQ.app.logic.setState({ mny: {}, toasts: [] }); return true; })()`);
     }
+    return out.concat(t.errors());
+  },
+  // Operator Brief: Home leads with the fixture's 3 items in rank order, severity in words, source + age, +more
+  async 'brief-render'(t) {
+    const pre = await briefAt(t); if (pre) return pre;
+    const out = [], texts = await t.evaluate(`${BRF}.texts()`);
+    const want = [['urgent', 'Project A has 2 secrets in plain sight', 'from scan 1 h ago', 'Open project'], ['soon', 'Scan data is 2 days old', 'Scan now'], ['when you can', "claude.ai chats aren't syncing", 'Open Claude']];
+    want.forEach((w, i) => { for (const part of w) if (!(texts[i] || '').includes(part)) out.push('item ' + (i + 1) + ' lacks "' + part + '": ' + texts[i]); });
+    if (!await t.evaluate(`${BRF}.sec().textContent.includes('+2 more')`)) out.push('no "+2 more" line');
+    const top = await t.evaluate(`(() => { const s = ${BRF}.sec(), m = document.querySelector('main'); return !!s && !!m && m.contains(s); })()`);
+    if (!top) out.push('the Brief is not inside the Home screen');
+    return out.concat(t.errors());
+  },
+
+  // Operator Brief: an item's action goes where it says (a project page; Claude › Chats)
+  async 'brief-act'(t) {
+    const pre = await briefAt(t); if (pre) return pre;
+    const out = [];
+    await t.evaluate(`${BRF}.click(0, 'Open project')`);
+    if (!await t.waitFor(`(WHQ.app.logic.state.route || {}).id === 'p1'`, 3000)) out.push('Open project did not open p1 (route ' + JSON.stringify(await t.evaluate('WHQ.app.logic.state.route')) + ')');
+    const again = await briefAt(t); if (again) return out.concat(again);
+    await t.evaluate(`${BRF}.click(2, 'Open Claude')`);
+    if (!await t.waitFor(`WHQ.app.logic.state.tab === 'claude' && WHQ.app.logic.state.sub.claude === 'chats'`, 3000)) out.push('Open Claude did not land on Claude › Chats');
+    if ((await t.evaluate(`hqFake.calls('brief.dismiss').length`)) !== 0) out.push('acting dismissed something');
+    return out.concat(t.errors());
+  },
+
+  // Operator Brief: Dismiss sends that item's key once and the panel shows main's answer (one item fewer)
+  async 'brief-dismiss'(t) {
+    const pre = await briefAt(t); if (pre) return pre;
+    const out = [];
+    await t.evaluate(`(${BRF}.click(0, 'Dismiss'), ${BRF}.click(0, 'Dismiss'))`);   // a double click
+    if (!await t.waitFor(`hqFake.calls('brief.dismiss').length >= 1`, 3000)) return ['Dismiss did not reach main'];
+    await t.sleep(200);
+    const keys = await t.evaluate(`hqFake.calls('brief.dismiss').map((c) => c.args[0])`);
+    if (JSON.stringify(keys) !== JSON.stringify(['secrets:p1:2'])) out.push('dismiss calls ' + JSON.stringify(keys) + ', want exactly ["secrets:p1:2"]');
+    if (!await t.waitFor(`${BRF}.items().length === 2`, 3000)) out.push('the dismissed item is still shown');
+    else if ((await t.evaluate(`${BRF}.texts()[0]`)).includes('secrets')) out.push('the first item is still the dismissed one');
     return out.concat(t.errors());
   },
 };

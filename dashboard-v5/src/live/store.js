@@ -41,7 +41,8 @@ export function createStore(DATA, hq) {
     sessions: [], sessionOut: {},
     dev: {}, machine: null, browserNow: null,
     llm: null, casts: {},
-    money: { view: null, error: '', loaded: false },   // money space: last view from hq:money:* (main owns the data)
+    money: { view: null, error: '', loaded: false },
+    brief: { brief: null, error: '', loaded: false },   // Operator Brief: the last brief main computed (hq:brief:*)   // money space: last view from hq:money:* (main owns the data)
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
     accounts: null,   // a fresher data/accounts.json than the baked DATA.accounts (refreshAccounts)
@@ -196,6 +197,21 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.money || !hq.money.importFile) return Promise.resolve({ error: 'money needs the desktop bridge' });
     return Promise.resolve().then(() => hq.money.importFile()).then(takeMoney, (e) => ({ error: (e && e.message) || String(e) })).finally(emit);
   }
+  // Operator Brief (spec 2026-11-05-operator-design): main ranks, the store only holds the last answer
+  function takeBrief(r) {
+    if (r && r.brief) live.brief = { brief: r.brief, error: '', loaded: true };
+    else if (r && typeof r.error === 'string' && !live.brief.brief) live.brief = { brief: null, error: r.error, loaded: true };
+    return r;
+  }
+  function refreshBrief() {
+    if (!hq || !hq.brief || !hq.brief.read) return Promise.resolve();
+    return pull(() => hq.brief.read(), (r) => { takeBrief(r); });
+  }
+  // a dismiss resolves main's answer (the brief without that item); a failure rejects, so logic/brief.js can say so
+  function dismissBrief(key) {
+    if (!hq || !hq.brief || !hq.brief.dismiss) return Promise.resolve({ error: 'the Brief needs the desktop bridge' });
+    return Promise.resolve().then(() => hq.brief.dismiss(key)).then(takeBrief).finally(emit);
+  }
   function refreshLlm(force) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
     return pull(() => hq.probeLlm({ force: !!force }), (r) => { live.llm = r || null; });
@@ -305,6 +321,10 @@ export function createStore(DATA, hq) {
     }));
     reads.push(refreshLlm(false));
     if (hq.money) reads.push(refreshMoney());
+    if (hq.brief) {
+      reads.push(refreshBrief());
+      if (hq.brief.onBrief) sub(() => hq.brief.onBrief((b) => { if (b && Array.isArray(b.items)) { live.brief = { brief: b, error: '', loaded: true }; emit(); } }));
+    }
     return Promise.all(reads).then(() => {});
   }
   const lib = () => live.claudeLib;
@@ -443,7 +463,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshLlm, refreshMoney, applyMoney, importMoney, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshLlm, refreshMoney, applyMoney, importMoney, refreshBrief, dismissBrief, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
   };

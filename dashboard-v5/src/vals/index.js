@@ -30,10 +30,11 @@ import { claudeVaultVals } from './claude-vault.js';
 import { githubVals } from './github.js';
 import { accountsVals } from './accounts.js';
 import { moneyVals } from './money.js';
+import { briefVals } from './brief.js';
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals,
 ];
 
 export function renderVals() {

@@ -20,7 +20,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {} };
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, brfBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -131,7 +131,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -283,6 +283,25 @@ export async function run(W = window.WHQ) {
           await combo([theme, 'p3:' + name].join(' '), () => {
             LV.money = money;
             L.go('money', sub); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, mny }, extra || {}));
+          });
+        }
+        // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
+        const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });
+        const BI = [bItem('secrets:p:1', 'high', { kind: 'go', tab: 'projects', projectId: (M.P0[0] || {}).id || 'p' }), bItem('scan-stale:d', 'med', { kind: 'scan' }), bItem('claude-sync:0:never', 'low', { kind: 'go', tab: 'claude', sub: 'chats' })];
+        const BV = (items, more = 0, errors = []) => ({ brief: { v: 1, generatedAt: '2026-11-05T09:00:00.000Z', items, more, errors }, error: '', loaded: true });
+        for (const [name, brief, extra] of [
+          ['brief-empty', BV([])],
+          ['brief-error', { brief: null, error: 'selftest: synthetic brief error', loaded: true }],
+          ['brief-loading', { brief: null, error: '', loaded: false }],
+          ['brief-1', BV(BI.slice(0, 1))],
+          ['brief-2', BV(BI.slice(0, 2))],
+          ['brief-3-more', BV(BI, 4)],
+          ['brief-source-errors', BV([], 0, [{ source: 'pc-health', error: 'unreadable (selftest)' }])],
+          ['brief-busy', BV(BI), { brfBusy: true }],
+        ]) {
+          await combo([theme, 'p3:' + name].join(' '), () => {
+            LV.brief = brief;
+            L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, extra || {}));
           });
         }
       }
