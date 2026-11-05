@@ -127,3 +127,39 @@ test('tool descriptions tell the truth about what the send half can publish and 
   assert.match(tool('hq_capture').description, /hq:capture-save/);
   assert.match(tool('hq_capture').description, /retired 2026-09-15/);
 });
+
+// loop iteration 3 (2026-11-05): combos the send half refuses unconditionally are refused at stage time, like Reddit's
+const outboxLen = () => JSON.parse(fs.readFileSync(path.join(root, 'data', 'social', 'outbox.json'), 'utf8')).actions.length;
+
+test('never-sendable combos (Instagram / YouTube anything, LinkedIn replies) are refused at stage time, never staged', async () => {
+  const before = outboxLen();
+  const r = await rpc([
+    { id: 20, method: 'tools/call', params: { name: 'hq_social_post', arguments: { platform: 'instagram', text: 'text only' } } },
+    { id: 21, method: 'tools/call', params: { name: 'hq_social_post', arguments: { platform: 'youtube', text: 'community post' } } },
+    { id: 22, method: 'tools/call', params: { name: 'hq_social_reply', arguments: { platform: 'linkedin', text: 'a comment', reply_to: 'urn:li:activity:1' } } },
+    { id: 23, method: 'tools/call', params: { name: 'hq_social_reply', arguments: { platform: 'instagram', text: 'a reply', reply_to: 'abc' } } },
+  ]);
+  for (const id of [20, 21, 22, 23]) {
+    assert.equal(r[id].result.isError, true, 'id ' + id + ' should be refused: ' + JSON.stringify(r[id]));
+    assert.match(toolResult(r[id]).error, /can't be sent.*nothing staged/);
+  }
+  assert.equal(outboxLen(), before, 'none of them reached the owner’s approval queue');
+});
+
+test('sendable-once-configured and sendable combos still stage: Threads post (doc_id), LinkedIn post', async () => {
+  const r = await rpc([
+    { id: 24, method: 'tools/call', params: { name: 'hq_social_post', arguments: { platform: 'threads', text: 'needs a doc_id at send' } } },
+    { id: 25, method: 'tools/call', params: { name: 'hq_social_post', arguments: { platform: 'linkedin', text: 'a share' } } },
+  ]);
+  assert.equal(toolResult(r[24]).status, 'staged', JSON.stringify(r[24]));
+  assert.equal(toolResult(r[25]).status, 'staged', JSON.stringify(r[25]));
+});
+
+// drift pin: the refusal list mirrors adapters that refuse with no setting to change it. If one of them gets wired up,
+// this fails and points at NEVER_SENDS in server.mjs.
+test('NEVER_SENDS matches browser-bridge/social.js: those senders still refuse unconditionally', () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'browser-bridge', 'social.js'), 'utf8');
+  assert.match(src, /async function igSendInPage\(\) \{\s*return \{ ok: false/, 'Instagram send now does something — drop instagram from NEVER_SENDS');
+  assert.match(src, /async function ytSendInPage\(\) \{\s*return \{ ok: false/, 'YouTube send now does something — drop youtube from NEVER_SENDS');
+  assert.match(src, /if \(action\.op === 'reply'\) return \{ ok: false, error: 'LinkedIn replies/, 'LinkedIn replies are wired now — drop linkedin from NEVER_SENDS.reply');
+});

@@ -64,6 +64,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 // ---------------------------------------------------------------------------
 
 const SOCIAL_PLATFORMS = ['bluesky', 'mastodon', 'reddit', 'x', 'instagram', 'threads', 'facebook', 'linkedin', 'youtube'];
+// op -> platforms whose send ALWAYS refuses (server.test.mjs pins this against browser-bridge/social.js)
+const NEVER_SENDS = { post: ['instagram', 'youtube'], reply: ['instagram', 'youtube', 'linkedin'] };
 const SOCIAL_TEXT_MAX = 3000;   // generous staging cap; per-platform limits enforced by the adapter at send
 
 const socialOutbox = () => {
@@ -100,6 +102,12 @@ function stageAction(op, args) {
   // fail at stage time instead of burning a human approval on a dead action
   if (platform === 'reddit' && op === 'post' && (!target || !title)) {
     throw new ToolError('Reddit top-level posts need target (subreddit, without r/) + title');
+  }
+  // the same rule for combos the send half refuses unconditionally (browser-bridge/social.js: Instagram needs media,
+  // YouTube posting isn't wired, LinkedIn comments aren't) — no setting can make them send, so they never reach the
+  // owner's approval queue. Threads / Facebook stay stageable: they send once the owner pastes a captured doc_id.
+  if ((NEVER_SENDS[op] || []).includes(platform)) {
+    throw new ToolError(`${platform} ${op}s can't be sent — the extension's ${platform} adapter refuses every ${op} (see the tool description); nothing staged`);
   }
   const d = socialOutbox();
   const action = {
@@ -219,7 +227,7 @@ const TOOLS = [
   // ---- SOCIAL BINDING (confirm-gated staging; the read tools went with the Social tab, 2026-10-28) ----
   {
     name: 'hq_social_post',
-    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it. Reddit top-level posts require target (subreddit, without r/) + title. The send half can only publish posts on bluesky, mastodon, reddit, x and linkedin today: instagram and youtube always refuse (text-only posting unsupported), and threads/facebook refuse until the owner pastes a captured doc_id into browser-bridge/social.js — staging those wastes a human approval on a send that cannot succeed.',
+    description: 'STAGE a new top-level post for review. Does NOT publish — it appends a staged action to the outbox; you must click Approve & Send in the WorkspaceHQ Bridge extension popup to actually post. There is no way for Claude to send it. Reddit top-level posts require target (subreddit, without r/) + title. The send half can only publish posts on bluesky, mastodon, reddit, x and linkedin today: instagram and youtube posts are refused here at stage time (the send can never succeed: text-only posting is unsupported), and threads/facebook stage but only send once the owner pastes a captured doc_id into browser-bridge/social.js.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -235,7 +243,7 @@ const TOOLS = [
   },
   {
     name: 'hq_social_reply',
-    description: 'STAGE a reply for review. Does NOT publish — appends a staged action; you must Approve & Send in the extension popup. reply_to is the target post id/uri/url. The send half can only publish replies on bluesky, mastodon, reddit and x today: linkedin replies are not supported yet, and every other platform\'s send refuses — staging those wastes a human approval on a send that cannot succeed.',
+    description: 'STAGE a reply for review. Does NOT publish — appends a staged action; you must Approve & Send in the extension popup. reply_to is the target post id/uri/url. The send half can only publish replies on bluesky, mastodon, reddit and x today: linkedin, instagram and youtube replies are refused here at stage time (their send can never succeed), and threads/facebook replies stage but are not wired at send.',
     inputSchema: {
       type: 'object',
       properties: {
