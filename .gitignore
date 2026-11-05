@@ -87,3 +87,9 @@ data/accounts.json
 # trailer render tool: renders, masters, stills (tools/trailer/out) and the patched work copy + Electron profile (tools/trailer/.work)
 tools/trailer/out/
 tools/trailer/.work/
+
+# money space + Operator Brief (2026-11-05): owner money data, and the brief derived from personal scan data.
+# data/ is NOT ignored wholesale here, so each owner file needs its own line.
+data/money/
+data/brief.json
+data/brief-state.json
