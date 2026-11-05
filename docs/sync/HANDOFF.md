@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (autonomous loop, iteration 1 — owner: "continue the project in loop and automatically") · main @ 82259fa
+DONE: 82259fa Run session + journal Add grey out while in flight (devfleet follow-up; guards mirrored into state, cantAddJournal).
+  Gates: main 662/662, money 229/229, renderer 389/389, selftest 2528 0/0/0, cdp-gate 30/30 (sweep 513 / 34 screens).
+IN-FLIGHT: loop continues. Backlog seen: (a) one main-side test failed ONCE while the Electron selftest ran concurrently, 3/3
+  clean alone, name not captured — find the timing-sensitive test; (b) hq_social_post stage-time refusal of never-sendable combos;
+  (c) quick bug review of the merged money code.
+ASKS: none. BREAKS: none (renderer-only, additive state keys).
+
+---
+
 ## 2026-11-03 · FROM frontend (money space — owner: "merge the Money space from money-manager-") · main @ 44fed17
 DONE: space-port-money landed by its MANUAL path (origin/main is 76a7d1a but this tree is 53 commits past it, post-cleanup:
   the patch fails plain and conflicts 19 files under --3way). 1c9659e contract rows · 469dca7 main (dashboard/money.js +
