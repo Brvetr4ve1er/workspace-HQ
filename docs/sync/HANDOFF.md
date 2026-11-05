@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (autonomous loop, iteration 2 — money review) · main @ 702e963
+DONE: two independent reviewers of the merged money space, every finding reproduced against the real modules, every new test
+  verified to FAIL on the old code. 4a8848d main: undone bill payment resurrected by importing an older backup (un-removable
+  phantom debit) · back-dated slip/refund double-counted after a re-confirmed balance · second corrupt file overwrote the first
+  .corrupt + wrong-shape JSON never quarantined · USD variable blank-pay dropped cents; export name uses the local day.
+  5b88077 renderer: cleared DA rate snapped back and Save wiped it · explicit "no account" still showed Cash · pay row "no account"
+  paid from the bill's account (relabelled) · spend typed mid-save wiped, busy submit / Archive silently dropped. 702e963 CONTRACT.
+  Gates (run sequentially, outputs kept): main 666/666, money 229/229 (+14/14 module), renderer 394/394, selftest 2528 0/0/0,
+  cdp-gate 30/30 (sweep 513 / 34). Goldens unchanged. Live app restarted on it: up, clean log.
+  Flake (a) from iteration 1: NOT reproduced in 7 loaded runs (2 suites at once x3, suite + Electron selftest x1) — 1 failure in
+  11 runs total; gates now run sequentially with full output kept so a recurrence arrives with its name.
+IN-FLIGHT: loop continues. Backlog: hq_social_post stage-time refusal of never-sendable combos. Money nits not fixed (owner
+  impact ~0): "0" balance accepted but "0.00" refused; takeMoney has no ordering guard (unreachable while main handlers stay sync).
+ASKS: none. BREAKS: none (money behaviour fixes; CONTRACT amendment is additive).
+
+---
+
 ## 2026-11-05 · FROM frontend (autonomous loop, iteration 1 — owner: "continue the project in loop and automatically") · main @ 82259fa
 DONE: 82259fa Run session + journal Add grey out while in flight (devfleet follow-up; guards mirrored into state, cantAddJournal).
   Gates: main 662/662, money 229/229, renderer 389/389, selftest 2528 0/0/0, cdp-gate 30/30 (sweep 513 / 34 screens).
