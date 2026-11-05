@@ -50,8 +50,8 @@
 - Modify: `docs/sync/IPC-CONTRACT.md` (a dated section above `## Rules`)
 - Modify: `docs/sync/CONTRACT.md` (table rows after `data/money/state.json`, plus a `### data/brief.json` section)
 
-- [ ] **Step 1:** Write the three IPC rows with their exact shapes, from the spec's *Interfaces* section, and the three file rows and sections from the same place.
-- [ ] **Step 2:** Commit: `meta: Operator Brief — IPC-CONTRACT + CONTRACT rows (contract before code)`.
+- [x] **Step 1:** Write the three IPC rows with their exact shapes, from the spec's *Interfaces* section, and the three file rows and sections from the same place.
+- [x] **Step 2:** Commit: `meta: Operator Brief — IPC-CONTRACT + CONTRACT rows (contract before code)`.
 
 ### Task 2: Pure engine `dashboard/brief-core.mjs`
 
@@ -74,7 +74,7 @@
   - `key` is `rule + ':' + subject + ':' + value`, for example `dirty:p1:8` or `scan-stale:2026-11-03`.
 - **Also exports:** `RULES` (the ordered rule ids) and `SEV_RANK`.
 
-- [ ] **Step 1: Write the failing tests** in `brief-core.test.mjs`, with synthetic placeholder inputs:
+- [x] **Step 1: Write the failing tests** in `brief-core.test.mjs`, with synthetic placeholder inputs:
   - `each rule fires on its condition and only then`: one case per rule in the spec table, asserting `rule`, `severity` and `action`;
   - `ranking: severity first, then rule order`, and `cap: 3 items, rest counted in more`;
   - `a worse value is a new key`: `dirty:p1:8` dismissed is hidden, while `dirty:p1:12` shows;
@@ -83,10 +83,10 @@
   - `computeBrief tolerates every missing input`: all `null` gives `{ items: [], errors: [] }`, plus a corrupt-shape `scan` case;
   - `names are one line, at most 60 chars`;
   - `deterministic`: the same inputs and `now` give a deep-equal result.
-- [ ] **Step 2:** Run `node --test dashboard/brief-core.test.mjs`. Expected: FAIL (module missing).
-- [ ] **Step 3:** Implement `computeBrief`. Each rule is a small function `(inputs, now) → item | null`, evaluated in `RULES` order, then stable-sorted by `SEV_RANK`, filtered by `dismissed`, and capped at 3.
-- [ ] **Step 4:** Run the tests. Expected: PASS.
-- [ ] **Step 5:** Commit: `fe: Operator Brief engine (brief-core.mjs, pure, 12 rules, cap 3)`.
+- [x] **Step 2:** Run `node --test dashboard/brief-core.test.mjs`. Expected: FAIL (module missing).
+- [x] **Step 3:** Implement `computeBrief`. Each rule is a small function `(inputs, now) → item | null`, evaluated in `RULES` order, then stable-sorted by `SEV_RANK`, filtered by `dismissed`, and capped at 3.
+- [x] **Step 4:** Run the tests. Expected: PASS.
+- [x] **Step 5:** Commit: `fe: Operator Brief engine (brief-core.mjs, pure, 12 rules, cap 3)`.
 
 ### Task 3: Main module `dashboard/brief.js`, plus the inputs it needs
 
@@ -112,16 +112,16 @@
   - **Writes:** `data/brief.json` atomically (tmp + rename).
   - **Pushes:** `hq:brief` to every window when `items` or `errors` changed.
 
-- [ ] **Step 1: Write the failing tests** in `brief.test.mjs`, with a temp `dataDir`, fake `money`/`hub`/`liveState`/`notify`, and a fake `ipcMain` like `money.test.mjs`:
+- [x] **Step 1: Write the failing tests** in `brief.test.mjs`, with a temp `dataDir`, fake `money`/`hub`/`liveState`/`notify`, and a fake `ipcMain` like `money.test.mjs`:
   - `registers exactly hq:brief:read and hq:brief:dismiss`;
   - `buildInputs survives absent files`: no `latest.json` or `pc-health.json`, and the hub rejecting, gives a brief with `errors` naming each;
   - `dismiss(key) persists to brief-state.json and hides the item; an unknown key is a no-op`;
   - `writes brief.json atomically and pushes only on change`;
   - in `money.test.mjs`: `export writes meta.json lastExportAt; a cancelled export does not`.
-- [ ] **Step 2:** Run `node --test dashboard/brief.test.mjs dashboard/money.test.mjs`. Expected: FAIL.
-- [ ] **Step 3:** Implement. Hub health is read through `hub.request('health', {}, { timeout: 5000 })`; a failure becomes an `errors` entry. Main's `trayNotify(title, body)` is passed in as `notify`.
-- [ ] **Step 4:** Run the tests plus `node --test dashboard/claude-hub/hub.test.mjs`. Expected: PASS. (Add one hub test: `health carries lastSyncAt and webCount`.)
-- [ ] **Step 5:** Commit: `fe: Operator Brief main side (brief.js, hq:brief:*, data/brief.json; money meta lastExportAt; hub health lastSyncAt/webCount)`.
+- [x] **Step 2:** Run `node --test dashboard/brief.test.mjs dashboard/money.test.mjs`. Expected: FAIL.
+- [x] **Step 3:** Implement. Hub health is read through `hub.request('health', {}, { timeout: 5000 })`; a failure becomes an `errors` entry. Main's `trayNotify(title, body)` is passed in as `notify`.
+- [x] **Step 4:** Run the tests plus `node --test dashboard/claude-hub/hub.test.mjs`. Expected: PASS. (Add one hub test: `health carries lastSyncAt and webCount`.)
+- [x] **Step 5:** Commit: `fe: Operator Brief main side (brief.js, hq:brief:*, data/brief.json; money meta lastExportAt; hub health lastSyncAt/webCount)`.
 
 ### Task 4: The renderer Brief panel
 

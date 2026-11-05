@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (Operator Brief, loop iteration 1 — plan Tasks 1–3) · main @ 33a4fca
+DONE: owner approved the Operator concept ("Build the Operator"); spec + plan f88e2dd. 9cd1120 contract rows. 8ef7216 the pure
+  engine dashboard/brief-core.mjs (12 rules, cap 3, keys rule:subject:value, shouldToast for P2; 13 tests). 33a4fca main side
+  dashboard/brief.js (data/brief.json, hq:brief:read/dismiss, push hq:brief; recompute on startup, file changes, scan end, 15 min).
+  Live app restarted: real data/brief.json written at startup — 3 items + 3 more, 0 source errors, clean log.
+  Gates: main 693/693, money 229/229, renderer 394/394, selftest 2528 0/0/0, cdp-gate 30/30.
+IN-FLIGHT: plan Tasks 4 (Brief panel heading Home), 5 (MCP hq_brief), 6 (P2 toast wiring), 7 (gates + docs).
+ASKS (struct): none. FYI data/ gains brief.json + brief-state.json (frontend, gitignored); live-state.js has onChange(fn).
+BREAKS: none — additive (new channels, new files, Hub health + money view fields added, money export writes money/meta.json).
+
+---
+
 ## 2026-11-05 · FROM frontend (fe/v5-clean-pass merged into main — owner: "merge fe/v5-clean-pass into main") · main @ 8b3eefc
 DONE: origin/main fast-forwarded 76a7d1a..8b3eefc (67 commits, no merge commit, no conflicts: 76a7d1a was an ancestor). main now
   carries everything since 2026-10-28: the feature cleanup (tag cleanup-base-2026-10-28 restores any of it), the claude.ai live
