@@ -287,8 +287,13 @@ base name>).md`, bodies masked, a note without frontmatter given `title` + `tags
 ### `data/money/` — money space (frontend lane, local only, gitignored)
 
 `data/money/state.json`, written only by `dashboard/money.js` (atomic: `state.json.<pid>.tmp` → rename).
-Never read by `collector/`, the MCP server or `build-data.mjs`; never committed. A file that won't parse is
-renamed to `state.json.corrupt` (kept, never overwritten) and the app starts from an empty state.
+Never read by `collector/`, the MCP server or `build-data.mjs`; never committed. A file that won't parse (or parses
+to something other than an object) is renamed to `state.json.corrupt` (kept, never overwritten) and the app starts from
+an empty state. *2026-11-05 amendment:* when `state.json.corrupt` already exists the next one becomes
+`state.json.corrupt-2`, `-3` … — an earlier quarantine is never replaced. Also since then: a Bills ledger row whose
+payment is void is dropped on every read (`sanitizeState`; payments are the authority), and an inbox slip dated before
+today is stored without `at` (a back-dated refund gets local noon of its own day), so a balance re-confirmed after it
+is not counted twice.
 
 ```jsonc
 {
