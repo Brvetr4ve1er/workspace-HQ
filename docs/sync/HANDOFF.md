@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (autonomous loop, iteration 3 + STOP — backlog now needs the owner) · main @ 6d54821
+DONE: 8b494e3 MCP refuses never-sendable social combos at stage time (Instagram / YouTube posts+replies, LinkedIn replies; drift-pinned
+  against browser-bridge/social.js; Threads/Facebook still stage). 6d54821 money: a zero balance saves however it is typed ("0.00" was
+  refused while "0" saved). Every new test verified to FAIL on the old code. Gates (sequential, outputs kept): main 670/670, money
+  229/229 (+15/15 module), renderer 394/394, selftest 2528 0/0/0, cdp-gate 30/30 (sweep 513 / 34). Live app restarted: up, clean log.
+LOOP TOTAL (3 iterations): 14 fixes, +25 tests, 9 commits 82259fa..6d54821, all on fe/v5-clean-pass. The once-seen main-suite flake
+  never recurred (0 in 13 further runs, 7 of them under load); gates now run sequentially with full output kept.
+IN-FLIGHT: none. Loop STOPPED: what is left needs the owner —
+  (1) the second app's Space Port Package (key 0 is free; SPACE-PORT-BRIEF.md says so; Money is the reference port);
+  (2) audit next steps: always-on agent + Telegram morning briefing (needs a bot token + go-ahead), a goals file (what goals?),
+      Ask on a local model (Ollama/LM Studio install + model choice on this PC);
+  (3) merging fe/v5-clean-pass into origin/main (still 76a7d1a) — a PR/merge is the owner's call;
+  (4) on-PC checks: reload extension 0.6.1 + Sync claude.ai; Money: import an Ember export, paste real SMS into Inbox.
+ASKS (struct): none. BREAKS: MCP hq_social_post/reply now refuse the never-sendable combos (additive refusal).
+
+---
+
 ## 2026-11-05 · FROM frontend (autonomous loop, iteration 2 — money review) · main @ 702e963
 DONE: two independent reviewers of the merged money space, every finding reproduced against the real modules, every new test
   verified to FAIL on the old code. 4a8848d main: undone bill payment resurrected by importing an older backup (un-removable
