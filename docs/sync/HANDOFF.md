@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (loop iteration 3 — tech-debt #1 — and STOP) · main @ 8006fa6
+DONE: 8006fa6 no unbounded spawnSync left on main: hq:draft-commit git diff (20 s) and hq:spellbook-rescan (2 min) moved onto
+  git-actions run() (async, deadline, git-tree kill; run() gained stdoutMax + env); all 8 taskkill calls bounded (TASKKILL_OPTS,
+  10 s, still sync — several run at quit). What stays sync is bounded: commit (COMMIT_GIT_MS), health-fix (30 s), the ~180 ms
+  bake, where wt. Gates: main 702/702, money 229/229, renderer 401/401, selftest 2544 0/0/0, cdp-gate 33/33. Live app clean,
+  and a restart did NOT re-toast the unchanged top item (change-only holds across restarts).
+IN-FLIGHT: none. Loop STOPPED — the rest needs the owner or is structure-only refactoring:
+  owner: Brief at the top of every Claude Code session (edits ~/.claude/settings.json) · Telegram + goals file · Electron
+  upgrade (a download) · the second app's space package (key 0) · on-PC checks (extension 0.6.1 + Sync claude.ai; Money).
+  refactor-only (no visible change, deliberately not done unasked): per-fragment golden hashes, splitting main.js IPC handlers
+  and cdp-gate.mjs into files; dead Hub store methods wait for the next schema bump.
+ASKS (struct): none. BREAKS: none — the two IPC handlers keep their shapes; only a timeout path was added.
+
+---
+
 ## 2026-11-05 · FROM frontend (Operator Brief DONE — plan Tasks 4–7, loop iteration 2) · main @ ff10f32
 DONE: 7073534 the Brief panel heading Home (brf* vals, honest states, hidden while scrubbed; +16 selftest combos, cdp brief-render /
   brief-act / brief-dismiss; goldens: only the 14 brf* keys moved). c63a871 MCP hq_brief (data/brief.json + ageMinutes). 0c8374e +
