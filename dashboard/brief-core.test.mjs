@@ -135,7 +135,9 @@ test('shouldToast table: new high toasts once per key per 24 h, never in quiet h
   let st = { dismissed: [], toasted: {} };
   let r = shouldToast({ items: [hi('k1')] }, st, at(10)); assert.equal(r.toast && r.toast.key, 'k1', 'new high item toasts'); st = r.state;
   r = shouldToast({ items: [hi('k1')] }, st, at(12)); assert.equal(r.toast, null, 'same key within 24 h: silent'); st = r.state;
-  r = shouldToast({ items: [hi('k1')] }, st, at(11, 1)); assert.equal(r.toast && r.toast.key, 'k1', 'after 24 h it may toast again'); st = r.state;
+  r = shouldToast({ items: [hi('k1')] }, st, at(11, 1)); assert.equal(r.toast, null, 'still the same top a day later: change-only, no daily nag'); st = r.state;
+  r = shouldToast({ items: [hi('k9')] }, st, at(12, 1)); assert.equal(r.toast && r.toast.key, 'k9', 'a NEW high item takes the top: toast'); st = r.state;
+  r = shouldToast({ items: [hi('k1')] }, st, at(13, 2)); assert.equal(r.toast && r.toast.key, 'k1', 'k1 back on top after another item, 24 h after its toast: toast again'); st = r.state;
   r = shouldToast({ items: [{ ...hi('k2'), severity: 'med' }] }, st, at(14)); assert.equal(r.toast, null, 'med never toasts');
   r = shouldToast({ items: [] }, st, at(14)); assert.equal(r.toast, null, 'nothing to say');
   assert.equal(shouldToast({ items: [hi('k3')] }, st, at(23)).toast, null, '23:30 is quiet');

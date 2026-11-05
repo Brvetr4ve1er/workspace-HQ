@@ -94,3 +94,39 @@ test('init pushes hq:brief to every window only when the brief changed', async (
   assert.equal(sent.filter(([c]) => c === 'hq:brief').length, 1, 'pushed once, not on the unchanged second read');
   api.stop();
 });
+
+// ---- P2 (plan Task 6): change-only toast — high only, once per key per 24 h, quiet 23:00–08:00 local ----
+const secretsLatest = () => ({ scan: { date: '2026-11-05T08:00:00Z' }, projects: [{ id: 's', name: 'Project S', metrics: { git_safety: { dirty: 0, ahead: 0, unpushed: false }, risk_security: { secrets_found: 2 } } }], quests: [] });
+function initWith({ latestJson, now }) {
+  const handlers = new Map(), toasts = [];
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latestJson));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: (title, body) => toasts.push([title, body]), getWins: () => [], intervalMs: 0, watch: false, now });
+  return { read: () => handlers.get('hq:brief:read')(), toasts, api, dataDir };
+}
+
+test('a new high top item toasts once; recomputing with the same top does not toast again', async () => {
+  const w = initWith({ latestJson: secretsLatest(), now: () => new Date(2026, 10, 5, 11, 0) });
+  await w.read(); await w.read(); await w.read();
+  assert.equal(w.toasts.length, 1, 'one toast, not three');
+  assert.match(w.toasts[0][0], /urgent/);
+  assert.match(w.toasts[0][1], /Project S has 2 secrets/);
+  const st = JSON.parse(fs.readFileSync(path.join(w.dataDir, 'brief-state.json'), 'utf8'));
+  assert.ok(st.toasted['secrets:s:2'], 'remembered, so a restart does not re-toast it');
+  w.api.stop();
+});
+
+test('quiet hours: a new high item at 23:30 local does not toast', async () => {
+  const w = initWith({ latestJson: secretsLatest(), now: () => new Date(2026, 10, 5, 23, 30) });
+  await w.read();
+  assert.equal(w.toasts.length, 0);
+  w.api.stop();
+});
+
+test('a low-severity top item never toasts', async () => {
+  const w = initWith({ latestJson: latest([proj('a', 12)]), now: () => new Date(2026, 10, 5, 11, 0) });
+  await w.read();
+  assert.equal(w.toasts.length, 0, 'dirty files are "when you can", not a notification');
+  w.api.stop();
+});

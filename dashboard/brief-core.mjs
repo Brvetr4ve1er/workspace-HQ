@@ -161,12 +161,16 @@ export function shouldToast(brief, state, now) {
   const prev = isObj(state) && isObj(state.toasted) ? state.toasted : {};
   const toasted = {};
   for (const [k, v] of Object.entries(prev)) { const ms = msOf(v); if (ms !== null && t - ms < TOAST_EVERY_MS) toasted[k] = v; }
-  const next = { dismissed: arr(isObj(state) && state.dismissed), toasted };
+  const prevTop = isObj(state) && typeof state.lastTop === 'string' ? state.lastTop : null;
+  const next = { dismissed: arr(isObj(state) && state.dismissed), toasted, lastTop: prevTop };
   const top = isObj(brief) ? arr(brief.items)[0] : null;
-  if (!isObj(top) || top.severity !== 'high') return { toast: null, state: next };
   const hour = now.getHours();
-  if (hour >= QUIET_FROM || hour < QUIET_TO) return { toast: null, state: next };   // quiet hours: nothing, and nothing recorded
-  if (toasted[top.key]) return { toast: null, state: next };
+  // quiet hours: nothing, and nothing recorded — a high item that appears at 23:30 is still "new" at 08:00
+  if (hour >= QUIET_FROM || hour < QUIET_TO) return { toast: null, state: next };
+  next.lastTop = isObj(top) ? top.key : null;
+  if (!isObj(top) || top.severity !== 'high') return { toast: null, state: next };
+  // change-only: the same thing staying on top never re-toasts (no daily nag); a flapping pair toasts once each per 24 h
+  if (top.key === prevTop || toasted[top.key]) return { toast: null, state: next };
   toasted[top.key] = now.toISOString();
   return { toast: top, state: next };
 }

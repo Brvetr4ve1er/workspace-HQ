@@ -34,7 +34,8 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
   function loadState() {
     const r = readJson(stateFile).value;
     return { dismissed: Array.isArray(r && r.dismissed) ? r.dismissed.filter((k) => typeof k === 'string').slice(-DISMISSED_MAX) : [],
-      toasted: r && r.toasted && typeof r.toasted === 'object' && !Array.isArray(r.toasted) ? r.toasted : {} };
+      toasted: r && r.toasted && typeof r.toasted === 'object' && !Array.isArray(r.toasted) ? r.toasted : {},
+      lastTop: r && typeof r.lastTop === 'string' ? r.lastTop : null };   // change-only toasts: the top key last seen outside quiet hours
   }
   function saveState(st) { try { writeAtomic(stateFile, st); } catch { /* the brief still works; it just forgets */ } }
 
@@ -95,12 +96,24 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, interv
   const push = (brief) => {
     for (const w of (getWins ? getWins() : [])) { try { if (w && !w.isDestroyed()) w.webContents.send('hq:brief', brief); } catch { /* a window mid-teardown */ } }
   };
-  const settle = (r) => { if (r.changed) push(r.brief); return r; };
+  const SEV_WORD = { high: 'urgent', med: 'soon', low: 'when you can' };
+  // P2: after every compute, the change-only toast decision (brief-core shouldToast: top item, high only, once per key per
+  // 24 h, quiet 23:00–08:00 local). Its history lives in brief-state.json so a restart never re-toasts the same thing.
+  async function settle(r) {
+    if (r.changed) push(r.brief);
+    try {
+      const L = await lib();
+      const d = L.shouldToast(r.brief, b.loadState(), now ? now() : new Date());
+      b.saveState(d.state);
+      if (d.toast && typeof notify === 'function') notify('WorkspaceHQ · ' + (SEV_WORD[d.toast.severity] || d.toast.severity), d.toast.text);
+    } catch { /* a toast is a courtesy: it never fails the brief */ }
+    return r;
+  }
   let timer = null;
   const schedule = () => { clearTimeout(timer); timer = setTimeout(() => { b.compute().then(settle).catch(() => {}); }, DEBOUNCE_MS); if (timer.unref) timer.unref(); };
 
-  ipcMain.handle('hq:brief:read', async () => ({ brief: settle(await b.compute()).brief }));
-  ipcMain.handle('hq:brief:dismiss', async (_e, key) => ({ brief: settle(await b.dismiss(key)).brief }));
+  ipcMain.handle('hq:brief:read', async () => ({ brief: (await settle(await b.compute())).brief }));
+  ipcMain.handle('hq:brief:dismiss', async (_e, key) => ({ brief: (await settle(await b.dismiss(key))).brief }));
 
   const watchers = [];
   const offs = [];
