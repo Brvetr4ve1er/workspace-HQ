@@ -143,23 +143,23 @@
   - `brfItems: [{ sevLabel, sevStyle, text, why, meta, actLabel, act, dismiss }]`;
   - `brfMore`, `brfHasMore`.
 
-- [ ] **Step 1: Write the failing tests** in `src/logic/brief.test.mjs`, using the `logic/money.test.mjs` rig style:
+- [x] **Step 1: Write the failing tests** in `src/logic/brief.test.mjs`, using the `logic/money.test.mjs` rig style:
   - `load states are honest and exclusive`;
   - `empty says "Nothing needs you right now · from the HH:MM brief"`;
   - `act on a go action navigates (tab, sub, project); on scan calls runScan`;
   - `dismiss sends the key once (busy guard) and releases on failure`;
   - `severity is in words, not colour only`.
-- [ ] **Step 2:** Run it. Expected: FAIL.
-- [ ] **Step 3:** Implement the panel per the spec's *UI* section, with `role="list"` and real buttons.
-- [ ] **Step 4:** Run the full renderer suite. Then dump goldens before and after (`GOLDEN_DUMP`), attribute every move (expected: the `brf*` keys only, in every scenario), re-record (`UPDATE_GOLDEN=1`) and update the tpl hash with a dated comment.
-- [ ] **Step 5:** Selftest states: empty, error, loading, 1, 2 and 3 items, each severity, and `more > 0`. Then run the selftest. Expected: 0/0/0.
-- [ ] **Step 6:** cdp scenarios:
+- [x] **Step 2:** Run it. Expected: FAIL.
+- [x] **Step 3:** Implement the panel per the spec's *UI* section, with `role="list"` and real buttons.
+- [x] **Step 4:** Run the full renderer suite. Then dump goldens before and after (`GOLDEN_DUMP`), attribute every move (expected: the `brf*` keys only, in every scenario), re-record (`UPDATE_GOLDEN=1`) and update the tpl hash with a dated comment.
+- [x] **Step 5:** Selftest states: empty, error, loading, 1, 2 and 3 items, each severity, and `more > 0`. Then run the selftest. Expected: 0/0/0.
+- [x] **Step 6:** cdp scenarios:
   - `brief-render`: Home shows the fake brief's items in order;
   - `brief-act`: the first item's button routes to its tab;
   - `brief-dismiss`: sends `hq.brief.dismiss` with that key.
 
   Run `--scenario all`. Expected: all pass.
-- [ ] **Step 7:** Commit: `fe: Operator Brief panel heading Home (brf* vals, selftest states, 3 cdp scenarios, goldens attributed)`.
+- [x] **Step 7:** Commit: `fe: Operator Brief panel heading Home (brf* vals, selftest states, 3 cdp scenarios, goldens attributed)`.
 
 ### Task 5: MCP tool `hq_brief`
 
@@ -169,13 +169,13 @@
 **Interfaces:**
 - **Produces:** `hq_brief()` returns `{ ...brief, ageMinutes }`, or `{ error: 'no brief yet — the WorkspaceHQ app writes data/brief.json when it runs' }`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `hq_brief returns the file plus ageMinutes`;
   - `hq_brief without the file says why`.
-- [ ] **Step 2:** Run `node --test mcp/workspacehq/server.test.mjs`. Expected: FAIL.
-- [ ] **Step 3:** Implement it by reading through the existing `confined()` path helper.
-- [ ] **Step 4:** Run. Expected: PASS.
-- [ ] **Step 5:** Commit: `fe: MCP hq_brief — any Claude session can ask what needs the owner`.
+- [x] **Step 2:** Run `node --test mcp/workspacehq/server.test.mjs`. Expected: FAIL.
+- [x] **Step 3:** Implement it by reading through the existing `confined()` path helper.
+- [x] **Step 4:** Run. Expected: PASS.
+- [x] **Step 5:** Commit: `fe: MCP hq_brief — any Claude session can ask what needs the owner`.
 
 ### Task 6: P2, a change-only toast
 
@@ -187,20 +187,20 @@
   - It toasts only the top item, only when it's `high`, only if its key wasn't toasted in the last 24 h, and only outside 23:00–08:00 local.
   - It prunes `toasted` entries older than 24 h.
 
-- [ ] **Step 1: Write the failing test** `shouldToast table`:
+- [x] **Step 1: Write the failing test** `shouldToast table`:
   - a new high item toasts;
   - the same key within 24 h doesn't;
   - after 24 h it does;
   - a med item doesn't;
   - 23:30 and 07:59 don't, 08:00 does;
   - two items flapping toast once each.
-- [ ] **Step 2:** Run. Expected: FAIL.
-- [ ] **Step 3:** Implement, and call it from `recompute`. A toast is `notify('WorkspaceHQ · ' + sevLabel, text)`, and `toasted` persists in `brief-state.json`.
-- [ ] **Step 4:** Run. Expected: PASS.
-- [ ] **Step 5:** Commit: `fe: Operator Brief P2 — change-only toast (high only, once per key per 24 h, quiet 23–08)`.
+- [x] **Step 2:** Run. Expected: FAIL.
+- [x] **Step 3:** Implement, and call it from `recompute`. A toast is `notify('WorkspaceHQ · ' + sevLabel, text)`, and `toasted` persists in `brief-state.json`.
+- [x] **Step 4:** Run. Expected: PASS.
+- [x] **Step 5:** Commit: `fe: Operator Brief P2 — change-only toast (high only, once per key per 24 h, quiet 23–08)`.
 
 ### Task 7: Gates, the live app, handoff
 
-- [ ] **Step 1:** Run every gate in the Global Constraints, sequentially.
-- [ ] **Step 2:** Restart the live app (`tools\rollback.ps1 v5`), then check `data/brief.json` exists and the log is clean.
-- [ ] **Step 3:** Update the CLAUDE.md facts line and the HANDOFF entry (DONE / BREAKS / ASKS). Push with `git push origin main`.
+- [x] **Step 1:** Run every gate in the Global Constraints, sequentially.
+- [x] **Step 2:** Restart the live app (`tools\rollback.ps1 v5`), then check `data/brief.json` exists and the log is clean.
+- [x] **Step 3:** Update the CLAUDE.md facts line and the HANDOFF entry (DONE / BREAKS / ASKS). Push with `git push origin main`.

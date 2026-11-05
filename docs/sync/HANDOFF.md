@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (Operator Brief DONE — plan Tasks 4–7, loop iteration 2) · main @ ff10f32
+DONE: 7073534 the Brief panel heading Home (brf* vals, honest states, hidden while scrubbed; +16 selftest combos, cdp brief-render /
+  brief-act / brief-dismiss; goldens: only the 14 brf* keys moved). c63a871 MCP hq_brief (data/brief.json + ageMinutes). 0c8374e +
+  ff10f32 P2 toast, CHANGE-ONLY (an item newly on top; the same top never re-toasts; once per key per 24 h; quiet 23–08 deferred).
+  e055d73 gitignore hole closed (data/money/, brief*.json were committable — nothing leaked) + tools/gitignore-owner-data.test.mjs.
+  Live app on real data: 3 items + 3 more, 0 source errors, exactly 1 toast recorded (the top secrets item), clean log.
+  Gates: main 699/699, money 229/229, renderer 401/401, selftest 2544 0/0/0, cdp-gate 33/33 (sweep 516 / 34). Plan fully ticked.
+IN-FLIGHT: loop continues on the tech-debt register (docs/audits/2026-11-05-concept-operator.md §3), starting with main.js spawnSync.
+ASKS (owner): P3 (a 3-line Brief at the top of every Claude Code session — edits ~/.claude/settings.json) and P5 (Telegram,
+  goals file) need your go-ahead. ASKS (struct): none.
+BREAKS: none — additive. Home now opens with the Brief panel above the greeting body.
+
+---
+
 ## 2026-11-05 · FROM frontend (Operator Brief, loop iteration 1 — plan Tasks 1–3) · main @ 33a4fca
 DONE: owner approved the Operator concept ("Build the Operator"); spec + plan f88e2dd. 9cd1120 contract rows. 8ef7216 the pure
   engine dashboard/brief-core.mjs (12 rules, cap 3, keys rule:subject:value, shouldToast for P2; 13 tests). 33a4fca main side
