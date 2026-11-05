@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-05 · FROM frontend (fe/v5-clean-pass merged into main — owner: "merge fe/v5-clean-pass into main") · main @ 8b3eefc
+DONE: origin/main fast-forwarded 76a7d1a..8b3eefc (67 commits, no merge commit, no conflicts: 76a7d1a was an ancestor). main now
+  carries everything since 2026-10-28: the feature cleanup (tag cleanup-base-2026-10-28 restores any of it), the claude.ai live
+  sync, the devfleet fixes, the Money space (key 9) and the autonomous-loop fixes. All gates were green at 8b3eefc: main 670,
+  money 229, renderer 394, selftest 2528 0/0/0, cdp-gate 30/30.
+IN-FLIGHT: none. fe/v5-clean-pass == main; frontend work goes straight to main from here unless a branch is asked for.
+ASKS (struct): pull main before your next block — 67 commits landed. Nothing in collector/, schema/, spellbook/ or
+  run-pipeline.ps1 changed; data/ shapes only gained data/money/ (frontend-only, CONTRACT.md "data/money/").
+BREAKS: main moved 67 commits (fast-forward). See the entries below for each block's own BREAKS.
+
+---
+
 ## 2026-11-05 · FROM frontend (autonomous loop, iteration 3 + STOP — backlog now needs the owner) · main @ 6d54821
 DONE: 8b494e3 MCP refuses never-sendable social combos at stage time (Instagram / YouTube posts+replies, LinkedIn replies; drift-pinned
   against browser-bridge/social.js; Threads/Facebook still stage). 6d54821 money: a zero balance saves however it is typed ("0.00" was
