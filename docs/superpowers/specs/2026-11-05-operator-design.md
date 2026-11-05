@@ -32,8 +32,9 @@ One deterministic engine ranks **at most 3 things that need the owner now**.
 - **G4:** a dismissed item stays hidden until its underlying fact *changes*. Its key includes the value, so a worse value is a new item.
 - **G5:** P2 adds a change-only toast:
   - high severity only;
-  - once per item key per 24 hours;
-  - never between 23:00 and 08:00 local time.
+  - only when that item newly takes the top spot: the same item staying on top never re-toasts;
+  - once per item key per 24 hours, even if two items keep trading places;
+  - never between 23:00 and 08:00 local time; a toast held back then is deferred, not dropped.
 
 ## Non-goals and anti-goals
 
@@ -73,7 +74,7 @@ When a rule matches several projects, accounts or organs, the item names the wor
   ```
 
   `action` is one of `{ kind:'go', tab, sub?, projectId? }` or `{ kind:'scan' }`.
-- **`data/brief-state.json`:** `{ dismissed:[key], toasted:{ [key]: ISO } }`.
+- **`data/brief-state.json`:** `{ dismissed:[key], toasted:{ [key]: ISO }, lastTop }`.
 - **`data/money/meta.json`:** `{ lastExportAt }`, written by a successful Money export.
 - **IPC:**
   - `hq:brief:read` returns `{ brief }`;

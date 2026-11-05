@@ -341,7 +341,7 @@ Written only by `dashboard/brief.js` (atomic tmp + rename) every time the Brief 
   "errors": [{ "source": "pc-health", "error": "..." }] }
 ```
 
-`data/brief-state.json`: `{ "dismissed": [key], "toasted": { key: ISO } }` — toasted entries older than 24 h are pruned.
+`data/brief-state.json`: `{ "dismissed": [key], "toasted": { key: ISO }, "lastTop": key | null }` — toasted entries older than 24 h are pruned; `lastTop` is the top key last seen outside quiet hours (change-only toasts).
 `data/money/meta.json`: `{ "lastExportAt": ISO }` — the Brief's "no money backup in 30 days" rule reads it.
 
 ## 2026-10-16 · struct · quests re-raise (additive)

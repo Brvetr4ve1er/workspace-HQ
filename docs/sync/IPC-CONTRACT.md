@@ -611,7 +611,7 @@ Spec: `docs/superpowers/specs/2026-11-05-operator-design.md`.
 | `brief.onBrief(cb)` | push `hq:brief` | — | the new `brief` whenever its items or errors changed (scan done, money write, 15-min timer) | HOME |
 
 Invariants: the engine is deterministic and LLM-free; at most 3 items (+ `more`); the Brief proposes, the owner clicks —
-no channel here acts on anything outside the app. Toasts (P2): high severity only, once per key per 24 h, never 23:00–08:00 local.
+no channel here acts on anything outside the app. Toasts (P2): change-only — when a high-severity item newly takes the top spot (the same top never re-toasts), once per key per 24 h, never 23:00–08:00 local (deferred, not dropped).
 
 ## Rules
 
