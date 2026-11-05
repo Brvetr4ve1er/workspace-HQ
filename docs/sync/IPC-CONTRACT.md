@@ -599,6 +599,20 @@ Additive only. New file `dashboard/money.js` + `dashboard/money/*.mjs` (one hook
   in a native dialog (import reads one file, export writes one file).
 - `apply` is synchronous inside the handler (read → validate → write), so two calls serialize on main's event loop.
 
+## 2026-11-05 — Operator Brief (rows written before the handler lands)
+
+Additive only. New files `dashboard/brief-core.mjs` (pure engine) + `dashboard/brief.js` (one hook line in `main.js`).
+Spec: `docs/superpowers/specs/2026-11-05-operator-design.md`.
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `brief.read()` | `hq:brief:read` | — | `{brief}` — recomputes now, writes `data/brief.json`; `brief` = `{v:1, generatedAt, items:[{key, rule, severity:'high'\|'med'\|'low', text, why, source, age, action}], more, errors:[{source, error}]}`, `action` = `{kind:'go', tab, sub?, projectId?}` \| `{kind:'scan'}`. Never throws: a source that can't be read is an `errors` entry | HOME (Brief panel) |
+| `brief.dismiss(key)` | `hq:brief:dismiss` | `key` (string ≤ 200) | `{brief}` with that item gone; the key is stored in `data/brief-state.json` until the underlying fact changes (a changed value is a new key). An unknown key is a no-op | HOME |
+| `brief.onBrief(cb)` | push `hq:brief` | — | the new `brief` whenever its items or errors changed (scan done, money write, 15-min timer) | HOME |
+
+Invariants: the engine is deterministic and LLM-free; at most 3 items (+ `more`); the Brief proposes, the owner clicks —
+no channel here acts on anything outside the app. Toasts (P2): high severity only, once per key per 24 h, never 23:00–08:00 local.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

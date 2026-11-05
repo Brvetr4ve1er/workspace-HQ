@@ -18,6 +18,9 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 | `data/shards.json` | former organic-UI shard state — left on disk, **unread** since the 2026-10-28 cleanup | don't validate |
 | `data/browser-activity.json` | written by `main.js` bridge server (extension ingest), read by `assemble.mjs` → `latest.json.browser` | runtime state, **don't validate**; rolling 3-day window |
 | `data/money/state.json` | `dashboard/money.js` only (renderer gets a derived view over `hq:money:*`) | owner money data · gitignored · frontend lane |
+| `data/brief.json` | written by `dashboard/brief.js`; read by the renderer (over `hq:brief:*`) and MCP `hq_brief` | derived · gitignored · frontend lane |
+| `data/brief-state.json` | `dashboard/brief.js` only | dismissed keys + toast history · gitignored · frontend lane |
+| `data/money/meta.json` | written by `dashboard/money.js` on a successful export; read by `dashboard/brief.js` | `{lastExportAt}` · gitignored · frontend lane |
 
 ## Load-bearing fields in `latest.json` (renderer will crash/blank without these)
 
@@ -323,6 +326,23 @@ once per live payment; jar balance = sum of moves). "Clear handled" keeps a tomb
 message text is dropped but the slip can't come back. Size: a year of daily use is well under 1 MB.
 
 The same three top-level keys are what an **Ember export** (`ember-state-v1`) carries, so `hq:money:import` accepts one directly.
+
+### `data/brief.json` — Operator Brief (frontend lane, derived, gitignored)
+
+Written only by `dashboard/brief.js` (atomic tmp + rename) every time the Brief is recomputed. Never an input to the scan.
+
+```jsonc
+{ "v": 1, "generatedAt": ISO,
+  "items": [{ "key": "dirty:<project id>:<count>",   // rule:subject:value — a changed value is a new key
+              "rule": "scan-failed"|"secrets"|"money-late"|"pc-blood"|"quest-red"|"scan-stale"|"unpushed"|"money-stale"|"pc-ember"|"dirty"|"money-backup"|"claude-sync",
+              "severity": "high"|"med"|"low", "text": "...", "why": "...", "source": "scan"|"money"|"pc-health"|"scan-run"|"claude",
+              "age": "scan 2 d ago", "action": { "kind": "go", "tab": "...", "sub": "...", "projectId": "..." } | { "kind": "scan" } }],   // ≤ 3
+  "more": 0,                                       // matched items beyond the 3 shown
+  "errors": [{ "source": "pc-health", "error": "..." }] }
+```
+
+`data/brief-state.json`: `{ "dismissed": [key], "toasted": { key: ISO } }` — toasted entries older than 24 h are pruned.
+`data/money/meta.json`: `{ "lastExportAt": ISO }` — the Brief's "no money backup in 30 days" rule reads it.
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
