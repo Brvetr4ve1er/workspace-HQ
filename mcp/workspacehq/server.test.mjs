@@ -163,3 +163,21 @@ test('NEVER_SENDS matches browser-bridge/social.js: those senders still refuse u
   assert.match(src, /async function ytSendInPage\(\) \{\s*return \{ ok: false/, 'YouTube send now does something — drop youtube from NEVER_SENDS');
   assert.match(src, /if \(action\.op === 'reply'\) return \{ ok: false, error: 'LinkedIn replies/, 'LinkedIn replies are wired now — drop linkedin from NEVER_SENDS.reply');
 });
+
+// Operator Brief (plan Task 5): any Claude session can ask what needs the owner
+test('hq_brief without data/brief.json says why, instead of an empty answer', async () => {
+  const f = path.join(root, 'data', 'brief.json');
+  if (fs.existsSync(f)) fs.rmSync(f);
+  const r = await rpc([{ id: 30, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]);
+  assert.match(toolResult(r[30]).error, /no brief yet/);
+});
+
+test('hq_brief returns the brief the app wrote, plus its age in minutes', async () => {
+  const generatedAt = new Date(Date.now() - 12 * 60e3).toISOString();
+  const brief = { v: 1, generatedAt, more: 0, errors: [], items: [{ key: 'dirty:p:12', rule: 'dirty', severity: 'low', text: 'Placeholder has 12 uncommitted files', why: 'x', source: 'scan', age: 'scan 1 h ago', action: { kind: 'go', tab: 'projects', projectId: 'p' } }] };
+  fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify(brief));
+  const r = await rpc([{ id: 31, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]);
+  const out = toolResult(r[31]);
+  assert.deepEqual(out.items, brief.items);
+  assert.ok(out.ageMinutes >= 11 && out.ageMinutes <= 13, 'about 12 minutes old: ' + out.ageMinutes);
+});

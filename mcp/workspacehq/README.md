@@ -14,6 +14,7 @@ Protocol: newline-delimited JSON-RPC 2.0 on stdin/stdout, MCP protocol version
 
 | Tool | Args | Does | Freshness |
 |---|---|---|---|
+| `hq_brief` | — | The Operator Brief: the 1–3 things that need the owner now (`items[]` with severity, text, why, source, age, action; `more`; `errors`) from `data/brief.json`, plus `ageMinutes`. Says "no brief yet" when the app hasn't written one | rewritten by the app on every scan, money write and every 15 min |
 | `hq_status` | — | Level, XP, health index, open/red quest counts, streak, project count from `data/latest.json` | as of last scan |
 | `hq_quests_list` | — | All quests + side-quests (`id, title, tier/kind, status, project, xp`) with `quest-overrides.json` overlaid | live for completions, rest as of last scan |
 | `hq_quest_done` | `{id}` | Marks a quest/side-quest done in `data/quest-overrides.json` (`{status:'done', completed:'YYYY-MM-DD'}` — the exact `applyDone` mutation). Unknown ids refused against the current scan. Atomic write. | XP settles on next app assemble |
