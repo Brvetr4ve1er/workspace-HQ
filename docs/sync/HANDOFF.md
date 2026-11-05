@@ -21,6 +21,8 @@ DONE: owner approved the Operator concept ("Build the Operator"); spec + plan f8
 IN-FLIGHT: plan Tasks 4 (Brief panel heading Home), 5 (MCP hq_brief), 6 (P2 toast wiring), 7 (gates + docs).
 ASKS (struct): none. FYI data/ gains brief.json + brief-state.json (frontend, gitignored); live-state.js has onChange(fn).
 BREAKS: none — additive (new channels, new files, Hub health + money view fields added, money export writes money/meta.json).
+  + .gitignore (shared, announced here): data/money/, data/brief.json, data/brief-state.json were NOT ignored (data/ is not
+  ignored wholesale) — fixed + pinned by tools/gitignore-owner-data.test.mjs. Nothing had leaked. struct: new owner files need a line too.
 
 ---
 
