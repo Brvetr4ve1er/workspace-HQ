@@ -31,6 +31,9 @@ function amount(v, what = 'amount') {
   return Math.round(n * 100) / 100;
 }
 const optAmount = (v, what) => (v === undefined || v === null || v === '' ? null : amount(v, what));
+// a balance may be zero (an empty card), however it is typed — "0", "0.00", "0,00", "00" all parse to exactly 0;
+// junk and negatives still parse to null and get amount()'s refusal
+const balanceAmount = (v) => ((typeof v === 'number' ? v : typeof v === 'string' ? parseAmount(v.trim()) : null) === 0 ? 0 : amount(v, 'balance'));
 const currency = (v) => (v === 'USD' ? 'USD' : v === 'DA' || v === undefined ? 'DA' : fail('currency is DA or USD.'));
 const day = (v, what) => (isValidDayKey(v) ? v : fail(`${what} needs a date (yyyy-mm-dd).`));
 const id = (v) => (typeof v === 'string' && /^[\w:.-]{1,80}$/.test(v) ? v : fail('that item is gone — reload and try again.'));
@@ -60,7 +63,7 @@ export function apply(state, intent, env) {
       // new account, rename, or "confirm balance" — all re-anchor at now: the typed balance is the truth from here on
       const prev = x.id ? m.accounts.find((a) => a.id === id(x.id)) : null;
       if (x.id && !prev) fail('that account is gone — reload and try again.');
-      const balance = typeof x.balance === 'string' && x.balance.trim() === '0' ? 0 : amount(x.balance, 'balance');
+      const balance = balanceAmount(x.balance);
       const account = { id: prev ? prev.id : newId(), name: text(x.name ?? prev?.name, 40, 'name'), currency: prev ? prev.currency : currency(x.currency), anchorBalance: balance, anchorAt: nowISO, archived: false, updatedAt: nowISO };
       next = withMoney(must(moneyReducer(m, { type: 'money/account-upsert', account }), m, 'that account could not be saved.'));
       note = prev ? `${account.name} confirmed` : `${account.name} added`;

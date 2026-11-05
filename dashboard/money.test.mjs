@@ -203,3 +203,13 @@ test('paying a USD variable bill with the amount left blank keeps the cents (2-d
   await m.apply({ type: 'obligation-pay', id: 'id2' });   // blank = the estimate
   assert.deepEqual(st(m).money.payments.map((p) => p.amount), [21.49, 21.49], 'was [21.49, 21]');
 });
+
+test('an account balance of zero saves however it is typed ("0.00" was refused with "needs a number above 0" while "0" saved)', async () => {
+  const { m } = bootAt();
+  for (const b of ['0', '0.00', '0,00', '0.0', '00']) {
+    const r = await m.apply({ type: 'account-save', name: 'Card ' + b, currency: 'USD', balance: b });
+    assert.equal(r.error, undefined, JSON.stringify(b) + ': ' + r.error);
+    assert.equal(r.view.accounts.at(-1).balance, '$0.00');
+  }
+  for (const bad of ['-5', 'abc', '0 DA']) assert.match((await m.apply({ type: 'account-save', name: 'X', currency: 'DA', balance: bad })).error, /balance needs a number/, JSON.stringify(bad) + ' still refused');
+});
