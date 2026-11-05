@@ -142,3 +142,17 @@ test('a throwing send never breaks the scan state machine', () => {
   assert.equal(api.scanEnd(0), true);
   assert.equal(api.snapshot().scan.state, 'done');
 });
+
+// Operator Brief: main-side listeners hear each scan-status payload; a throwing listener can't break a scan
+test('onChange listeners get every scan-status payload; unsubscribe works; a throwing one is contained', () => {
+  const { api } = boot();
+  const got = [];
+  const off = api.onChange((p) => got.push(p.state));
+  api.onChange(() => { throw new Error('listener bug'); });
+  assert.equal(api.scanBegin(), true);
+  assert.equal(api.scanEnd(2), true, 'the scan still ends despite the throwing listener');
+  assert.deepEqual(got, ['running', 'failed']);
+  off();
+  api.scanBegin(); api.scanEnd(0);
+  assert.deepEqual(got, ['running', 'failed'], 'unsubscribed: nothing more');
+});

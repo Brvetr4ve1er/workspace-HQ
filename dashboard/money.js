@@ -105,6 +105,8 @@ function create({ dataDir, now = () => new Date(), newId = () => crypto.randomUU
     let f; try { f = pick ? await pick('save') : null; } catch { return { error: 'could not open the file dialog' }; }
     if (!f) return { canceled: true };
     try { fs.writeFileSync(f, JSON.stringify(state, null, 1)); } catch (e) { return { error: 'not exported — ' + e.message }; }
+    // the Operator Brief's "no money backup in 30 days" reads this; a failed note never fails the export itself
+    try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({ lastExportAt: now().toISOString() })); } catch { /* best effort */ }
     return { note: `exported to ${path.basename(f)}` };
   }
 

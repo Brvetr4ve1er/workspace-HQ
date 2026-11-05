@@ -213,3 +213,25 @@ test('an account balance of zero saves however it is typed ("0.00" was refused w
   }
   for (const bad of ['-5', 'abc', '0 DA']) assert.match((await m.apply({ type: 'account-save', name: 'X', currency: 'DA', balance: bad })).error, /balance needs a number/, JSON.stringify(bad) + ' still refused');
 });
+
+// Operator Brief inputs (plan Task 3): export records lastExportAt; the view carries each account's anchorAt
+test('a successful export writes money/meta.json lastExportAt; a cancelled one does not', async () => {
+  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hq-money-ex-')), 'x.json');
+  const { m, dir } = bootAt({ picks: [null, out] });
+  const meta = path.join(dir, 'money', 'meta.json');
+  await m.apply({ type: 'account-save', name: 'Cash', currency: 'DA', balance: '100' });
+  assert.equal((await m.exportFile()).canceled, true);
+  assert.equal(fs.existsSync(meta), false, 'cancelled: no backup claimed');
+  await m.exportFile();
+  const t = JSON.parse(fs.readFileSync(meta, 'utf8')).lastExportAt;
+  assert.ok(Number.isFinite(Date.parse(t)), 'an ISO instant');
+});
+
+test('the view carries each account’s anchorAt (stable across days; changes on re-confirm)', async () => {
+  const { m } = bootAt();
+  const a = await m.apply({ type: 'account-save', name: 'Cash', currency: 'DA', balance: '100' });
+  const first = a.view.accounts[0].anchorAt;
+  assert.ok(Number.isFinite(Date.parse(first)));
+  const b = await m.apply({ type: 'account-save', id: a.view.accounts[0].id, name: 'Cash', currency: 'DA', balance: '90' });
+  assert.notEqual(b.view.accounts[0].anchorAt, first, 're-confirming moves the anchor');
+});

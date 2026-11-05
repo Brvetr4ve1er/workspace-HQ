@@ -155,6 +155,16 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:browser-tab', handler);
     return () => ipcRenderer.removeListener('hq:browser-tab', handler);
   },
+  // Operator Brief (IPC-CONTRACT hq:brief:*): the 1–3 things that need the owner now. Read-only, plus dismiss.
+  brief: {
+    read: () => ipcRenderer.invoke('hq:brief:read'),
+    dismiss: (key) => ipcRenderer.invoke('hq:brief:dismiss', key),
+    onBrief: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:brief', handler);
+      return () => ipcRenderer.removeListener('hq:brief', handler);
+    },
+  },
   // money space (IPC-CONTRACT hq:money:*). Intents only — main validates every field.
   money: {
     read: () => ipcRenderer.invoke('hq:money:read'),

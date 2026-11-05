@@ -842,9 +842,15 @@ test('syncState / syncPush: uuids, newer wins, forgotten stays forgotten, change
   try {
     await h.healthy();
     assert.deepEqual((await h.req('syncState')).result, { conversations: {}, projects: {}, forgotten: [] });
+    const h0 = (await h.req('health')).result;
+    assert.equal(h0.webCount, 0, 'Operator Brief: no claude.ai chats yet');
+    assert.equal(h0.lastSyncAt, null, 'never synced');
     const f = exportFixture();
     const first = (await h.req('syncPush', { items: [...f.projects.map((data) => ({ kind: 'project', data })), ...f.conversations.map((data) => ({ kind: 'conversation', data }))] })).result;
     assert.equal(first.conversations.imported, 3); assert.equal(first.projects.imported, 1);
+    const h1 = (await h.req('health')).result;
+    assert.equal(h1.webCount, 3, 'health counts the indexed claude.ai chats');
+    assert.ok(Number.isFinite(Date.parse(h1.lastSyncAt)), 'and says when sync last pushed');
     const st = (await h.req('syncState')).result;
     assert.equal(st.conversations['web-chat-1'], '2026-10-01T09:10:00.000Z'); assert.equal(st.projects['web-proj-1'], '2026-10-01T08:00:00.000Z');
     assert.equal((await h.req('forget', { conversationId: 'web:web-chat-1' })).result, true);

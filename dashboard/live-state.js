@@ -24,7 +24,12 @@
 // A spell missing from the book (or an unreadable book) keeps the row: name = spellId, icon = null.
 function init({ ipcMain, send, devServers, casts, readSpellbook }) {
   const scan = { state: 'idle', startedAt: null, endedAt: null, code: null };
-  const emit = (payload) => { try { send?.('hq:scan-status', payload); } catch { /* a window mid-teardown */ } };
+  // main-side listeners (the Operator Brief) hear what the windows hear; one that throws never breaks a scan
+  const listeners = new Set();
+  const emit = (payload) => {
+    try { send?.('hq:scan-status', payload); } catch { /* a window mid-teardown */ }
+    for (const fn of listeners) { try { fn(payload); } catch { /* a listener's bug is its own */ } }
+  };
 
   const spellIndex = () => {
     let book = null;
@@ -74,7 +79,9 @@ function init({ ipcMain, send, devServers, casts, readSpellbook }) {
   }
 
   ipcMain.handle('hq:live-state', () => snapshot());
-  return { scanBegin, scanEnd, snapshot };
+  // onChange(fn) → unsubscribe; fn gets each scan-status payload (running / done / failed)
+  const onChange = (fn) => { if (typeof fn === 'function') listeners.add(fn); return () => listeners.delete(fn); };
+  return { scanBegin, scanEnd, snapshot, onChange };
 }
 
 module.exports = { init };

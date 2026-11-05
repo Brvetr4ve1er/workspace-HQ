@@ -38,7 +38,8 @@ export function buildView(state, now) {
     const b = accountBalance(a, tx, m, today);
     return { id: a.id, name: a.name, currency: a.currency, isUsd: a.currency === 'USD', balance: fmtMoney(b.balance, a.currency), balanceRaw: b.balance,
       balanceDA: a.currency === 'USD' ? (b.balanceDA === null ? 'set a DA rate to convert' : '≈ ' + fmtDA(b.balanceDA)) : '',
-      estimate: b.isEstimate, tag: b.isEstimate ? 'estimated' : 'as typed', confirmed: ago(b.daysSinceConfirmed), stale: b.isEstimate && b.daysSinceConfirmed >= 7 };
+      estimate: b.isEstimate, tag: b.isEstimate ? 'estimated' : 'as typed', confirmed: ago(b.daysSinceConfirmed), stale: b.isEstimate && b.daysSinceConfirmed >= 7,
+      anchorAt: a.anchorAt || null };   // stable "confirmed at" instant: the Operator Brief keys stale balances on it, not on the daily label
   });
 
   const br = breathingRoom(m, tx, today);

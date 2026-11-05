@@ -404,7 +404,9 @@ function main() {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
       counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0, documents: 0 }, dbBytes: dbBytes(),
       lastError: lastError || docsNote || readerNote || (store && store.getMeta('last_error')) || null,
-      lastErrorAt: metaOrNull('last_error_at') }),   // H1's fields + lastErrorAt (the H4/H6 import fields went with the importers, 2026-10-28)
+      lastErrorAt: metaOrNull('last_error_at'),   // H1's fields + lastErrorAt (the H4/H6 import fields went with the importers, 2026-10-28)
+      // the Operator Brief's claude-sync rule: how many claude.ai chats are indexed, and when live sync last pushed
+      lastSyncAt: metaOrNull('last_sync_at'), webCount: store ? store.db.prepare("SELECT COUNT(*) AS n FROM conversation WHERE source = 'web'").get().n : 0 }),
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
     getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
