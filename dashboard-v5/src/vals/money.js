@@ -17,16 +17,19 @@ export function moneyVals(ctx) {
   const state = !can ? 'offline' : M.error ? 'error' : !V ? 'loading' : 'ready';
   const ready = state === 'ready';
   const accts = ready ? V.accounts : [];
-  const acctChips = (form, key, cur, onlyCur) => [{ id: '', name: 'no account' }].concat(accts.filter((a) => !onlyCur || a.currency === onlyCur)).map((a) => chip(cur === a.id, () => this.mnyField(form, key, a.id), a.id ? a.name : a.name));
+  const acctChips = (form, key, cur, onlyCur, emptyLabel) => [{ id: '', name: emptyLabel || 'no account' }].concat(accts.filter((a) => !onlyCur || a.currency === onlyCur)).map((a) => chip(cur === a.id, () => this.mnyField(form, key, a.id), a.name));
+  // a draft field the owner touched (even cleared to '') wins over the default: what is shown is what Save sends
+  const touched = (form, key) => !!(d[form] && d[form][key] != null);
 
   // ---- today ----
-  const logCur = field('log', 'currency'), logAcct = field('log', 'accountId') || (accts[0] ? accts[0].id : '');
+  const logCur = field('log', 'currency'), logAcct = touched('log', 'accountId') ? d.log.accountId : (accts[0] ? accts[0].id : '');
   const acctForm = d.acct || null;
   const accounts = accts.map((a) => ({ ...a, confirm: () => this.mnyOpen('acct', { id: a.id, name: a.name, currency: a.currency, balance: '' }), archive: () => this.mnyAsk('account-archive', { id: a.id }, 'Archive ' + a.name + '? Its history stays.') }));
   const recent = ready ? V.recent.map((t) => ({ ...t, meta: [t.day, t.account, t.note].filter(Boolean).join(' · '), undo: () => this.mnyApply({ type: 'tx-undo', id: t.id }), canUndo: !t.isBill })) : [];
 
   // ---- runway ----
   const bill = d.bill || null, pay = d.pay || null;
+  const payBill = pay && ready ? V.obligations.find((o) => o.id === pay.id) : null, payBillHasAcct = !!(payBill && payBill.accountId);
   const obligations = ready ? V.obligations.map((o) => ({ ...o, color: o.isLate ? 'var(--red)' : o.isSoon ? 'var(--orange)' : o.isDone ? 'var(--faint)' : 'var(--muted)',
     meta: [o.due, o.dueLabel, o.installment, o.beforePayday > 1 ? o.beforePayday + '× before payday' : ''].filter(Boolean).join(' · '),
     payOpen: !!pay && pay.id === o.id, pay: () => this.mnyOpen('pay', { id: o.id, amount: '', accountId: o.accountId || (accts[0] ? accts[0].id : '') }),
@@ -70,7 +73,7 @@ export function moneyVals(ctx) {
     mnyAcctName: field('acct', 'name'), onMnyAcctName: onField('acct', 'name'), mnyAcctBalance: field('acct', 'balance'), onMnyAcctBalance: onField('acct', 'balance'), mnyAcctIsNew: !!acctForm && !acctForm.id,
     mnyAcctCur: ['DA', 'USD'].map((c) => chip(field('acct', 'currency') === c || (!field('acct', 'currency') && c === 'DA'), () => this.mnyField('acct', 'currency', c), c === 'USD' ? 'USD (RedotPay)' : 'DA')),
     mnyAcctAdd: () => this.mnyOpen('acct', { name: '', currency: 'DA', balance: '' }), mnyAcctSave: () => this.mnySaveAccount(), mnyAcctKey: enter(() => this.mnySaveAccount()), mnyAcctCancel: () => this.mnyClose('acct'),
-    mnyFx: field('set', 'fx') !== '' ? field('set', 'fx') : ready ? V.settings.fx : '', onMnyFx: onField('set', 'fx'), mnyPd: field('set', 'payday') !== '' ? field('set', 'payday') : ready ? V.settings.payday : '', onMnyPd: onField('set', 'payday'),
+    mnyFx: touched('set', 'fx') ? d.set.fx : ready ? V.settings.fx : '', onMnyFx: onField('set', 'fx'), mnyPd: touched('set', 'payday') ? d.set.payday : ready ? V.settings.payday : '', onMnyPd: onField('set', 'payday'),
     mnySetSave: () => this.mnySaveSettings(), mnySetKey: enter(() => this.mnySaveSettings()), mnyNoFx: ready && !V.settings.hasFx,
     mnyLogAmount: field('log', 'amount'), onMnyLogAmount: onField('log', 'amount'), mnyLogNote: field('log', 'note'), onMnyLogNote: onField('log', 'note'), mnyLogKey: enter(() => this.mnyLog()), mnyLogGo: () => this.mnyLog(),
     mnyLogCur: ['DA', 'USD'].map((c) => chip(logCur === c, () => this.mnyField('log', 'currency', c), c)),
@@ -88,7 +91,7 @@ export function moneyVals(ctx) {
     mnyBillCads: ['monthly', 'weekly', 'yearly', 'once'].map((k) => chip(billCad === k, () => this.mnyField('bill', 'cadence', k), k)),
     mnyBillCur: ['DA', 'USD'].map((c) => chip((field('bill', 'currency') || 'DA') === c, () => this.mnyField('bill', 'currency', c), c)),
     mnyBillAccts: acctChips('bill', 'accountId', field('bill', 'accountId')), mnyBillSave: () => this.mnySaveBill(), mnyBillCancel: () => this.mnyClose('bill'),
-    mnyPayAmount: field('pay', 'amount'), onMnyPayAmount: onField('pay', 'amount'), mnyPayAccts: acctChips('pay', 'accountId', field('pay', 'accountId')), mnyPayGo: () => this.mnyPay(), mnyPayKey: enter(() => this.mnyPay()), mnyPayCancel: () => this.mnyClose('pay'),
+    mnyPayAmount: field('pay', 'amount'), onMnyPayAmount: onField('pay', 'amount'), mnyPayAccts: acctChips('pay', 'accountId', field('pay', 'accountId'), null, payBillHasAcct ? 'bill’s account' : ''), mnyPayGo: () => this.mnyPay(), mnyPayKey: enter(() => this.mnyPay()), mnyPayCancel: () => this.mnyClose('pay'),
     // jars
     mnyJars: jars, mnyHasJars: jars.length > 0, mnyNoJars: ready && jars.length === 0, mnyJarOpen: !!jarForm, mnyJarTitle: jarForm && jarForm.id ? 'Edit ' + (jarForm.name || 'jar') : 'New jar',
     mnyJarAdd: () => this.mnyOpen('jar', { name: '', target: '', targetDate: '' }), mnyJarPresets: [['Emergency', '150000'], ['Eid', '30000'], ['Ramadan', '25000'], ['Rentrée', '20000'], ['Bills', '15000']].map(([n, t]) => chip(false, () => this.mnyOpen('jar', { name: n, target: t, targetDate: '' }), n.toLowerCase())),

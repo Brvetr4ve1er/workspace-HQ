@@ -117,3 +117,66 @@ test('archive asks inline first; Keep it sends nothing, Archive sends the intent
   const [, intent] = calls.find((c) => c[0] === 'apply');
   assert.equal(intent.type, 'obligation-archive');
 });
+
+// ---- fleet review 2026-11-05 (autonomous loop iteration 2): four reproduced bugs ----------------------------------
+const pressed = (chips) => chips.filter((c) => c.pressed === 'true').map((c) => c.label);
+
+test('clearing the DA rate shows an empty field (not the saved one) — what Save sends is what is shown', async () => {
+  const { self, calls, vals } = rig();
+  assert.equal(vals().mnyFx, MONEY.full.settings.fx, 'untouched: the saved rate');
+  self.mnyField('set', 'fx', '');
+  assert.equal(vals().mnyFx, '', 'cleared: the field is empty, it does not snap back to the saved rate');
+  self.mnyField('set', 'fx', '252');
+  assert.equal(vals().mnyFx, '252');
+  self.mnyField('set', 'payday', '');
+  assert.equal(vals().mnyPd, '', 'payday follows the same rule');
+  await self.mnySaveSettings();
+  assert.deepEqual(calls.find((c) => c[0] === 'apply')[1], { type: 'settings', fxDaPerUsd: '252', paydayDay: '' });
+});
+
+test('log: an explicit "no account" pick stays shown as picked, and that is what is sent', async () => {
+  const { self, calls, vals } = rig();
+  assert.deepEqual(pressed(vals().mnyLogAccts), [MONEY.full.accounts[0].name], 'untouched: the first account');
+  self.mnyField('log', 'accountId', '');
+  assert.deepEqual(pressed(vals().mnyLogAccts), ['no account'], 'was: Cash still shown pressed');
+  self.mnyField('log', 'amount', '350');
+  await self.mnyLog();
+  assert.equal(calls.find((c) => c[0] === 'apply')[1].accountId, '');
+});
+
+test('pay: the empty chip says "bill’s account" when the bill has one (main pays from it), "no account" when not', () => {
+  const withAcct = MONEY.full.obligations.find((o) => o.accountId), without = MONEY.full.obligations.find((o) => !o.accountId);
+  const { self, vals } = rig();
+  self.mnyOpen('pay', { id: withAcct.id, amount: '', accountId: '' });
+  assert.deepEqual(pressed(vals('runway').mnyPayAccts), ['bill’s account'], 'was: "no account" pressed while main used the bill’s account');
+  if (without) {
+    self.mnyOpen('pay', { id: without.id, amount: '', accountId: '' });
+    assert.deepEqual(pressed(vals('runway').mnyPayAccts), ['no account']);
+  }
+});
+
+test('a spend typed while the previous one saves survives; a submit while busy is toasted, never silently dropped', async () => {
+  let release; const { self, calls, toasts } = rig({ apply: () => new Promise((r) => { release = () => r({ view: MONEY.full, note: 'saved' }); }) });
+  self.mnyField('log', 'amount', '350'); self.mnyField('log', 'note', 'coffee');
+  const first = self.mnyLog();
+  self.mnyField('log', 'amount', '1200'); self.mnyField('log', 'note', 'taxi'); self.mnyField('log', 'category', 'Transport');
+  await self.mnyLog();   // Enter while the first is in flight
+  assert.equal(calls.filter((c) => c[0] === 'apply').length, 1, 'still one write');
+  assert.ok(toasts.some(([k, t]) => k === 'info' && /still saving/i.test(t)), 'the dropped submit says so');
+  release(); await first;
+  const d = self.state.mny.log;
+  assert.deepEqual([d.amount, d.note, d.category], ['1200', 'taxi', 'Transport'], 'was: wiped back to the first spend’s leftovers');
+});
+
+test('Archive tapped while busy keeps the bar (the tap is not lost); it closes once the archive saved', async () => {
+  let release; const { self, calls } = rig({ apply: () => new Promise((r) => { release = () => r({ view: MONEY.full, note: 'ok' }); }) });
+  const busy = self.mnyApply({ type: 'inbox-clear' });
+  self.mnyAsk('jar-archive', { id: 'j1' }, 'Archive Food?');
+  await self.mnyAskYes();
+  assert.ok(self.state.mny.ask, 'was: the bar vanished and the archive was dropped');
+  release(); await busy;
+  const done = self.mnyAskYes();
+  release(); await done;
+  assert.equal(self.state.mny.ask, null, 'closed after the archive saved');
+  assert.deepEqual(calls.filter((c) => c[0] === 'apply').map((c) => c[1].type), ['inbox-clear', 'jar-archive']);
+});

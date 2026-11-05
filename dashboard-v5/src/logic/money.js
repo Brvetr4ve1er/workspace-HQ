@@ -24,14 +24,14 @@ export const moneyLogic = {
   mnySplit(jarId, value) { this.setState((s) => { const m = Object.assign({}, s.mny); m.split = Object.assign({}, m.split, { [jarId]: value }); return { mny: m }; }); },
   // archive = an inline "are you sure" bar, not the run-confirm overlay
   mnyAsk(type, payload, question) { this.mnySet({ ask: { type, payload, question } }); },
-  mnyAskYes() { const a = (this.state.mny || {}).ask; if (!a) return; this.mnySet({ ask: null }); this.mnyApply(Object.assign({ type: a.type }, a.payload)); },
+  mnyAskYes() { const a = (this.state.mny || {}).ask; if (!a) return; return this.mnyApply(Object.assign({ type: a.type }, a.payload), (n) => { n.ask = null; }); },
   mnyAskNo() { this.mnySet({ ask: null }); },
 
   // the one write path. Resolves true when main saved it, false otherwise (already toasted).
   async mnyApply(intent, after) {
     const m = this.hq && this.hq.money;
     if (!m) { this.denied('Unavailable — money needs the desktop bridge'); return false; }
-    if ((this.state.mny || {}).busy) return false;
+    if ((this.state.mny || {}).busy) { this.toast('info', 'Still saving the last one — try again in a moment'); return false; }   // never a silent drop
     this.mnySet({ busy: true });
     let r;
     try { r = await this.store.applyMoney(intent); }
@@ -62,7 +62,7 @@ export const moneyLogic = {
     const f = (this.state.mny || {}).log || {}, V = (this.LIVE.money || {}).view;
     const accountId = f.accountId != null ? f.accountId : V && V.accounts[0] ? V.accounts[0].id : '';
     // keep currency/category/account for the next entry (the daily coffee is two taps), clear amount + note
-    this.mnyApply({ type: 'log', amount: f.amount || '', currency: f.currency || 'DA', category: f.category || 'Food', accountId, note: f.note || '' }, (n) => { n.log = Object.assign({}, f, { amount: '', note: '', accountId }); });
+    this.mnyApply({ type: 'log', amount: f.amount || '', currency: f.currency || 'DA', category: f.category || 'Food', accountId, note: f.note || '' }, (n) => { const cur = n.log || {}, sent = (k) => (cur[k] == null || cur[k] === f[k]); n.log = Object.assign({}, cur, { amount: sent('amount') ? '' : cur.amount, note: sent('note') ? '' : cur.note, accountId: cur.accountId != null ? cur.accountId : accountId }); });
   },
   mnySaveBill() {
     const f = (this.state.mny || {}).bill; if (!f) return;
