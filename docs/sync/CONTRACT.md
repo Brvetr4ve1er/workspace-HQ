@@ -365,6 +365,7 @@ Nothing is removed or renamed: the twelve existing rules keep their ids, keys an
 - **Six new rule ids** in `items[].rule`: `prod-deploy-error`, `ci-red`, `session-left-dirty`, `review-waiting`, `reboot-pending`, `money-empty`.
 - **New `source` values** (items and `errors[]`): `"github"`, `"vercel"`, `"claude-code"`.
 - Keys keep the `rule:subject:value` form: `prod-deploy-error:<name>:<prod.at>`, `ci-red:<full>:<pushedAt>`, `review-waiting:<newest updatedAt>`, `reboot-pending:<scanned_at day>`, `money-empty:never`.
+- **`session-left-dirty` key**: `session-left-dirty:<scanned project id>:<the session's lastAt>` (it names the scanned project's id in the key only; its text names the project, never the chat title). While it names a project, the low `dirty` rule skips that project, so it is said once.
 - **`overflow`**: the ranked items 4 to 12, same shape as `items` (so at most 9). `more` is unchanged.
 - **`count`** on every item (and every overflow item): the rule's "and N more" number, an integer, 0 when none, so no surface parses it from text.
 - Inputs (all read-only, none written): `data/github.json`, `data/accounts.json`, the `detail` of `data/pc-health.json`, and the Hub (one `listConversations` and one `listProjects`, each with a 5 s timeout).

@@ -62,6 +62,14 @@ Ranked by severity, high before med before low, then in the rule order below. Pr
 | dirty | a project's `git_safety.dirty >= 10` (the largest) | low | open that project |
 | money-backup | Money has accounts and no export in 30 days, or never | low | Money › Today |
 | claude-sync | no claude.ai chats indexed, or the last sync is more than 3 days old | low | Claude › Chats |
+| prod-deploy-error | `accounts.json` `vercel.projects[].prod.state` is `error` (never `deploys[]`; a blank state is skipped) — 2026-11-07 | high | Projects › Vercel & Supabase |
+| ci-red | `github.json` `repos[].ci` is `failure` on a repo pushed in the last 14 days, not archived, not a fork (ci null is silent) | med | Projects › GitHub |
+| session-left-dirty | a Claude Code session ended before the latest scan and that scan saw uncommitted files in its project: 10 or more, or 1 or more when the session's last 8 turns include an edit call | med | open that project |
+| review-waiting | non-draft pull requests in `github.json` `waiting[]` (no titles) | low | Projects › GitHub |
+| reboot-pending | `pc-health.json` `detail.rebootPending` is true | low | System › Machine |
+| money-empty | the Money view loaded and has no accounts | low | Money › Today |
+
+The six rules below `claude-sync` (2026-11-07, `dashboard/brief-senses.mjs`) are silent on a missing sidecar; a stale (over 72 h), partial or not-ok one is silent and adds an `errors[]` entry. Items 4 to 12 ride along as `brief.overflow`; every item carries `count` (its "and N more"). The 72-hour step-aside of unchanged items is NOT built (the owner has not approved it).
 
 When a rule matches several projects, accounts or organs, the item names the worst one and adds "and N more".
 

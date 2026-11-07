@@ -623,7 +623,9 @@ Additive only. Every channel below is NEW or an additive field on an existing on
 
 | Surface | Channel | Args | Returns | Primary surface |
 |---|---|---|---|---|
-| MCP `hq_brief` | (MCP, not IPC) | `{limit?: 1–12}` (default 3) | `{items, overflow, generatedAt, ageMinutes, errors}` | any Claude session |
+| MCP `hq_brief` | (MCP, not IPC) | `{limit?: 1–12}` (default 3; a whole number outside 1–12 is refused) | `{items, overflow, generatedAt, ageMinutes, errors}`: `items` is the first `limit` ranked items, `overflow` the ranked rest (12 at most in all), `more` unchanged | any Claude session |
+
+Main-side hook: `brief.js` `init({onBrief})` calls `onBrief(brief, firstSeen)` after each change and at least every 10 minutes, so the tray's age stays true; a throwing listener never fails the brief.
 
 ### Sessions board (rows written before the handler lands)
 

@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 3 of 8: the Brief sees CI, deploys, pull requests and the session you left, and sits in the tray) · main
+DONE: six new Brief senses (dashboard/brief-senses.mjs: prod-deploy-error, ci-red, session-left-dirty, review-waiting, reboot-pending, money-empty) fed by
+  dashboard/brief-sources.js (github.json, accounts.json, pc-health detail, one Hub sessions read + one projects read, 5 s each, never throws). brief-core:
+  RULES grew to 18 in the contract's order, every item carries `count`, computeBrief adds `overflow` (items 4 to 12), the low `dirty` rule skips a project
+  session-left-dirty names. brief.js: gather() merged in, github.json/accounts.json watched, firstSeen {first,last} now survives the toast bookkeeping (settle
+  merges it back; 7-day prune, 200 cap), init({onBrief(brief, firstSeen)}) fires on each change and every 10 min otherwise. dashboard/brief-project.mjs is the
+  screen-safe projection (no names, no project ids, nav is kind/tab/sub); dashboard/tray-brief.js + tray-menu.js put it in the tray (status line, up to 3 rows,
+  one "+N more" line, tooltip; a row opens where it gets cleared, a scan row runs Scan; null brief = today's menu byte for byte). main.js: hook lines only
+  (trayBrief create, buildTrayMenu brief + openRef, onBrief, tooltip). MCP hq_brief({limit 1-12}): items = first `limit` ranked, overflow = the rest.
+  Renderer: Open GitHub / Open Vercel & Supabase labels, "+N more" names up to two overflow items; fake BRIEF keeps 3 items and more:2, gains the 2 overflow
+  items and count; cdp brief-senses-act; selftest 4 new brief states. The 72-hour standing step-aside is NOT built (owner answer not approved).
+  Gates: main 1093 pass / 0 fail (5 skipped), money 251/251, renderer 473/473, selftest 2568 combos 0/0/0, cdp-gate 37/37. Goldens: none moved (no template
+  change, no new brf* key). Real-data check on a temp copy of the sidecars, counts only: top 3 stay the three standing highs; overflow holds 5 items incl.
+  ci-red and review-waiting; the projection leaks no project id or name.
+IN-FLIGHT: none from this dish. Five dishes follow in Pass order.
+ASKS (struct): none. BREAKS: none (additive). Amended additively: CONTRACT (session-left-dirty key), IPC-CONTRACT (hq_brief limit semantics, onBrief hook), the
+  operator-design spec rules table (six rows). The existing brief-core/brief/tray-menu tests changed where a default fixture now trips money-empty.
+  Anyone spawning a copied MCP server.mjs needs nothing new (hq_brief reads data/brief.json only).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 2 of 8: recall of past Claude chats on an index that can't be wiped landed) · main
 DONE: the index guard (dashboard/claude-hub/index-guard.mjs) sits on the Hub's one store.resetCode() call in runIndex, so the startup rebuild, a reader
   taking the lock, the writer start and the reindex op are all refused while chats exist only in the index (47 on the owner's real index: Claude Code kept
