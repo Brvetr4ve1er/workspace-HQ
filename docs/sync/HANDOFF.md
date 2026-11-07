@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 1 of 8: the assistant's rulebook landed) · main
+DONE: tiers, limits and one names-only log (data/assistant-audit.jsonl) for every MCP tool call (mcp/workspacehq/guard.mjs; the server answers async and
+  finishes in-flight calls before exiting on stdin close); hq_activity; hq_scan_trigger now bounded (one at a time, 10-minute cooldown) and sharing
+  data/.refresh.lock with the app's Scan now (dashboard/refresh-lock.js; runScan takes it, end() releases it; the tray words a refusal); the hq:use usage
+  counter (dashboard/use-log.js, renderer mixin useMark/useArrive; the Brief panel is the first mark); the Reach block in Settings (dashboard/reach.js,
+  hq:reach:read). Gates: main 1066 pass / 0 fail, money 251/251, renderer 471/471, selftest 2556 combos 0/0/0, cdp-gate 35/35. Goldens: all 151 vals
+  scenarios moved only by the rch* keys; the template grew by exactly the Reach fragment.
+IN-FLIGHT: none from this dish. The other seven dishes follow in Pass order.
+ASKS (struct): FYI, unchanged: hq_scan_trigger still runs only collector.mjs (now at most once every 10 minutes); the app's scan and a session's raw pass
+  exclude each other through data/.refresh.lock. The nightly runs should still get --strict-mcp-config; the guard's Windows-folder belt only covers the gap.
+BREAKS: none (additive). Later dishes: call this.useMark('<surface>') inside your own visibility guard; add your MCP tools' tiers (hq_recall, hq_chat_read,
+  hq_sessions, hq_delivery are already on the table).
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1 started — contract before code) · main @ 7bc0562
 DONE: this contract commit (CONTRACT.md + IPC-CONTRACT.md rows for every dish except the held Cosmos one; .gitignore patterns;
   owner-data pin test; README gate line). The plan docs landed in 7bc0562.
