@@ -386,11 +386,12 @@ test('the claim/release routes never touch accounts or the inbox', async () => {
 // real relay above (handleRoute + the temp outbox).
 // ---------------------------------------------------------------------------
 const SOCIAL_JS = readFileSync(fileURLToPath(new URL('../browser-bridge/social.js', import.meta.url)), 'utf8');
+const GUARD_JS = readFileSync(fileURLToPath(new URL('../browser-bridge/endpoint-guard.js', import.meta.url)), 'utf8');   // importScripts('endpoint-guard.js'): every call to the app goes through it
 
-function loadExtension({ hooks = {}, tabs = null, send } = {}) {
+function loadExtension({ hooks = {}, tabs = null, send, cfg = { endpoint: 'http://127.0.0.1:1', token: '' } } = {}) {
   const calls = { inject: [], log: [] };
   const chrome = {
-    storage: { local: { get: async () => ({ hq_cfg: { endpoint: 'http://127.0.0.1:1', token: '' } }) } },
+    storage: { local: { get: async () => ({ hq_cfg: cfg }) } },
     tabs: { query: async () => tabs || [{ id: 7, url: 'https://bsky.app/profile/example' }, { id: 8, url: 'https://www.reddit.com/r/example/' }] },
     scripting: {
       executeScript: async (opts) => {
@@ -413,7 +414,8 @@ function loadExtension({ hooks = {}, tabs = null, send } = {}) {
     if (!r.consumed) return { status: 404, ok: false, json: async () => ({ ok: false, error: 'not found' }) };
     return { status: r.code, ok: r.code >= 200 && r.code < 300, json: async () => r.body };
   };
-  const ctx = vm.createContext({ chrome, fetch, URL, console, setTimeout, clearTimeout, crypto: globalThis.crypto, TextEncoder });
+  const ctx = vm.createContext({ chrome, fetch, URL, console, setTimeout, clearTimeout, crypto: globalThis.crypto, TextEncoder, AbortController, Uint8Array });
+  vm.runInContext(GUARD_JS, ctx, { filename: 'endpoint-guard.js' });
   vm.runInContext(SOCIAL_JS, ctx, { filename: 'social.js' });
   return { socialSend: vm.runInContext('socialSend', ctx), socialContentHash: vm.runInContext('socialContentHash', ctx), calls };
 }
@@ -608,4 +610,27 @@ test('MCP: hq_social_outbox lists claimed_at/released_at and filters sending; hq
     assert.match(desc.description, /sending/);
     assert.match(desc.inputSchema.properties.status.description, /sending/);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+// ---- Bridge 0.7.0: the extension's calls to the app go through the endpoint guard ----
+test('extension: a non-loopback endpoint is refused before anything is fetched, claimed or published', async () => {
+  const before = raw();
+  for (const endpoint of ['https://example.com', 'http://evil.example:47821', 'http://localhost@evil.example']) {
+    const { socialSend, calls } = loadExtension({ cfg: { endpoint, token: 'tok' } });
+    const res = await socialSend(shown('act-staged-1'));
+    assert.equal(res.ok, false, endpoint);
+    assert.deepEqual(calls.log, [], endpoint + ': nothing was sent to the endpoint');
+    assert.equal(calls.inject.length, 0, endpoint + ': nothing was published');
+  }
+  assert.equal(raw(), before, 'the outbox file is untouched');
+});
+
+test('extension: with a token, an app that cannot prove it holds it is not sent the token, the claim or the post', async () => {
+  const before = raw();
+  const { socialSend, calls } = loadExtension({ cfg: { endpoint: 'http://127.0.0.1:1', token: 'tok' } });   // the real relay answers /health with no proof
+  const res = await socialSend(shown('act-staged-1'));
+  assert.equal(res.ok, false);
+  assert.equal(calls.inject.length, 0);
+  assert.ok(!calls.log.some((l) => l.includes('/social/')), 'no /social call left: ' + calls.log.join(', '));
+  assert.equal(raw(), before);
 });

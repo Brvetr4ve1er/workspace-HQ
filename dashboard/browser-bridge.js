@@ -21,14 +21,24 @@
 //     blocked while extensions (host-permission, bypassing CORS) get through.
 //   - optional: drop a token in data/.bridge-token to also require X-HQ-Token.
 //     Residual risk the Host check can't close: any LOCAL process (or any
-//     installed extension — CORS reflects every extension origin) can speak
-//     loopback with the right headers; the token is what gates those.
+//     installed extension — until a pairing exists CORS reflects every
+//     extension origin) can speak loopback with the right headers; the token
+//     is what gates those.
+//   - pairing (Bridge 0.7.0): the extension proposes a token, the owner allows it
+//     in a native dialog (POST /pair, dashboard/bridge-pair.js), the app writes
+//     data/.bridge-token + data/.bridge-pairing.json. The token is read through a
+//     getter that follows the file (mtime, at most once a second), so every route
+//     requires it at once with no restart; once the pairing file exists CORS
+//     reflects only the paired extension origin. GET /health?nonce= answers
+//     proof = HMAC-SHA256(token, nonce) so the extension can tell this is the app.
 
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const social = require('./social-bridge');   // SOCIAL BINDING: ingest tendril + outbox routes
 const claudeRoutes = require('./claude-bridge-routes');   // Claude Hub H4 live sync: /claude/sync-state, /claude/sync
+const assistRoutes = require('./assist-bridge-routes');   // Bridge 0.7.0: POST /pair, GET /assist/brief, POST /assist/open
+const pairing = require('./bridge-pair');   // the live token getter, allowCors, the /health proof
 
 const PORT = 47821;
 const HOST = '127.0.0.1';
@@ -122,9 +132,9 @@ const TENDRILS = [
 ];
 
 function startBridge({ dataDir, onLive, port = PORT } = {}) {
-  const TOKEN_FILE = path.join(dataDir, '.bridge-token');
-  let token = '';
-  try { token = fs.readFileSync(TOKEN_FILE, 'utf8').trim(); } catch { /* token optional */ }
+  // The token follows data/.bridge-token (a pairing can create or replace it while the app runs): read per request.
+  const tokens = pairing.forDataDir(dataDir);
+  const getToken = () => tokens.get();
 
   // exact path -> runtime; legacy aliases land on the same runtime
   const routes = new Map();
@@ -179,7 +189,10 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
       return;
     }
     const origin = req.headers.origin || '';
-    const isExt = origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://');
+    const url = (req.url || '/').split('?')[0];
+    // before a pairing exists any extension origin may be reflected (it has to be able to propose one);
+    // afterwards only the paired origin, plus /pair for a re-pair from another profile.
+    const isExt = pairing.allowCors(origin, tokens.pairing(), url);
     if (isExt) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -190,15 +203,20 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
 
     if (req.method === 'OPTIONS') { res.writeHead(isExt ? 204 : 403); res.end(); return; }
 
-    const url = (req.url || '/').split('?')[0];
+    const token = getToken();
     if (req.method === 'GET' && url === '/health') {
-      return send(200, { ok: true, app: 'workspacehq', bridge: '0.1.0', needsToken: !!token });
+      let nonce = null;
+      try { nonce = new URL(req.url, 'http://x').searchParams.get('nonce'); } catch { /* no query */ }
+      const proof = nonce ? tokens.proof(nonce) : null;
+      return send(200, { ok: true, app: 'workspacehq', bridge: '0.7.0', needsToken: !!token, ...(proof ? { proof } : {}) });
     }
 
     // SOCIAL BINDING outbox/accounts routes (ingest still flows through /ingest/social
     // below). handleRoute returns true once it has answered the request.
     if (url.startsWith('/social/') && social.handleRoute(req, res, { url, send, token, dataDir })) return;
     if (url.startsWith('/claude/') && claudeRoutes.handleRoute(req, res, { url, send, token })) return;
+    // Bridge 0.7.0: /pair and /assist/* (their own token store; main.js hands them {dataDir, dialog, openAt} via setDeps)
+    if ((url === '/pair' || url.startsWith('/assist/')) && assistRoutes.handleRoute(req, res, { url, send })) return;
 
     if (req.method === 'POST' && (routes.has(url) || url.startsWith('/ingest/'))) {
       const rt = routes.get(url);
@@ -231,7 +249,7 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
     if (e && e.code === 'EADDRINUSE') console.warn(`[bridge] port ${port} busy — another WorkspaceHQ instance? Bridge disabled.`);
     else console.error('[bridge] server error:', e);
   });
-  server.listen(port, HOST, () => console.log(`[bridge] listening on http://${HOST}:${port}${token ? ' (token required)' : ''}`));
+  server.listen(port, HOST, () => console.log(`[bridge] listening on http://${HOST}:${port}${getToken() ? ' (token required)' : ''}`));
 
   const browserFile = path.join(dataDir, TENDRILS.find((t) => t.name === 'browser').sidecarPath);
   return {

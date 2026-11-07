@@ -2,8 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { webcrypto, createHmac } from 'node:crypto';
 const require = createRequire(import.meta.url);
 const SRC = new URL('../browser-bridge/claude-sync.js', import.meta.url);
+const GUARD_SRC = new URL('../browser-bridge/endpoint-guard.js', import.meta.url);
+require('../browser-bridge/endpoint-guard.js');   // the worker's importScripts('endpoint-guard.js'): puts HQGuard on globalThis
 const X = require('../browser-bridge/claude-sync.js');
 
 const resp = ({ status = 200, json, headers = {} } = {}) => ({ status, ok: status >= 200 && status < 300,
@@ -91,10 +94,18 @@ test('signed out, deleted chat, batch cap, too-big chats remembered', async () =
 
 test('app client: bridge headers, token, 409 and offline are app errors', async () => {
   const seen = [];
-  const f = async (url, o = {}) => { seen.push([url, o]); return url.endsWith('/claude/sync') ? resp({ status: 409, json: { ok: false } }) : resp({ json: { ok: true, conversations: {}, projects: {}, forgotten: [] } }); };
+  // the app proves it holds the token: /health?nonce answers HMAC-SHA256(token, nonce) (endpoint-guard.js)
+  const f = async (url, o = {}) => {
+    seen.push([url, o]);
+    const u = new URL(url);
+    if (u.pathname === '/health') return resp({ json: { ok: true, app: 'workspacehq', proof: createHmac('sha256', 'tok').update(u.searchParams.get('nonce')).digest('hex') } });
+    return url.endsWith('/claude/sync') ? resp({ status: 409, json: { ok: false } }) : resp({ json: { ok: true, conversations: {}, projects: {}, forgotten: [] } });
+  };
   const app = X.claudeAppClient({ endpoint: 'http://127.0.0.1:47821', token: 'tok' }, f);
   assert.deepEqual((await app.state()).forgotten, []);
-  assert.equal(seen[0][1].headers['X-HQ-Bridge'], '1'); assert.equal(seen[0][1].headers['X-HQ-Token'], 'tok');
+  const sent = seen.find(([url]) => url.endsWith('/claude/sync-state'));
+  assert.equal(sent[1].headers['X-HQ-Bridge'], '1'); assert.equal(sent[1].headers['X-HQ-Token'], 'tok');
+  assert.ok(!seen.some(([url, o]) => url.includes('/health') && o.headers && o.headers['X-HQ-Token']), 'the proof probe never carries the token');
   await assert.rejects(app.push('{}'), (e) => e.kind === 'app' && /owns the Claude index/.test(e.message));
   const off = X.claudeAppClient({ endpoint: 'http://127.0.0.1:1', token: '' }, async () => { throw new Error('refused'); });
   await assert.rejects(off.state(), (e) => e.kind === 'app' && /not reachable/.test(e.message));
@@ -104,6 +115,20 @@ test('app client: bridge headers, token, 409 and offline are app errors', async 
     async (url) => { slashed.push(url); return resp({ json: { ok: true, conversations: {}, projects: {}, forgotten: [] } }); });
   await sl.state();
   assert.deepEqual(slashed, ['http://127.0.0.1:47821/claude/sync-state']);
+});
+
+test('app client: a non-loopback endpoint and an app that cannot prove the token are refused before anything is sent', async () => {
+  const calls = [];
+  const f = async (url, o = {}) => { calls.push([url, o]); return resp({ json: { ok: true, app: 'workspacehq', proof: 'not-the-hmac' } }); };
+  for (const endpoint of ['https://example.com', 'http://evil.example:47821', 'http://127.0.0.1.evil.com', 'http://[::1]:47821', 'javascript:alert(1)']) {
+    const app = X.claudeAppClient({ endpoint, token: 'tok' }, f);
+    await assert.rejects(app.state(), (e) => e.kind === 'app' && /not on this PC/.test(e.message), endpoint);
+    await assert.rejects(app.push('{}'), (e) => e.kind === 'app' && /not on this PC/.test(e.message), endpoint);
+  }
+  assert.deepEqual(calls, [], 'nothing was fetched from a non-loopback endpoint');
+  const impostor = X.claudeAppClient({ endpoint: 'http://127.0.0.1:47821', token: 'tok' }, f);
+  await assert.rejects(impostor.push('{"secret":1}'), (e) => e.kind === 'app' && /something else is answering on port 47821/.test(e.message));
+  assert.ok(calls.every(([url, o]) => url.includes('/health') && !(o.headers && o.headers['X-HQ-Token'])), 'only the token-less proof probe left');
 });
 
 test('every top-level name is claude-prefixed (shared classic-script global scope)', () => {
@@ -126,7 +151,9 @@ function chromeFake({ on = true, granted = true, tabs = 1, state = {} } = {}) {
   } };
 }
 function loadTick(fake, fetchImpl) {
-  const ctx = vm.createContext({ chrome: fake.chrome, fetch: fetchImpl, getCfg: async () => ({ endpoint: 'http://127.0.0.1:47821', token: '' }), setTimeout, TextEncoder, URL, console });
+  const ctx = vm.createContext({ chrome: fake.chrome, fetch: fetchImpl, getCfg: async () => ({ endpoint: 'http://127.0.0.1:47821', token: '' }), setTimeout, clearTimeout, AbortController, TextEncoder, URL, Uint8Array, crypto: webcrypto, console });
+  ctx.globalThis = ctx;
+  vm.runInContext(fs.readFileSync(GUARD_SRC, 'utf8'), ctx);   // importScripts('endpoint-guard.js')
   vm.runInContext(fs.readFileSync(SRC, 'utf8'), ctx);
   return ctx;
 }
@@ -194,10 +221,10 @@ test('tick: unticking "on" mid-run stops the reads and the status stays off', as
   assert.equal(fake.store.hq_claude.status, 'off');
 });
 
-test('manifest 0.6.1, background wiring, popup controls and the risk note', () => {
+test('manifest 0.7.0, background wiring, popup controls and the risk note', () => {
   const read = (f) => fs.readFileSync(new URL('../browser-bridge/' + f, import.meta.url), 'utf8');
   const m = JSON.parse(read('manifest.json'));
-  assert.equal(m.version, '0.6.1'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
+  assert.equal(m.version, '0.7.0'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
   assert.ok(!m.host_permissions.some((h) => h.includes('claude.ai')), 'claude.ai stays optional, granted on the owner\'s click');
   const bg = read('background.js');
   assert.match(bg, /importScripts\('claude-sync\.js'\)/);

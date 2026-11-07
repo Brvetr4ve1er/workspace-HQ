@@ -78,9 +78,59 @@ Works in Edge/Brave too (same folder, `edge://extensions`).
   send a custom header without a CORS preflight, and the app only approves
   preflight for extension origins — so random pages are blocked, the extension
   (with host-permission) gets through.
-- **Optional lockdown:** drop a secret into `data/.bridge-token`, restart the
-  app, and paste the same value into the popup's Settings → Token. The endpoint
-  then also requires `X-HQ-Token`.
+- **Pairing (0.7.0), the way to lock it down:** see *Pair once* below. Pairing
+  writes `data/.bridge-token` and `data/.bridge-pairing.json`; from then on every
+  route requires the token and only the paired extension is let through CORS.
+  A token you drop into `data/.bridge-token` by hand still works the same way
+  (paste it into Settings → Token); the app now notices the file the moment it
+  appears or changes, so no restart is needed.
+- **Loopback only, and proof it is the app (0.7.0).** Nothing carrying the token
+  leaves unless the endpoint is `http://127.0.0.1` or `http://localhost` and the
+  thing answering has proved it holds the token: `GET /health?nonce=<32 hex>`
+  must return HMAC-SHA256(token, nonce), checked in the extension with WebCrypto
+  (`endpoint-guard.js`, used by the focus flush, the social calls, the claude.ai
+  sync and the popup). When the app is down any other process can take the port;
+  this is what stops it being handed your token or your data. The probe itself
+  never carries the token. Settings → save refuses a non-loopback endpoint.
+
+## Pair once (0.7.0)
+
+Settings → **Pair with WorkspaceHQ**. The *service worker* runs the pairing, not the
+popup (a popup closes when the app's dialog takes focus): it makes a 4-digit code
+and a 32-byte token, shows the code on the toolbar badge and asks the app. WorkspaceHQ
+opens a native dialog, **Deny by default**: "Pair the browser extension …? Code 4821."
+Allow only if you just clicked Pair and the code matches. On Allow the app stores
+exactly the token the extension proposed (it never sends one back); the extension
+adopts it only once `/health?nonce` proves the app holds it, on the answer, on the
+next popup open, on the next focus flush or on the next 5-minute tick. Deny, a 60 s
+timeout, or a lost answer changes nothing (any older token stays active; a pending
+token that never verifies is dropped after 2 minutes). Re-pairing asks again and says
+it replaces the old pairing. Before you pair, the extension works exactly as it did.
+
+## Needs you (0.7.0)
+
+Every 5 minutes (alarm `hq-assist`) and whenever the popup opens, the extension asks
+`GET /assist/brief` for the Operator Brief's **projection**: wording, counts and where
+to go for the top items and the overflow, never project names or ids. The toolbar badge
+counts items you have not seen yet (red if one is high, amber otherwise; nothing at
+zero, when the app is not answering or the Brief is over 60 minutes old). Opening the
+popup marks them seen. The popup opens on up to three rows with **Open in app**
+(`POST /assist/open` with an opaque ref; the app maps it back to the item). A scan
+item says to start scans in the app (it uses Claude); the extension never starts one.
+Calls are capped per hour and logged by name in `data/assistant-audit.jsonl`.
+
+## On this page: find the best version (0.7.0)
+
+Right-click an image or video → **Find the best version** (or open the popup). The popup
+lists every image and video the active page offers (`<img>` and `srcset`, `<picture>`,
+lazy `data-src`, CSS backgrounds, `<video>`), best first, with the one you clicked on
+top: type, size, host, file name, and "×N bigger than shown" when the page displays a
+smaller copy, plus guessed bigger variants on the same site (X `name=orig`, WordPress
+`-WxH`, Cloudinary, width/size parameters, `/thumb/` segments). **It fetches nothing:**
+no thumbnails, no HEAD checks; rows are text and each has **Copy best link**. The page is
+read with `chrome.scripting` under `activeTab` (granted by your click). Chrome's own pages,
+the Web Store, `blob:` and streamed video say so instead. **Downloads are off:** the
+manifest has no `downloads` permission; saving waits for the owner's yes.
 
 ## Social posts: approve or skip
 

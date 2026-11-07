@@ -9,6 +9,7 @@
 // in chrome.storage, and go back to sleep. All durable state lives in storage,
 // never in module-scope variables (those die when the worker is unloaded).
 
+importScripts('endpoint-guard.js', 'assist.js', 'grab-rules.js', 'grab.js');   // 0.7.0: endpoint guard (every token-bearing fetch), pairing + Brief badge, "Find the best version"
 importScripts('social.js');   // SOCIAL BINDING: socialTick (read) + socialSend (approved write)
 importScripts('claude-sync.js');   // CLAUDE SYNC (0.6.0): paced read-only claude.ai -> /claude/sync
 
@@ -74,14 +75,18 @@ async function transition(tab) {
 // ---- event wiring ----------------------------------------------------------
 chrome.runtime.onInstalled.addListener(bootstrap);
 chrome.runtime.onStartup.addListener(bootstrap);
+chrome.runtime.onInstalled.addListener(() => { HQGrab.registerMenu().catch(() => {}); });   // context menus persist across restarts: create the item on install/update only
+HQGrab.install();   // contextMenus.onClicked must be (re)wired every time the worker wakes
 async function bootstrap() {
   try { chrome.idle.setDetectionInterval(IDLE_SECONDS); } catch { /* ignore */ }
   chrome.alarms.create('flush', { periodInMinutes: FLUSH_MINUTES });
   chrome.alarms.create(SOCIAL_ALARM, { periodInMinutes: SOCIAL_PERIOD_MIN });   // periodic read-only social scrape
+  chrome.alarms.create(HQAssist.ALARM, { periodInMinutes: 5 });   // 0.7.0: the Brief on the toolbar badge
   await transition(await activeTab());
   flush();
   socialTick().catch(() => {});
   claudeEnsureAlarm().catch(() => {});
+  HQAssist.tick().catch(() => {});
 }
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
@@ -112,6 +117,7 @@ chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'flush') flush();
   else if (a.name === SOCIAL_ALARM) socialTick().catch(() => {});
   else if (a.name === CLAUDE_SYNC_ALARM) claudeSyncTick().catch(() => {});
+  else if (a.name === HQAssist.ALARM) HQAssist.tick().catch(() => {});
 });
 
 // Popup-driven social actions. 'social:send' is the ONLY publish path and it is
@@ -122,12 +128,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'social:sync') { socialTick().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
   // popup "check again": deliver queued focus sessions now instead of on the next alarm
   if (msg && msg.type === 'bridge:flush') { flush().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
+  // Pairing is run here, never in the popup: an action popup closes when the app's dialog takes focus.
+  if (msg && msg.type === 'bridge:pair') { HQAssist.startPair().then(reply).catch((e) => reply({ status: 'app', message: String((e && e.message) || e) })); return true; }
   if (msg && msg.type === 'claude:set') { claudeSetOn(!!msg.on).then(reply).catch((e) => reply({ status: 'app', message: String(e) })); return true; }
   return false;
 });
 
 // ---- flush to the app ------------------------------------------------------
 async function flush() {
+  // a pairing whose answer was lost leaves a pending token: adopt it as soon as the app proves it holds it, so the next
+  // delivery carries the token instead of waiting for the 5-minute Brief alarm (a single storage read when nothing is pending)
+  try { await HQAssist.promote(); } catch { /* the guard / storage said no: deliver with what we have */ }
   const cfg = await getCfg();
   const s = await getState();
   const now = Date.now();
@@ -141,13 +152,11 @@ async function flush() {
   if (!events.length && !live) return;
 
   try {
-    const res = await fetch(cfg.endpoint.replace(/\/$/, '') + '/ingest', {
+    // through the guard: a non-loopback endpoint, or something that cannot prove it is WorkspaceHQ, never sees the token
+    // (guardedFetch adds X-HQ-Bridge and X-HQ-Token itself; a refusal lands in the catch below as the honest lastError)
+    const res = await HQGuard.guardedFetch(cfg, '/ingest', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-HQ-Bridge': '1',
-        ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ v: 1, sent_at: now, events, live }),
     });
     if (res.ok) {

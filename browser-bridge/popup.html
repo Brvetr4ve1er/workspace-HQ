@@ -24,6 +24,20 @@
     <button id="retry" class="btn">check again</button>
   </section>
 
+  <!-- v5: 0.7.0 Needs you — the Brief's top items from the paired app (up to 3 + the overflow line), each with "Open in app"; text only -->
+  <section id="needs" class="blk">
+    <div class="appr-head"><span class="k">needs you</span></div>
+    <div id="needs-host" class="needs-host"></div>
+    <div id="needs-status" class="c-status" role="status"></div>
+  </section>
+
+  <!-- 0.7.0 On this page — every image and video the page offers, best first; a viewer: nothing is downloaded or fetched -->
+  <section id="grab" class="blk">
+    <div class="appr-head"><span class="k">on this page</span></div>
+    <div id="grab-host" class="grab-host"></div>
+    <div id="grab-status" class="c-status" role="status"></div>
+  </section>
+
   <section class="blk">
     <div class="k">working on now</div>
     <div class="now-line"><span id="now-host" class="now-host">— idle —</span><span id="now-dur" class="now-dur"></span></div>
@@ -76,10 +90,14 @@
 
   <details>
     <summary>settings</summary>
+    <div class="field">Pairing <span class="hint">(WorkspaceHQ asks you to allow it, once)</span>
+      <button id="pair" class="btn set-btn">Pair with WorkspaceHQ</button>
+      <div id="pair-status" class="saved pair-status" role="status"></div>
+    </div>
     <label class="field">App endpoint
       <input type="text" id="endpoint" placeholder="http://127.0.0.1:47821" spellcheck="false" />
     </label>
-    <label class="field">Token <span class="hint">(optional — only if you locked the app)</span>
+    <label class="field">Token <span class="hint">(filled in by pairing — or paste one by hand)</span>
       <input type="password" id="token" placeholder="leave blank unless required" autocomplete="off" />
     </label>
     <button id="save" class="btn set-btn">save</button>
@@ -93,6 +111,11 @@
   </details>
 
   <div id="err" class="err"></div>
+  <script src="endpoint-guard.js"></script>
+  <script src="assist.js"></script>
+  <script src="grab-rules.js"></script>
+  <script src="grab-scan.js"></script>
+  <script src="grab-popup.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

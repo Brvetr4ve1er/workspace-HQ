@@ -23,16 +23,15 @@ async function socialCfg() {
   const { hq_cfg } = await chrome.storage.local.get('hq_cfg');
   return { ...SOCIAL_DEFAULTS, ...(hq_cfg || {}) };
 }
-function socialHeaders(cfg, post) {
-  return { ...(post ? { 'Content-Type': 'application/json' } : {}), 'X-HQ-Bridge': '1', ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}) };
-}
+// Every call to the app goes through endpoint-guard.js (HQGuard.guardedFetch): loopback only, and with a token the app must
+// prove it holds it (GET /health?nonce) before the token leaves. It adds X-HQ-Bridge and X-HQ-Token itself.
 async function socialSendToApp(route, body) {
   const cfg = await socialCfg();
-  return fetch(cfg.endpoint.replace(/\/$/, '') + route, { method: 'POST', headers: socialHeaders(cfg, true), body: JSON.stringify(body) });
+  return HQGuard.guardedFetch(cfg, route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 async function socialGetFromApp(route) {
   const cfg = await socialCfg();
-  return fetch(cfg.endpoint.replace(/\/$/, '') + route, { headers: socialHeaders(cfg, false) }).then((r) => r.json());
+  return HQGuard.guardedFetch(cfg, route, {}).then((r) => r.json());
 }
 
 // ---- injected page functions (must be self-contained — no outer refs) ------

@@ -234,11 +234,12 @@ test('the atomic write leaves no temp files behind', async () => {
 // script, so it runs in a vm context with a fake chrome + fetch.
 // ---------------------------------------------------------------------------
 const SOCIAL_JS = readFileSync(fileURLToPath(new URL('../browser-bridge/social.js', import.meta.url)), 'utf8');
+const GUARD_JS = readFileSync(fileURLToPath(new URL('../browser-bridge/endpoint-guard.js', import.meta.url)), 'utf8');   // importScripts('endpoint-guard.js')
 
-function loadExtension({ outbox, outboxThrows = false } = {}) {
-  const calls = { inject: [], results: [], gets: 0, claims: [] };
+function loadExtension({ outbox, outboxThrows = false, cfg = { endpoint: 'http://127.0.0.1:1', token: '' } } = {}) {
+  const calls = { inject: [], results: [], gets: 0, claims: [], fetched: [] };
   const chrome = {
-    storage: { local: { get: async () => ({ hq_cfg: { endpoint: 'http://127.0.0.1:1', token: '' } }) } },
+    storage: { local: { get: async () => ({ hq_cfg: cfg }) } },
     tabs: { query: async () => [{ id: 7, url: 'https://bsky.app/profile/example' }, { id: 8, url: 'https://www.reddit.com/r/example/' }] },
     scripting: {
       executeScript: async (opts) => { calls.inject.push(opts); return [{ result: { ok: true, url: 'https://example.org/p/1' } }]; },
@@ -246,6 +247,7 @@ function loadExtension({ outbox, outboxThrows = false } = {}) {
   };
   const fetch = async (url, opts = {}) => {
     const path = new URL(url).pathname;
+    calls.fetched.push(url);
     if (path === '/social/outbox' && (!opts.method || opts.method === 'GET')) {
       calls.gets++;
       if (outboxThrows) throw new TypeError('Failed to fetch');
@@ -263,7 +265,8 @@ function loadExtension({ outbox, outboxThrows = false } = {}) {
     if (path === '/social/outbox/result') { calls.results.push(JSON.parse(opts.body)); return { status: 200, ok: true, json: async () => ({ ok: true }) }; }
     throw new Error('unexpected fetch ' + url);
   };
-  const ctx = vm.createContext({ chrome, fetch, URL, console, setTimeout, clearTimeout, crypto: globalThis.crypto, TextEncoder });
+  const ctx = vm.createContext({ chrome, fetch, URL, console, setTimeout, clearTimeout, crypto: globalThis.crypto, TextEncoder, AbortController, Uint8Array });
+  vm.runInContext(GUARD_JS, ctx, { filename: 'endpoint-guard.js' });
   vm.runInContext(SOCIAL_JS, ctx, { filename: 'social.js' });
   const socialSend = vm.runInContext('socialSend', ctx);
   return { socialSend, calls };
@@ -315,6 +318,16 @@ test('extension: app unreachable or refusing → refused, never sent', async () 
   const r2 = await refused.socialSend({ ...SHOWN });
   assert.equal(r2.ok, false);
   assert.equal(refused.calls.inject.length, 0);
+});
+
+test('extension: a non-loopback endpoint is refused before any request — nothing fetched, claimed or sent (endpoint guard)', async () => {
+  for (const endpoint of ['https://example.com', 'http://evil.example:47821', 'http://127.0.0.1.evil.com']) {
+    const { socialSend, calls } = loadExtension({ outbox: staged(), cfg: { endpoint, token: 'tok' } });
+    const res = await socialSend({ ...SHOWN });
+    assert.equal(res.ok, false, endpoint);
+    assert.deepEqual(calls.fetched, [], endpoint);
+    assert.equal(calls.inject.length, 0, endpoint);
+  }
 });
 
 test('extension: no id → refused without asking the app', async () => {

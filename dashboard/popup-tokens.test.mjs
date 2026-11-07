@@ -84,3 +84,26 @@ test('manifest: MV3, version bumped past 0.1.0, popup wired, no remote-code CSP 
   assert.equal(m.action.default_popup, 'popup.html');
   assert.equal(m.content_security_policy, undefined, 'keep the MV3 default extension CSP');
 });
+
+// ---- Bridge 0.7.0 ----
+test('manifest 0.7.0: activeTab and contextMenus are added, downloads is not, and loopback stays the only app host', () => {
+  const m = JSON.parse(read(resolve(EXT, 'manifest.json')));
+  assert.equal(m.version, '0.7.0');
+  for (const p of ['tabs', 'storage', 'alarms', 'idle', 'scripting', 'activeTab', 'contextMenus']) assert.ok(m.permissions.includes(p), p);
+  assert.ok(!m.permissions.includes('downloads') && !(m.optional_permissions || []).includes('downloads'));
+  assert.deepEqual(m.host_permissions.filter((h) => /127\.0\.0\.1|localhost/.test(h)).sort(), ['http://127.0.0.1/*', 'http://localhost/*']);
+});
+
+test('popup.html loads the endpoint guard and the 0.7.0 scripts, in dependency order, before popup.js', () => {
+  const html = read(resolve(EXT, 'popup.html'));
+  const order = [...html.matchAll(/<script\s+src="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(order.slice(-6), ['endpoint-guard.js', 'assist.js', 'grab-rules.js', 'grab-scan.js', 'grab-popup.js', 'popup.js']);
+});
+
+test('background.js imports the same scripts the worker needs, guard first', () => {
+  const bg = read(resolve(EXT, 'background.js'));
+  assert.match(bg, /importScripts\('endpoint-guard\.js', 'assist\.js', 'grab-rules\.js', 'grab\.js'\)/);
+  assert.ok(bg.indexOf("importScripts('endpoint-guard.js'") < bg.indexOf("importScripts('social.js')"));
+  assert.match(bg, /msg\.type === 'bridge:pair'/);
+  assert.match(bg, /a\.name === HQAssist\.ALARM\) HQAssist\.tick\(\)/);
+});

@@ -44,6 +44,7 @@ const ui = {
   flash: null,        // { text, tone, until }
   refreshing: false,
   again: false,
+  tokenShown: '',     // the token the field was last filled with (a typed change is saved; the stale value never is)
 };
 
 // ---- helpers ---------------------------------------------------------------
@@ -52,20 +53,21 @@ async function getCfg() {
   return { ...DEFAULTS, ...(hq_cfg || {}) };
 }
 const baseUrl = (cfg) => String(cfg.endpoint || DEFAULTS.endpoint).trim().replace(/\/+$/, '');
-function appHeaders(cfg, post) {
-  return { ...(post ? { 'Content-Type': 'application/json' } : {}), 'X-HQ-Bridge': '1', ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}) };
-}
-async function fetchJson(url, opts = {}) {
+const jsonHeaders = (post) => (post ? { 'Content-Type': 'application/json' } : {});   // X-HQ-Bridge / X-HQ-Token are the guard's
+// Every call to the app goes through endpoint-guard.js (HQGuard.guardedFetch): loopback only, and with a token the app must
+// prove it holds it (GET /health?nonce) before the token leaves. It adds X-HQ-Bridge / X-HQ-Token itself.
+// `path` is a route on the endpoint in cfg ('/health'), not a full URL. A refusal comes back as status 0 with its reason and code.
+async function fetchJson(cfg, path, opts = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const r = await fetch(url, { ...opts, signal: ctl.signal });
+    const r = await HQGuard.guardedFetch(cfg, path, { ...opts, signal: ctl.signal });
     let body = null;
     try { body = await r.json(); } catch { /* not JSON */ }
     return { status: r.status, body };
   } catch (e) {
     const error = e && e.name === 'AbortError' ? `no answer within ${FETCH_TIMEOUT_MS / 1000} s` : String((e && e.message) || e);
-    return { status: 0, body: null, error };
+    return { status: 0, body: null, error, code: e && e.code };
   } finally { clearTimeout(t); }
 }
 function fmtDur(ms) {
@@ -100,9 +102,11 @@ function renderFlash() {
 
 // ---- data ------------------------------------------------------------------
 async function probe(cfg) {
-  const r = await fetchJson(baseUrl(cfg) + '/health');
+  const r = await fetchJson(cfg, '/health');
   if (r.status === 200 && r.body && r.body.app === 'workspacehq') {
     ui.conn = 'on'; ui.connErr = ''; ui.needsToken = !!r.body.needsToken;
+  } else if (r.status === 0 && r.code === 'impostor') {
+    ui.conn = 'foreign'; ui.connErr = r.error;   // the answer could not prove it holds the token: the token never left
   } else if (r.status === 0) {
     ui.conn = 'off'; ui.connErr = r.error || 'unreachable';
   } else {
@@ -111,7 +115,7 @@ async function probe(cfg) {
 }
 async function loadOutbox(cfg) {
   if (ui.conn !== 'on') { ui.outbox = null; return; }
-  const r = await fetchJson(baseUrl(cfg) + '/social/outbox', { headers: appHeaders(cfg, false) });
+  const r = await fetchJson(cfg, '/social/outbox');
   if (r.status === 200 && r.body && Array.isArray(r.body.actions)) {
     ui.outbox = { actions: r.body.actions.filter((a) => a && a.id && a.status === 'staged') };
   } else if (r.status === 401 || r.status === 403) ui.outbox = { refused: true };
@@ -151,7 +155,7 @@ function renderConn(cfg) {
   if (off) {
     $('off-title').textContent = ui.conn === 'foreign' ? 'Something else is answering' : 'Not connected';
     $('off-msg').textContent = ui.conn === 'foreign'
-      ? 'The endpoint answered, but not as workspace-hq. Check the endpoint in settings.'
+      ? 'The endpoint answered, but not as workspace-hq (or the token in settings does not match the app). Nothing was sent. Check the endpoint, or pair again.'
       : 'Open workspace-hq on this PC, then check again. Data stays on this machine.';
     $('off-err').textContent = `${baseUrl(cfg)} · ${ui.connErr}`;
   }
@@ -324,8 +328,8 @@ $('skip').addEventListener('click', async () => {
   lockCard(true);
   flash('skipping…', '', 60_000);
   const cfg = await getCfg();
-  const r = await fetchJson(baseUrl(cfg) + '/social/outbox/cancel', {
-    method: 'POST', headers: appHeaders(cfg, true), body: JSON.stringify({ id: a.id }),
+  const r = await fetchJson(cfg, '/social/outbox/cancel', {
+    method: 'POST', headers: jsonHeaders(true), body: JSON.stringify({ id: a.id }),
   });
   const err = r.body && r.body.error;
   if (r.status === 200) flash('skipped — canceled, never sent', 'ok');
@@ -383,10 +387,13 @@ $('paused').addEventListener('change', async (e) => { await patchCfg({ paused: e
 
 $('save').addEventListener('click', async () => {
   const endpoint = ($('endpoint').value || DEFAULTS.endpoint).trim();
-  let ok = false;
-  try { ok = /^https?:$/.test(new URL(endpoint).protocol); } catch { /* invalid */ }
-  if (!ok) { $('saved').textContent = 'endpoint must be an http:// URL'; return; }
-  await patchCfg({ endpoint, token: $('token').value.trim() });
+  // the app runs on this PC only (the bridge binds 127.0.0.1; the manifest names only loopback hosts)
+  if (!HQGuard.checkEndpoint(endpoint).ok) { $('saved').textContent = 'WorkspaceHQ runs on this PC only — use http://127.0.0.1:47821'; return; }
+  const patch = { endpoint };
+  // a pairing can land while this popup is open: only a token the human typed is saved, never the stale field
+  const typed = $('token').value.trim();
+  if (typed !== ui.tokenShown) { patch.token = typed; ui.tokenShown = typed; }
+  await patchCfg(patch);
   $('saved').textContent = 'saved ✓';
   setTimeout(() => ($('saved').textContent = ''), 1500);
   ui.conn = 'checking';
@@ -411,6 +418,7 @@ getCfg().then((cfg) => {
   $('paused').checked = !!cfg.paused;
   $('endpoint').value = cfg.endpoint;
   $('token').value = cfg.token || '';
+  ui.tokenShown = cfg.token || '';
   $('masto').value = cfg.mastodonHost || '';
 });
 
@@ -438,5 +446,60 @@ $('claude-sync').addEventListener('click', () => claudeTurn(true));
 renderClaude();
 setInterval(renderClaude, POLL_MS);
 
+// ---- 0.7.0: pairing, Needs you, On this page -------------------------------------------------------------------
+// Pairing is run by the service worker (bridge:pair), never here: this popup closes when the app's dialog takes focus.
+async function renderPair() {
+  try {
+    const st = await HQAssist.pairState();
+    $('pair').disabled = st.state === 'pairing';
+    $('pair-status').textContent = st.state === 'pairing' ? `Pairing — check the code ${st.code} in the WorkspaceHQ window`
+      : st.state === 'paired' ? 'Paired with WorkspaceHQ' : 'Not paired';
+    $('pair-status').dataset.state = st.state;
+  } catch { /* storage unavailable: leave the text as it was */ }
+}
+$('pair').addEventListener('click', async () => {
+  $('pair').disabled = true;
+  $('pair-status').textContent = 'Asking WorkspaceHQ…';
+  let res;
+  try { res = await chrome.runtime.sendMessage({ type: 'bridge:pair' }); }
+  catch (e) { res = { status: 'app', message: 'The extension did not answer: ' + String((e && e.message) || e) }; }
+  await renderPair();
+  if (res && res.message) $('pair-status').textContent = (res.status === 'pairing' && res.code ? `Code ${res.code} — ` : '') + res.message;
+  const cfg = await getCfg();   // a completed pairing put the token into the settings
+  if ($('token').value.trim() === ui.tokenShown) { $('token').value = cfg.token || ''; ui.tokenShown = cfg.token || ''; }
+  loadNeeds();
+});
+
+const toneOf = (id, text, tone) => { $(id).textContent = text; $(id).dataset.tone = tone || ''; };
+let needsBusy = false;
+async function openNeeds(ref) {
+  const r = await HQAssist.openRef(ref);
+  toneOf('needs-status', r.ok ? (r.note || 'Opened in WorkspaceHQ') : r.error, r.ok ? 'ok' : 'bad');
+}
+// Once per popup open (and after a pairing), never on the 2.5 s poll: the app caps /assist/brief per hour.
+async function loadNeeds() {
+  if (needsBusy) return;
+  needsBusy = true;
+  try {
+    const res = await HQAssist.tick();
+    HQAssist.renderNeeds(document, $('needs-host'), HQAssist.needsModel(res), { open: openNeeds });
+    // opening the popup is seeing the current items: mark them after rendering so their "new" tags show, then the badge clears
+    if (res.state === 'ok') await HQAssist.markSeen([...(res.brief.items || []), ...(res.brief.overflow || [])].map((i) => i.ref));
+  } catch (e) { toneOf('needs-status', 'Could not read the Brief — ' + String((e && e.message) || e).slice(0, 80), 'bad'); }
+  finally { needsBusy = false; }
+}
+async function loadGrab() {
+  try {
+    const m = await HQGrabPopup.load();
+    HQGrabPopup.render(document, $('grab-host'), m, {
+      copy: async (url) => toneOf('grab-status', (await HQGrabPopup.copyText(url)) ? 'Copied' : 'Could not copy — select the link above', 'ok'),
+    });
+  } catch (e) { toneOf('grab-status', 'Could not read this page — ' + String((e && e.message) || e).slice(0, 80), 'bad'); }
+}
+renderPair();
+loadNeeds();
+loadGrab();
+
 refresh();
 setInterval(refresh, POLL_MS);
+setInterval(renderPair, POLL_MS);   // local storage reads only: shows the code while the dialog is open

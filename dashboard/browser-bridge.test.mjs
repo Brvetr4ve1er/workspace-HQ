@@ -7,7 +7,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHmac } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -93,4 +94,55 @@ test('an oversize ingest body is drained and answered 413, and the next normal i
 test('auth still gates ingest after the Host check: missing bridge header is 403', async () => {
   const r = await call({ method: 'POST', path: '/ingest', headers: { 'content-type': 'application/json' }, body: '{"v":1,"events":[]}' });
   assert.equal(r.code, 403); assert.equal(r.obj.error, 'missing bridge header');
+});
+
+// ---- Bridge 0.7.0: pairing makes the token live without a restart (these run last: they leave a pairing in the temp folder) ----
+const EXT = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+const OTHER_EXT = 'chrome-extension://zyxwvutsrqponmlkzyxwvutsrqponmlk';
+const TOKEN = 'c3'.repeat(32);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ING = { 'x-hq-bridge': '1', 'content-type': 'application/json' };
+const EMPTY_INGEST = '{"v":1,"events":[]}';
+
+test('before any pairing: no token is needed, any extension origin is reflected (today\'s extension keeps working), a web page is not', async () => {
+  const ok = await call({ method: 'POST', path: '/ingest', headers: ING, body: EMPTY_INGEST });
+  assert.equal(ok.code, 200);
+  assert.equal((await call({ method: 'OPTIONS', path: '/ingest', headers: { origin: OTHER_EXT } })).code, 204);
+  assert.equal((await call({ method: 'OPTIONS', path: '/ingest', headers: { origin: 'https://example.com' } })).code, 403);
+  const h = await call({ path: '/health?nonce=' + '0f'.repeat(16) });
+  assert.equal(h.obj.needsToken, false); assert.equal(h.obj.proof, undefined, 'no token, no proof');
+});
+
+test('a token that appears mid-run is required on every route at once, with no restart', async () => {
+  writeFileSync(join(dataDir, '.bridge-token'), TOKEN + '\n');
+  await sleep(1150);   // the getter checks the disk at most once a second
+  const noTok = await call({ method: 'POST', path: '/ingest', headers: ING, body: EMPTY_INGEST });
+  assert.equal(noTok.code, 401); assert.equal(noTok.obj.error, 'bad token');
+  assert.equal((await call({ method: 'POST', path: '/ingest', headers: { ...ING, 'x-hq-token': TOKEN }, body: EMPTY_INGEST })).code, 200);
+  assert.equal((await call({ method: 'GET', path: '/social/outbox', headers: { 'x-hq-bridge': '1' } })).code, 403, 'social: refused without the token');
+  assert.equal((await call({ method: 'GET', path: '/social/outbox', headers: { 'x-hq-bridge': '1', 'x-hq-token': TOKEN } })).code, 200);
+  assert.equal((await call({ method: 'GET', path: '/claude/sync-state', headers: { 'x-hq-bridge': '1' } })).code, 403, 'claude: refused without the token');
+  assert.equal((await call({ path: '/health' })).obj.needsToken, true);
+});
+
+test('/health answers proof = HMAC-SHA256(token, nonce) for a 32-hex nonce, and nothing for a bad one', async () => {
+  const nonce = 'a1b2c3d4'.repeat(4);
+  const h = await call({ path: '/health?nonce=' + nonce });
+  assert.equal(h.obj.proof, createHmac('sha256', TOKEN).update(nonce).digest('hex'));
+  assert.equal(h.obj.app, 'workspacehq'); assert.equal(h.obj.bridge, '0.7.0');
+  for (const bad of ['', 'zz', 'a1b2', nonce + 'ff', nonce.toUpperCase().replace(/[A-F]/g, 'G')]) {
+    assert.equal((await call({ path: '/health?nonce=' + bad })).obj.proof, undefined, bad);
+  }
+  assert.equal((await call({ path: '/health' })).obj.proof, undefined);
+  assert.ok(!JSON.stringify(h.obj).includes(TOKEN));
+});
+
+test('once a pairing exists, CORS reflects only the paired origin; another extension\'s preflight is 403 (except /pair)', async () => {
+  writeFileSync(join(dataDir, '.bridge-pairing.json'), JSON.stringify({ v: 1, origin: EXT, pairedAt: '2026-11-07T10:00:00.000Z' }) + '\n');
+  await sleep(1150);
+  assert.equal((await call({ method: 'OPTIONS', path: '/ingest', headers: { origin: EXT } })).code, 204);
+  assert.equal((await call({ method: 'OPTIONS', path: '/ingest', headers: { origin: OTHER_EXT } })).code, 403);
+  assert.equal((await call({ method: 'OPTIONS', path: '/social/outbox', headers: { origin: OTHER_EXT } })).code, 403);
+  assert.equal((await call({ method: 'OPTIONS', path: '/pair', headers: { origin: OTHER_EXT } })).code, 204, 're-pairing from another profile still reaches the dialog');
+  assert.equal((await call({ method: 'OPTIONS', path: '/ingest', headers: { origin: 'https://example.com' } })).code, 403);
 });

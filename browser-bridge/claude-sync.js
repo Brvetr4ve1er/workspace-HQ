@@ -94,14 +94,15 @@ async function claudeSyncRun(d) {
 }
 
 function claudeAppClient(cfg, fetchFn) {
-  // popup.js saves the endpoint as typed, so a pasted trailing slash survives;
-  // strip it like every other bridge caller or '//claude/...' misses the route (404).
-  const base = String(cfg.endpoint || '').replace(/\/+$/, '');
-  const headers = { 'Content-Type': 'application/json', 'X-HQ-Bridge': '1', ...(cfg.token ? { 'X-HQ-Token': cfg.token } : {}) };
+  // Every call goes through endpoint-guard.js: loopback only, and with a token the app must prove it holds it before the
+  // token leaves. guardedFetch normalises the endpoint (a pasted trailing slash survives) and adds X-HQ-Bridge / X-HQ-Token.
   const call = async (path, opts) => {
     let r;
-    try { r = await fetchFn(base + path, { ...opts, headers }); }
-    catch (e) { throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (' + String((e && e.message) || e).slice(0, 60) + ') — open the app.'); }
+    try { r = await HQGuard.guardedFetch(cfg, path, { ...opts, headers: { 'Content-Type': 'application/json' } }, { fetch: fetchFn }); }
+    catch (e) {
+      // the guard's own refusals are already worded for the owner ("endpoint is not on this PC — not sent", "something else is answering…")
+      if (e && (e.code === 'not-on-pc' || e.code === 'impostor')) throw claudeSyncErr('app', e.message);
+      throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (' + String((e && e.message) || e).slice(0, 60) + ') — open the app.'); }
     if (r.status === 409) throw claudeSyncErr('app', 'Another WorkspaceHQ window owns the Claude index — sync from that one.');
     if (!r.ok) throw claudeSyncErr('app', 'WorkspaceHQ is not reachable (HTTP ' + r.status + ') — open the app.');
     return r.json();

@@ -93,6 +93,38 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .field input:focus { outline: none; border-color: var(--gold); }
 .set-btn { height: 28px; margin-top: 2px; }
 .saved { color: var(--green); font-size: 11px; margin-top: 6px; min-height: 14px; }
+/* 0.7.0: Needs you */
+.needs-title { font-size: 12px; color: var(--muted); }
+.needs-row { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--frame); border-left-width: 3px; border-radius: 8px; background: var(--card); }
+.needs-row[data-sev="high"] { border-left-color: var(--red); }
+.needs-row[data-sev="med"] { border-left-color: var(--orange); }
+.needs-row[data-sev="low"] { border-left-color: var(--frame-hi); }
+.needs-head { display: flex; align-items: baseline; gap: 8px; font-size: 11px; }
+.needs-sev { color: var(--text); font-weight: 600; }
+.needs-row[data-sev="high"] .needs-sev { color: var(--red); }
+.needs-row[data-sev="med"] .needs-sev { color: var(--orange); }
+.needs-age { color: var(--faint); }
+.needs-new { margin-left: auto; color: var(--gold); }
+.needs-text { margin-top: 4px; font-size: 12px; word-break: break-word; }
+.needs-hint, .needs-more, .needs-note { margin-top: 6px; font-size: 11px; color: var(--faint); }
+.needs-row .mini { margin-top: 8px; }
+.pair-status[data-state="pairing"] { color: var(--gold); }
+
+/* 0.7.0: On this page */
+.grab-note, .grab-msg { margin-top: 6px; font-size: 11px; color: var(--faint); }
+.grab-msg { color: var(--muted); font-size: 12px; }
+.grab-row { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--frame); border-radius: 8px; background: var(--card); }
+.grab-row[data-clicked="1"] { border-color: var(--gold); }
+.grab-line { font-size: 12px; word-break: break-all; }
+.grab-bigger { margin-top: 2px; font-size: 11px; color: var(--green); }
+.grab-label { margin-top: 2px; font-size: 11px; color: var(--muted); word-break: break-word; }
+.grab-tag { margin-top: 2px; font-size: 11px; color: var(--gold); }
+.grab-cands { margin-top: 6px; }
+.grab-cand { font-size: 11px; color: var(--faint); word-break: break-all; }
+.grab-cand + .grab-cand { margin-top: 3px; }
+.grab-cand.guess { font-style: italic; }
+.grab-row .mini { margin-top: 8px; }
+.grab-host { max-height: 280px; overflow-y: auto; }
 .err { color: var(--red); font-size: 11px; margin: 8px 14px 12px; min-height: 14px; word-break: break-all; }
 #claude-status[data-state="paused"], #claude-status[data-state="signed-out"], #claude-status[data-state="app"] { color: var(--gold); }
 #claude-status[data-state="ok"] { color: var(--green); }
