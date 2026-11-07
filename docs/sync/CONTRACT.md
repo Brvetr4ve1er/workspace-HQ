@@ -412,6 +412,8 @@ Same server as `/ingest/*`, `/social/*` and `/claude/*` (`127.0.0.1:47821`). The
 
 Behaviour that tightens once a pairing exists (no shape change): the token is re-read when the file's mtime changes (no restart) and becomes live on every route (`/ingest`, `/social/*`, `/claude/*`, `/assist/*`); CORS reflects only the paired origin (other extension origins get no CORS headers and `403` on preflight). Each call writes a `door: 'browser'` entry to `data/assistant-audit.jsonl`.
 
+As built (2026-11-07, additive): (1) until `data/.bridge-pairing.json` exists CORS still reflects any extension origin and no token is required, so today's unpaired extension keeps working and any extension can propose a pairing; once it exists, `/pair` alone is still reflected for every extension origin (a re-pair from another browser profile goes through the same dialog). (2) `/health` answers `bridge: '0.7.0'`. (3) The token store re-reads `data/.bridge-token` at most once a second (mtime, size, inode); a completed pairing invalidates it, so the new token binds on the very next request. (4) The extension adopts its pending token on the `/pair` answer, on a popup open, on the next focus flush and on the next 5-minute `hq-assist` tick, whichever first, once `GET /health?nonce` proves the app holds it.
+
 ### `data/delivery.json` — client delivery (frontend lane, 2026-11-07, additive; local only, gitignored)
 
 Written only by `dashboard/delivery.js` (validated intents of at most 16 KB; atomic tmp → rename; a file that won't parse is quarantined as `.corrupt`, `-2`, `-3`). Never read by `collector/`. Pattern in `.gitignore`: `data/delivery.json*`.

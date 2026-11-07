@@ -12,6 +12,25 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 5 of 8: WorkspaceHQ Bridge 0.7.0 — pair once, the Brief on the toolbar, find the best version of any image) · main
+DONE: stages 1 and 2 (stage 3, downloads on click, is NOT built: owner answer pending; the manifest gains activeTab and contextMenus only, a test pins no downloads).
+  Pairing: the extension's service worker proposes a 4-digit code + 32-byte token, the app asks in a parentless native dialog (Deny default, 60 s timeout, 3 tries per
+  10 min) and writes exactly that token to data/.bridge-token + data/.bridge-pairing.json; the extension adopts it only once GET /health?nonce proves the app holds it
+  (on the /pair answer, popup open, the next focus flush, or the 5-minute tick), so a closed popup or lost answer ends with both sides on the same token. Main:
+  dashboard/bridge-pair.js, assist-bridge-routes.js (/pair, /assist/brief, /assist/open, audited as door 'browser'); browser-bridge.js now reads the token per request
+  (live on every route, no restart), reflects CORS only for the paired origin once a pairing exists (any extension before, so an unpaired extension is never locked
+  out), and /health adds proof. main.js: one setDeps line after the navBridge init. Extension: endpoint-guard.js (loopback only + HMAC proof, used by the focus flush, the
+  social calls, the claude.ai sync and the popup), assist.js (pairing, badge, Needs you), grab-*.js (right-click "Find the best version", the On this page list: text only,
+  nothing fetched), popup sections Needs you / On this page / Settings (Pair button), manifest 0.7.0, README. Existing tests gained the guard (their fake /health answers
+  the proof) and endpoint-refusal cases; assist-bridge-routes.test.mjs now runs through the real startBridge and the real brief-project.mjs; new
+  dashboard/bridge-pairing-e2e.test.mjs drives the real extension scripts against the real bridge (no-lockout before pairing; lost /pair answer ends on the stored token).
+  Gates: main 1126 pass / 0 fail (1 skipped), money 251/251, renderer 473/473, selftest 2592 combos 0/0/0, cdp-gate 42/42. Renderer untouched, no golden moved.
+IN-FLIGHT: none. Not exercised on the owner's PC: the native pairing dialog with the app hidden, and chrome.action.openPopup from the context menu in their Chrome.
+ASKS (struct): none. BREAKS: none for the data contract (additive). A paired extension needs this app version: an older app has no /health proof, so the guard refuses to send the token to it.
+  CONTRACT gained an "As built" paragraph under the bridge-routes section. Anyone spawning a copied extension folder needs endpoint-guard.js beside social.js / claude-sync.js.
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 4 of 8: every Claude session on one board, with where each stopped and one-click Resume) · main
 DONE: Claude › Sessions opens on a live board of every Claude Code session of the last 24 h: an inline-SVG lane timeline (12 lanes at most, active part lit,
   pulsing end-cap, gold now line, nightly runs and Codex folded into one lane each), the 7-day limit-stop line, and one card per session with its project,
