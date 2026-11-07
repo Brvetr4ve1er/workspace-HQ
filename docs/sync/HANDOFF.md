@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1 started — contract before code) · main @ 7bc0562
+DONE: this contract commit (CONTRACT.md + IPC-CONTRACT.md rows for every dish except the held Cosmos one; .gitignore patterns;
+  owner-data pin test; README gate line). The plan docs landed in 7bc0562.
+IN-FLIGHT: batch 1 is cooking, 8 dishes: the assistant's rulebook and use counter; recall of past Claude chats on an index that
+  can't be wiped; the Brief's new senses and the tray; the Claude sessions board; Bridge 0.7.0 pairing and Find the best version;
+  the one-minute Money start and spend line; client delivery on the project page; Cosmos step one.
+  New files only until the Pass. Then: hook lines in main.js; edits to preload.js, browser-bridge.js, browser-bridge/* (manifest
+  0.7.0), mcp/workspacehq/server.mjs, claude-hub/hub.mjs and redact.mjs, money/commands.mjs and money.js, cast.js/html,
+  brief-core.mjs, brief.js, tray-menu.js, the v5 renderer files, fake-preload, selftest, cdp-gate and the goldens.
+  New folder dashboard/cosmos/. Check this IN-FLIGHT line before touching any of those.
+  THE HOLD BRANCH: Cosmos step one is committed on local branch hold/cosmos-core in the worktree
+  "C:/Users/ROG STRIX/Documents/workspace-hq-hold-cosmos" until the owner says the ported code may be public.
+  NEVER push it or merge it without that yes. Its contract rows are held with it.
+ASKS (struct): FYI for later, not blocking: the nightly runs should pass --strict-mcp-config, and the GPU enumeration.
+BREAKS: none (additive). .gitignore: data/.bridge-token -> data/.bridge-token*; data/brief.json and data/brief-state.json
+  became data/brief.json* and data/brief-state.json*; new data/.bridge-pairing.json*, data/assistant-audit.jsonl*,
+  data/.refresh.lock*, data/delivery.json*, data/cosmos/. The pairing, once made, tightens the bridge (token live on every
+  route, CORS only for the paired origin); the Brief projection allowlist is in CONTRACT.md.
+
+---
+
 ## 2026-11-05 · FROM frontend (loop iteration 3 — tech-debt #1 — and STOP) · main @ 8006fa6
 DONE: 8006fa6 no unbounded spawnSync left on main: hq:draft-commit git diff (20 s) and hq:spellbook-rescan (2 min) moved onto
   git-actions run() (async, deadline, git-tree kill; run() gained stdoutMax + env); all 8 taskkill calls bounded (TASKKILL_OPTS,

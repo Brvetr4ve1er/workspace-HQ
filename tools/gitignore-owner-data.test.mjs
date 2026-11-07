@@ -1,5 +1,7 @@
 // The repo is PUBLIC and data/ is NOT ignored wholesale: each owner data file needs its own .gitignore line.
 // The money space once shipped trusting "data/ is already ignored" — it wasn't. This pins every owner path.
+// Atomic writers leave <name>.<pid>.tmp behind when they crash, so each pattern is also pinned with one temp name
+// (kitchen batch 1, 2026-11-07).
 //   node --test tools/gitignore-owner-data.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,6 +16,14 @@ const OWNER_DATA = [
   'data/money/state.json', 'data/money/state.json.corrupt', 'data/money/meta.json',
   'data/brief.json', 'data/brief-state.json',
   'dashboard/data.js',
+  // kitchen batch 1 (2026-11-07): patterns, so one temp name each
+  'data/.bridge-token.1234.tmp', 'data/brief.json.1234.tmp', 'data/brief-state.json.1234.tmp',
+  'data/.bridge-pairing.json', 'data/.bridge-pairing.json.1234.tmp',
+  'data/assistant-audit.jsonl', 'data/assistant-audit.jsonl.1', 'data/assistant-audit.jsonl.1234.tmp',
+  'data/.refresh.lock', 'data/.refresh.lock.1', 'data/.refresh.lock.1234.tmp',
+  'data/delivery.json', 'data/delivery.json.corrupt', 'data/delivery.json.corrupt-2', 'data/delivery.json.1234.tmp',
+  'data/cosmos/library.json', 'data/cosmos/curation.json', 'data/cosmos/curation.json.prev', 'data/cosmos/cleanup.json',
+  'data/cosmos/config.json', 'data/cosmos/thumbs/x.jpg', 'data/cosmos/imports/x.png', 'data/cosmos/clips/x.png',
 ];
 
 test('every owner data path is gitignored (public repo)', () => {

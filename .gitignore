@@ -58,8 +58,10 @@ data/shards.json
 data/shard-library.json
 
 # browser bridge runtime state (active-tab focus from the extension) + its token
+# and (2026-11-07, Bridge 0.7.0) its pairing record. Patterns: a crashed atomic write leaves <name>.<pid>.tmp.
 data/browser-activity.json
-data/.bridge-token
+data/.bridge-token*
+data/.bridge-pairing.json*
 
 # Claude Hub index — every Claude Code session + claude.ai chat (local, private; never commit)
 data/claude/
@@ -90,6 +92,15 @@ tools/trailer/.work/
 
 # money space + Operator Brief (2026-11-05): owner money data, and the brief derived from personal scan data.
 # data/ is NOT ignored wholesale here, so each owner file needs its own line.
+# (2026-11-07) the brief files became patterns: a crashed atomic write leaves data/brief.json.<pid>.tmp.
 data/money/
-data/brief.json
-data/brief-state.json
+data/brief.json*
+data/brief-state.json*
+
+# kitchen batch 1 (2026-11-07): the assistant's names-only call log (+ its .1 rotation), the scan lock the app
+# and a session's raw pass share, and client delivery checklists (+ .corrupt quarantines). Patterns, for temp files too.
+data/assistant-audit.jsonl*
+data/.refresh.lock*
+data/delivery.json*
+# Cosmos space (key 0): library, curation, thumbnails, imports and clips — the owner's own files, never committed
+data/cosmos/

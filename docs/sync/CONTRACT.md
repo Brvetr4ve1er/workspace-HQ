@@ -21,6 +21,10 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 | `data/brief.json` | written by `dashboard/brief.js`; read by the renderer (over `hq:brief:*`) and MCP `hq_brief` | derived · gitignored · frontend lane |
 | `data/brief-state.json` | `dashboard/brief.js` only | dismissed keys + toast history · gitignored · frontend lane |
 | `data/money/meta.json` | written by `dashboard/money.js` on a successful export; read by `dashboard/brief.js` | `{lastExportAt}` · gitignored · frontend lane |
+| `data/assistant-audit.jsonl` (+ `.1`) | appended by the MCP server (`mcp/workspacehq`) and, next, the bridge assist routes; read by the MCP `hq_activity` and the rulebook | names-only call log · gitignored · frontend lane |
+| `data/.refresh.lock` | taken and released by the MCP `hq_scan_trigger` and by the app's Scan now (`dashboard/refresh-lock.js`) | runtime state, **don't validate** · gitignored · frontend lane |
+| `data/.bridge-pairing.json` | written by the bridge pair route (`dashboard/assist-bridge-routes.js`) after the owner's Allow | `{v:1, origin, pairedAt}` · gitignored · frontend lane |
+| `data/delivery.json` | `dashboard/delivery.js` only (renderer and MCP get a derived view) | client delivery checklists · gitignored · frontend lane |
 
 ## Load-bearing fields in `latest.json` (renderer will crash/blank without these)
 
@@ -258,6 +262,16 @@ Same server as `/ingest/*` and `/social/*` (`127.0.0.1:47821`), same auth: heade
 Stored as Hub rows `web:<uuid>` (`source='web'`), de-duplicated through `web_sync(kind, native_id=<uuid>, updated_at)`
 — the same table the export import writes. A forgotten chat/project (tombstone) is never re-created.
 
+#### 2026-11-07 amendment — recall from Claude sessions (additive; MCP `hq_recall`, `hq_chat_read`)
+
+The MCP server (`mcp/workspacehq/hub-read.mjs`) opens `data/claude/hub.sqlite` **read-only** and never writes it; it honours
+`HQ_CLAUDE_DB`, closes after each call and works with the app closed. A missing index, a Node without `node:sqlite`, a locked db
+or a newer schema is an error, never an empty list. Masking now also runs **on read**: the Hub passes search, getConversation and
+contextFor answers (and the MCP every string it returns) through `maskSecrets` again, so rows stored under older rules are masked
+on the way out without rewriting them. Raw text stays in `message_fts`, so searching for a secret string can still find its row.
+`health` gains `indexOnly` (the number of code chats whose transcript file no longer exists on disk, so the index is their only copy);
+while it is above 0 a reset of the code index is refused and every row stays. `INDEX_VERSION` and `SCHEMA_VERSION` do not change.
+
 ### `VEEMO CORTEX/30_Areas/Claude/<Project>/<YYYY-MM-DD> <title>.md` — Claude chat notes (frontend lane, owner's vault, Claude Hub H5)
 
 Written only by `dashboard/claude-vault.js`, one note per owner-confirmed Save. Names: `safeSegment` (no `/:*?"<>|[]#^`, no control chars, no leading dot / trailing dot or space, DOS device names prefixed `_`, ≤ 60 code points); a name used by another chat takes ` (2)`…` (9)`. Frontmatter (YAML; strings JSON-quoted): `source` (`claude-code` | `claude.ai` | `chatgpt` — H6, additive), `conversation` (Hub id — how a later Save recognises "this chat's own note"), `project` (`"[[<WorkspaceHQ project note or Claude project name>]]"`), `created` (YYYY-MM-DD), `chat_date`, `title`, `drafted_by` ("local model <id>, from N chat messages"), `tags: [claude]`. Body: `# <title>`, a `Project: [[…]]` line, then the owner-edited Summary / Decisions / To-dos / Links. The structure lane's pipeline never writes here; Ask's Vault source reads these notes like any other (they carry no `generated_by: workspacehq-pipeline`).
@@ -343,6 +357,74 @@ Written only by `dashboard/brief.js` (atomic tmp + rename) every time the Brief 
 
 `data/brief-state.json`: `{ "dismissed": [key], "toasted": { key: ISO }, "lastTop": key | null }` — toasted entries older than 24 h are pruned; `lastTop` is the top key last seen outside quiet hours (change-only toasts).
 `data/money/meta.json`: `{ "lastExportAt": ISO }` — the Brief's "no money backup in 30 days" rule reads it.
+
+### `data/brief.json` / `brief-state.json` — 2026-11-07 amendment: Brief senses, overflow, count (frontend lane, additive)
+
+Nothing is removed or renamed: the twelve existing rules keep their ids, keys and order.
+
+- **Six new rule ids** in `items[].rule`: `prod-deploy-error`, `ci-red`, `session-left-dirty`, `review-waiting`, `reboot-pending`, `money-empty`.
+- **New `source` values** (items and `errors[]`): `"github"`, `"vercel"`, `"claude-code"`.
+- Keys keep the `rule:subject:value` form: `prod-deploy-error:<name>:<prod.at>`, `ci-red:<full>:<pushedAt>`, `review-waiting:<newest updatedAt>`, `reboot-pending:<scanned_at day>`, `money-empty:never`.
+- **`overflow`**: the ranked items 4 to 12, same shape as `items` (so at most 9). `more` is unchanged.
+- **`count`** on every item (and every overflow item): the rule's "and N more" number, an integer, 0 when none, so no surface parses it from text.
+- Inputs (all read-only, none written): `data/github.json`, `data/accounts.json`, the `detail` of `data/pc-health.json`, and the Hub (one `listConversations` and one `listProjects`, each with a 5 s timeout).
+  A sense item carries its sidecar's own age. An absent sidecar is silent. A partial one, one not in state `ok`, or one older than 72 h is silent and adds an `errors[]` entry naming its source; an unreadable one adds an `errors[]` entry; a Hub failure is an `errors[]` entry with source `claude-code`, never a throw.
+- `data/brief-state.json` gains **`firstSeen`**: `{ "<key>": { "first": ISO, "last": ISO } }`, at most 200 entries, validated on load; `first` is stamped when a key is new, `last` on every live key (items and overflow); keys whose `last` is older than 7 days are pruned.
+- Both files are patterns in `.gitignore` (`data/brief.json*`, `data/brief-state.json*`): a crashed atomic write leaves `<name>.<pid>.tmp`.
+
+#### Brief projection (`dashboard/brief-project.mjs`, pure, no file)
+
+`projectBrief(brief, {now, firstSeen})` → the only form of the Brief the tray, the toolbar badge, the bridge route `GET /assist/brief` and any later phone door may show:
+
+```jsonc
+{ "v": 1, "generatedAt": ISO, "ageMinutes": n, "stale": bool, "counts": { "high": n, "med": n, "low": n },
+  "items":    [{ "ref", "rule", "severity", "sevWord", "text", "count", "isNew", "age", "nav": { "kind", "tab", "sub" } }],
+  "overflow": [{ "ref", "rule", "severity", "text", "count", "isNew" }],
+  "overflowLine": "...", "more": n, "errorSources": ["..."] }
+```
+
+Allowlisted fields only. `ref` = the first 12 hex of sha256(key). `nav` is `{kind, tab, sub}` and never carries `projectId`. `text` comes from one fixed wording table with a row per rule id (an unknown rule reads "Something needs you"); counts come from `count`; `isNew` means first seen in the last 24 h (from `firstSeen`).
+Never `why`, names, amounts, paths or ids. Main maps a `ref` back to the item's key and full action in the current `brief.json`; the projection is never used to act.
+
+### `data/assistant-audit.jsonl`, `data/.refresh.lock` and the `use` event — the assistant's rulebook (frontend lane, 2026-11-07, additive; local only, gitignored)
+
+**`data/assistant-audit.jsonl`** — one JSON object per line, appended with `appendFileSync` by `dashboard/assist-audit.mjs`:
+`{ "v": 1, "at": ISO, "door": "mcp"|"browser", "tool", "tier": "read"|"note"|"run"|"stage", "ok": bool, "reason"?, "ms": n, "pid": n }`.
+Names only: it never stores arguments, text, titles or paths. Writers: the MCP server for every tool call (door `mcp`) now; the bridge assist routes (door `browser`) next. Past 512 KB the file is renamed to `.1` (one older generation kept). Readers skip torn lines and count them (`skippedLines`). Limits are counted from this shared log, because every Claude session runs its own MCP process.
+
+**`data/.refresh.lock`** — `{ "pid": n, "by": "<holder>", "startedAt": ISO }`. Two holders: the MCP `hq_scan_trigger` (`by: "mcp"`) and the app's own Scan now (`dashboard/refresh-lock.js`: taken when the scan begins, released when it ends). Each side refuses with a reason while the other holds a fresh lock. The lock is stale when its pid is gone or after 15 minutes (Windows reuses pids, so 15 minutes is the ceiling). Both patterns are in `.gitignore` (`data/assistant-audit.jsonl*`, `data/.refresh.lock*`).
+
+**`use` event in the day log** — written by `dashboard/use-log.js` (channel `hq:use`) through `appLog.event('use', {surface, action})`. `surface` ∈ `brief-panel` `sessions-board` `sessions-strip` `delivery-card` `money-start` `money-quick` `palette-money-line` `reach`; `action` ∈ `open` `act` `resume` `copy` `log`. No names, ids or text. The main-side tray also writes `appLog.event('use', {surface: 'tray-brief', rule})` directly (the rule id only, no `action`).
+
+### `data/.bridge-pairing.json` and the local bridge routes — pairing and the Brief (frontend lane, 2026-11-07, additive; `dashboard/assist-bridge-routes.js`)
+
+Same server as `/ingest/*`, `/social/*` and `/claude/*` (`127.0.0.1:47821`). The loopback `Host` allowlist and the `X-HQ-Bridge: 1` header are checked first, as today. Only client: the WorkspaceHQ Bridge extension 0.7.0.
+
+**`data/.bridge-pairing.json`**: `{ "v": 1, "origin": "<paired extension origin>", "pairedAt": ISO }`, written (atomically) only after the owner's Allow in the app's native dialog, together with `data/.bridge-token` (exactly the 64-hex token the extension proposed). Both are `.gitignore` patterns (`data/.bridge-token*`, `data/.bridge-pairing.json*`). The app never sends a token back.
+
+| Route | Body / answer |
+|---|---|
+| `POST /pair` | `{code: <4 digits>, token: <64 hex>}` → `200 {ok}` after the owner's Allow; `403` denied, timed out (60 s) or malformed; `429` a dialog is already open or over the cap (3 tries per 10 minutes). Re-pairing always goes through the dialog |
+| `GET /health?nonce=<32 hex>` | → `{ok, app:'workspacehq', bridge, needsToken, proof?}`; `proof` = HMAC-SHA256(token, nonce) when paired (additive) |
+| `GET /assist/brief` | `200 {ok, brief: <the Brief projection above>}`; `401` pair first (no token file: fails closed); `403` wrong origin; `429` (120 an hour) |
+| `POST /assist/open` | `{ref}` → `200 {ok}` (main maps the ref back to the item's full action in the current `brief.json` and opens the app there); `404` the ref is not in the current brief; `401`; `403`; `413` (bodies over 8 KB); `429` (60 an hour) |
+
+Behaviour that tightens once a pairing exists (no shape change): the token is re-read when the file's mtime changes (no restart) and becomes live on every route (`/ingest`, `/social/*`, `/claude/*`, `/assist/*`); CORS reflects only the paired origin (other extension origins get no CORS headers and `403` on preflight). Each call writes a `door: 'browser'` entry to `data/assistant-audit.jsonl`.
+
+### `data/delivery.json` — client delivery (frontend lane, 2026-11-07, additive; local only, gitignored)
+
+Written only by `dashboard/delivery.js` (validated intents of at most 16 KB; atomic tmp → rename; a file that won't parse is quarantined as `.corrupt`, `-2`, `-3`). Never read by `collector/`. Pattern in `.gitignore`: `data/delivery.json*`.
+
+```jsonc
+{ "v": 1,
+  "projects": { "<projectId>": {
+      "client": true,
+      "scopeFile": "<repo-relative .md path>" | null,
+      "items": [{ "id", "text" /* ≤ 200 */, "milestone", "done", "doneAt" }],      // ≤ 200 per project; ids minted in main
+      "lastCopy": { "at": ISO, "doneHashes": ["..."] } | null } } }
+```
+
+Checklist files in a client repo (SCOPE.md or a file the owner picked) are **read, never written**: main resolves the project path, takes the real path of the root and of the file, requires the file to sit inside the root, be `.md` and be at most 64 KB. The candidate list comes from a bounded walk (3 folders deep, skipping `node_modules`, dot folders, `dist`, `build`; at most 500 files looked at). No amounts, prices or payments are stored. Readers of this file: the renderer over `hq:delivery:*` and the MCP `hq_delivery` (which also reads `latest.json` and `accounts.json`).
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),

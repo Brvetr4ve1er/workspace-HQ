@@ -613,6 +613,64 @@ Spec: `docs/superpowers/specs/2026-11-05-operator-design.md`.
 Invariants: the engine is deterministic and LLM-free; at most 3 items (+ `more`); the Brief proposes, the owner clicks —
 no channel here acts on anything outside the app. Toasts (P2): change-only — when a high-severity item newly takes the top spot (the same top never re-toasts), once per key per 24 h, never 23:00–08:00 local (deferred, not dropped).
 
+## 2026-11-07 — Kitchen batch 1 (rows written before the handlers land)
+
+Additive only. Every channel below is NEW or an additive field on an existing one; nothing is renamed or removed. New files only until the integration pass, then one hook line each in `main.js` and matching entries in `preload.js` and `fake-preload.js`.
+
+### Operator Brief — overflow, count, tray (no new channel)
+
+`hq:brief:read`, `hq:brief:dismiss` and the push `hq:brief` carry `brief.overflow` (additive; items 4 to 12, same shape as `items`, at most 9) and a `count` field on every item. The tray menu is a new surface fed from the same brief: the first line reads from the Brief projection, up to 3 rows and one overflow line go before "Show workspace-hq", and a row opens the main window where that item is cleared (main maps the row's `ref` back to the full action). It never pops up or notifies.
+
+| Surface | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| MCP `hq_brief` | (MCP, not IPC) | `{limit?: 1–12}` (default 3) | `{items, overflow, generatedAt, ageMinutes, errors}` | any Claude session |
+
+### Sessions board (rows written before the handler lands)
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `sessionsBoard.read()` | `hq:sessions-board:read` | — | `{board:{v:1, generatedAt, state:'ok'\|'hub-down'\|'starting', error?, sessions:[{id, title, project:{id\|null, name, matched:'confirmed'\|'auto'\|'folder'}, branch, cwdLabel, startedAt, lastAt, activeMin, messages, tokens:{in, out, cacheRead}, state:'running'\|'waiting-tool'\|'stopped-mid-tool'\|'no-reply'\|'limit'\|'api-error'\|'finished'\|'quiet', sentence, lastTool?, limitKind?, resetsAt?, canResume, why?, canOpen}], nightly:{count, lastAt}, codex:{count, lastAt}\|null, limitStops:{days:7, count, last:{kind, at}\|null}, counts}}\| `{error}` | Claude › Sessions |
+| `sessionsBoard.resume(id, {say?: 'continue'})` | `hq:sessions-board:resume` | any indexed Code conversation id; `say` optional | `{ok:true}` \| `{error}` (refusals in words; `HQ_DRY_LAUNCH` honoured) | Claude › Sessions |
+| `sessionsBoard.openFolder(id)` | `hq:sessions-board:open-folder` | the id of a session on the board | `{ok}` \| `{error}` (only the cwd of a session on the board) | Claude › Sessions |
+| `sessionsBoard.onBoard(cb)` | push `hq:sessions-board` | — | the board, only when its signature changed | Claude › Sessions |
+| MCP `hq_sessions` | (MCP, not IPC) | `{hours?, project?}` | `{sessions:[…the same card fields minus canResume…], codex:[{agent:'codex', title, updatedAt}], limitStops, generatedAt, ageMinutes}` | any Claude session |
+
+### Assistant rulebook, use counter and reach rows (rows written before the handlers land)
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `use(surface, action)` | `hq:use` | allowlisted ids only (see CONTRACT.md, the `use` event); at most 30 a minute | `{ok:true}` \| `{error}`; writes `appLog.event('use', …)`; anything off the allowlist is refused and never logged | every surface (a no-op where `hq.use` is absent) |
+| `reach.read()` | `hq:reach:read` | — | `{at, rows:[{id:'phone-door'\|'user-scope'\|'bridge'\|'tray-icon'\|'calls', ok:true\|false\|null, detail, step?, who:'owner'\|'app', copy?}]}` | Settings (Reach block) |
+| MCP `hq_activity` | (MCP, not IPC) | `{since?}` | `{since, counts:{byTool, byTier, byDoor}, recent:[{at, door, tool, tier, ok, reason?, ms}], lastScanTrigger, skippedLines, doors:[the reach rows]}` | any Claude session |
+| MCP `hq_scan_trigger` | (MCP, not IPC) | — | `{started:true, pid, note}` \| `{started:false, reason, retryAt?}` (fields added, none removed) | any Claude session |
+
+`hq:scan` may now answer `false` while a Claude session's raw collector pass holds `data/.refresh.lock`; the renderer already treats `false` as "not started".
+
+### Claude Hub — recall and the index guard (additive)
+
+- `hq:claude-hub:reindex` may answer `{error, indexOnly:N}` (N chats exist only in this index; a reindex would delete them) instead of `{started:true}`.
+- `hq:claude-hub:health` gains `indexOnly`.
+- MCP `hq_recall({q, scope?, project?, source?, limit?})` → `{hits:[{conversationId, title, project, at, role, snippet}], scope, indexed, note}`.
+- MCP `hq_chat_read({id, scope?, limit?})` → `{id, title, turns:[{role, at, text}], more}`, or an error when the chat is from another folder and `scope` isn't `'all'`.
+
+### Local bridge routes (HTTP, no renderer channel)
+
+`POST /pair`, `GET /health?nonce=`, `GET /assist/brief`, `POST /assist/open` on `127.0.0.1:47821`: shapes, status codes and caps are in CONTRACT.md ("`data/.bridge-pairing.json` and the local bridge routes"). Extension-internal (not IPC): the runtime message `bridge:pair`, and `chrome.storage.session` keys for the pending code, the grab target and the download queue.
+
+### Money — two new intents on the existing `hq:money:apply`
+
+`money.apply` gains (additive) `{type:'start', cashDA?, bankDA?, cardUSD?, fxDaPerUsd?, paydayDay?}` → `{view, note}` \| `{error}` (refused once any account exists), and `{type:'log-line', text, from:'today'\|'palette', dry?}` (`text` at most 200 chars) → `{view, note}` \| `{preview:{kind:'log'\|'slip'\|'none', amount, currency, category, account, date, label, reason}}` when `dry` \| `{error}`. Money still changes only through `hq:money:apply`; the four money channels are unchanged.
+
+### Client delivery (rows written before the handlers land)
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `delivery.read(projectId)` | `hq:delivery:read` | project id | `{client, mode:'client'\|'plan'\|'none', source:'file'\|'app'\|'none', scopeFile, fileState?:'ok'\|'missing'\|'outside'\|'too-big'\|'unreadable', candidates:[{rel, items}], milestones:[{name, done, total, items:[{id?, text, done}]}], done, total, doneSince:[text], link:{kind:'preview'\|'production', url, state, at}\|null, linkWhy?, update, lastCopyAt}\| `{error}` | project page › Client delivery |
+| `delivery.apply(intent)` | `hq:delivery:apply` | `mark-client {projectId, on}`, `set-scope-file {projectId, rel}`, `item-add {projectId, text, milestone?}`, `item-toggle {projectId, id}`, `item-remove {projectId, id}`, `copied {projectId}` | the same view \| `{error}` | project page › Client delivery |
+| MCP `hq_delivery` | (MCP, not IPC) | `{project?}` | `{projects:[{id, name, source, done, total, milestones, link, lastCopyAt}], generatedAt}` | any Claude session |
+
+Checklist files in a client repo are read, never written; the app fetches nothing for the link (it only reads `data/accounts.json`).
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
