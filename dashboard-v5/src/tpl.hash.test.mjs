@@ -54,9 +54,10 @@ import tpl from './app.tpl.js';
 // 2026-11-03 money space (space-port-money, ported from the Ember money app): the money fragment joined after life, nothing else moved (+57015 chars / +57084 bytes — the package's own measured delta)
 // 2026-11-05 project-page (journal Add binds cantAddJournal, greyed out while a save is in flight; one attribute + its <!-- v5: --> marker) (+82 chars / +82 bytes)
 // 2026-11-05 Operator Brief: the brief fragment (tpl/brief.tpl.js) interpolated into home under the greeting, one <!-- v5: --> marker; nothing else moved (+4114 chars / +4129 bytes)
-const SHA256 = 'a766372301b4b61de646fb81a62f1f5ebc5cd0917a4cf00546ae17a3191dd318';
-const LENGTH = 302769;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 303274;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-07 assistant rulebook: the Reach fragment (tpl/reach.tpl.js) interpolated into ov-settings after Global hotkeys, one <!-- v5: --> marker; nothing else moved (+3795 chars / +3809 bytes — exactly the fragment's own length)
+const SHA256 = '027473afde3a627d7ff74e6172de7923a2a3380b3e75fd25c58e5e9d6996b00f';
+const LENGTH = 306564;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 307083;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

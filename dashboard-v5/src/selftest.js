@@ -20,7 +20,9 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, brfBusy: false };
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, brfBusy: false,
+  // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
+  rchRows: null, rchAt: null, rchError: '', rchBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -303,6 +305,28 @@ export async function run(W = window.WHQ) {
             LV.brief = brief;
             L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, extra || {}));
           });
+        }
+        // Reach (Settings): every state of the doors block. The rows are put straight into state and the loader is held (_rchAsked), so the
+        // fake's own rows don't replace them; rch-offline hides hq.reach for one combo (the store's hq, never window.hq) and puts it back.
+        const RR = (id, ok, extra) => Object.assign({ id, ok, detail: 'Selftest detail for ' + id, who: 'owner' }, extra || {});
+        const RCH_OPEN = ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls'].map((id) => RR(id, true));
+        const RCH_MIXED = [RR('phone-door', false, { step: 'start remote control', copy: 'claude remote-control' }), RR('user-scope', true), RR('bridge', null), RR('tray-icon', false, { step: 'pin the icon in the tray overflow', who: 'owner' }), RR('calls', true)];
+        const hq0 = W.store.hq;
+        for (const [name, patch, offline] of [
+          ['rch-offline', {}, true],
+          ['rch-loading', {}],
+          ['rch-error', { rchError: 'selftest: synthetic reach error' }],
+          ['rch-mixed', { rchRows: RCH_MIXED, rchAt: '2026-11-07T09:00:00.000Z' }],
+          ['rch-all-open', { rchRows: RCH_OPEN, rchAt: '2026-11-07T09:00:00.000Z' }],
+          ['rch-stale-error', { rchRows: RCH_MIXED, rchAt: '2026-11-07T09:00:00.000Z', rchError: 'selftest: refresh failed' }],
+        ]) {
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (offline && hq0) W.store.hq = Object.assign({}, hq0, { reach: undefined });
+              L._rchAsked = true;
+              L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, settingsOpen: true }, patch));
+            });
+          } finally { W.store.hq = hq0; L._rchAsked = false; }
         }
       }
     } finally {

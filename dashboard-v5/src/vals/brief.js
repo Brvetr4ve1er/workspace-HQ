@@ -17,6 +17,7 @@ export function briefVals(ctx) {
   const sourceErrors = state === 'ready' && brief && Array.isArray(brief.errors) ? brief.errors : [];
   const more = state === 'ready' && brief ? Number(brief.more) || 0 : 0;
   const busy = !!S.brfBusy;
+  if (S.tab === 'home' && live && state === 'ready') this.useMark('brief-panel');   // usage counter: once per arrival on Home, only while the panel can be seen (logic/use-log.js)
   return {
     brfShow: !!live,   // the Brief is about now: hidden while an older scan is being viewed
     brfOffline: state === 'offline',

@@ -9,13 +9,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createGuard, createInflight, describe } from './guard.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(DIR, '..', '..');
 const DATA = path.join(ROOT, 'data');
 const COLLECTOR = path.join(ROOT, 'collector', 'collector.mjs');
+
+// The assistant's rulebook (guard.mjs): every tool call has a tier, limits counted from data/assistant-audit.jsonl, and one names-only log line.
+const guard = createGuard({ root: ROOT, dataDir: DATA, collectorPath: COLLECTOR });
+const inflight = createInflight();
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_INFO = { name: 'workspacehq', version: '0.1.0' };
@@ -227,14 +231,15 @@ const TOOLS = [
   },
   {
     name: 'hq_scan_trigger',
-    description: 'Fire-and-forget: start the collector (raw metrics pass, no LLM). Returns immediately; enrichment/assemble happen on the next app scan or relaunch. Job-id polling: deferred to v2.',
+    description: 'Start the collector raw pass (local git only, no LLM, no network) and return at once. Bounded: one pass at a time, shared with the app Scan through data/.refresh.lock, and at most one every 10 minutes (a refusal says why and when to retry). The Brief and latest.json change only after the next app scan (Scan now, or the nightly run).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    run() {
-      if (!fs.existsSync(COLLECTOR)) throw new ToolError('collector/collector.mjs not found');
-      const child = spawn(process.execPath, [COLLECTOR], { cwd: ROOT, detached: true, stdio: 'ignore' });
-      child.unref();
-      return { started: true, pid: child.pid ?? null, note: 'collector detached; assemble runs on next app scan/relaunch' };
-    },
+    run() { return guard.scanTrigger(); },
+  },
+  {
+    name: 'hq_activity',
+    description: 'What assistants did through this folder: counts by tool, tier and door, the last 20 calls (names only, never arguments or text), the last scan-trigger outcome, and whether each door is open (phone, tools in every session, browser, tray icon). Read-only. since: today | 24h | 7d.',
+    inputSchema: { type: 'object', properties: { since: { type: 'string', enum: ['today', '24h', '7d'], description: 'window; default today' } }, additionalProperties: false },
+    run(args) { return guard.activity(args || {}); },
   },
   // ---- SOCIAL BINDING (confirm-gated staging; the read tools went with the Social tab, 2026-10-28) ----
   {
@@ -316,19 +321,18 @@ function send(msg) { process.stdout.write(JSON.stringify(msg) + '\n'); }
 function reply(id, result) { send({ jsonrpc: '2.0', id, result }); }
 function fail(id, code, message) { send({ jsonrpc: '2.0', id, error: { code, message } }); }
 
-function toolsCall(id, params) {
-  const tool = TOOLS.find((t) => t.name === params?.name);
-  if (!tool) { fail(id, -32602, `unknown tool: ${params?.name}`); return; }
-  let out, isError = false;
+async function toolsCall(id, params) {
   try {
-    out = tool.run(params?.arguments || {});
+    const tool = TOOLS.find((t) => t.name === params?.name);
+    if (!tool) { fail(id, -32602, `unknown tool: ${params?.name}`); return; }
+    // guard.call never rejects: it looks up the tier, applies the limits, runs the tool, writes the audit line
+    const { out, isError } = await guard.call(tool.name, () => tool.run(params?.arguments || {}), { isClean: (e) => e instanceof ToolError });
+    const result = { content: [{ type: 'text', text: JSON.stringify(out) }] };
+    if (isError) result.isError = true;
+    reply(id, result);
   } catch (e) {
-    isError = true;
-    out = { error: e instanceof ToolError ? e.message : `tool crashed: ${e?.message || e}` };
+    try { fail(id, -32603, `internal error: ${e?.message || e}`); } catch { /* stdout gone */ }
   }
-  const result = { content: [{ type: 'text', text: JSON.stringify(out) }] };
-  if (isError) result.isError = true;
-  reply(id, result);
 }
 
 const rl = readline.createInterface({ input: process.stdin, terminal: false });
@@ -351,10 +355,10 @@ rl.on('line', (line) => {
         reply(id, {});
         break;
       case 'tools/list':
-        reply(id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+        reply(id, { tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description: describe(description), inputSchema })) });
         break;
       case 'tools/call':
-        toolsCall(id, msg.params);
+        inflight.track(toolsCall(id, msg.params));   // async; the reply is matched by id and survives stdin closing
         break;
       default:
         if (method.startsWith('notifications/')) break;   // initialized etc. — accepted silently
@@ -366,4 +370,5 @@ rl.on('line', (line) => {
   }
 });
 
-rl.on('close', () => process.exit(0));
+// stdin closing must not drop a reply still in flight (a tool that loads a module, opens the Hub, ...): drain, then exit
+rl.on('close', () => { inflight.drain().then(() => process.exit(0), () => process.exit(0)); });

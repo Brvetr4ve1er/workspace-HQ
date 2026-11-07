@@ -84,6 +84,8 @@ contextBridge.exposeInMainWorld('hq', {
   },
   commitPreview: (projPath) => ipcRenderer.invoke('hq:commit-preview', projPath),
   logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
+  use: (surface, action) => ipcRenderer.invoke('hq:use', surface, action),   // usage counter (allowlisted ids only)
+  reach: { read: () => ipcRenderer.invoke('hq:reach:read') },   // Settings › Reach rows
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
   reviveProject: (id) => ipcRenderer.invoke('hq:revive-project', id),

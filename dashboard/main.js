@@ -192,7 +192,7 @@ function buildTrayMenu() {
     { scan: latest(), spells: topSpells(3), devServers: activeDevServers.size },
     {
       show: () => showMainAt({ tab: 'home' }),
-      scan: () => { if (!runScan()) trayNotify('WorkspaceHQ', liveState.snapshot().scan.state === 'running' ? 'A scan is already running.' : 'The scan didn’t start.'); },
+      scan: () => { if (!runScan()) { const held = refreshLock.held(); trayNotify('WorkspaceHQ', held && held.by === 'mcp' ? require('./refresh-lock').refusalText(held) : liveState.snapshot().scan.state === 'running' ? 'A scan is already running.' : 'The scan didn’t start.'); } },
       quickRun: openCastPalette,
       openAutomations: () => showMainAt({ tab: 'automations' }),
       cast: (id) => castFromShell(id),
@@ -319,9 +319,10 @@ function runScan() {
   // v5 clean pass: one pipeline at a time, and the scan state (hq:live-state /
   // hq:scan-status) is settled exactly once per child, BEFORE the reload, so a
   // reloaded window sees 'done'/'failed' instead of a scan that never ends.
-  if (!liveState.scanBegin()) return false;
+  if (!refreshLock.take('app')) return false;   // a raw pass started from a Claude session is still running (assistant rulebook)
+  if (!liveState.scanBegin()) { refreshLock.release('app'); return false; }
   let settled = false;
-  const end = (code, err) => { if (settled) return; settled = true; try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
+  const end = (code, err) => { if (settled) return; settled = true; refreshLock.release('app'); try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
   if (win) win.setTitle('WorkspaceHQ — scanning…');
   let ps;
   try { ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PIPELINE], { windowsHide: true }); }
@@ -824,6 +825,7 @@ claudeSessions.setOnChange((sessions) => castSend('hq:claude-sessions', sessionT
 ipcMain.handle('hq:sessions-list', () => sessionTails.withTails(claudeSessions.list()));
 require('./session-api').init({ ipcMain, claudeSessions, send: castSend });   // v4 SPINE B3: session IPC (IPC-CONTRACT.md)
 const liveState = require('./live-state').init({ ipcMain, send: castSend, devServers: activeDevServers, casts: castRegistry, readSpellbook });   // v5 clean pass: hq:live-state
+const refreshLock = require('./refresh-lock').create({ dataDir: DATA });   // assistant rulebook: the app's Scan and a Claude session's raw collector pass share data/.refresh.lock
 const commitGuard = require('./commit-guard'); commitGuard.init({ ipcMain, resolveProjectPath });   // v5 clean pass: hq:commit-preview + the do-commit .env guard
 // One shared async assemble→bake→reload for the write handlers (quest done,
 // capture, learn, archive, revive) — data-refresh.js. Holds the scan guard like
@@ -1245,6 +1247,8 @@ if (!app.requestSingleInstanceLock()) {
     require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });
     require('./accounts-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });   // Projects › Accounts: Vercel + Supabase through the owner's CLI logins (hq:accounts-refresh, hq:accounts-open)   // Projects › GitHub: refresh through the owner's gh login + open a listed github.com link (hq:github-refresh, hq:github-open)   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     const moneyApi = require('./money').init({ ipcMain, dataDir: DATA, getWin: () => win });   // money space: data/money/state.json (IPC-CONTRACT hq:money:*)
+    require('./use-log').init({ ipcMain, appLog });   // usage counter: hq:use → one 'use' line in the day log (IPC-CONTRACT hq:use)
+    require('./reach').init({ ipcMain, dataDir: DATA, exePath: process.execPath });   // Settings › Reach: whether each door is open (IPC-CONTRACT hq:reach:read)
     require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, getWins: () => BrowserWindow.getAllWindows() });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);

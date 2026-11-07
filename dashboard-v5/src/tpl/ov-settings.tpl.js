@@ -2,6 +2,8 @@
 // Phase 3 P8 adds the marked "What's new · trailers" row after the switches.
 // Cut verbatim from lines 1056-1076 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import reach from './reach.tpl.js';   // 2026-11-07 Reach: which doors to the assistant are open
+
 export default String.raw`  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeSettings }}" style="position:fixed;inset:0;z-index:1050;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px">
       <div onClick="{{ stop }}" ref="{{ popIn }}" role="dialog" aria-label="Settings" style="width:min(680px,100%);max-height:90vh;overflow:auto;background:var(--card);border:1px solid var(--frame-hi);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px">
@@ -19,7 +21,7 @@ export default String.raw`  <sc-if value="{{ settingsOpen }}" hint-placeholder-v
         <div style="display:flex;flex-direction:column;margin-top:6px">
           <sc-for list="{{ hotkeys }}" as="h" hint-placeholder-count="7"><div style="display:flex;gap:12px;padding:6px 0;font-size:13px"><span style="width:150px;flex:0 0 auto;color:var(--text)">{{ h.k }}</span><span style="flex:1;color:var(--muted)">{{ h.d }}</span><span style="color:{{ h.color }}">{{ h.st }}</span></div></sc-for>
         </div>
-      </div>
+${reach}      </div>
     </div>
   </sc-if>
 

@@ -8,6 +8,8 @@
 //   money-open-key9 · money-log-spend · money-pay-bill · money-inbox-paste-promo · money-archive-ask · money-button-sweep
 // Operator Brief scenarios (--preload=fake; the fake's brief.read answers a 3-item placeholder brief):
 //   brief-render · brief-act · brief-dismiss
+// Assistant rulebook scenarios (--preload=fake; the fake's reach.read answers 4 placeholder rows, use() records its calls):
+//   reach-render · use-marks
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -1484,6 +1486,50 @@ const SCENARIOS = {
     if (JSON.stringify(keys) !== JSON.stringify(['secrets:p1:2'])) out.push('dismiss calls ' + JSON.stringify(keys) + ', want exactly ["secrets:p1:2"]');
     if (!await t.waitFor(`${BRF}.items().length === 2`, 3000)) out.push('the dismissed item is still shown');
     else if ((await t.evaluate(`${BRF}.texts()[0]`)).includes('secrets')) out.push('the first item is still the dismissed one');
+    return out.concat(t.errors());
+  },
+
+  // Assistant rulebook: Settings shows the Reach rows with open / closed / unknown said in words, and a closed row's Copy button copies its command
+  async 'reach-render'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    await t.evaluate(`(() => { window.__copied = []; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (x) => { window.__copied.push(String(x)); }, readText: async () => '' }, configurable: true });
+      const L = WHQ.app.logic; hqFake.reset(); L._rchAsked = false; L.setState({ rchRows: null, rchAt: null, rchError: '', rchBusy: false, settingsOpen: true }); return true; })()`);
+    const SEC = `document.querySelector('section[aria-label="Reach: which doors to the assistant are open"]')`;
+    if (!await t.waitFor(`!!${SEC} && ${SEC}.querySelectorAll('[role="listitem"]').length === 4`, 5000)) return ['Settings never showed the 4 Reach rows (got ' + await t.evaluate(`${SEC} ? ${SEC}.querySelectorAll('[role="listitem"]').length : -1`) + ')'];
+    const rows = await t.evaluate(`[...${SEC}.querySelectorAll('[role="listitem"]')].map((r) => r.textContent.replace(/\\s+/g, ' ').trim())`);
+    const want = [['closed', 'Phone door', 'Next: start remote control in a terminal', 'Copy command'], ['open', 'Tools in every Claude session'], ['unknown', 'Browser extension paired'], ['open', 'Assistant calls this week']];
+    want.forEach((w, i) => { for (const part of w) if (!(rows[i] || '').includes(part)) out.push('row ' + (i + 1) + ' lacks "' + part + '": ' + rows[i]); });
+    if (!await t.evaluate(`${SEC}.textContent.includes('2 of 4 open')`)) out.push('no "2 of 4 open" summary');
+    if ((await t.evaluate(`hqFake.calls('reach.read').length`)) !== 1) out.push('Settings read the rows ' + await t.evaluate(`hqFake.calls('reach.read').length`) + ' times, want exactly 1');
+    if (await t.evaluate(`[...${SEC}.querySelectorAll('[role="listitem"]')].filter((r) => [...r.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Copy command')).length`) !== 1) out.push('only the closed phone-door row should have a Copy button');
+    await t.evaluate(`[...${SEC}.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Copy command').click()`);
+    if (!await t.waitFor(`window.__copied.length === 1`, 2000)) out.push('Copy command copied nothing');
+    else if ((await t.evaluate('window.__copied[0]')) !== 'claude remote-control') out.push('Copy command copied "' + await t.evaluate('window.__copied[0]') + '"');
+    await t.evaluate(`(() => { WHQ.app.logic.setState({ settingsOpen: false, rchRows: null, rchError: '' }); return true; })()`);
+    return out.concat(t.errors());
+  },
+
+  // Assistant rulebook: arriving on Home with brief items sends exactly one hq:use for the Brief panel; staying sends no more; coming back sends one again
+  async 'use-marks'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const marks = () => t.evaluate(`hqFake.calls('use').filter((c) => c.args[0] === 'brief-panel').map((c) => c.args.join('/'))`);
+    await t.evaluate(`(() => { const L = WHQ.app.logic; L.go('system'); return true; })()`);   // leave Home first, so the next arrival is a new one
+    await t.sleep(150);
+    await t.evaluate(`(() => { const L = WHQ.app.logic; hqFake.reset(); L.setState({ brfBusy: false }); L._brfBusy = false; L.store.refreshBrief(); L.go('home'); return true; })()`);
+    if (!await t.waitFor(`${BRF}.items().length === 3`, 8000)) return ['the Brief never rendered the fixture’s 3 items'];
+    await t.sleep(300);
+    let m = await marks();
+    if (JSON.stringify(m) !== JSON.stringify(['brief-panel/open'])) out.push('arriving on Home sent ' + JSON.stringify(m) + ', want exactly ["brief-panel/open"]');
+    await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ toasts: [] }); L.setState({ brfBusy: false }); L.store.refreshBrief(); return true; })()`);   // re-renders while staying
+    await t.sleep(500);
+    m = await marks();
+    if (m.length !== 1) out.push('staying on Home sent ' + (m.length - 1) + ' more hq:use call(s)');
+    await t.evaluate(`(() => { WHQ.app.logic.go('tasks'); return true; })()`); await t.sleep(250);
+    await t.evaluate(`(() => { WHQ.app.logic.go('home'); return true; })()`); await t.sleep(500);
+    m = await marks();
+    if (m.length !== 2) out.push('leaving Home and coming back made ' + m.length + ' mark(s) in all, want 2');
     return out.concat(t.errors());
   },
 };
