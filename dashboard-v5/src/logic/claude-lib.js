@@ -125,7 +125,8 @@ export const claudeLibLogic = {
   async clReindex() {
     if (!this.canWrite()) return this.denied();
     if (!this.hq || !this.hq.claudeHub) return;
-    const r = await this.call(() => this.hq.claudeHub.reindex());
+    // the Hub refuses while chats exist only in the index (Claude Code deleted their transcripts): call() toasts its reason, so no 'Reindexing' toast
+    const r = await this.call(() => this.hq.claudeHub.reindex(), 'Couldn’t reindex');
     if (r !== null) this.toast('info', 'Reindexing — links and forgotten chats are kept');
   },
   clNewChat(project) { return this.ccNew(project && project.id ? project.id : ''); },   // H3: the in-app composer (was a terminal until H3)

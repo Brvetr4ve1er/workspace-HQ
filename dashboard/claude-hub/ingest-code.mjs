@@ -16,6 +16,8 @@ export const HEAD_BYTES = 256;
 // missing or lower (hub.mjs). Missing = written before this key existed (H1 up to 810dd5c: cut before mask).
 //   1: secrets masked on the full text before any cut (S1); synthetic '<synthetic>' models no longer recorded
 //   2: titles and cwd masked before storage, cuts never split a surrogate pair
+// Stays 2 on purpose (recall dish): the generic rules in redact-more.mjs are also applied on read (hub.mjs search, getConversation,
+// contextFor), and a bump would trigger a full rebuild, which index-guard.mjs refuses anyway while chats exist only in the index.
 export const INDEX_VERSION = 2;
 const BATCH = 500;
 const NL = 0x0a;

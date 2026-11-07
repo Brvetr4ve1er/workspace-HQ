@@ -47,6 +47,7 @@ export function claudeLibVals(ctx) {
     clNewChat: () => this.clNewChat(pageProj),
     clAct: activityView(L.stats, hub, !!this.hq, L.statsErr),
     clReindex: () => this.clReindex(), clCanReindex: !!(hub && hub.role === 'writer' && hub.state === 'ready'),
-    clReindexTip: hub && hub.role === 'reader' ? 'Another WorkspaceHQ owns the index (read-only here)' : 'Re-read every transcript from scratch',
+    clReindexTip: hub && hub.role === 'reader' ? 'Another WorkspaceHQ owns the index (read-only here)'
+      : hub && Number(hub.indexOnly) > 0 ? Number(hub.indexOnly) + ' chats exist only in this index — a reindex would delete them' : 'Re-read every transcript from scratch',
   };
 }

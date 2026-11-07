@@ -424,6 +424,7 @@ add('system.hub-indexing', hubAt({ state: 'indexing', role: 'writer', node: 'v25
 add('system.hub-ready', hubAt({ state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 32, total: 32 }, counts: HUB_COUNTS, dbBytes: 2048 }));
 add('system.hub-reader', hubAt({ state: 'ready', role: 'reader', node: 'v25.6.1', counts: { projects: 0, conversations: 0, messages: 0 } }));
 add('system.hub-no-node', hubAt({ state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }));
+add('system.hub-index-only', hubAt({ state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 32, total: 32 }, counts: HUB_COUNTS, dbBytes: 2048, indexOnly: 47 }));   // recall dish: Reindex's tooltip says why
 add('system.hub-down', hubAt({ state: 'down', node: 'v25.6.1', error: 'Claude Hub exited (1)' }));
 // H2 Claude library (Task 11): own inert bridge CL_HQ (P3_HQ itself stays untouched so no earlier scenario moves)
 const CL_AT = '2026-10-04T09:00:00.000Z';

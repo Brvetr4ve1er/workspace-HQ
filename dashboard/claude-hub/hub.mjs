@@ -12,6 +12,9 @@ import { spawnSync } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
+import { guardReset, refusalText } from './index-guard.mjs';
+import { maskSnippet, maskText } from './redact-more.mjs';
+import { maskSecrets } from './redact.mjs';
 import { contextFor } from './context.mjs';
 import { ingestWebConversation, ingestWebProject } from './ingest-web.mjs';
 import { parseWebConversation, parseWebProject, newReport, noteUnknown } from './parse-web.mjs';
@@ -390,7 +393,16 @@ function main() {
     serial(async () => {
       do {
         // the version is stamped only once the old rows are gone: a kill before this point rebuilds again next start
-        if (resetNext) { resetNext = false; didReset = true; store.resetCode(); store.setMeta('index_version', INDEX_VERSION); progress = { done: 0, total: 0 }; }
+        // THE one reset call, so every path that sets resetNext (the startup rebuild, a reader taking the lock, the writer start,
+        // the reindex op) passes through this guard. While a chat exists only in this index (Claude Code deleted its transcript),
+        // a reset would delete the only copy: it is skipped, resetNext is cleared, the refusal is logged and every row stays.
+        // Backfill below still runs, incrementally. index_version is not stamped, so the next start asks (and is refused) again.
+        if (resetNext) {
+          resetNext = false;
+          const g = guardReset(store, root);
+          if (!g.allow) diag(g.error ? 'reindex refused: ' + g.error : refusalText(g.indexOnly));
+          else { didReset = true; store.resetCode(); store.setMeta('index_version', INDEX_VERSION); progress = { done: 0, total: 0 }; }
+        }
         await backfill(store, root, { shouldStop: () => stopping || resetNext, onProgress });
       } while (resetNext && !stopping);
       if (didReset && !stopping) store.optimize();   // a full rebuild leaves many FTS segments: merge them once
@@ -400,13 +412,24 @@ function main() {
 
   const metaOrNull = (k) => { try { return (store && store.getMeta(k)) || null; } catch { return null; } };   // health must answer even when the meta table is broken (lastError says why)
   const notOwner = () => { throw new Error('read-only hub (another WorkspaceHQ owns the index)'); };
+  const mk = (v) => (typeof v === 'string' ? maskText(v, maskSecrets) : v);   // null stays null
+  const maskConversation = (r) => {
+    if (!r) return r;
+    const c = r.conversation;
+    return { ...r, conversation: c ? { ...c, title: mk(c.title), cwd: mk(c.cwd) } : c,
+      messages: Array.isArray(r.messages) ? r.messages.map((m) => ({ ...m, text: mk(m.text) })) : r.messages };
+  };
+  // Ask grounding reads only store.contextHits (context.mjs): the same store with every snippet and title masked again
+  const maskedHits = (st) => ({ contextHits: (o) => st.contextHits(o).map((r) => ({ ...r, title: mk(r.title), snippet: maskSnippet(r.snippet, maskSecrets) })) });
   const ops = {
     health: () => ({ state, role: writer ? 'writer' : 'reader', node: process.version, backfill: progress,
       counts: store ? store.counts() : { projects: 0, conversations: 0, messages: 0, documents: 0 }, dbBytes: dbBytes(),
       lastError: lastError || docsNote || readerNote || (store && store.getMeta('last_error')) || null,
       lastErrorAt: metaOrNull('last_error_at'),   // H1's fields + lastErrorAt (the H4/H6 import fields went with the importers, 2026-10-28)
       // the Operator Brief's claude-sync rule: how many claude.ai chats are indexed, and when live sync last pushed
-      lastSyncAt: metaOrNull('last_sync_at'), webCount: store ? store.db.prepare("SELECT COUNT(*) AS n FROM conversation WHERE source = 'web'").get().n : 0 }),
+      lastSyncAt: metaOrNull('last_sync_at'), webCount: store ? store.db.prepare("SELECT COUNT(*) AS n FROM conversation WHERE source = 'web'").get().n : 0,
+      // chats whose transcript is gone from disk: this index is their only copy, so a reindex is refused while any exist
+      indexOnly: store ? guardReset(store, root).indexOnly : 0 }),
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
     listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
     getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
@@ -427,11 +450,18 @@ function main() {
     },
     listProjects: (a) => (store ? store.listProjects(a) : []),
     listConversations: (a) => (store ? store.listConversations(a) : []),
-    getConversation: (a) => (store ? store.getConversation(a) : null),
-    search: (a) => (store ? store.search(a) : []),
+    // Masking runs again on the way out (redact-more.mjs): rows ingested under older rules keep whatever those let through.
+    // A search snippet is masked with its highlight markers stripped (they split a key); a masked snippet loses its highlight.
+    getConversation: (a) => (store ? maskConversation(store.getConversation(a)) : null),
+    search: (a) => (store ? store.search(a).map((r) => ({ ...r, title: mk(r.title), snippet: maskSnippet(r.snippet, maskSecrets) })) : []),
     // H5 Ask grounding (read-only: readers answer it too). No open index is an error, never an empty answer.
-    contextFor: (a) => { if (!store) throw new Error('the index is not open yet'); return contextFor(store, a); },
-    reindex: () => { if (!writer) notOwner(); resetNext = true; progress = { done: 0, total: 0 }; runIndex(); return { started: true }; },
+    contextFor: (a) => { if (!store) throw new Error('the index is not open yet'); return contextFor(maskedHits(store), a); },
+    reindex: () => {
+      if (!writer) notOwner();
+      const g = guardReset(store, root);   // refused here too, so the click is answered with the reason and nothing starts
+      if (!g.allow) return { error: g.error || refusalText(g.indexOnly), indexOnly: g.indexOnly };
+      resetNext = true; progress = { done: 0, total: 0 }; runIndex(); return { started: true };
+    },
     // forget writes, so it takes its turn in the queue: run beside an in-flight ingest of the same transcript, it would be
     // undone by that ingest's remaining batches (they re-create the rows it removed; the tombstone is only checked on
     // entry) while still answering "true". Queued behind the ingest, the tombstone is in place before any later one starts.

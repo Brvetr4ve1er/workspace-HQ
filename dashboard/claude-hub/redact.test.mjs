@@ -59,3 +59,14 @@ test('ordinary text, short tokens and non-strings are untouched; masking is idem
   const once = maskSecrets('k=' + k('sk_' + 'test_', 20)).text;
   assert.deepEqual(maskSecrets(once), { text: once, hits: 0 });
 });
+
+test('recall dish: maskSecrets also carries the generic rules (ingest masks with them); ordinary prose is untouched', () => {
+  const fc = 'fc-' + 'Zq7Xk2'.repeat(5), db = 'postgres://app:' + 'hunter' + '2x@db.example.test:5432/main';
+  const r = maskSecrets('key ' + fc + ' and ' + db + ' and password is ' + 'hunter' + '3y');
+  assert.equal(r.hits, 3);
+  assert.ok(!r.text.includes(fc) && !r.text.includes('hunter'));
+  assert.match(r.text, /postgres:\/\/••• secret \(url-credentials\)@db\.example\.test:5432\/main/, 'scheme and host stay');
+  assert.equal(maskSecrets(r.text).text, r.text, 'masking twice changes nothing more');
+  const prose = 'the password field is required; token: none; MAX_TOKENS=4096';
+  assert.deepEqual(maskSecrets(prose), { text: prose, hits: 0 });
+});

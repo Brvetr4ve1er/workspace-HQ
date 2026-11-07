@@ -10,6 +10,8 @@
 //   brief-render · brief-act · brief-dismiss
 // Assistant rulebook scenarios (--preload=fake; the fake's reach.read answers 4 placeholder rows, use() records its calls):
 //   reach-render · use-marks
+// Recall dish (--preload=fake; hqFake.set answers the Hub's refusal and a health with index-only chats):
+//   reindex-guard
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -1486,6 +1488,30 @@ const SCENARIOS = {
     if (JSON.stringify(keys) !== JSON.stringify(['secrets:p1:2'])) out.push('dismiss calls ' + JSON.stringify(keys) + ', want exactly ["secrets:p1:2"]');
     if (!await t.waitFor(`${BRF}.items().length === 2`, 3000)) out.push('the dismissed item is still shown');
     else if ((await t.evaluate(`${BRF}.texts()[0]`)).includes('secrets')) out.push('the first item is still the dismissed one');
+    return out.concat(t.errors());
+  },
+
+  // Recall dish: while chats exist only in the index, System › Reindex says why BEFORE a click (its tooltip) and AFTER one (the Hub's refusal), and never toasts 'Reindexing'
+  async 'reindex-guard'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const WHY = '47 chats exist only in this index — a reindex would delete them';
+    const BTN = `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Reindex')`;
+    try {
+      await t.evaluate(`(() => { hqFake.set('claudeHub.reindex', () => ({ error: ${JSON.stringify(WHY)}, indexOnly: 47 }));
+        const L = WHQ.app.logic; L.go('system', 'machine');
+        hqFake.emit('hq:claude-hub:event', { event: 'health', data: { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576, indexOnly: 47 } });
+        L.setState({ toasts: [] }); return true; })()`);
+      if (!await t.waitFor(`!!(${BTN})`, 5000)) return ['no Reindex button on System › Machine'];
+      if (!await t.waitFor(`(${BTN}).title === ${JSON.stringify(WHY)}`, 3000)) out.push('before a click, the Reindex tooltip is ' + JSON.stringify(await t.evaluate(`(${BTN}).title`)) + ', want the reason');
+      if (await t.evaluate(`(${BTN}).disabled`)) out.push('Reindex is disabled: the click would never be answered with the reason');
+      await t.evaluate(`(${BTN}).click()`);
+      if (!await t.waitFor(`WHQ.app.logic.state.toasts.some((x) => x.kind === 'error' && x.text.includes(${JSON.stringify(WHY)}))`, 3000)) out.push('after a click, no error toast carries the Hub’s reason: ' + JSON.stringify(await t.evaluate('WHQ.app.logic.state.toasts.map((x) => [x.kind, x.text])')));
+      if (await t.evaluate(`WHQ.app.logic.state.toasts.some((x) => /^Reindexing/.test(x.text))`)) out.push('a "Reindexing" toast was shown');
+      if ((await t.evaluate(`hqFake.calls('claudeHub.reindex').length`)) !== 1) out.push('the click did not reach claudeHub.reindex exactly once');
+    } finally {   // the fake's own health back in the store (no indexOnly), so later scenarios see the plain Hub card
+      await t.evaluate(`(() => { hqFake.reset(true); hqFake.emit('hq:claude-hub:event', { event: 'health', data: { state: 'ready', role: 'writer', node: 'v25.6.1', backfill: { done: 3, total: 3 }, counts: { projects: 2, conversations: 3, messages: 5 }, dbBytes: 1048576 } }); WHQ.app.logic.setState({ toasts: [] }); return true; })()`).catch(() => {});
+    }
     return out.concat(t.errors());
   },
 

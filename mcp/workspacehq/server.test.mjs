@@ -25,6 +25,12 @@ before(() => {
   for (const f of ['assist-core.mjs', 'assist-audit.mjs', 'refresh-lock.js', 'reach.js']) {
     fs.copyFileSync(path.join(path.dirname(SERVER), '..', '..', 'dashboard', f), path.join(root, 'dashboard', f));
   }
+  // recall (hq_recall / hq_chat_read): the reader, the Hub's store and masking rules, and the module the store imports, in the same relative shape
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'hub-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'hub-read.mjs'));
+  fs.mkdirSync(path.join(root, 'dashboard', 'claude-hub'), { recursive: true });
+  const dash = path.join(path.dirname(SERVER), '..', '..', 'dashboard');
+  for (const f of ['store.mjs', 'redact.mjs', 'redact-more.mjs']) fs.copyFileSync(path.join(dash, 'claude-hub', f), path.join(root, 'dashboard', 'claude-hub', f));
+  fs.copyFileSync(path.join(dash, 'claude-prompt-note.js'), path.join(root, 'dashboard', 'claude-prompt-note.js'));
   fs.mkdirSync(path.join(root, 'data', 'social'), { recursive: true });
   fs.writeFileSync(path.join(root, 'data', 'latest.json'), JSON.stringify({
     scan: { id: '2026-10-06', date: '2026-10-06' },
@@ -241,4 +247,46 @@ test('a refused tool and a crashing tool answer isError and the loop survives a 
     assert.equal(byId[44].error.code, -32602, 'an unknown tool keeps failing before the guard');
     assert.equal(byId[45].result.isError, undefined, 'the loop kept serving after the bad line and the crash');
   } finally { fs.rmSync(dump, { recursive: true, force: true }); }
+});
+
+// ---- recall: hq_recall / hq_chat_read through the async loop, against a temp hub.sqlite built from the invented ~/.claude ----
+test('hq_recall and hq_chat_read answer through the loop; the child runs in another folder, so "here" finds nothing and "all" reads', async () => {
+  const { makeClaudeHome } = await import('../../dashboard/claude-hub/__fixtures__/make-fixture.mjs');
+  const { openStore } = await import('../../dashboard/claude-hub/store.mjs');
+  const { backfill } = await import('../../dashboard/claude-hub/ingest-code.mjs');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-mcp-hub-'));
+  try {
+    const fx = makeClaudeHome(home);
+    fs.mkdirSync(path.join(root, 'data', 'claude'), { recursive: true });
+    const st = openStore(path.join(root, 'data', 'claude', 'hub.sqlite'));
+    await backfill(st, fx.root);
+    st.close();
+    const r = await rpc([
+      { id: 31, method: 'tools/call', params: { name: 'hq_recall', arguments: { q: 'placeholder release', scope: 'all' } } },
+      { id: 32, method: 'tools/call', params: { name: 'hq_recall', arguments: { q: 'placeholder release' } } },
+      { id: 33, method: 'tools/call', params: { name: 'hq_chat_read', arguments: { id: 'code:sess-a1', scope: 'all' } } },
+      { id: 34, method: 'tools/call', params: { name: 'hq_chat_read', arguments: { id: 'code:sess-a1' } } },
+      { id: 35, method: 'tools/list' },
+    ]);
+    const all = toolResult(r[31]);
+    assert.equal(r[31].result.isError, undefined, JSON.stringify(r[31]));
+    assert.equal(all.hits.length, 1); assert.equal(all.hits[0].conversationId, 'code:sess-a1'); assert.equal(all.scope, 'all');
+    const here = toolResult(r[32]);
+    assert.deepEqual(here.hits, []); assert.match(here.note, /scope "all"/);
+    const read = toolResult(r[33]);
+    assert.equal(read.id, 'code:sess-a1'); assert.ok(read.turns.length >= 2);
+    assert.ok(read.turns.every((t) => t.role === 'user' || t.role === 'assistant'), 'no tool rows');
+    assert.equal(r[34].result.isError, true); assert.match(r[34].result.content[0].text, /another folder/);
+    const tools = r[35].result.tools.filter((t) => t.name === 'hq_recall' || t.name === 'hq_chat_read');
+    assert.equal(tools.length, 2);
+    for (const t of tools) assert.match(t.description, /plain prose|raw text stays/i, t.name + ' states the masking caveat');
+    assert.match(tools[0].description, /search table/);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(path.join(root, 'data', 'claude'), { recursive: true, force: true }); }
+});
+
+test('hq_recall without an index is an error that says what to do, never an empty list', async () => {
+  fs.rmSync(path.join(root, 'data', 'claude'), { recursive: true, force: true });
+  const r = await rpc([{ id: 36, method: 'tools/call', params: { name: 'hq_recall', arguments: { q: 'anything', scope: 'all' } } }]);
+  assert.equal(r[36].result.isError, true);
+  assert.match(r[36].result.content[0].text, /open WorkspaceHQ once/);
 });

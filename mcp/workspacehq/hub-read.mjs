@@ -1,0 +1,204 @@
+// mcp/workspacehq/hub-read.mjs
+// Recall from past Claude chats for the workspacehq MCP server (recall dish, commit 3). Reads the Claude Hub index
+// (data/claude/hub.sqlite) READ-ONLY, under the node that runs the MCP server, opens it per call and closes it after.
+// It never writes the index and works with the app closed. Errors are errors, never empty lists.
+//
+// Two reads, both answered from user and assistant text only (tool rows, subagent turns and forgotten chats never
+// come back; Instagram / Facebook never):
+//   hubRecall({ q, scope?, project?, source?, limit? })   ranked snippets
+//   hubChatRead({ id, scope?, limit? })                    the last turns of one chat
+// 'here' (default) keeps chats whose working folder is inside the session's own folder (ctx.cwd, which Claude Code
+// sets to the session's folder for the MCP server); 'all' reads every folder.
+//
+// Every string returned is masked again on the way out (old index rows can hold what the rules of their day missed).
+// Caveat the tool descriptions repeat: raw text stays in the index's full-text table, so searching for a secret
+// string can still find its row, and a secret written in plain prose with no label can still slip through.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { maskSecrets } from '../../dashboard/claude-hub/redact.mjs';
+import { maskSnippet, maskText } from '../../dashboard/claude-hub/redact-more.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+export const DEFAULT_LIMIT = 8;
+export const MAX_LIMIT = 20;
+export const SNIPPET_MAX = 240;
+export const TURN_MAX = 1500;
+export const TURNS_TOTAL_MAX = 24000;
+const PER_CHAT = 2;          // hits per chat: one long session can't fill the answer
+const FETCH = 200;           // FTS rows read before scope / project filtering and grouping
+const SOURCES = ['code', 'web'];
+
+export class HubReadError extends Error {}   // a clean refusal; the server turns it into an isError answer
+
+// ---- masking (both rule sets; redact.mjs may or may not carry EXTRA_RULES yet, masking twice is harmless) --------------
+const mask = (s) => maskText(s, (t) => maskSecrets(t));
+const maskSnip = (s) => maskSnippet(s, (t) => maskSecrets(t));
+// one line, no control characters (snippet markers included), ≤ n code points
+function flat(s, n) {
+  const t = String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const cps = [...t];
+  return cps.length > n ? cps.slice(0, n - 1).join('') + '…' : t;
+}
+// turn text keeps its line breaks; control characters other than \n and \t go
+function block(s, n) {
+  const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]+/g, ' ').trim();
+  const cps = [...t];
+  return cps.length > n ? { text: cps.slice(0, n - 1).join('') + '…', cut: true } : { text: t, cut: false };
+}
+
+// ---- scope: is a chat's working folder inside the session's folder? ----------------------------------------------------
+const norm = (p, ci) => {
+  let s = String(p == null ? '' : p).replace(/\\/g, '/').replace(/\/+/g, '/');
+  if (s.length > 1) s = s.replace(/\/$/, '');
+  return ci ? s.toLowerCase() : s;
+};
+export function insideFolder(cwd, folder, ci = process.platform === 'win32') {
+  if (!cwd || !folder) return false;
+  const c = norm(cwd, ci), f = norm(folder, ci);
+  return c === f || c.startsWith(f.endsWith('/') ? f : f + '/');
+}
+
+// ---- opening the index -------------------------------------------------------------------------------------------------
+const emsg = (e) => String((e && e.message) || e).slice(0, 240);
+async function loadStoreModule(ctx) {
+  if (ctx.storeModule) return ctx.storeModule;
+  try { return await (ctx.importStore ? ctx.importStore() : import('../../dashboard/claude-hub/store.mjs')); }
+  catch (e) {
+    if (e && (e.code === 'ERR_UNKNOWN_BUILTIN_MODULE' || /node:sqlite/.test(emsg(e)))) {
+      throw new HubReadError('this Node (' + process.version + ') has no node:sqlite — the chat index needs Node 22.13 or newer on PATH');
+    }
+    throw new HubReadError('could not load the chat index reader: ' + emsg(e));
+  }
+}
+
+function dbFileOf(ctx) {
+  const env = ctx.env || process.env;
+  return ctx.dbFile || env.HQ_CLAUDE_DB || path.join(ROOT, 'data', 'claude', 'hub.sqlite');
+}
+
+const NO_INDEX = 'no chat index yet — open WorkspaceHQ once, it builds the index';
+
+// opens read-only, runs fn(store), closes in every case. Any failure is a HubReadError that says what to do.
+async function withStore(ctx, fn) {
+  const file = dbFileOf(ctx);
+  if (!fs.existsSync(file)) throw new HubReadError(NO_INDEX);
+  const mod = await loadStoreModule(ctx);
+  let store;
+  try { store = mod.openStore(file, { readOnly: true }); }
+  catch (e) {
+    const m = emsg(e);
+    if (/newer WorkspaceHQ/.test(m)) throw new HubReadError('the chat index was written by a newer WorkspaceHQ — update this MCP server: ' + m);
+    if (/locked|busy/i.test(m)) throw new HubReadError('the chat index is locked by another process — try again in a moment');
+    throw new HubReadError('could not open the chat index: ' + m);
+  }
+  try { return await fn(store, mod); }
+  catch (e) {
+    if (e instanceof HubReadError) throw e;
+    const m = emsg(e);
+    if (/locked|busy/i.test(m)) throw new HubReadError('the chat index is locked by another process — try again in a moment');
+    throw new HubReadError('the chat index could not be read: ' + m);
+  } finally { try { store.close(); } catch { /* already closed */ } }
+}
+
+// ---- argument checks ---------------------------------------------------------------------------------------------------
+function scopeOf(a) {
+  const s = a.scope == null ? 'here' : a.scope;
+  if (s !== 'here' && s !== 'all') throw new HubReadError("scope must be 'here' or 'all'");
+  return s;
+}
+const limitOf = (v, dflt, max) => {
+  if (v == null) return dflt;
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n < 1) throw new HubReadError('limit must be a whole number from 1 to ' + max);
+  return Math.min(max, n);
+};
+const folderOf = (ctx) => ctx.cwd || process.cwd();
+const isCi = (ctx) => (ctx.caseInsensitive == null ? process.platform === 'win32' : !!ctx.caseInsensitive);
+
+// conversation id -> { cwd } for a set of ids (chunked: SQLite caps the number of bound parameters)
+function cwdsOf(store, ids) {
+  const out = new Map();
+  const all = [...ids];
+  for (let i = 0; i < all.length; i += 100) {
+    const part = all.slice(i, i + 100);
+    for (const r of store.db.prepare('SELECT id, cwd FROM conversation WHERE id IN (' + part.map(() => '?').join(',') + ')').all(...part)) out.set(r.id, r.cwd);
+  }
+  return out;
+}
+
+// ---- hq_recall ---------------------------------------------------------------------------------------------------------
+export async function hubRecall(args, ctx = {}) {
+  const a = args && typeof args === 'object' ? args : {};
+  if (typeof a.q !== 'string' || !a.q.trim()) throw new HubReadError('q is required: the words to look for in past chats');
+  const scope = scopeOf(a);
+  const source = a.source == null ? 'code' : a.source;
+  if (!SOURCES.includes(source)) throw new HubReadError("source must be 'code' (Claude Code chats, the default) or 'web' (claude.ai chats)");
+  const project = a.project == null ? '' : String(a.project).trim().toLowerCase();
+  const limit = limitOf(a.limit, DEFAULT_LIMIT, MAX_LIMIT);
+
+  return withStore(ctx, (store, mod) => {
+    const match = mod.ftsQuery(a.q);
+    if (!match) throw new HubReadError('q has no searchable words (letters or digits)');
+    const rows = store.contextHits({ match, limit: FETCH, sources: [source] })
+      .filter((r) => r.role === 'user' || r.role === 'assistant');   // contextHits also admits 'other' (people in the social rows)
+    const cwds = cwdsOf(store, new Set(rows.map((r) => r.conversationId)));
+    const folder = folderOf(ctx), ci = isCi(ctx);
+    const inProject = (r) => !project || String(r.projectName || '').toLowerCase().includes(project);
+    const matched = rows.filter(inProject);
+    const kept = scope === 'all' ? matched : matched.filter((r) => insideFolder(cwds.get(r.conversationId), folder, ci));
+
+    const seen = new Map(), hits = [];
+    for (const r of kept) {
+      const n = seen.get(r.conversationId) || 0;
+      if (n >= PER_CHAT) continue;
+      seen.set(r.conversationId, n + 1);
+      hits.push({
+        conversationId: r.conversationId, title: flat(mask(r.title || ''), 120) || '(untitled)', project: flat(mask(r.projectName || ''), 120),
+        at: r.at || null, role: r.role, snippet: flat(maskSnip(r.snippet), SNIPPET_MAX),
+      });
+      if (hits.length >= limit) break;
+    }
+
+    const c = store.db.prepare("SELECT COUNT(*) AS n, MAX(last_at) AS lastAt FROM conversation WHERE source = ? AND forgotten = 0").get(source);
+    let note = null;
+    if (!hits.length) {
+      if (!c.n) note = 'The index holds no ' + (source === 'web' ? 'claude.ai' : 'Claude Code') + ' chats yet.';
+      else if (scope === 'here' && matched.length) note = 'No match in chats from this folder; ' + new Set(matched.map((r) => r.conversationId)).size + ' chat(s) elsewhere match — retry with scope "all".';
+      else if (scope === 'here' && !project) note = 'No match in chats from this folder. Retry with scope "all" to search every folder.';
+      else note = 'No match.';
+    }
+    return { hits, scope, indexed: { source, conversations: c.n, lastAt: c.lastAt || null }, note };
+  });
+}
+
+// ---- hq_chat_read ------------------------------------------------------------------------------------------------------
+export async function hubChatRead(args, ctx = {}) {
+  const a = args && typeof args === 'object' ? args : {};
+  if (typeof a.id !== 'string' || !a.id.trim() || a.id.length > 200) throw new HubReadError('id is required: a conversationId from hq_recall');
+  const scope = scopeOf(a);
+  const limit = limitOf(a.limit, DEFAULT_LIMIT, MAX_LIMIT);
+
+  return withStore(ctx, (store) => {
+    const got = store.getConversation({ id: a.id.trim(), limit: 500 });
+    const c = got && got.conversation;
+    if (!c || !SOURCES.includes(c.source)) throw new HubReadError('no such chat in the index: ' + flat(a.id, 80));
+    if (scope === 'here' && !insideFolder(c.cwd, folderOf(ctx), isCi(ctx))) {
+      throw new HubReadError("that chat is from another folder — pass scope 'all' to read it");
+    }
+    // newest first: take turns until the count or the character budget runs out
+    const mine = got.messages.filter((m) => (m.role === 'user' || m.role === 'assistant') && !m.is_sidechain);
+    const picked = [];
+    let used = 0, more = got.hasMore || false;
+    for (let i = mine.length - 1; i >= 0; i--) {
+      if (picked.length >= limit) { more = true; break; }
+      const b = block(mask(mine[i].text), TURN_MAX);
+      if (used + b.text.length > TURNS_TOTAL_MAX) { more = true; break; }
+      if (b.cut) more = true;
+      used += b.text.length;
+      picked.push({ role: mine[i].role, at: mine[i].at || null, text: b.text });
+    }
+    return { id: c.id, title: flat(mask(c.title || ''), 160) || '(untitled)', turns: picked.reverse(), more };
+  });
+}

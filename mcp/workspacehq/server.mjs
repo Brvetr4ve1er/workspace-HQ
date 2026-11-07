@@ -132,6 +132,14 @@ function stageAction(op, args) {
 // Tools
 // ---------------------------------------------------------------------------
 
+// The Hub reader is loaded on first use (it needs node:sqlite; a Node without it answers with an error naming the version, not a crash).
+// Its refusals (no index yet, locked db, newer schema, another folder's chat) are clean tool errors.
+async function hubTool(fn, args) {
+  const hubRead = await import('./hub-read.mjs');
+  try { return await hubRead[fn](args); }
+  catch (e) { if (e instanceof hubRead.HubReadError) throw new ToolError(e.message); throw e; }
+}
+
 const TOOLS = [
   {
     name: 'hq_brief',
@@ -240,6 +248,31 @@ const TOOLS = [
     description: 'What assistants did through this folder: counts by tool, tier and door, the last 20 calls (names only, never arguments or text), the last scan-trigger outcome, and whether each door is open (phone, tools in every session, browser, tray icon). Read-only. since: today | 24h | 7d.',
     inputSchema: { type: 'object', properties: { since: { type: 'string', enum: ['today', '24h', '7d'], description: 'window; default today' } }, additionalProperties: false },
     run(args) { return guard.activity(args || {}); },
+  },
+  // ---- RECALL (past Claude chats, read-only; hub-read.mjs opens data/claude/hub.sqlite per call and closes it) ----
+  {
+    name: 'hq_recall',
+    description: 'Search your past Claude chats (the Claude Hub index) and get ranked snippets: {hits:[{conversationId, title, project, at, role, snippet}], scope, indexed, note}. Read-only; works with the app closed. '
+      + 'scope "here" (default) keeps chats whose folder is inside the folder of this session; "all" reads every folder. source "code" (default) is Claude Code chats, "web" is claude.ai chats; Instagram and Facebook are never searched. '
+      + 'Only user and assistant text comes back (no tool output, no subagent turns, no forgotten chats), at most 240 characters a snippet, at most 20 hits. When "here" finds nothing the answer says so and offers scope "all". '
+      + 'Caveats: text is masked for known secret shapes, but the raw text stays in the search table of the index, so searching for a secret string can still find its row, and a secret written in plain prose with no label can still slip through.',
+    inputSchema: { type: 'object', properties: {
+      q: { type: 'string', description: 'words to look for' },
+      scope: { type: 'string', enum: ['here', 'all'], description: 'default here' },
+      project: { type: 'string', description: 'keep only chats of the project with this name' },
+      source: { type: 'string', enum: ['code', 'web'], description: 'default code' },
+      limit: { type: 'integer', minimum: 1, maximum: 20, description: 'default 8' } }, required: ['q'], additionalProperties: false },
+    async run(args) { return hubTool('hubRecall', args || {}); },
+  },
+  {
+    name: 'hq_chat_read',
+    description: 'Read the last turns of one past Claude chat by id (an id from hq_recall): {id, title, turns:[{role, at, text}], more}. Read-only. Only user and assistant turns (no tool output, no subagent turns); each turn at most 1,500 characters and at most 24,000 in all (more:true when cut); limit up to 20 turns, default 8. '
+      + 'A chat from another folder is refused unless scope is "all". Caveats: text is masked for known secret shapes, but a secret written in plain prose with no label can still slip through.',
+    inputSchema: { type: 'object', properties: {
+      id: { type: 'string', description: 'conversationId from hq_recall' },
+      scope: { type: 'string', enum: ['here', 'all'], description: 'default here' },
+      limit: { type: 'integer', minimum: 1, maximum: 20, description: 'default 8' } }, required: ['id'], additionalProperties: false },
+    async run(args) { return hubTool('hubChatRead', args || {}); },
   },
   // ---- SOCIAL BINDING (confirm-gated staging; the read tools went with the Social tab, 2026-10-28) ----
   {

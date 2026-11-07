@@ -954,3 +954,99 @@ test('P1: prompt rows from HQ_VAULT_DIR carry tags/variables (the docs ingest st
     assert.deepEqual(p.variables, ['project', 'file']);
   } finally { await h.stop(); }
 });
+
+// ---- recall dish: the index can't be wiped, and masking runs on read -------------------------------------------------
+// A pre-indexed db whose chat 'sess-b1' no longer has a transcript on disk (Claude Code deleted it): the index holds its only copy.
+async function indexOnlyDb(prefix) {
+  const dir = tmp(prefix);
+  const { home, root, files } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const st = openStore(db);   // no indexVersion: the next writer start would rebuild
+  await backfill(st, root);
+  st.close();
+  fs.rmSync(files.b1);
+  return { dir, home, root, files, db };
+}
+const REFUSAL = /1 chats exist only in this index — a reindex would delete them/;
+
+test('index guard: the startup rebuild (writer start) is refused while a chat exists only in the index; every row stays', async () => {
+  const { home, db } = await indexOnlyDb('hub-guard-start-');
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    const hh = await h.healthy();
+    assert.equal(hh.role, 'writer'); assert.equal(hh.indexOnly, 1, 'health says how many chats only the index holds');
+    assert.equal(hh.counts.conversations, 3, 'nothing was reset');
+    assert.equal((await h.req('search', { q: 'Hello project b' })).result.length, 1, 'the index-only chat is still searchable');
+    assert.match(h.err(), REFUSAL, 'the refusal is logged');
+    assert.equal((await h.req('getConversation', { id: 'code:sess-b1' })).result.messages.length, 1);
+  } finally { await h.stop(); }
+  const st = openStore(db);
+  try { assert.equal(st.getMeta('index_version'), null, 'the version is not stamped: the next start asks again'); } finally { st.close(); }
+});
+
+test('index guard: the reindex op answers {error, indexOnly} and starts nothing; at 0 index-only chats it proceeds', async () => {
+  const { home, files, db } = await indexOnlyDb('hub-guard-op-');
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    await h.healthy();
+    const r = await h.req('reindex');
+    assert.equal(r.ok, true, 'a refusal is an answer, not a transport failure');
+    assert.deepEqual(r.result, { error: '1 chats exist only in this index — a reindex would delete them', indexOnly: 1 });
+    assert.equal((await h.healthy()).counts.conversations, 3, 'rows stay');
+    fs.writeFileSync(files.b1, userLine({ uuid: 'b1-u1', sessionId: 'sess-b1', at: '2026-09-30T08:00:00.000Z', cwd: 'C:\placeholder\project-b', text: 'Hello project b' }));
+    const hh = await h.healthy();
+    assert.equal(hh.indexOnly, 0, 'the transcript is back: nothing is index-only');
+    assert.deepEqual((await h.req('reindex')).result, { started: true });
+    assert.equal((await h.healthy()).counts.conversations, 3);
+  } finally { await h.stop(); }
+});
+
+test('index guard: a reader taking over the lock as writer with an old index version is refused too', { skip: NO_QUERY }, async () => {
+  const { dir, home, db } = await indexOnlyDb('hub-guard-up-');
+  const holder = standInHub(dir, db);   // the live owner whose lock the reader will take
+  fs.writeFileSync(db + '.lock', JSON.stringify({ pid: holder.pid, db }));
+  const h = startHub({ HQ_CLAUDE_HOME: home, HQ_HUB_READER_UPGRADE_MS: '300' }, db);
+  try {
+    await h.ready();
+    assert.equal((await h.req('health')).result.role, 'reader');
+    holder.kill('SIGKILL');
+    assert.ok(await h.until(() => h.events.some((e) => e.event === 'ready' && e.data.role === 'writer'), 10000), 'the reader upgraded');
+    const hh = await h.healthy();
+    assert.equal(hh.role, 'writer'); assert.equal(hh.counts.conversations, 3, 'nothing was reset on the takeover');
+    assert.match(h.err(), REFUSAL);
+  } finally { await h.stop(); holder.kill('SIGKILL'); }
+});
+
+// a row written under older rules: the key sits in the index unmasked (addMessages stores text as given); built at run time
+const PLANTED = 'fc-' + 'Zq7Xk2'.repeat(5);
+test('masking on read: search snippets (markers stripped, no highlight), getConversation, titles and contextFor mask what old rows hold', async () => {
+  const dir = tmp('hub-mask-');
+  const { home, root } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const st = openStore(db, { indexVersion: INDEX_VERSION });
+  await backfill(st, root);
+  st.addMessages('code:sess-a1', [
+    { id: 'code:sess-a1:old1', role: 'user', at: '2026-10-01T10:02:00.000Z', text: 'deploy with ' + PLANTED + ' and then relax' },
+    { id: 'code:sess-a1:old2', role: 'user', at: '2026-10-01T10:03:00.000Z', text: 'the plain note mentions zebrafish only' }] );
+  st.close();
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    await h.healthy();
+    // searching by the key's first characters still finds the row (raw text stays in message_fts) but never shows the key
+    const hits = (await h.req('search', { q: 'Zq7Xk2Zq7Xk2' })).result;
+    assert.equal(hits.length, 1);
+    assert.ok(!hits[0].snippet.includes(PLANTED) && !hits[0].snippet.includes('Zq7Xk2Zq7Xk2'), 'no part of the key in the snippet: ' + JSON.stringify(hits[0].snippet));
+    assert.ok(!/[\u0002\u0003]/.test(hits[0].snippet), 'a masked snippet loses its highlight');
+    assert.match(hits[0].snippet, /••• secret \(firecrawl-key\)/);
+    // an unmasked snippet keeps its highlight markers
+    const plain = (await h.req('search', { q: 'zebrafish' })).result;
+    assert.equal(plain.length, 1); assert.match(plain[0].snippet, /\u0002zebrafish\u0003/);
+    const conv = (await h.req('getConversation', { id: 'code:sess-a1' })).result;
+    const old = conv.messages.find((m) => m.id === 'code:sess-a1:old1');
+    assert.equal(old.text, 'deploy with ••• secret (firecrawl-key) and then relax');
+    assert.equal(conv.conversation.title, 'Release planning', 'a clean title and null fields are untouched');
+    const ctx = (await h.req('contextFor', { query: 'deploy relax', budgetChars: 3000 })).result;
+    assert.ok(!JSON.stringify(ctx).includes('Zq7Xk2'), 'Ask grounding never carries the key');
+    assert.match(ctx.text, /deploy with/);
+  } finally { await h.stop(); }
+});

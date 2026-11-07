@@ -1,5 +1,6 @@
 // Secret masking for the Claude Hub index (spec §4). Pure, no deps, never throws.
 // The original transcripts on disk are never modified; only indexed text is masked.
+import { EXTRA_RULES } from './redact-more.mjs';
 export const MASK = (name) => `••• secret (${name})`;
 
 // order matters: specific shapes before generic ones (sk-ant- before sk-)
@@ -20,6 +21,10 @@ const RULES = [
   { name: 'jwt', re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g },
   { name: 'bearer', re: /(\bAuthorization:\s*Bearer\s+)[A-Za-z0-9._~+/=-]{16,}/gi, keep: 1 },
 ];
+
+// the recall dish's generic rules (URL credentials, NAME_TOKEN=value, 'password is …', api_key: …, fc-/sbp_/sb_secret_ keys, bot tokens)
+// run after the specific ones above; masking twice changes nothing more
+RULES.push(...EXTRA_RULES);
 
 export function maskSecrets(input) {
   let text = typeof input === 'string' ? input : '';

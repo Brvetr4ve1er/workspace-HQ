@@ -151,6 +151,7 @@ export async function run(W = window.WHQ) {
         ['reader', { state: 'ready', role: 'reader', counts: { projects: 0, conversations: 0, messages: 0 } }],
         ['no-node', { state: 'no-node', node: 'v20.1.0', error: 'Claude Hub needs Node 22.13 or newer (found v20.1.0)' }],
         ['down', { state: 'down', error: 'Claude Hub exited (1)' }],
+        ['index-only', { state: 'ready', role: 'writer', backfill: { done: 32, total: 32 }, counts: HUB_COUNTS, dbBytes: 2048, indexOnly: 47 }],   // recall dish: Reindex says why before any click
       ];
       // H2 Claude › Chats: sample Hub rows go into the store (never window.hq); cl* state is patched per combo.
       const CL_READY = { state: 'ready', role: 'writer', counts: HUB_COUNTS };
