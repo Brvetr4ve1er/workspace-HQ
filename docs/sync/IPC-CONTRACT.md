@@ -650,7 +650,7 @@ Additive only. Every channel below is NEW or an additive field on an existing on
 
 - `hq:claude-hub:reindex` may answer `{error, indexOnly:N}` (N chats exist only in this index; a reindex would delete them) instead of `{started:true}`.
 - `hq:claude-hub:health` gains `indexOnly`.
-- MCP `hq_recall({q, scope?, project?, source?, limit?})` → `{hits:[{conversationId, title, project, at, role, snippet}], scope, indexed, note}`.
+- MCP `hq_recall({q, scope?, project?, source?, limit?})` → `{hits:[{conversationId, title, project, at, role, snippet}], scope, indexed, note}`. `indexed` is `{source, conversations, lastAt}` (how much of that source the index holds and the newest chat's time, so a stale index shows its age); `note` is `null` with hits, else says why there are none (and offers `scope:'all'`, with how many chats elsewhere match). At most 2 hits per chat, snippets ≤ 240 characters, `limit` ≤ 20 (default 8).
 - MCP `hq_chat_read({id, scope?, limit?})` → `{id, title, turns:[{role, at, text}], more}`, or an error when the chat is from another folder and `scope` isn't `'all'`.
 
 ### Local bridge routes (HTTP, no renderer channel)

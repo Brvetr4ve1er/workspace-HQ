@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 2 of 8: recall of past Claude chats on an index that can't be wiped landed) · main
+DONE: the index guard (dashboard/claude-hub/index-guard.mjs) sits on the Hub's one store.resetCode() call in runIndex, so the startup rebuild, a reader
+  taking the lock, the writer start and the reindex op are all refused while chats exist only in the index (47 on the owner's real index: Claude Code kept
+  only 30 days of transcripts); the refusal is logged, resetNext cleared, every row stays. The reindex op answers {error, indexOnly}; health gains indexOnly;
+  System › Reindex says why in its tooltip and as the error toast. Masking on read: redact-more.mjs rules are appended to redact.mjs (new ingests too) and
+  the Hub re-masks search (snippets with their highlight markers stripped; a masked snippet comes back without highlights), getConversation and contextFor.
+  MCP hq_recall and hq_chat_read (mcp/workspacehq/hub-read.mjs, read-only on hub.sqlite, scope default 'here' = this session's folder). Real-index check,
+  counts only: 119 code chats, 47 index-only, the generic rules hit 97 rows (262 hits) the old rules had already left; 0 errors over 102,447 messages.
+  Gates: main 1073 pass / 0 fail (5 skipped), money 251/251, renderer 471/471, selftest 2560 combos 0/0/0, cdp-gate 36/36. Goldens: one NEW vals scenario
+  (system.hub-index-only); no existing hash moved; the template is unchanged.
+IN-FLIGHT: none from this dish. Six dishes follow in Pass order.
+ASKS (struct): none. BREAKS: none (additive). INDEX_VERSION stays 2. Anyone spawning a copied MCP server.mjs (tests) must also copy hub-read.mjs,
+  dashboard/claude-hub/{store,redact,redact-more}.mjs and dashboard/claude-prompt-note.js (server.test.mjs does).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 1 of 8: the assistant's rulebook landed) · main
 DONE: tiers, limits and one names-only log (data/assistant-audit.jsonl) for every MCP tool call (mcp/workspacehq/guard.mjs; the server answers async and
   finishes in-flight calls before exiting on stdin close); hq_activity; hq_scan_trigger now bounded (one at a time, 10-minute cooldown) and sharing
