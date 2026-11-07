@@ -121,6 +121,9 @@ function sessionHits(ctx) {
 }
 // project ids the session rule names, so brief-core's low 'dirty' rule can skip them
 export function sessionDirtyProjectIds(ctx) { try { return new Set(sessionHits(ctx).map((c) => idOf(c.project))); } catch { return new Set(); } }
+const topHit = (hits) => hits.reduce((a, b) => (b.dirty > a.dirty || (b.dirty === a.dirty && b.lastMs > a.lastMs) ? b : a));
+// the one project id the session item NAMES (the rest are folded into "and N more"); null when there is no hit
+export function sessionNamedProjectId(ctx) { try { const h = sessionHits(ctx); return h.length ? idOf(topHit(h).project) : null; } catch { return null; } }
 
 // ---- the six rules ---------------------------------------------------------------------------------------------------
 const go = (tab, sub) => ({ kind: 'go', tab, sub });
@@ -151,7 +154,7 @@ export const SENSE_FNS = {
 
   'session-left-dirty': (ctx) => {
     const hits = sessionHits(ctx); if (!hits.length) return null;
-    const top = hits.reduce((a, b) => (b.dirty > a.dirty || (b.dirty === a.dirty && b.lastMs > a.lastMs) ? b : a));
+    const top = topHit(hits);
     const now = num(ctx.now);
     return { key: 'session-left-dirty:' + idOf(top.project) + ':' + top.session.lastAt, severity: 'med',
       text: name(top.project.name, idOf(top.project)) + ': your Claude session there ended ' + ago(top.lastMs, now) + '; the scan after it saw ' + plural(top.dirty, 'uncommitted file') + andMore(hits.length - 1, 'project'),

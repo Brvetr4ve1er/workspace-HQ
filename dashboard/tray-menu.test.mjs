@@ -211,7 +211,10 @@ test('brief: a row opens its ref, a scan row runs the Scan path, the +N more lin
   actions.openRef = (...a) => calls.push(['openRef', ...a]);
   const t = trayTemplate({ scan: SCAN, brief: VIEW }, actions);
   click(t[1]); click(t[2]); click(t[3]);
-  assert.deepEqual(calls, [['openRef', 'aaaaaaaaaaaa'], ['scan'], ['show']]);
+  assert.deepEqual(calls, [['openRef', 'aaaaaaaaaaaa'], ['openRef', 'bbbbbbbbbbbb'], ['scan'], ['show']], 'the scan row logs its use through openRef, then runs Scan');
+  const bare = spyActions();
+  click(trayTemplate({ scan: SCAN, brief: VIEW }, bare.actions)[2]);
+  assert.deepEqual(bare.calls, [['scan']], 'without openRef the scan row still scans');
 });
 
 test('brief: not ready keeps today\'s level line below; an incomplete note sits under the header; more than 3 rows are cut to 3', () => {

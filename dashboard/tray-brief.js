@@ -8,7 +8,7 @@
 // create({ log, now?, onChange? }) → {
 //   set(brief, firstSeen?)   store the newest brief (brief.js onBrief). firstSeen = brief-state.json's { key: {first,last} };
 //                            without it the tray stamps keys itself, so "new" then means "new since the app started".
-//   view()  → { status:'not-ready'|'ok'|'empty'|'incomplete', statusLine, noteLine|null, showLevel, total, newCount,
+//   view()  → { status:'not-ready'|'ok'|'empty'|'incomplete', statusLine, noteLine|null, fromLine|null ('from HH:MM' when the brief is older than 30 min), showLevel, total, newCount,
 //               rows:[{ ref, label, scan }], overflow: { label } | null }      (always an object: never throws)
 //   tooltip() → string (≤ 127 chars) | null (null = use the caller's own tooltip)
 //   open(ref, showMainAt) → 'go' | 'scan' | 'none'   ('scan': the caller runs its existing "Scan now" path)
@@ -75,7 +75,7 @@ function create({ log, now = () => new Date(), onChange } = {}) {
       } else if (srcs.length) { status = 'incomplete'; statusLine = incomplete; }
       else { status = 'empty'; statusLine = 'Nothing needs you · ' + from; }
       const rows = p.items.slice(0, ROWS_MAX).map((x) => ({ ref: x.ref, scan: x.nav.kind === 'scan', label: clip([x.sevWord].concat(x.isNew ? ['new'] : [], [x.text]).join(' · '), LABEL_MAX) }));
-      return { status, statusLine, noteLine, showLevel: false, total, newCount, rows, overflow: p.overflowLine ? { label: clip(p.overflowLine, LABEL_MAX) } : null };
+      return { status, statusLine, noteLine, fromLine: p.stale || !t ? 'from ' + (t || 'earlier') : null, showLevel: false, total, newCount, rows, overflow: p.overflowLine ? { label: clip(p.overflowLine, LABEL_MAX) } : null };
     } catch {
       return { status: 'not-ready', statusLine: 'Brief not ready yet', noteLine: null, showLevel: true, total: 0, newCount: 0, rows: [], overflow: null };
     }
@@ -87,6 +87,9 @@ function create({ log, now = () => new Date(), onChange } = {}) {
     let s;
     if (v.total > 0) s = 'WorkspaceHQ — ' + v.total + (v.total === 1 ? ' needs you' : ' need you') + (v.newCount ? ' · ' + v.newCount + ' new' : '');
     else s = v.status === 'incomplete' ? 'WorkspaceHQ — brief incomplete' : 'WorkspaceHQ — nothing needs you';
+    // honest state: an old brief says whose time it is, a partial one says so (the menu header says both too)
+    if (v.fromLine) s += ' · ' + v.fromLine;
+    if (v.status === 'incomplete' && v.total > 0) s += ' · incomplete';
     return clip(s, TOOLTIP_MAX);
   }
 

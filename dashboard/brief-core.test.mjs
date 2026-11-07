@@ -219,6 +219,20 @@ test('the dirty rule does not repeat a project session-left-dirty already names'
   assert.match(other.items[1].text, /Project B/);
 });
 
+test('dismissing session-left-dirty hides only the project it named, not the ones folded into "and N more"', () => {
+  const sess = { sessions: [
+    { id: 's1', projectId: 'hp1', hqProjectId: 'a', cwd: 'C:/placeholder/a', lastAt: iso(5 * H) },
+    { id: 's2', projectId: 'hp2', hqProjectId: 'b', cwd: 'C:/placeholder/b', lastAt: iso(6 * H) }],
+    hubProjects: [{ id: 'hp1', hqProjectId: 'a', linkState: 'confirmed' }, { id: 'hp2', hqProjectId: 'b', linkState: 'confirmed' }], docsRoot: 'C:/placeholder' };
+  const inputs = withSenses({ scan: { projects: [proj('a', { dirty: 14 }), proj('b', { dirty: 12 })] } }, sess);
+  const before = run(inputs);
+  assert.deepEqual(rules(before), ['session-left-dirty']);
+  assert.equal(before.items[0].count, 1);
+  const after = run(inputs, [before.items[0].key]);
+  assert.deepEqual(rules(after), ['dirty'], 'b must not vanish with the dismissed item');
+  assert.match(after.items[0].text, /Project B/);
+});
+
 test('a sense that throws or sees garbage skips only itself', () => {
   const b = run(withSenses({ scan: { projects: [proj('a', { dirty: 12 })] } }, { github: 'nope', vercel: 7, pcDetail: [], sessions: 'x', hubProjects: null, sessionTurns: 3 }));
   assert.deepEqual(rules(b), ['dirty']);

@@ -58,6 +58,8 @@ function trayTemplate(state, actions) {
   // Wrap every handler: Electron calls click(menuItem, window, event) — actions
   // get only the args we pass — and a missing action is a no-op, not a crash.
   const run = (name, ...args) => () => { const f = act[name]; if (typeof f === 'function') f(...args); };
+  // a scan row first reports its click (openRef logs the use and answers 'scan', opening nothing), then runs the Scan path
+  const runScanRow = (ref) => () => { const f = act.openRef; if (typeof f === 'function') { try { f(ref); } catch { /* the use log never blocks a scan */ } } const s = act.scan; if (typeof s === 'function') s(); };
   const scan = st.scan && typeof st.scan === 'object' ? st.scan : null;
 
   const spells = (Array.isArray(st.spells) ? st.spells : []).filter((sp) => sp && sp.id != null);
@@ -75,7 +77,7 @@ function trayTemplate(state, actions) {
     head.push({ label: String(br.statusLine || 'Brief not ready yet'), enabled: false });
     if (br.showLevel) head.push({ label: statusLine(scan), enabled: false });
     if (br.noteLine) head.push({ label: String(br.noteLine), enabled: false });
-    for (const r of (Array.isArray(br.rows) ? br.rows : []).slice(0, 3)) if (r && typeof r.ref === 'string') head.push({ label: String(r.label || ''), click: r.scan ? run('scan') : run('openRef', r.ref) });
+    for (const r of (Array.isArray(br.rows) ? br.rows : []).slice(0, 3)) if (r && typeof r.ref === 'string') head.push({ label: String(r.label || ''), click: r.scan ? runScanRow(r.ref) : run('openRef', r.ref) });
     if (br.overflow && br.overflow.label) head.push({ label: String(br.overflow.label), click: run('show') });
   } else head.push({ label: statusLine(scan), enabled: false });
 

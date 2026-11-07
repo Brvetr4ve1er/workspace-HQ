@@ -9,7 +9,7 @@
 //   value is a new key and a dismissal only holds while the fact it hid is unchanged.
 // shouldToast(brief, state, now) → { toast: item | null, state } — P2's change-only toast decision.
 
-import { SENSE_FNS, sessionDirtyProjectIds } from './brief-senses.mjs';
+import { SENSE_FNS, sessionDirtyProjectIds, sessionNamedProjectId } from './brief-senses.mjs';
 
 export const RULES = ['scan-failed', 'secrets', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'claude-sync'];
 export const SEV_RANK = { high: 0, med: 1, low: 2 };
@@ -151,7 +151,12 @@ export function computeBrief(inputs, opts) {
     pcAge: isObj(i.pc) ? 'pc-health ' + ago(i.pc.scanned_at, now) : 'pc-health age unknown',
     github: i.github, vercel: i.vercel, pcDetail: i.pcDetail, sessions: i.sessions, sessionTurns: i.sessionTurns, hubProjects: i.hubProjects, docsRoot: i.docsRoot,
   };
-  try { ctx.sessionDirtyIds = sessionDirtyProjectIds(ctx); } catch { ctx.sessionDirtyIds = new Set(); }
+  try {
+    ctx.sessionDirtyIds = sessionDirtyProjectIds(ctx);
+    // a dismissed session item hides only the project it named; the ones it folded into "and N more" speak again as 'dirty'
+    const sess = RULE_FNS['session-left-dirty'](ctx);
+    if (sess && dismissed.has(sess.key)) { const named = sessionNamedProjectId(ctx); ctx.sessionDirtyIds = new Set(named === null ? [] : [named]); }
+  } catch { ctx.sessionDirtyIds = new Set(); }
   const all = [];
   for (const rule of RULES) {
     let it = null;

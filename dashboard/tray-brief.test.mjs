@@ -121,6 +121,17 @@ test('stale: older than 30 min says "from the HH:MM brief"; exactly 30 min does 
   assert.equal(t2.view().statusLine, 'Needs you · 1 · 13:40');
 });
 
+test('the tooltip carries the same honest state as the menu header: stale says from HH:MM, a partial brief says incomplete', async () => {
+  const old = new Date(NOW.getTime() - 31 * MIN);
+  const { tb } = await make(brief([SECRETS], { generatedAt: old.toISOString() }), seenAgo([SECRETS.key], 3 * 24 * H));
+  assert.equal(tb.tooltip(), 'WorkspaceHQ — 1 needs you · from 13:39');
+  const { tb: t2 } = await make(brief([SECRETS], { errors: [{ source: 'github', error: 'x' }] }), seenAgo([SECRETS.key], 3 * 24 * H));
+  assert.equal(t2.tooltip(), 'WorkspaceHQ — 1 needs you · incomplete');
+  const { tb: t3 } = await make(brief([], { generatedAt: old.toISOString() }));
+  assert.equal(t3.tooltip(), 'WorkspaceHQ — nothing needs you · from 13:39');
+  assert.ok(t3.tooltip().length <= 127);
+});
+
 test('without a firstSeen map the tray stamps keys itself: new now, not new a day later, gone keys forgotten', async () => {
   let t = NOW;
   const { tb } = await make(undefined, undefined, { now: () => t });
