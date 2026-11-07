@@ -180,6 +180,12 @@ contextBridge.exposeInMainWorld('hq', {
     },
   },
 
+  // Client delivery (IPC-CONTRACT hq:delivery:*): the card on each project page. The renderer sends a project id and validated intents only.
+  delivery: {
+    read: (projectId) => ipcRenderer.invoke('hq:delivery:read', projectId),
+    apply: (intent) => ipcRenderer.invoke('hq:delivery:apply', intent),
+  },
+
   // money space (IPC-CONTRACT hq:money:*). Intents only — main validates every field.
   money: {
     read: () => ipcRenderer.invoke('hq:money:read'),

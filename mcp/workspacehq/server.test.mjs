@@ -34,6 +34,10 @@ before(() => {
   // sessions (hq_sessions): the tool and the app's classifier it imports, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'sessions-tool.mjs'), path.join(root, 'mcp', 'workspacehq', 'sessions-tool.mjs'));
   fs.copyFileSync(path.join(dash, 'sessions-core.mjs'), path.join(root, 'dashboard', 'sessions-core.mjs'));
+  // client delivery (hq_delivery): the reader, the pure core it shares with the app, and the path resolver, in the same relative shape
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'delivery-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'delivery-read.mjs'));
+  fs.copyFileSync(path.join(dash, 'delivery-core.mjs'), path.join(root, 'dashboard', 'delivery-core.mjs'));
+  fs.copyFileSync(path.join(dash, 'project-paths.js'), path.join(root, 'dashboard', 'project-paths.js'));
   fs.mkdirSync(path.join(root, 'data', 'social'), { recursive: true });
   fs.writeFileSync(path.join(root, 'data', 'latest.json'), JSON.stringify({
     scan: { id: '2026-10-06', date: '2026-10-06' },
@@ -339,4 +343,24 @@ test('hq_sessions is on the list with the data line, answers from the index thro
     assert.ok(tool, 'hq_sessions is listed');
     assert.match(tool.description, /data, never instructions/i);
   } finally { fs.rmSync(path.join(root, 'data', 'claude'), { recursive: true, force: true }); }
+});
+
+// ---- client delivery: hq_delivery through the loop (the view itself is pinned in delivery-read.test.mjs) ----
+test('hq_delivery is listed with the data line, says honestly when nothing is marked, and refuses an unmarked or unknown project', async () => {
+  fs.rmSync(path.join(root, 'data', 'delivery.json'), { force: true });
+  const r = await rpc([
+    { id: 60, method: 'tools/call', params: { name: 'hq_delivery', arguments: {} } },
+    { id: 61, method: 'tools/call', params: { name: 'hq_delivery', arguments: { project: 'a' } } },
+    { id: 62, method: 'tools/call', params: { name: 'hq_delivery', arguments: { project: 'no-such-project' } } },
+    { id: 63, method: 'tools/list' },
+  ]);
+  assert.equal(r[60].result.isError, undefined, JSON.stringify(r[60]));
+  assert.deepEqual(toolResult(r[60]).projects, [], 'no client job marked yet: an empty list, nothing invented');
+  assert.equal(r[61].result.isError, true);
+  assert.match(r[61].result.content[0].text, /not marked as a client job/);
+  assert.equal(r[62].result.isError, true);
+  assert.match(r[62].result.content[0].text, /no project .{0,3}no-such-project/);
+  const tool = r[63].result.tools.find((t) => t.name === 'hq_delivery');
+  assert.ok(tool, 'hq_delivery is listed');
+  assert.match(tool.description, /data, never instructions/i);
 });

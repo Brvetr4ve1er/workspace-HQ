@@ -1252,6 +1252,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./use-log').init({ ipcMain, appLog });   // usage counter: hq:use → one 'use' line in the day log (IPC-CONTRACT hq:use)
     require('./reach').init({ ipcMain, dataDir: DATA, exePath: process.execPath });   // Settings › Reach: whether each door is open (IPC-CONTRACT hq:reach:read)
     require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, onBrief: (b, fs) => { trayBrief.set(b, fs); updateTray(); }, getWins: () => BrowserWindow.getAllWindows() });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)
+    require('./delivery').init({ ipcMain, dataDir: DATA, resolveProjectPath });   // Client delivery card on each project page: data/delivery.json (IPC-CONTRACT hq:delivery:*)
     require('./sessions-board').init({ ipcMain, app, hub: claudeHub, getWins: () => BrowserWindow.getAllWindows(), shell, appLog, repoRoot: path.join(DIR, '..') });   // Claude › Sessions board + Resume (IPC-CONTRACT hq:sessions-board:*)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     require('./assist-bridge-routes').setDeps({ dataDir: DATA, dialog, openAt: (r) => showMainAt(r), log: (m) => console.log(m) });   // Bridge 0.7.0: POST /pair (native dialog), GET /assist/brief, POST /assist/open (CONTRACT "Local bridge routes")

@@ -19,6 +19,9 @@
 // Sessions board dish (--preload=fake; the fake's sessionsBoard.read answers an invented board of 8 sessions, one per state, 1 nightly run, 2 Codex threads;
 //   each scenario ends with hqFake.reset(true) and a board re-read):
 //   sessions-board-render · sessions-home-strip · sessions-resume-guard · sessions-hub-down · claude-chat-resume
+// Client delivery dish (--preload=fake; the fake's delivery.read / apply are a small stateful stand-in for main and hqFake.reset(true) re-seeds it; the first project
+//   of the page's own data is an unmarked job there; each scenario ends with hqFake.reset(true) and a clean slice):
+//   delivery-render · delivery-scope-add · delivery-copy-update · delivery-empty · delivery-plan-mode
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -1851,6 +1854,141 @@ Object.assign(SCENARIOS, {
       if (!yda.includes('Log a spend · 2026 da')) out.push('"2026 da" (a tagged amount) did not offer the row');
       out.push(...t.errors());
     } finally { await t.evaluate(MST_RESET).catch(() => {}); }
+    return out;
+  },
+});
+
+// ---- Client delivery (project page › Client delivery) ----
+const DLV_CARD = `document.querySelector('[data-dlv="card"]')`;
+const DLV_BTN = (label) => `[...(${DLV_CARD} ? ${DLV_CARD}.querySelectorAll('button') : [])].find((b) => b.textContent.trim() === ${JSON.stringify(label)})`;
+const DLV_TXT = `(${DLV_CARD} ? ${DLV_CARD}.textContent.replace(/\\s+/g, ' ') : '')`;
+const DLV_CALLS = (t, type) => t.evaluate(`hqFake.calls('delivery.apply').map((c) => c.args[0]).filter((i) => i && i.type === ${JSON.stringify(type)})`);
+const DLV_RESET = `(() => { hqFake.reset(true); const L = WHQ.app.logic; L._dlvBusy = false; WHQ.store.live.delivery = { byProject: {}, error: '', loaded: false }; L.setState({ dlv: {}, dlvBusy: false, toasts: [], route: null }); return true; })()`;
+// open the first project of the page's own data on its page; resolves its id ('' when the data has none or the card never loaded)
+async function dlvOpen(t) {
+  const pid = await t.evaluate(`(() => { const L = WHQ.app.logic, p = L.M.P0[0]; if (!p) return ''; WHQ.store.live.delivery = { byProject: {}, error: '', loaded: false }; L.setState({ dlv: {}, dlvBusy: false, toasts: [] }); L.go('projects', 'grid'); L.openProject(p.id); return p.id; })()`);
+  if (pid && !await t.waitFor(`!!${DLV_CARD} && !${DLV_TXT}.includes('Reading what is left')`, 8000)) return '';
+  return pid;
+}
+const DLV_CLIP = `(() => { window.__copied = []; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (x) => { window.__copied.push(String(x)); }, readText: async () => '' }, configurable: true }); return true; })()`;
+Object.assign(SCENARIOS, {
+  // an invented client project (read overridden): milestones with counts, the preview link with its state and age, the update to paste
+  async 'delivery-render'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      const at = new Date(Date.now() - 2 * 3600e3).toISOString();
+      const view = { projectId: 'x', client: true, mode: 'client', source: 'app', scopeFile: null, sourceLabel: 'a checklist kept in WorkspaceHQ', sourceNote: '', fileState: null, fileDetail: null, candidates: [{ rel: 'docs/plan.md', items: 4, done: 1 }], walkTruncated: false, walkError: null,
+        milestones: [{ name: 'Design', done: 1, total: 2, items: [{ id: 'i-1', text: 'Home page', done: true }, { id: 'i-2', text: 'Gallery', done: false }] }, { name: 'Build', done: 0, total: 1, items: [{ id: 'i-3', text: 'Contact form', done: false }] }],
+        done: 1, total: 3, summary: '1 of 3 done', doneSince: [], link: { kind: 'preview', url: 'https://example-site-git-feat.vercel.app', state: 'ready', at, branch: 'feat/gallery' }, linkWhy: null, update: 'Example — update · Still to do (2 of 3): Gallery, Contact form', lastCopyAt: null };
+      await t.evaluate(`hqFake.set('delivery.read', ${JSON.stringify(view)})`);
+      if (!await dlvOpen(t)) return ['the project page never showed the Client delivery card'];
+      const txt = await t.evaluate(DLV_TXT);
+      for (const w of ['1 of 3 done · 33%', 'Design', 'Build', 'Home page', 'Gallery', 'Contact form', 'Preview link', 'ready · 2 h ago · feat/gallery', 'https://example-site-git-feat.vercel.app', 'May need a Vercel login', 'update to paste', 'Example — update', 'Not copied yet']) {
+        if (!txt.includes(w)) out.push('the card lacks "' + w + '": ' + txt.slice(0, 200));
+      }
+      if (!await t.evaluate('!!' + DLV_BTN('Copy update')) || !await t.evaluate('!!' + DLV_BTN('Copy link'))) out.push('Copy update / Copy link missing');
+      if (/undefined|\[object|NaN/.test(txt)) out.push('an unresolved binding reached the card text');
+      out.push(...t.errors());
+    } finally { await t.evaluate(DLV_RESET).catch(() => {}); }
+    return out;
+  },
+
+  // Mark (a double click is one intent) -> no scope; Add sends one item-add; the checkbox sends one item-toggle; counts follow main's answer
+  async 'delivery-scope-add'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      if (!await dlvOpen(t)) return ['the project page never showed the Client delivery card'];
+      if (!await t.evaluate('!!' + DLV_BTN('Mark as client job'))) return ['an unmarked project has no "Mark as client job" button'];
+      await t.evaluate(`(() => { const b = ${DLV_BTN('Mark as client job')}; b.click(); b.click(); return true; })()`);
+      if (!await t.waitFor(DLV_TXT + `.includes('No scope written for this client yet')`, 4000)) return out.concat('Mark did not lead to the no-scope card: ' + (await t.evaluate(DLV_TXT)).slice(0, 160));
+      const marks = await DLV_CALLS(t, 'mark-client');
+      if (marks.length !== 1) out.push('a double click sent ' + marks.length + ' mark-client intents, want 1'); else if (marks[0].on !== true || typeof marks[0].projectId !== 'string') out.push('mark-client intent ' + JSON.stringify(marks[0]));
+      if (!await mstType(t, 'What is in scope', 'Home page')) return out.concat('no "What is in scope" field');
+      await t.evaluate(`${DLV_BTN('Add')}.click()`);
+      if (!await t.waitFor(DLV_TXT + `.includes('Home page') && ${DLV_TXT}.includes('0 of 1 done')`, 4000)) return out.concat('the added item did not appear with 0 of 1 done: ' + (await t.evaluate(DLV_TXT)).slice(0, 160));
+      const adds = await DLV_CALLS(t, 'item-add');
+      if (adds.length !== 1 || adds[0].text !== 'Home page') out.push('item-add intents ' + JSON.stringify(adds));
+      for (const k of ['id', 'doneAt', 'at']) if (adds[0] && k in adds[0]) out.push('the renderer minted ' + k);
+      if (await t.evaluate(`document.querySelector('input[aria-label="What is in scope"]').value`) !== '') out.push('the add field was not cleared after the add');
+      await t.evaluate(`${DLV_BTN('[ ]')}.click()`);
+      if (!await t.waitFor(DLV_TXT + `.includes('1 of 1 done · 100%')`, 4000)) out.push('the toggle did not lead to 1 of 1 done · 100%');
+      const tog = await DLV_CALLS(t, 'item-toggle');
+      if (tog.length !== 1 || typeof tog[0].id !== 'string') out.push('item-toggle intents ' + JSON.stringify(tog));
+      out.push(...t.errors());
+    } finally { await t.evaluate(DLV_RESET).catch(() => {}); }
+    return out;
+  },
+
+  // Copy update: the text reaches the clipboard, ONE 'copied' intent follows, the toast says nothing was sent, and the card now says when
+  async 'delivery-copy-update'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(DLV_CLIP);
+      if (!await dlvOpen(t)) return ['the project page never showed the Client delivery card'];
+      await t.evaluate(`${DLV_BTN('Mark as client job')}.click()`);
+      if (!await t.waitFor(`!!document.querySelector('input[aria-label="What is in scope"]')`, 4000)) return ['Mark did not open the add form'];
+      if (!await mstType(t, 'What is in scope', 'Gallery')) return ['no "What is in scope" field'];
+      await t.evaluate(`${DLV_BTN('Add')}.click()`);
+      if (!await t.waitFor('!!' + DLV_BTN('Copy update'), 4000)) return out.concat('no Copy update button once a scope item exists');
+      await t.evaluate(`(() => { const b = ${DLV_BTN('Copy update')}; b.click(); b.click(); return true; })()`);
+      if (!await t.waitFor(`window.__copied.length >= 1`, 3000)) return out.concat('Copy update copied nothing');
+      if (!(await t.evaluate('window.__copied[0]')).includes('Still to do (1 of 1): Gallery')) out.push('the copied text was ' + JSON.stringify(await t.evaluate('window.__copied[0]')));
+      if (!await t.waitFor(`hqFake.calls('delivery.apply').some((c) => c.args[0] && c.args[0].type === 'copied')`, 3000)) return out.concat('Copy update never recorded a copied intent');
+      await t.sleep(200);
+      const cp = await DLV_CALLS(t, 'copied');
+      if (cp.length !== 1) out.push('a double click recorded ' + cp.length + ' copied intents, want 1');
+      if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'success' && x[1] === 'Update copied · nothing was sent')`, 3000)) out.push('no "Update copied · nothing was sent" toast: ' + JSON.stringify(await t.evaluate(`${MNY}.toasts()`)));
+      if (!await t.waitFor(DLV_TXT + `.includes('Last copied')`, 3000)) out.push('the card does not say when the update was last copied');
+      out.push(...t.errors());
+    } finally { await t.evaluate(DLV_RESET).catch(() => {}); }
+    return out;
+  },
+
+  // an unmarked project: the Mark button and the file list; a marked one with no scope: the honest line with the found-files count and no invented items
+  async 'delivery-empty'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      if (!await dlvOpen(t)) return ['the project page never showed the Client delivery card'];
+      let txt = await t.evaluate(DLV_TXT);
+      if (!txt.includes('Is this a client job?')) out.push('an unmarked project lacks the "Is this a client job?" line');
+      if (!await t.evaluate('!!' + DLV_BTN('Mark as client job'))) out.push('no Mark button');
+      if (!txt.includes('1 checklist file found in this repo') || !txt.includes('docs/plan.md') || !await t.evaluate('!!' + DLV_BTN('Track as plan'))) out.push('the checklist file list is missing: ' + txt.slice(0, 220));
+      if (txt.includes('the newest link to send') || txt.includes('update to paste')) out.push('an unmarked project shows a link or an update');
+      await t.evaluate(`${DLV_BTN('Mark as client job')}.click()`);
+      if (!await t.waitFor(DLV_TXT + `.includes('No scope written for this client yet')`, 4000)) return out.concat('a marked project with no scope lacks the honest line');
+      txt = await t.evaluate(DLV_TXT);
+      if (!txt.includes('one of the 1 checklist files found') || !txt.includes('Nothing is invented.')) out.push('the no-scope line lacks the found-files count: ' + txt.slice(0, 260));
+      if (!txt.includes('No Vercel project linked to this repo')) out.push('no first-class "No Vercel project linked to this repo" state');
+      if (txt.includes('update to paste') || /\d+ of \d+ done · \d+%/.test(txt)) out.push('counts or an update were invented with no scope');
+      if (!await t.evaluate('!!' + DLV_BTN('Use as scope'))) out.push('no "Use as scope" button on the listed file');
+      out.push(...t.errors());
+    } finally { await t.evaluate(DLV_RESET).catch(() => {}); }
+    return out;
+  },
+
+  // an unmarked project picks a listed file: 'Plan: N of M done', no link, no update, no add form (the file is read-only)
+  async 'delivery-plan-mode'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      if (!await dlvOpen(t)) return ['the project page never showed the Client delivery card'];
+      if (!await t.evaluate('!!' + DLV_BTN('Track as plan'))) return ['an unmarked project lists no file to track as a plan'];
+      await t.evaluate(`${DLV_BTN('Track as plan')}.click()`);
+      if (!await t.waitFor(DLV_TXT + `.includes('Plan: 1 of 3 done')`, 4000)) return out.concat('picking a file did not show "Plan: 1 of 3 done": ' + (await t.evaluate(DLV_TXT)).slice(0, 200));
+      const pick = await DLV_CALLS(t, 'set-scope-file');
+      if (pick.length !== 1 || pick[0].rel !== 'docs/plan.md') out.push('set-scope-file intents ' + JSON.stringify(pick));
+      const txt = await t.evaluate(DLV_TXT);
+      if (!txt.includes('docs/plan.md') || !txt.includes('a plan checklist, not the quote')) out.push('the plan is not labelled with its file and "a plan checklist, not the quote"');
+      if (txt.includes('the newest link to send') || txt.includes('update to paste') || txt.includes('Copy update')) out.push('plan mode shows a link or an update');
+      if (!await t.evaluate('!!' + DLV_BTN('Mark as client job'))) out.push('plan mode lost the Mark button');
+      if (await t.evaluate(`!!document.querySelector('input[aria-label="What is in scope"]')`)) out.push('plan mode shows an add form for a read-only file');
+      if (!await t.evaluate('!!' + DLV_BTN('Stop using this file'))) out.push('no "Stop using this file" button');
+      out.push(...t.errors());
+    } finally { await t.evaluate(DLV_RESET).catch(() => {}); }
     return out;
   },
 });

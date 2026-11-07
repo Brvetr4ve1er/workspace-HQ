@@ -178,6 +178,52 @@ function createFake(opts) {
     return prefs;
   };
 
+  // Client delivery fixture: a small stateful stand-in for dashboard/delivery.js, so the project page's card runs its real code paths.
+  // Invented projects: alpha-site (a checklist kept in the app + a preview link), beta-app (SCOPE.md, read-only, production link),
+  // gamma-tool (plan mode on docs/plan.md), delta-lib (a client job with no scope, two files found, no Vercel project); any other id is
+  // not a client job yet (Mark → no scope → add items). Ids and times are minted here, as main does. reset() puts it all back.
+  const DLV = (() => {
+    const agoIso = (min) => new Date(Date.now() - min * 60e3).toISOString();
+    const SEED = () => ({
+      'alpha-site': { client: true, scopeFile: null, items: [{ id: 'i-1', text: 'Home page', milestone: 'Design', done: true }, { id: 'i-2', text: 'Gallery', milestone: 'Design', done: false }, { id: 'i-3', text: 'Contact form', milestone: 'Build', done: false }], lastCopyAt: null, link: { kind: 'preview', url: 'https://alpha-site-git-feat-example.vercel.app', state: 'ready', at: agoIso(120), branch: 'feat/gallery' } },
+      'beta-app': { client: true, scopeFile: 'SCOPE.md', items: [], lastCopyAt: agoIso(2880), link: { kind: 'production', url: 'https://beta-app.example.vercel.app', state: 'ready', at: agoIso(5000), branch: 'main' }, file: { Setup: [['Repo created', true], ['CI green', true]], Launch: [['Domain pointed', false], ['Go-live check', false]] } },
+      'gamma-tool': { client: false, scopeFile: 'docs/plan.md', items: [], lastCopyAt: null, link: null, file: { Phase1: [['Parser', true], ['Exporter', true], ['Docs', false]] } },
+      'delta-lib': { client: true, scopeFile: null, items: [], lastCopyAt: null, link: null },
+    });
+    let S = SEED(), seq = 0;
+    const CANDS = { 'beta-app': [{ rel: 'SCOPE.md', items: 4, done: 2 }], 'gamma-tool': [{ rel: 'docs/plan.md', items: 3, done: 2 }], 'delta-lib': [{ rel: 'docs/todo.md', items: 6, done: 1 }, { rel: 'notes/launch.md', items: 3, done: 0 }] };
+    const entry = (id) => S[id] || (S[id] = { client: false, scopeFile: null, items: [], lastCopyAt: null, link: null });
+    const view = (id) => {
+      const e = entry(id), file = e.scopeFile && (S[id].file || (id !== 'beta-app' && id !== 'gamma-tool' ? { General: [['First step', true], ['Second step', false], ['Third step', false]] } : null));
+      const fileMs = file ? Object.keys(file).map((n) => ({ name: n, items: file[n].map(([text, done]) => ({ text, done })) })) : null;
+      const appMs = []; for (const it of e.items) { const n = it.milestone || 'General'; let m = appMs.find((x) => x.name === n); if (!m) appMs.push(m = { name: n, items: [] }); m.items.push({ id: it.id, text: it.text, done: it.done }); }
+      const src = fileMs ? 'file' : e.items.length ? 'app' : 'none', mss = (fileMs || appMs).map((m) => ({ name: m.name, items: m.items, done: m.items.filter((i) => i.done).length, total: m.items.length }));
+      const done = mss.reduce((a, m) => a + m.done, 0), total = mss.reduce((a, m) => a + m.total, 0);
+      const mode = e.client ? 'client' : e.scopeFile ? 'plan' : 'none';
+      const left = mss.flatMap((m) => m.items.filter((i) => !i.done).map((i) => i.text));
+      return { projectId: id, client: e.client, mode, source: src, scopeFile: e.scopeFile, sourceLabel: src === 'file' ? e.scopeFile + (/^scope.md$/i.test(e.scopeFile) ? '' : ' — a plan checklist, not the quote') : src === 'app' ? 'a checklist kept in WorkspaceHQ' : '', sourceNote: '',
+        fileState: src === 'file' ? 'ok' : null, fileDetail: null, candidates: CANDS[id] || [{ rel: 'docs/plan.md', items: 4, done: 1 }], walkTruncated: false, walkError: null,
+        milestones: mss, done, total, summary: done + ' of ' + total + ' done', doneSince: [], link: e.client ? e.link : null, linkWhy: e.link ? null : 'No Vercel project linked to this repo',
+        update: e.client && total ? id + ' — update · Still to do (' + left.length + ' of ' + total + '): ' + left.join(', ') + (e.link ? ' · Preview: ' + e.link.url : '') : '', lastCopyAt: e.lastCopyAt };
+    };
+    return {
+      read: (id) => (typeof id === 'string' && id ? view(id) : { error: 'no such project' }),
+      apply: (intent) => {
+        const id = intent && intent.projectId, e = id && entry(id), t = intent && intent.type;
+        if (!e) return { error: 'no such project' };
+        if (t === 'mark-client') e.client = !!intent.on;
+        else if (t === 'set-scope-file') e.scopeFile = intent.rel || null;
+        else if (t === 'item-add') { if (e.items.length >= 200) return { error: 'at most 200 items' }; e.items.push({ id: 'fake-' + (++seq), text: String(intent.text || '').slice(0, 200), milestone: intent.milestone || '', done: false }); }
+        else if (t === 'item-toggle') { const it = e.items.find((x) => x.id === intent.id); if (!it) return { error: 'no such item' }; it.done = !it.done; }
+        else if (t === 'item-remove') e.items = e.items.filter((x) => x.id !== intent.id);
+        else if (t === 'copied') e.lastCopyAt = new Date().toISOString();
+        else return { error: 'unknown intent' };
+        return view(id);
+      },
+      reset: () => { S = SEED(); seq = 0; },
+    };
+  })();
+
   // [method path, kind]: WRITE resolves true · SEND returns undefined · 'on:<channel>'
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
@@ -227,6 +273,7 @@ function createFake(opts) {
     ['brief.onBrief', 'on:hq:brief'],
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
     ['sessionsBoard.onBoard', 'on:hq:sessions-board'],
+    ['delivery.read', (id) => DLV.read(id)], ['delivery.apply', (intent) => DLV.apply(intent)],
     ['money.read', () => ({ view: MONEY.full })],
     // money in one minute + one line per spend: start / log-line / dry answer with placeholder values; a line main would refuse ('hello') answers its own words
     ['money.apply', (intent) => {
@@ -282,7 +329,7 @@ function createFake(opts) {
   const control = {
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0;
+      log.length = 0; casts = 0; DLV.reset();   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }

@@ -20,7 +20,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, brfBusy: false,
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false,
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
@@ -133,7 +133,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -384,6 +384,42 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }));
             });
           } finally { W.store.hq = hq1; W.store.refreshBoard = rb0; }
+        }
+        // Client delivery card (a project page): every state of the view. The slice is put straight into the store and the arrival read is held
+        // (the fake's own answers would replace it); dlv-offline hides hq.delivery for one combo; dlv-app-draft puts text in the add form.
+        if (proj) {
+          const dIso = (min) => new Date(Date.now() - min * 60e3).toISOString();
+          const dView = (o) => Object.assign({ projectId: proj, client: true, mode: 'client', source: 'app', scopeFile: null, sourceLabel: 'a checklist kept in WorkspaceHQ', sourceNote: '', fileState: null, fileDetail: null,
+            candidates: [{ rel: 'docs/plan.md', items: 4, done: 1 }], walkTruncated: false, walkError: null,
+            milestones: [{ name: 'Design', done: 1, total: 2, items: [{ id: 'i-1', text: 'Selftest home page', done: true }, { id: 'i-2', text: 'Selftest gallery', done: false }] }], done: 1, total: 2, summary: '1 of 2 done', doneSince: [],
+            link: { kind: 'preview', url: 'https://selftest-site-abc.vercel.app', state: 'ready', at: dIso(120), branch: 'feat' }, linkWhy: null, update: 'Selftest — update · Still to do (1 of 2): Selftest gallery', lastCopyAt: null }, o || {});
+          const DS = (v, error) => ({ byProject: v ? { [proj]: v } : {}, error: error || '', loaded: true });
+          const fileMs = [{ name: 'General', done: 2, total: 3, items: [{ text: 'Selftest step 1', done: true }, { text: 'Selftest step 2', done: true }, { text: 'Selftest step 3', done: false }] }];
+          const hq2 = W.store.hq, rd0 = W.store.refreshDelivery;
+          for (const [name, slice, offline, patch] of [
+            ['dlv-offline', DS(null), true],
+            ['dlv-loading', { byProject: {}, error: '', loaded: false }],
+            ['dlv-error', DS(null, 'selftest: synthetic delivery error')],
+            ['dlv-not-client', DS(dView({ client: false, mode: 'none', source: 'none', milestones: [], done: 0, total: 0, summary: '', link: null, update: '' }))],
+            ['dlv-no-scope', DS(dView({ source: 'none', milestones: [], done: 0, total: 0, summary: '', link: null, linkWhy: 'No Vercel project linked to this repo', update: '' }))],
+            ['dlv-file', DS(dView({ source: 'file', scopeFile: 'SCOPE.md', sourceLabel: 'SCOPE.md', milestones: fileMs, done: 2, total: 3, summary: '2 of 3 done', fileState: 'ok' }))],
+            ['dlv-app', DS(dView())],
+            ['dlv-app-draft', DS(dView()), false, { dlv: { draft: 'Selftest new item', ms: 'Design' } }],
+            ['dlv-plan', DS(dView({ client: false, mode: 'plan', source: 'file', scopeFile: 'docs/plan.md', sourceLabel: 'docs/plan.md — a plan checklist, not the quote', milestones: fileMs, done: 2, total: 3, summary: '2 of 3 done', fileState: 'ok', link: null, update: '' }))],
+            ['dlv-file-missing', DS(dView({ source: 'file', scopeFile: 'docs/gone.md', sourceLabel: 'docs/gone.md — a plan checklist, not the quote', fileState: 'missing', fileDetail: 'the file is not there', milestones: [], done: 0, total: 0, summary: '', update: '' }))],
+            ['dlv-no-link', DS(dView({ link: null, linkWhy: 'No Vercel project linked to this repo' }))],
+            ['dlv-link-building', DS(dView({ link: { kind: 'production', url: 'https://selftest-site.vercel.app', state: 'building', at: dIso(3), branch: 'main' }, lastCopyAt: dIso(600) }))],
+          ]) {
+            try {
+              await combo([theme, 'p3:' + name].join(' '), () => {
+                if (offline && hq2) W.store.hq = Object.assign({}, hq2, { delivery: undefined });
+                W.store.refreshDelivery = () => Promise.resolve();
+                LV.delivery = slice;
+                L.go('projects', 'grid'); L.openProject(proj);
+                L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch || {}));
+              });
+            } finally { W.store.hq = hq2; W.store.refreshDelivery = rd0; }
+          }
         }
       }
     } finally {

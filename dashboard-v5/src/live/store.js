@@ -44,6 +44,7 @@ export function createStore(DATA, hq) {
     money: { view: null, error: '', loaded: false },
     brief: { brief: null, error: '', loaded: false },   // Operator Brief: the last brief main computed (hq:brief:*)   // money space: last view from hq:money:* (main owns the data)
     board: { board: null, error: '', loaded: false },   // Sessions board: the last board main built (hq:sessions-board:*)
+    delivery: { byProject: {}, error: '', loaded: false },   // Client delivery: the last card main built per project (hq:delivery:*)
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
     accounts: null,   // a fresher data/accounts.json than the baked DATA.accounts (refreshAccounts)
@@ -230,6 +231,22 @@ export function createStore(DATA, hq) {
   function resumeSession(id, opts) {
     if (!hq || !hq.sessionsBoard || !hq.sessionsBoard.resume) return Promise.resolve({ error: 'The sessions board needs the desktop app' });
     return Promise.resolve().then(() => hq.sessionsBoard.resume(id, opts || {}));
+  }
+  // Client delivery (dashboard/delivery.js): main builds each project's card, the store holds the last answer per project. A failed read or a
+  // refused write never blanks a card already shown (the error is kept on the slice and only a first load shows it).
+  function refreshDelivery(id) {
+    if (!hq || !hq.delivery || !hq.delivery.read || !id) return Promise.resolve();
+    return pull(() => hq.delivery.read(id), (r) => {
+      if (r && typeof r === 'object' && !r.error) live.delivery = { byProject: Object.assign({}, live.delivery.byProject, { [id]: r }), error: '', loaded: true };
+      else live.delivery = { byProject: live.delivery.byProject, error: (r && typeof r.error === 'string' && r.error) || 'The client delivery card could not be read', loaded: true };
+    });
+  }
+  function applyDelivery(intent) {
+    if (!hq || !hq.delivery || !hq.delivery.apply) return Promise.resolve({ error: 'client delivery needs the desktop app' });
+    return Promise.resolve().then(() => hq.delivery.apply(intent)).then((r) => {
+      if (r && typeof r === 'object' && !r.error && intent && intent.projectId) live.delivery = { byProject: Object.assign({}, live.delivery.byProject, { [intent.projectId]: r }), error: '', loaded: true };
+      return r;
+    }, (e) => ({ error: (e && e.message) || String(e) })).finally(emit);
   }
   function refreshLlm(force) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
@@ -486,7 +503,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshLlm, refreshMoney, applyMoney, previewMoneyLine, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshLlm, refreshMoney, applyMoney, previewMoneyLine, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshDelivery, applyDelivery, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
   };

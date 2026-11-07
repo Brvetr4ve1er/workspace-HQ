@@ -1,6 +1,7 @@
 // Project page (v.project).
 // Cut verbatim from lines 333-428 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import delivery from './delivery.tpl.js';   // 2026-11-07 client delivery card, before the Claude section
 export default String.raw`        <sc-if value="{{ v.project }}" hint-placeholder-val="{{ false }}">
           <div>
             <button onClick="{{ pg.back }}" style="background:none;border:0;padding:0;color:var(--link);font-size:13px;cursor:pointer" style-hover="color:var(--link-hover)">← {{ pg.backLabel }}</button>
@@ -96,7 +97,7 @@ export default String.raw`        <sc-if value="{{ v.project }}" hint-placeholde
                     <sc-if value="{{ pg.noJournal }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted);padding:10px 4px">No entries yet. The first one is always the hardest.</div></sc-if>
                   </div>
                 </section>
-                <!-- v5: Claude Hub H3 — New chat opens the in-app composer (was a terminal in H2) -->
+${delivery}                <!-- v5: Claude Hub H3 — New chat opens the in-app composer (was a terminal in H2) -->
                 <!-- v5: project page › Claude (spec 2026-10-13 §9, H2) — this project's last 5 linked chats + New chat (a terminal session until the H3 composer) -->
                 <section data-cl="page">
                   <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px"><h2 style="margin:0;font-weight:600;font-size:13px;color:var(--accent-text);letter-spacing:.02em;white-space:nowrap"><span style="color:var(--faint);font-weight:400">╭─ </span>Claude<span style="color:var(--faint);font-weight:400"> ─╮</span></h2><button type="button" onClick="{{ clNewChat }}" title="Opens the in-app chat on this project" style="height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--purple);background:transparent;color:var(--text);cursor:pointer">New chat <span style="font-size:11px;color:var(--faint)">uses your Claude quota</span></button></div>
