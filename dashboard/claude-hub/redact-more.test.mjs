@@ -109,6 +109,17 @@ test('maskSnippet: a cut at the edge that leaves only the body of a key drops th
   assert.equal(dropCutKeyEdges('…short words'), '…short words');
 });
 
+test('maskSnippet: an ordinary long identifier or file name at a cut edge is kept, and the highlights with it', () => {
+  const snip = '…claude_hub_reindex_guard_test_file we \u0002fixed\u0003 it';
+  assert.equal(maskSnippet(snip, (t) => maskSecrets(t)), snip);
+  const camel = '…reindexGuardHelperFunctionName we \u0002fixed\u0003 it';
+  assert.equal(maskSnippet(camel, (t) => maskSecrets(t)), camel);
+  assert.equal(dropCutKeyEdges('look at the long_snake_case_identifier_here…'), 'look at the long_snake_case_identifier_here…');
+  // key-shaped orphans (digits, base64 symbols, long mixed case) still go
+  assert.equal(dropCutKeyEdges('…' + hex(24) + ' tail'), '… tail');
+  assert.equal(dropCutKeyEdges('head Zx9Qm2LpZx9Qm2LpZx9Qm2LpZx9Qm2Lp…'), 'head …');
+});
+
 test('maskSnippet and maskText take a missing or odd mask function', () => {
   assert.equal(maskSnippet('hello \u0002world\u0003', undefined), 'hello \u0002world\u0003');
   assert.equal(maskText('ALPHA_TOKEN=' + alnum(20), null), 'ALPHA_TOKEN=' + MASK('env-secret'));

@@ -232,3 +232,80 @@ test('insideFolder: the folder itself and anything below it, nothing that merely
   assert.equal(insideFolder(null, '/work/alpha', false), false);
   assert.equal(insideFolder('/work/alpha', '', false), false);
 });
+
+// ---- tasting fixes: scope paging, tool-call stubs, short paths, claude.ai chats ------------------------------------------
+function bigDb(name, build) {
+  const f = path.join(dir, name + '.sqlite');
+  const s = openStore(f);
+  build(s);
+  s.close();
+  return f;
+}
+const chat = (s, id, cwd, msgs, projectId = null, source = 'code') => {
+  s.ensureConversation({ id, source, projectId, nativeId: id.split(':')[1], cwd });
+  s.addMessages(id, msgs);
+};
+
+test('scope "here" and the project filter see past the first 200 ranked rows: in-folder chats ranked below 250 other-folder chats are found', async () => {
+  const f = bigDb('paging', (s) => {
+    s.upsertProject({ id: 'code:far', source: 'code', key: 'far', name: 'far-project', path: null });
+    s.upsertProject({ id: 'code:near', source: 'code', key: 'near', name: 'near-project', path: null });
+    for (let i = 0; i < 250; i++) chat(s, 'code:far' + i, 'C:\\placeholder\\far', [msg('quokka quokka quokka', '2026-10-01T10:00:00.000Z')], 'code:far');
+    chat(s, 'code:near1', HERE_A, [msg('one quokka among many many other filler words so that this row ranks far below the strong ones', '2026-10-02T10:00:00.000Z')], 'code:near');
+  });
+  const here = await hubRecall({ q: 'quokka', limit: 5 }, { dbFile: f, cwd: HERE_A, caseInsensitive: true });
+  assert.deepEqual(ids(here), ['code:near1'], 'the one in-folder chat is found; ' + JSON.stringify(here.note));
+  assert.equal(here.note, null);
+  const proj = await hubRecall({ q: 'quokka', scope: 'all', project: 'near-project', limit: 5 }, { dbFile: f, cwd: HERE_A, caseInsensitive: true });
+  assert.deepEqual(ids(proj), ['code:near1']);
+  // and the "elsewhere" note is only said when the search really ran dry in-folder
+  const none = await hubRecall({ q: 'quokka', limit: 5 }, { dbFile: f, cwd: 'C:\\placeholder\\nowhere', caseInsensitive: true });
+  assert.equal(none.hits.length, 0);
+  assert.match(none.note, /251 chat\(s\) elsewhere match/);
+});
+
+test('assistant tool-call stubs are not recalled or read as turns; the words around a stub stay', async () => {
+  const f = bigDb('stubs', (s) => {
+    chat(s, 'code:st1', HERE_A, [
+      msg('please run quokka tests', '2026-10-03T10:00:00.000Z'),
+      msg('[tool: Bash npm test quokka]', '2026-10-03T10:01:00.000Z', 'assistant', { toolName: 'Bash' }),
+      msg('[tool: Read src/quokka.js]', '2026-10-03T10:02:00.000Z', 'assistant', { toolName: 'Read' }),
+      msg('the quokka tests pass\n[tool: Bash git status]', '2026-10-03T10:03:00.000Z', 'assistant', { toolName: 'Bash' }),
+      msg('[tool: Bash echo]', '2026-10-03T10:04:00.000Z', 'assistant', { toolName: 'Bash' }),
+    ]);
+  });
+  const ctx = { dbFile: f, cwd: HERE_A, caseInsensitive: true };
+  const r = await hubRecall({ q: 'quokka', limit: 20 }, ctx);
+  assert.ok(r.hits.length > 0);
+  for (const h of r.hits) assert.ok(!h.snippet.startsWith('[tool:'), h.snippet);
+  const c = await hubChatRead({ id: 'code:st1', limit: 20 }, ctx);
+  assert.deepEqual(c.turns.map((t) => t.text), ['please run quokka tests', 'the quokka tests pass'], 'stub-only turns are gone, stub lines are stripped');
+  const last = await hubChatRead({ id: 'code:st1', limit: 1 }, ctx);
+  assert.equal(last.turns[0].text, 'the quokka tests pass', 'the last turn is the last real one, not a stub');
+});
+
+test('a chat recorded under an 8.3 short path is inside the long-form folder (and the other way round)', async () => {
+  const f = bigDb('shortpath', (s) => {
+    chat(s, 'code:sp1', 'C:\\Users\\ROGSTR~1\\proj\\sub', [msg('okapi notes', '2026-10-04T10:00:00.000Z')]);
+    chat(s, 'code:sp2', 'C:\\Users\\ROG STRIX\\other', [msg('okapi elsewhere', '2026-10-04T11:00:00.000Z')]);
+  });
+  const realpath = (p) => p.replace('ROGSTR~1', 'ROG STRIX');
+  const ctx = { dbFile: f, cwd: 'C:\\Users\\ROG STRIX\\proj', caseInsensitive: true, realpath };
+  assert.deepEqual(ids(await hubRecall({ q: 'okapi' }, ctx)), ['code:sp1']);
+  assert.equal((await hubChatRead({ id: 'code:sp1' }, ctx)).turns.length, 1);
+  await assert.rejects(hubChatRead({ id: 'code:sp2' }, ctx), /another folder/);
+  const shortSession = { dbFile: f, cwd: 'C:\\Users\\ROGSTR~1\\other', caseInsensitive: true, realpath };
+  assert.deepEqual(ids(await hubRecall({ q: 'okapi' }, shortSession)), ['code:sp2']);
+  // a path that cannot be resolved stays as written, never an error
+  const broken = { ...ctx, realpath() { throw new Error('ENOENT'); } };
+  assert.deepEqual(ids(await hubRecall({ q: 'okapi' }, broken)), []);
+});
+
+test('claude.ai chats with the default scope say they carry no folder, instead of "N chats elsewhere"', async () => {
+  const web = await hubRecall({ q: 'zebra', source: 'web' }, ctxA());
+  assert.equal(web.hits.length, 0);
+  assert.match(web.note, /claude\.ai chats carry no working folder/);
+  assert.doesNotMatch(web.note, /elsewhere/);
+  await assert.rejects(hubChatRead({ id: 'web:w1' }, ctxA()), /claude\.ai chats carry no working folder/);
+  assert.equal((await hubChatRead({ id: 'web:w1', scope: 'all' }, ctxA())).turns.length, 1);
+});

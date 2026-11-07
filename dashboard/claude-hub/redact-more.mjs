@@ -59,8 +59,11 @@ export function maskMore(input) {
 // the original (highlighted) snippet is returned.
 const MARKERS = /[\u0002\u0003]/g;
 const ELLIPSIS = '…';
-// an unbroken run of key characters long enough to be (the rest of) a key
-const ORPHAN = /^[A-Za-z0-9+/_=-]{20,}$/;
+// an unbroken run of key characters long enough to be (the rest of) a key, and shaped like one: it has a digit or a
+// base64 symbol, or it is long and mixed-case. A plain snake_case or camelCase identifier or file name at a cut edge is
+// not dropped (and does not cost the snippet its highlights).
+const ORPHAN_SHAPE = /^[A-Za-z0-9+/_=-]{20,}$/;
+const ORPHAN = { test: (w) => ORPHAN_SHAPE.test(w) && (/[0-9+/=]/.test(w) || (w.length >= 32 && /[a-z]/.test(w) && /[A-Z]/.test(w))) };
 
 // snippet() cuts at token boundaries, so it can start or end inside a key ("fc-" + body): the prefix that would
 // identify the key is outside the window and no pattern can see it. A cut edge that is one long key-like run is dropped.

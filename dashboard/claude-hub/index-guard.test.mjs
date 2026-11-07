@@ -85,4 +85,5 @@ test('guardReset on a store it cannot read refuses and says why', () => {
 
 test('refusalText is the sentence the reindex op and the log use', () => {
   assert.equal(refusalText(47), '47 chats exist only in this index — a reindex would delete them');
+  assert.equal(refusalText(1), '1 chat exists only in this index — a reindex would delete it', 'one chat is not "1 chats"');
 });

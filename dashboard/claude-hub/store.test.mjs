@@ -542,3 +542,24 @@ test('Social tab: listDocuments filters by origin/kind; socialSummary counts doc
   ]);
   assert.deepEqual(sum.dms, [{ origin: 'instagram', conversations: 1, messages: 2, last_at: '2026-10-02T10:00:00Z' }]);
 });
+
+test('contextHits pages through the ranking (offset) and can skip assistant tool-call stubs', () => {
+  const f = tmpDb(); const s = openStore(f);
+  seed(s);
+  s.addMessages('code:s1', [
+    msg(1, '2026-10-01T10:00:00Z', 'quokka quokka quokka'),
+    { ...msg(2, '2026-10-01T10:01:00Z', '[tool: Bash quokka run]', 'assistant'), toolName: 'Bash' },
+    { ...msg(3, '2026-10-01T10:02:00Z', 'the quokka is fine\n[tool: Bash ls]', 'assistant'), toolName: 'Bash' },
+    msg(4, '2026-10-01T10:03:00Z', 'one more quokka line here with extra words', 'assistant'),
+  ]);
+  const match = ftsQuery('quokka');
+  const all = s.contextHits({ match, limit: 50 });
+  assert.equal(all.length, 4, 'the default still returns the stubs (Ask grounding is unchanged)');
+  const p1 = s.contextHits({ match, limit: 2 }), p2 = s.contextHits({ match, limit: 2, offset: 2 });
+  assert.deepEqual([...p1, ...p2].map((r) => r.snippet), all.map((r) => r.snippet), 'pages concatenate to the full ranking');
+  assert.equal(s.contextHits({ match, limit: 2, offset: 4 }).length, 0);
+  const noStubs = s.contextHits({ match, limit: 50, skipToolStubs: true });
+  assert.equal(noStubs.length, 3, 'only the pure stub row is dropped; a turn with words and a stub line stays');
+  assert.ok(noStubs.every((r) => !r.snippet.startsWith('[tool:')));
+  s.close();
+});

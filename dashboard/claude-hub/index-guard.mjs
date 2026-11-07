@@ -49,4 +49,4 @@ export function guardReset(store, root, opts) {
 }
 
 // the exact words the reindex op answers with and the log carries
-export const refusalText = (n) => n + ' chats exist only in this index — a reindex would delete them';
+export const refusalText = (n) => (n === 1 ? '1 chat exists only in this index — a reindex would delete it' : n + ' chats exist only in this index — a reindex would delete them');

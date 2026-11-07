@@ -362,7 +362,9 @@ function api(db) {
     // turns, no forgotten chat. Empty snippet markers: the text goes to a model, not to a highlighter. Errors surface.
     // sources: the conversation sources to search (Ask's Claude history = code/web/chatgpt; its Instagram & Facebook
     // chip = instagram/facebook, whose other people's lines are role 'other' with the sender in tool_name).
-    contextHits({ match, limit = 60, sources = ['code', 'web', 'chatgpt'] } = {}) {
+    // offset pages through the ranking (hq_recall reads past the first 200 until its scope filter is satisfied);
+    // skipToolStubs drops assistant tool-call stubs ('[tool: Bash …]' with tool_name set), which are commands, not talk.
+    contextHits({ match, limit = 60, offset = 0, skipToolStubs = false, sources = ['code', 'web', 'chatgpt'] } = {}) {
       if (!match) return [];
       const src = (Array.isArray(sources) ? sources : []).filter((s) => typeof s === 'string' && /^[a-z]{1,20}$/.test(s));
       if (!src.length) return [];
@@ -372,8 +374,8 @@ function api(db) {
         FROM message_fts JOIN message m ON m.rowid = message_fts.rowid JOIN conversation c ON c.id = m.conversation_id
         LEFT JOIN project p ON p.id = c.project_id
         WHERE message_fts MATCH ? AND c.forgotten = 0 AND m.role IN ('user', 'assistant', 'other') AND m.is_sidechain = 0
-          AND c.source IN (${src.map(() => '?').join(', ')})
-        ORDER BY rank LIMIT ?`).all(match, ...src, Math.max(1, Math.min(200, Number(limit) || 60)));
+          AND c.source IN (${src.map(() => '?').join(', ')})${skipToolStubs ? " AND NOT (m.tool_name IS NOT NULL AND m.text LIKE '[tool:%')" : ''}
+        ORDER BY rank, m.rowid LIMIT ? OFFSET ?`).all(match, ...src, Math.max(1, Math.min(200, Number(limit) || 60)), Math.max(0, Math.floor(Number(offset)) || 0));
     },
     // the same OR-of-keywords MATCH over one document source (Ask's Instagram & Facebook chip reads 'social')
     contextDocHits({ match, source, limit = 20 } = {}) {

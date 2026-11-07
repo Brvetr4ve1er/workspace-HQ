@@ -967,7 +967,7 @@ async function indexOnlyDb(prefix) {
   fs.rmSync(files.b1);
   return { dir, home, root, files, db };
 }
-const REFUSAL = /1 chats exist only in this index — a reindex would delete them/;
+const REFUSAL = /1 chat exists only in this index — a reindex would delete it/;
 
 test('index guard: the startup rebuild (writer start) is refused while a chat exists only in the index; every row stays', async () => {
   const { home, db } = await indexOnlyDb('hub-guard-start-');
@@ -991,7 +991,7 @@ test('index guard: the reindex op answers {error, indexOnly} and starts nothing;
     await h.healthy();
     const r = await h.req('reindex');
     assert.equal(r.ok, true, 'a refusal is an answer, not a transport failure');
-    assert.deepEqual(r.result, { error: '1 chats exist only in this index — a reindex would delete them', indexOnly: 1 });
+    assert.deepEqual(r.result, { error: '1 chat exists only in this index — a reindex would delete it', indexOnly: 1 });
     assert.equal((await h.healthy()).counts.conversations, 3, 'rows stay');
     fs.writeFileSync(files.b1, userLine({ uuid: 'b1-u1', sessionId: 'sess-b1', at: '2026-09-30T08:00:00.000Z', cwd: 'C:\placeholder\project-b', text: 'Hello project b' }));
     const hh = await h.healthy();
@@ -1048,5 +1048,38 @@ test('masking on read: search snippets (markers stripped, no highlight), getConv
     const ctx = (await h.req('contextFor', { query: 'deploy relax', budgetChars: 3000 })).result;
     assert.ok(!JSON.stringify(ctx).includes('Zq7Xk2'), 'Ask grounding never carries the key');
     assert.match(ctx.text, /deploy with/);
+  } finally { await h.stop(); }
+});
+
+test('masking on read: documents (list, snippet, text, title) and chat / project titles mask what old rows hold', async () => {
+  const dir = tmp('hub-mask-docs-');
+  const { home, root } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const st = openStore(db, { indexVersion: INDEX_VERSION });
+  await backfill(st, root);
+  st.upsertDocument({ id: 'social:old1', source: 'social', path: 'C:/placeholder/mem.md', title: 'deploy notes ' + PLANTED, text: 'run the deploy with ' + PLANTED + ' then relax', mtimeMs: 1, size: 10 });
+  st.upsertDocument({ id: 'social:old2', source: 'social', path: 'C:/placeholder/plain.md', title: 'plain', text: 'nothing secret here but zebrafish', mtimeMs: 2, size: 10 });
+  st.setTitle('code:sess-a1', 'Planning with ' + PLANTED, 'custom');
+  st.close();
+  const h = startHub({ HQ_CLAUDE_HOME: home }, db);
+  try {
+    await h.healthy();
+    const list = (await h.req('listDocuments', { source: 'social' })).result;
+    const old1 = list.find((d) => d.id === 'social:old1');
+    assert.ok(old1.title.includes('••• secret (firecrawl-key)') && !old1.title.includes('Zq7Xk2'), 'document title: ' + old1.title);
+    assert.equal(old1.path, 'C:/placeholder/mem.md', 'a path is a locator and stays as stored');
+    const plain = list.find((d) => d.id === 'social:old2');
+    assert.ok(!('snippet' in plain) && !('text' in plain), 'a row without a snippet or text gets none added');
+    const found = (await h.req('listDocuments', { source: 'social', q: 'Zq7Xk2Zq7Xk2' })).result;
+    assert.equal(found.length, 1);
+    assert.ok(!JSON.stringify(found).includes('Zq7Xk2'), 'document search snippet: ' + JSON.stringify(found[0].snippet));
+    const doc = (await h.req('getDocument', { id: 'social:old1' })).result;
+    assert.equal(doc.text, 'run the deploy with ••• secret (firecrawl-key) then relax');
+    assert.ok(!doc.title.includes('Zq7Xk2'));
+    assert.equal((await h.req('getDocument', { id: 'social:old2' })).result.text, 'nothing secret here but zebrafish');
+    assert.equal((await h.req('getDocument', { id: 'social:none' })).result, null, 'a missing document stays null');
+    const convs = (await h.req('listConversations', {})).result;
+    assert.ok(!JSON.stringify(convs).includes('Zq7Xk2'), 'conversation titles are masked');
+    assert.ok(convs.some((c) => c.id === 'code:sess-a1' && c.title.includes('••• secret')));
   } finally { await h.stop(); }
 });

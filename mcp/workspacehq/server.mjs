@@ -259,7 +259,7 @@ const TOOLS = [
   {
     name: 'hq_recall',
     description: 'Search your past Claude chats (the Claude Hub index) and get ranked snippets: {hits:[{conversationId, title, project, at, role, snippet}], scope, indexed, note}. Read-only; works with the app closed. '
-      + 'scope "here" (default) keeps chats whose folder is inside the folder of this session; "all" reads every folder. source "code" (default) is Claude Code chats, "web" is claude.ai chats; Instagram and Facebook are never searched. '
+      + 'scope "here" (default) keeps chats whose folder is inside the folder of this session; "all" reads every folder. source "code" (default) is Claude Code chats, "web" is claude.ai chats (they carry no folder, so they need scope "all"); Instagram and Facebook are never searched. '
       + 'Only user and assistant text comes back (no tool output, no subagent turns, no forgotten chats), at most 240 characters a snippet, at most 20 hits. When "here" finds nothing the answer says so and offers scope "all". '
       + 'Caveats: text is masked for known secret shapes, but the raw text stays in the search table of the index, so searching for a secret string can still find its row, and a secret written in plain prose with no label can still slip through.',
     inputSchema: { type: 'object', properties: {

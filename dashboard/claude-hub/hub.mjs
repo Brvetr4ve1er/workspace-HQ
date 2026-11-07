@@ -419,6 +419,16 @@ function main() {
     return { ...r, conversation: c ? { ...c, title: mk(c.title), cwd: mk(c.cwd) } : c,
       messages: Array.isArray(r.messages) ? r.messages.map((m) => ({ ...m, text: mk(m.text) })) : r.messages };
   };
+  // documents (notes, prompts, memory, history) and chat/project titles: text, title, snippet and prompt text are masked again too.
+  // Keys are only added where the row already has them (a row without a snippet gets none); paths stay as stored (they locate files).
+  const maskDoc = (r) => {
+    if (!r || typeof r !== 'object') return r;
+    const o = { ...r };
+    for (const k of ['title', 'text', 'prompt_text']) if (typeof o[k] === 'string') o[k] = mk(o[k]);
+    if (typeof o.snippet === 'string') o.snippet = maskSnippet(o.snippet, maskSecrets);
+    return o;
+  };
+  const maskTitled = (r, keys) => { if (!r || typeof r !== 'object') return r; const o = { ...r }; for (const k of keys) if (typeof o[k] === 'string') o[k] = mk(o[k]); return o; };
   // Ask grounding reads only store.contextHits (context.mjs): the same store with every snippet and title masked again
   const maskedHits = (st) => ({ contextHits: (o) => st.contextHits(o).map((r) => ({ ...r, title: mk(r.title), snippet: maskSnippet(r.snippet, maskSecrets) })) });
   const ops = {
@@ -431,8 +441,8 @@ function main() {
       // chats whose transcript is gone from disk: this index is their only copy, so a reindex is refused while any exist
       indexOnly: store ? guardReset(store, root).indexOnly : 0 }),
     // readers answer these too; no open index is an error, never an empty list (Hub errors surface)
-    listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}); },
-    getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return store.getDocument(a || {}); },
+    listDocuments: (a) => { if (!store) throw new Error('the index is not open yet'); return store.listDocuments(a || {}).map(maskDoc); },
+    getDocument: (a) => { if (!store) throw new Error('the index is not open yet'); return maskDoc(store.getDocument(a || {})); },
     // claude.ai live sync (the extension, through claude-bridge-routes.js): what the index already has, then the new items
     syncState: () => (store ? store.syncState() : { conversations: {}, projects: {}, forgotten: [] }),
     syncPush: (a) => {
@@ -448,8 +458,8 @@ function main() {
       if (!['confirmed', 'rejected', 'none'].includes(a.state)) throw new Error('link: state must be confirmed, rejected or none');
       return serial(() => store.setLink(a)).then((ok) => { if (ok) markChanged([], [a.projectId]); return ok; });
     },
-    listProjects: (a) => (store ? store.listProjects(a) : []),
-    listConversations: (a) => (store ? store.listConversations(a) : []),
+    listProjects: (a) => (store ? store.listProjects(a).map((r) => maskTitled(r, ['name'])) : []),
+    listConversations: (a) => (store ? store.listConversations(a).map((r) => maskTitled(r, ['title', 'project_name'])) : []),
     // Masking runs again on the way out (redact-more.mjs): rows ingested under older rules keep whatever those let through.
     // A search snippet is masked with its highlight markers stripped (they split a key); a masked snippet loses its highlight.
     getConversation: (a) => (store ? maskConversation(store.getConversation(a)) : null),
