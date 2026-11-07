@@ -15,6 +15,12 @@ const scan = (o = {}) => ({ scan: { date: o.date || iso(2 * H) }, projects: o.pr
 const base = (o = {}) => ({ scan: scan(o.scan), liveScan: o.liveScan ?? { state: 'done', endedAt: iso(2 * H), code: 0 }, pc: o.pc ?? { scanned_at: iso(H), organs: [] },
   money: o.money ?? null, moneyMeta: o.moneyMeta ?? null, hub: o.hub ?? { webCount: 5, lastSyncAt: iso(H) }, errors: o.errors || [] });
 const run = (inputs, dismissed = []) => computeBrief(inputs, { now: NOW, dismissed });
+// the senses' sources (brief-sources.js shapes), all fresh unless overridden
+const fresh = () => iso(3 * H);
+const vercelWith = (state) => ({ state: 'ok', at: fresh(), partial: false, projects: [{ name: 'alpha-site', prod: { state, at: iso(H) }, deploys: [] }] });
+const repoOf = (o = {}) => ({ full: 'owner/alpha-site', name: 'alpha-site', ci: 'failure', archived: false, fork: false, pushedAt: iso(2 * D), ...o });
+const githubWith = (o = {}) => ({ state: 'ok', at: fresh(), partial: false, repos: [], waiting: [], ...o });
+const withSenses = (o, extra) => ({ ...base(o), ...extra });
 const rules = (b) => b.items.map((i) => i.rule);
 
 test('a healthy, fresh workspace has nothing to say', () => {
@@ -40,6 +46,14 @@ test('each rule fires on its condition, with its severity and action', () => {
     ['money-backup', 'low', { kind: 'go', tab: 'money', sub: 'today' }, base({ money: { hasAccounts: true, accounts: [], obligations: [] }, moneyMeta: null })],
     ['claude-sync', 'low', { kind: 'go', tab: 'claude', sub: 'chats' }, base({ hub: { webCount: 0, lastSyncAt: null } })],
   ];
+  // the six senses (brief-senses.mjs) slot into RULES by position; the table below is in RULES order
+  cases.splice(2, 0, ['prod-deploy-error', 'high', { kind: 'go', tab: 'projects', sub: 'accounts' }, withSenses({}, { vercel: vercelWith('error') })]);
+  cases.splice(8, 0, ['ci-red', 'med', { kind: 'go', tab: 'projects', sub: 'github' }, withSenses({}, { github: githubWith({ repos: [repoOf()] }) })]);
+  cases.splice(9, 0, ['session-left-dirty', 'med', { kind: 'go', tab: 'projects', projectId: 'a' }, withSenses({ scan: { projects: [proj('a', { dirty: 12 })] } }, {
+    sessions: [{ id: 's1', projectId: 'hp1', hqProjectId: 'a', cwd: 'C:/placeholder/a', lastAt: iso(5 * H) }], hubProjects: [{ id: 'hp1', hqProjectId: 'a', linkState: 'confirmed' }], docsRoot: 'C:/placeholder' })]);
+  cases.splice(14, 0, ['review-waiting', 'low', { kind: 'go', tab: 'projects', sub: 'github' }, withSenses({}, { github: githubWith({ waiting: [{ repo: 'owner/alpha-site', number: 1, updatedAt: iso(D), draft: false }] }) })]);
+  cases.splice(15, 0, ['reboot-pending', 'low', { kind: 'go', tab: 'system', sub: 'machine' }, withSenses({}, { pcDetail: { scannedAt: fresh(), rebootPending: true } })]);
+  cases.splice(16, 0, ['money-empty', 'low', { kind: 'go', tab: 'money', sub: 'today' }, base({ money: { hasAccounts: false, accounts: [], obligations: [] } })]);
   assert.deepEqual(cases.map((c) => c[0]), RULES, 'one case per rule, in rule order');
   for (const [rule, severity, action, inputs] of cases) {
     const b = run(inputs);
@@ -49,12 +63,15 @@ test('each rule fires on its condition, with its severity and action', () => {
     assert.deepEqual(it.action, action, rule);
     for (const k of ['key', 'text', 'why', 'source', 'age']) assert.ok(typeof it[k] === 'string' && it[k].length > 0, rule + ' has ' + k);
     assert.ok(it.key.startsWith(rule + ':'), rule + ' key is rule-prefixed: ' + it.key);
+    assert.ok(Number.isInteger(it.count) && it.count >= 0, rule + ' carries the additive count field');
   }
 });
 
 test('below the thresholds nothing fires (no false alarms)', () => {
   const b = run(base({ scan: { date: iso(30 * H), projects: [proj('a', { dirty: 9 })] }, money: { hasAccounts: false, accounts: [], obligations: [] }, hub: { webCount: 3, lastSyncAt: iso(2 * D) } }));
-  assert.deepEqual(rules(b), [], 'scan 30 h old, 9 dirty files, no money accounts, sync 2 d ago: all quiet');
+  assert.deepEqual(rules(b), ['money-empty'], 'scan 30 h old, 9 dirty files, sync 2 d ago: all quiet — only the money sense says Money is not set up');
+  const set = run(base({ scan: { date: iso(30 * H), projects: [proj('a', { dirty: 9 })] }, money: { hasAccounts: true, accounts: [], obligations: [] }, moneyMeta: { lastExportAt: iso(D) }, hub: { webCount: 3, lastSyncAt: iso(2 * D) } }));
+  assert.deepEqual(rules(set), [], 'with Money set up and exported, nothing fires');
 });
 
 test('ranking: severity first, then rule order; cap 3, the rest counted in more', () => {
@@ -153,4 +170,56 @@ test('shouldToast: two items flapping at the top toast once each, and old histor
   assert.equal(n, 2, 'a and b once each, not 12 toasts');
   const r = shouldToast({ items: [] }, st, at(12, 3));
   assert.deepEqual(r.state.toasted, {}, 'entries older than 24 h are pruned');
+});
+
+// ---- the senses: count, overflow, the day-one case, the dirty rule stepping aside ----------------------------------------
+test('every item carries count (the rule\'s "and N more" number, 0 when none)', () => {
+  const b = run(base({ scan: { projects: [proj('a', {}, { secrets_found: 3 }), proj('b', {}, { secrets_found: 1 }), proj('c', {}, { secrets_found: 2 })] } }));
+  assert.equal(b.items[0].rule, 'secrets');
+  assert.equal(b.items[0].count, 2, 'two other projects have secrets');
+  assert.match(b.items[0].text, /and 2 more projects$/);
+  assert.equal(run(base({ scan: { projects: [proj('a', { dirty: 12 })] } })).items[0].count, 0);
+});
+
+test('overflow holds the ranked items 4 to 12 (same shape), and the cap of 3 is unchanged', () => {
+  const b = run(withSenses({
+    scan: { date: iso(3 * D), projects: [proj('a', { dirty: 20, ahead: 2 }, { secrets_found: 1 })], quests: [{ id: 'q1', title: 'Fix the build', tier: 'red', status: 'open', project_id: 'a' }] },
+    liveScan: { state: 'failed', endedAt: iso(60e3), code: 2 },
+  }, { github: githubWith({ repos: [repoOf()], waiting: [{ repo: 'o/r', number: 1, updatedAt: iso(D), draft: false }] }) }));
+  assert.deepEqual(rules(b), ['scan-failed', 'secrets', 'quest-red']);
+  assert.deepEqual(b.overflow.map((i) => i.rule), ['scan-stale', 'unpushed', 'ci-red', 'dirty', 'review-waiting'], 'severity first, rule order within a severity');
+  assert.equal(b.more, b.overflow.length, 'more counts everything past the top 3');
+  assert.deepEqual(Object.keys(b.overflow[0]).sort(), Object.keys(b.items[0]).sort(), 'same shape as an item');
+  assert.deepEqual(run(base()).overflow, [], 'a quiet brief has an empty overflow');
+  // at most 9 ride along (items 4 to 12)
+  const many = run(withSenses({ scan: { date: iso(3 * D), projects: [proj('a', { dirty: 20, ahead: 2 }, { secrets_found: 1 })] } }, { github: githubWith({ repos: [repoOf()] }), vercel: vercelWith('error'), pcDetail: { scannedAt: fresh(), rebootPending: true } }));
+  assert.ok(many.overflow.length <= 9);
+});
+
+test('day one: three standing highs put a new ci-red item in overflow, not in the top 3', () => {
+  const standing = {
+    scan: { projects: [proj('a', {}, { secrets_found: 2 })], quests: [{ id: 'q1', title: 'Rotate the leaked key', tier: 'red', status: 'open', project_id: 'a' }] },
+    pc: { scanned_at: iso(H), organs: [{ id: 'disk', label: 'Disk', status: 'blood', diagnosis: 'C: is 98% full' }] },
+  };
+  const b = run(withSenses(standing, { github: githubWith({ repos: [repoOf(), repoOf({ full: 'owner/beta-site', name: 'beta-site' })] }) }));
+  assert.deepEqual(rules(b), ['secrets', 'pc-blood', 'quest-red']);
+  assert.deepEqual(b.overflow.map((i) => i.rule), ['ci-red']);
+  assert.equal(b.overflow[0].count, 1, 'CI is failing on a repo and 1 more');
+  assert.equal(b.more, 1);
+});
+
+test('the dirty rule does not repeat a project session-left-dirty already names', () => {
+  const sess = { sessions: [{ id: 's1', projectId: 'hp1', hqProjectId: 'a', cwd: 'C:/placeholder/a', lastAt: iso(5 * H) }], hubProjects: [{ id: 'hp1', hqProjectId: 'a', linkState: 'confirmed' }], docsRoot: 'C:/placeholder' };
+  const both = run(withSenses({ scan: { projects: [proj('a', { dirty: 14 })] } }, sess));
+  assert.deepEqual(rules(both), ['session-left-dirty'], 'the project is named once, by the med rule');
+  const noSession = run(base({ scan: { projects: [proj('a', { dirty: 14 })] } }));
+  assert.deepEqual(rules(noSession), ['dirty']);
+  const other = run(withSenses({ scan: { projects: [proj('a', { dirty: 14 }), proj('b', { dirty: 11 })] } }, sess));
+  assert.deepEqual(rules(other), ['session-left-dirty', 'dirty'], 'another dirty project still gets the low line');
+  assert.match(other.items[1].text, /Project B/);
+});
+
+test('a sense that throws or sees garbage skips only itself', () => {
+  const b = run(withSenses({ scan: { projects: [proj('a', { dirty: 12 })] } }, { github: 'nope', vercel: 7, pcDetail: [], sessions: 'x', hubProjects: null, sessionTurns: 3 }));
+  assert.deepEqual(rules(b), ['dirty']);
 });

@@ -1,16 +1,19 @@
 // Operator Brief engine (spec docs/superpowers/specs/2026-11-05-operator-design.md). PURE: no IO, no clock, no LLM —
 // the same inputs and `now` always give the same brief, so it's explainable and works with every model down.
 //
-// computeBrief(inputs, { now, dismissed }) → { v:1, generatedAt, items:[≤ 3], more, errors }
+// computeBrief(inputs, { now, dismissed }) → { v:1, generatedAt, items:[≤ 3], more, overflow:[items 4 to 12, same shape], errors }
 //   inputs = { scan: latest.json, liveScan: {state, endedAt, code}, pc: pc-health.json, money: the money view,
-//              moneyMeta: {lastExportAt}, hub: {webCount, lastSyncAt}, errors: [{source, error}] } — any may be null
-//   an item = { key, rule, severity, text, why, source, age, action }; key = rule:subject:value, so a changed
+//              moneyMeta: {lastExportAt}, hub: {webCount, lastSyncAt}, errors: [{source, error}],
+//              + the senses' sources (brief-sources.js): github, vercel, pcDetail, sessions, sessionTurns, hubProjects, docsRoot } — any may be null
+//   an item = { key, rule, severity, text, why, source, age, action, count }; count = the rule's "and N more" number (0 when none); key = rule:subject:value, so a changed
 //   value is a new key and a dismissal only holds while the fact it hid is unchanged.
 // shouldToast(brief, state, now) → { toast: item | null, state } — P2's change-only toast decision.
 
-export const RULES = ['scan-failed', 'secrets', 'money-late', 'pc-blood', 'quest-red', 'scan-stale', 'unpushed', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'claude-sync'];
+import { SENSE_FNS, sessionDirtyProjectIds } from './brief-senses.mjs';
+
+export const RULES = ['scan-failed', 'secrets', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'claude-sync'];
 export const SEV_RANK = { high: 0, med: 1, low: 2 };
-const CAP = 3;
+const CAP = 3, OVERFLOW_MAX = 12;   // items 4 to 12 ride along as brief.overflow
 const H = 3600e3, D = 24 * H;
 const SCAN_STALE_MS = 36 * H, DIRTY_MIN = 10, BACKUP_MS = 30 * D, SYNC_STALE_MS = 3 * D;
 const QUIET_FROM = 23, QUIET_TO = 8, TOAST_EVERY_MS = 24 * H;
@@ -49,7 +52,7 @@ const RULE_FNS = {
     const w = worst(projects, (p) => num(riskOf(p).secrets_found)); if (!w) return null;
     const n = num(riskOf(w.top).secrets_found);
     return { key: 'secrets:' + w.top.id + ':' + n, severity: 'high', text: name(w.top.name, w.top.id) + ' has ' + plural(n, 'secret') + ' in plain sight' + andMore(w.others, 'project'),
-      why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: scanAge, action: goProject(w.top) };
+      why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others };
   },
 
   'money-late': ({ money }) => {
@@ -57,7 +60,7 @@ const RULE_FNS = {
     if (!late.length) return null;
     const o = late[0];
     return { key: 'money-late:' + o.id + ':' + (o.due || ''), severity: 'high', text: name(o.name, 'A bill') + ' is ' + (o.dueLabel || 'late') + andMore(late.length - 1, 'late bill'),
-      why: 'It still counts against your breathing room until it is paid.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'runway' } };
+      why: 'It still counts against your breathing room until it is paid.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'runway' }, others: late.length - 1 };
   },
 
   'pc-blood': ({ organs, pcAge }) => organRule(organs, 'blood', 'high', pcAge, 'PC health marks it critical.'),
@@ -66,7 +69,7 @@ const RULE_FNS = {
     const red = quests.filter((q) => isObj(q) && q.tier === 'red' && q.status !== 'done');
     if (!red.length) return null;
     return { key: 'quest-red:' + red[0].id, severity: 'high', text: name(red[0].title, 'A critical quest') + andMore(red.length - 1, 'critical quest'),
-      why: 'The scan marks it critical.', source: 'scan', age: scanAge, action: { kind: 'go', tab: 'tasks' } };
+      why: 'The scan marks it critical.', source: 'scan', age: scanAge, action: { kind: 'go', tab: 'tasks' }, others: red.length - 1 };
   },
 
   'scan-stale': ({ scanMs, scanDay, now }) => {
@@ -80,7 +83,7 @@ const RULE_FNS = {
     const w = worst(projects, (p) => { const g = gitOf(p); return num(g.ahead) || (g.unpushed ? 1 : 0); }); if (!w) return null;
     const n = num(gitOf(w.top).ahead);
     return { key: 'unpushed:' + w.top.id + ':' + n, severity: 'med', text: name(w.top.name, w.top.id) + ' has ' + (n ? plural(n, 'commit') : 'work') + ' not pushed' + andMore(w.others, 'project'),
-      why: 'Until it is pushed it lives on this disk only.', source: 'scan', age: scanAge, action: goProject(w.top) };
+      why: 'Until it is pushed it lives on this disk only.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others };
   },
 
   'money-stale': ({ money }) => {
@@ -88,16 +91,17 @@ const RULE_FNS = {
     if (!stale.length) return null;
     const a = stale[0];
     return { key: 'money-stale:' + a.id + ':' + (a.anchorAt || ''), severity: 'med', text: 'Confirm ' + name(a.name, 'an account') + ' — last confirmed ' + (a.confirmed || 'a while ago') + andMore(stale.length - 1, 'account'),
-      why: 'Breathing room uses an estimate until you do.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'today' } };
+      why: 'Breathing room uses an estimate until you do.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'today' }, others: stale.length - 1 };
   },
 
   'pc-ember': ({ organs, pcAge }) => organRule(organs, 'ember', 'med', pcAge, 'PC health flags it.'),
 
-  dirty: ({ projects, scanAge }) => {
-    const w = worst(projects, (p) => { const n = num(gitOf(p).dirty); return n >= DIRTY_MIN ? n : 0; }); if (!w) return null;
+  dirty: ({ projects, scanAge, sessionDirtyIds }) => {
+    // a project the session-left-dirty sense already names is not said twice
+    const w = worst(projects.filter((p) => !(sessionDirtyIds && sessionDirtyIds.has(String(p.id)))), (p) => { const n = num(gitOf(p).dirty); return n >= DIRTY_MIN ? n : 0; }); if (!w) return null;
     const n = num(gitOf(w.top).dirty);
     return { key: 'dirty:' + w.top.id + ':' + n, severity: 'low', text: name(w.top.name, w.top.id) + ' has ' + n + ' uncommitted files' + andMore(w.others, 'project'),
-      why: 'Commit or stash them before they grow.', source: 'scan', age: scanAge, action: goProject(w.top) };
+      why: 'Commit or stash them before they grow.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others };
   },
 
   'money-backup': ({ money, moneyMeta, now }) => {
@@ -126,8 +130,10 @@ function organRule(organs, status, severity, pcAge, why) {
   if (!hit.length) return null;
   const o = hit[0];
   return { key: 'pc-' + status + ':' + o.id, severity, text: name(o.label, 'PC') + ': ' + name(o.diagnosis, 'needs a look') + andMore(hit.length - 1, 'issue'),
-    why, source: 'pc-health', age: pcAge, action: { kind: 'go', tab: 'system', sub: 'machine' } };
+    why, source: 'pc-health', age: pcAge, action: { kind: 'go', tab: 'system', sub: 'machine' }, others: hit.length - 1 };
 }
+
+Object.assign(RULE_FNS, SENSE_FNS);   // the six senses (brief-senses.mjs) run through the same loop, in RULES order
 
 export function computeBrief(inputs, opts) {
   const i = isObj(inputs) ? inputs : {};
@@ -143,17 +149,19 @@ export function computeBrief(inputs, opts) {
     organs: arr(isObj(i.pc) && i.pc.organs), scanMs, scanDay: scanMs === null ? '' : new Date(scanMs).toISOString().slice(0, 10),
     scanAge: scanMs === null ? 'scan age unknown' : 'scan ' + ago(new Date(scanMs).toISOString(), now),
     pcAge: isObj(i.pc) ? 'pc-health ' + ago(i.pc.scanned_at, now) : 'pc-health age unknown',
+    github: i.github, vercel: i.vercel, pcDetail: i.pcDetail, sessions: i.sessions, sessionTurns: i.sessionTurns, hubProjects: i.hubProjects, docsRoot: i.docsRoot,
   };
+  try { ctx.sessionDirtyIds = sessionDirtyProjectIds(ctx); } catch { ctx.sessionDirtyIds = new Set(); }
   const all = [];
   for (const rule of RULES) {
     let it = null;
     try { it = RULE_FNS[rule](ctx); } catch { it = null; }   // a malformed input skips its rule, never the brief
-    if (it && !dismissed.has(it.key)) all.push({ key: it.key, rule, severity: it.severity, text: it.text, why: it.why, source: it.source, age: it.age, action: it.action });
+    if (it && !dismissed.has(it.key)) all.push({ key: it.key, rule, severity: it.severity, text: it.text, why: it.why, source: it.source, age: it.age, action: it.action, count: Math.max(0, Math.floor(num(it.others))) });
   }
   // stable: severity first, rule order within a severity (all[] is already in rule order)
   all.sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
   const errors = arr(i.errors).filter((e) => isObj(e) && typeof e.source === 'string' && typeof e.error === 'string').map((e) => ({ source: e.source, error: e.error }));
-  return { v: 1, generatedAt: nowD.toISOString(), items: all.slice(0, CAP), more: Math.max(0, all.length - CAP), errors };
+  return { v: 1, generatedAt: nowD.toISOString(), items: all.slice(0, CAP), more: Math.max(0, all.length - CAP), overflow: all.slice(CAP, OVERFLOW_MAX), errors };
 }
 
 export function shouldToast(brief, state, now) {

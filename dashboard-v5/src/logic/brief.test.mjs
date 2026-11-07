@@ -95,3 +95,24 @@ test('the Brief is about now: it hides while an older scan is being viewed', () 
   assert.equal(rig().vals(true).brfShow, true);
   assert.equal(rig().vals(false).brfShow, false, 'scrubbed to an older scan');
 });
+
+// ---- the senses: action labels and the "+N more" line that names the overflow ------------------------------------------
+test('the CI / pull-request and deploy senses name where their button goes', () => {
+  const sense = (key, tab, sub) => item(key, 'med', { kind: 'go', tab, sub });
+  const live = { brief: { ...BRIEF, more: 0, items: [sense('ci-red:o/r:d', 'projects', 'github'), sense('prod-deploy-error:s:d', 'projects', 'accounts'), sense('claude-sync:0:never', 'projects', undefined)] }, error: '', loaded: true };
+  const labels = rig({ live }).vals().brfItems.map((i) => i.actLabel);
+  assert.deepEqual(labels, ['Open GitHub', 'Open Vercel & Supabase', 'Open Projects'], 'other Projects sub-tabs keep the plain label');
+});
+
+test('"+N more" names up to two overflow items by their own text, and says plain "+N more" when there are none', () => {
+  const ov = (text) => ({ ...item('ci-red:' + text, 'med', { kind: 'go', tab: 'projects', sub: 'github' }, text), count: 0 });
+  const plain = rig().vals();
+  assert.equal(plain.brfMoreText, '+2 more', 'no overflow field: exactly what it was');
+  const many = rig({ live: { brief: { ...BRIEF, more: 4, overflow: [ov('CI is failing on repo-x and 3 more repos'), ov('2 pull requests are waiting on you'), ov('This PC is waiting for a restart')] }, error: '', loaded: true } }).vals();
+  assert.equal(many.brfMoreText, '+4 more · CI is failing on repo-x and 3 more repos · 2 pull requests are waiting on you');
+  assert.equal(many.brfHasMore, true);
+  const junk = rig({ live: { brief: { ...BRIEF, more: 1, overflow: [null, { text: 5 }, { text: '  ' }, ov('only this one')] }, error: '', loaded: true } }).vals();
+  assert.equal(junk.brfMoreText, '+1 more · only this one', 'bad rows are skipped, not named');
+  const off = rig({ noBridge: true }).vals();
+  assert.equal(off.brfMoreText, '+0 more', 'offline names nothing');
+});

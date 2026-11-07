@@ -3,8 +3,9 @@
 // without Electron.
 //   trayTemplate(state, actions) → Electron MenuItemConstructorOptions[]
 //     state   = { scan (latest.json or null), spells:[{id,name,icon}],
-//                 devServers (count of running dev servers, optional, default 0) }
-//     actions = { show, scan, quickRun, openAutomations, cast(id),
+//                 devServers (count of running dev servers, optional, default 0),
+//                 brief (a tray-brief view(), optional: null/absent = today's menu, byte for byte) }
+//     actions = { show, scan, quickRun, openAutomations, cast(id), openRef(ref),
 //                 pushAll(projects), snapshotDirty(projects), killServers, openUrgent(project), quit }
 //       pushAll/snapshotDirty get the scan projects the label counted, openUrgent the
 //       project it names — main keeps its confirm dialogs, notifications and rescans.
@@ -66,8 +67,20 @@ function trayTemplate(state, actions) {
     { label: 'Open Automations', click: run('openAutomations') },
   ];
 
+  // The Brief block (tray-brief.js view): its status line replaces the level line (kept below it while the brief isn't ready),
+  // then up to 3 rows (a scan row runs the Scan path, any other opens where it gets cleared) and the "+N more" line (opens Home).
+  const br = st.brief && typeof st.brief === 'object' ? st.brief : null;
+  const head = [];
+  if (br) {
+    head.push({ label: String(br.statusLine || 'Brief not ready yet'), enabled: false });
+    if (br.showLevel) head.push({ label: statusLine(scan), enabled: false });
+    if (br.noteLine) head.push({ label: String(br.noteLine), enabled: false });
+    for (const r of (Array.isArray(br.rows) ? br.rows : []).slice(0, 3)) if (r && typeof r.ref === 'string') head.push({ label: String(r.label || ''), click: r.scan ? run('scan') : run('openRef', r.ref) });
+    if (br.overflow && br.overflow.label) head.push({ label: String(br.overflow.label), click: run('show') });
+  } else head.push({ label: statusLine(scan), enabled: false });
+
   const items = [
-    { label: statusLine(scan), enabled: false },
+    ...head,
     { type: 'separator' },
     { label: 'Show workspace-hq', click: run('show') },
     { label: 'Scan now (uses Claude)', click: run('scan') },

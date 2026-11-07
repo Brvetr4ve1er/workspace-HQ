@@ -143,14 +143,20 @@ async function hubTool(fn, args) {
 const TOOLS = [
   {
     name: 'hq_brief',
-    description: 'The Operator Brief: the 1–3 things that need the owner right now, ranked by the WorkspaceHQ app (deterministic, no LLM) from the scan, quests, money, PC health, the scan run and claude.ai sync. Each item has severity (high/med/low), text, why, source, age and the one action that clears it in the app. Read-only — start a session with it to know what matters before anything else. ageMinutes says how old the brief is; the app rewrites it on every scan, money write and every 15 min while it runs.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    run() {
+    description: 'The Operator Brief: what needs the owner right now, ranked by the WorkspaceHQ app (deterministic, no LLM) from the scan, quests, money, PC health, CI, deploys, pull requests, the Claude session they left, the scan run and claude.ai sync. Each item has severity (high/med/low), text, why, source, age, count (how many more of the same kind it stands for) and the one action that clears it in the app. Default the top 3; limit (1–12) asks for more — items holds up to that many, overflow the ranked rest (at most 12 in all), more counts everything past the top 3. Read-only — start a session with it to know what matters before anything else. ageMinutes says how old the brief is; the app rewrites it on every scan, money write and every 15 min while it runs.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12, description: 'how many ranked items to return in items (1–12, default 3); the rest of the ranked list comes back in overflow' } }, additionalProperties: false },
+    run(args) {
+      let limit = 3;
+      if (args && args.limit !== undefined && args.limit !== null) {
+        limit = args.limit;
+        if (!Number.isInteger(limit) || limit < 1 || limit > 12) throw new ToolError('limit must be a whole number from 1 to 12');
+      }
       const file = confined('brief.json');
       const b = readJson(file, null);
       if (!b || !Array.isArray(b.items)) return { error: 'no brief yet — the WorkspaceHQ app writes data/brief.json when it runs' };
       const t = Date.parse(b.generatedAt);
-      return { ...b, ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
+      const ranked = b.items.concat(Array.isArray(b.overflow) ? b.overflow : []);
+      return { ...b, items: ranked.slice(0, limit), overflow: ranked.slice(limit), ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
     },
   },
   {

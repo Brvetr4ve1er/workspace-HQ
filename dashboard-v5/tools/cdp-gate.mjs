@@ -6,8 +6,10 @@
 // Exit 0 every scenario passed · 1 one failed · 2 couldn't connect / bad usage.
 // money scenarios (need --preload=fake; tools/money.fake-views.json is what money.read answers):
 //   money-open-key9 · money-log-spend · money-pay-bill · money-inbox-paste-promo · money-archive-ask · money-button-sweep
-// Operator Brief scenarios (--preload=fake; the fake's brief.read answers a 3-item placeholder brief):
+// Operator Brief scenarios (--preload=fake; the fake's brief.read answers a 3-item placeholder brief with 2 overflow items):
 //   brief-render · brief-act · brief-dismiss
+// Brief senses dish (hqFake.set answers a brief whose items are CI and deploy senses; ends with hqFake.reset(true)):
+//   brief-senses-act
 // Assistant rulebook scenarios (--preload=fake; the fake's reach.read answers 4 placeholder rows, use() records its calls):
 //   reach-render · use-marks
 // Recall dish (--preload=fake; hqFake.set answers the Hub's refusal and a health with index-only chats):
@@ -1488,6 +1490,43 @@ const SCENARIOS = {
     if (JSON.stringify(keys) !== JSON.stringify(['secrets:p1:2'])) out.push('dismiss calls ' + JSON.stringify(keys) + ', want exactly ["secrets:p1:2"]');
     if (!await t.waitFor(`${BRF}.items().length === 2`, 3000)) out.push('the dismissed item is still shown');
     else if ((await t.evaluate(`${BRF}.texts()[0]`)).includes('secrets')) out.push('the first item is still the dismissed one');
+    return out.concat(t.errors());
+  },
+
+  // Brief senses dish: a CI item and a failed-deploy item name where they go (Open GitHub / Open Vercel & Supabase), the Act buttons land on
+  // Projects › GitHub and Projects › Accounts, and Dismiss sends that item's key exactly once (a double click is one write)
+  async 'brief-senses-act'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const CI = 'ci-red:owner/placeholder-repo:2026-11-04T10:00:00Z', DEP = 'prod-deploy-error:placeholder-site:2026-11-04T09:00:00Z';
+    const item = (key, rule, severity, text, source, sub) => ({ key, rule, severity, text, why: 'Placeholder reason.', source, age: source + '.json 1 h ago', count: 0, action: { kind: 'go', tab: 'projects', sub } });
+    const items = [item(DEP, 'prod-deploy-error', 'high', 'placeholder-site failed to deploy to production', 'vercel', 'accounts'), item(CI, 'ci-red', 'med', 'CI is failing on placeholder-repo', 'github', 'github')];
+    const brief = { v: 1, generatedAt: '2026-11-07T09:00:00.000Z', items, overflow: [], more: 0, errors: [] };
+    const home = () => t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ brfBusy: false }); L._brfBusy = false; L.store.refreshBrief(); L.go('home'); return true; })()`);
+    try {
+      await t.evaluate(`(() => { hqFake.set('brief.read', { brief: ${JSON.stringify(brief)} });
+        hqFake.set('brief.dismiss', (key) => ({ brief: Object.assign({}, ${JSON.stringify(brief)}, { items: ${JSON.stringify(items)}.filter((i) => i.key !== key) }) })); return true; })()`);
+      await home();
+      if (!await t.waitFor(`${BRF}.items().length === 2`, 8000)) return ['the Brief never rendered the 2 sense items (got ' + await t.evaluate(`${BRF}.items().length`) + ')'];
+      if (!await t.evaluate(`${BRF}.btn(0, 'Open Vercel & Supabase') && ${BRF}.btn(1, 'Open GitHub')`)) out.push('the action buttons are not named Open Vercel & Supabase / Open GitHub: ' + JSON.stringify(await t.evaluate(`${BRF}.texts()`)));
+      await t.evaluate(`${BRF}.click(1, 'Open GitHub')`);
+      if (!await t.waitFor(`WHQ.app.logic.state.tab === 'projects' && WHQ.app.logic.state.sub.projects === 'github'`, 3000)) out.push('Open GitHub did not land on Projects › GitHub (tab ' + await t.evaluate('WHQ.app.logic.state.tab') + ', sub ' + await t.evaluate('JSON.stringify(WHQ.app.logic.state.sub)') + ')');
+      await home();
+      if (!await t.waitFor(`${BRF}.items().length === 2`, 5000)) return out.concat(['the Brief did not come back after Open GitHub']);
+      await t.evaluate(`${BRF}.click(0, 'Open Vercel & Supabase')`);
+      if (!await t.waitFor(`WHQ.app.logic.state.tab === 'projects' && WHQ.app.logic.state.sub.projects === 'accounts'`, 3000)) out.push('Open Vercel & Supabase did not land on Projects › Accounts');
+      if ((await t.evaluate(`hqFake.calls('brief.dismiss').length`)) !== 0) out.push('acting dismissed something');
+      await home();
+      if (!await t.waitFor(`${BRF}.items().length === 2`, 5000)) return out.concat(['the Brief did not come back after Open Vercel & Supabase']);
+      await t.evaluate(`(${BRF}.click(1, 'Dismiss'), ${BRF}.click(1, 'Dismiss'))`);   // a double click on the CI item
+      if (!await t.waitFor(`hqFake.calls('brief.dismiss').length >= 1`, 3000)) return out.concat(['Dismiss did not reach main']);
+      await t.sleep(200);
+      const keys = await t.evaluate(`hqFake.calls('brief.dismiss').map((c) => c.args[0])`);
+      if (JSON.stringify(keys) !== JSON.stringify([CI])) out.push('dismiss calls ' + JSON.stringify(keys) + ', want exactly [' + JSON.stringify(CI) + ']');
+      if (!await t.waitFor(`${BRF}.items().length === 1`, 3000)) out.push('the dismissed item is still shown');
+    } finally {   // the fake's own 3-item brief back for every later scenario
+      await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ brfBusy: false }); WHQ.app.logic._brfBusy = false; WHQ.store.refreshBrief(); return true; })()`).catch(() => {});
+    }
     return out.concat(t.errors());
   },
 

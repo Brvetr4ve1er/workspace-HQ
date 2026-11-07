@@ -173,3 +173,75 @@ test('a missing action is a no-op, not a crash', () => {
   assert.doesNotThrow(() => trayTemplate(null, null));
   assert.equal(trayTemplate(null, null)[0].label, '—');
 });
+
+// ---------------------------------------------------------------- the Brief block (tray-brief view)
+const VIEW = {
+  status: 'ok', statusLine: 'Needs you · 4 · 1 new · 14:05', noteLine: null, showLevel: false, total: 4, newCount: 1,
+  rows: [
+    { ref: 'aaaaaaaaaaaa', scan: false, label: 'urgent · new · A project has secrets in plain sight' },
+    { ref: 'bbbbbbbbbbbb', scan: true, label: 'soon · Scan data is old' },
+  ],
+  overflow: { label: '+2 more · CI failing on 2 repos' },
+};
+
+test('brief: with state.brief null or absent the template is exactly today\'s', () => {
+  const { actions } = spyActions();
+  const plain = trayTemplate({ scan: SCAN, spells: SPELLS, devServers: 1 }, actions);
+  for (const brief of [null, undefined]) {
+    const t = trayTemplate({ scan: SCAN, spells: SPELLS, devServers: 1, brief }, actions);
+    assert.deepEqual(labels(t), labels(plain));
+    assert.equal(JSON.stringify(t), JSON.stringify(plain), 'byte-identical');
+  }
+  assert.equal(plain[0].label, 'lv 8 · 34 uncommitted · 2 secrets');
+});
+
+test('brief: the status line leads, then up to 3 rows and the +N more line, all before Show workspace-hq', () => {
+  const { actions } = spyActions();
+  const t = trayTemplate({ scan: SCAN, spells: SPELLS, brief: VIEW }, actions);
+  const l = labels(t);
+  assert.deepEqual(l.slice(0, 5), ['Needs you · 4 · 1 new · 14:05', 'urgent · new · A project has secrets in plain sight', 'soon · Scan data is old', '+2 more · CI failing on 2 repos', '─']);
+  assert.equal(l[5], 'Show workspace-hq');
+  assert.equal(t[0].enabled, false, 'the status line is not clickable');
+  assert.ok(!l.some((x) => /^lv 8/.test(x)), 'the level line is gone while the brief is ready');
+  assert.deepEqual(l.slice(5), labels(trayTemplate({ scan: SCAN, spells: SPELLS }, actions)).slice(2), 'everything after the block is today\'s menu');
+});
+
+test('brief: a row opens its ref, a scan row runs the Scan path, the +N more line opens Home', () => {
+  const { actions, calls } = spyActions();
+  actions.openRef = (...a) => calls.push(['openRef', ...a]);
+  const t = trayTemplate({ scan: SCAN, brief: VIEW }, actions);
+  click(t[1]); click(t[2]); click(t[3]);
+  assert.deepEqual(calls, [['openRef', 'aaaaaaaaaaaa'], ['scan'], ['show']]);
+});
+
+test('brief: not ready keeps today\'s level line below; an incomplete note sits under the header; more than 3 rows are cut to 3', () => {
+  const { actions } = spyActions();
+  const notReady = trayTemplate({ scan: SCAN, brief: { status: 'not-ready', statusLine: 'Brief not ready yet', noteLine: null, showLevel: true, rows: [], overflow: null } }, actions);
+  assert.deepEqual(labels(notReady).slice(0, 3), ['Brief not ready yet', 'lv 8 · 34 uncommitted · 2 secrets', '─']);
+  const note = trayTemplate({ scan: SCAN, brief: { ...VIEW, noteLine: "Brief incomplete · couldn't read github" } }, actions);
+  assert.equal(labels(note)[1], "Brief incomplete · couldn't read github");
+  assert.equal(note[1].enabled, false);
+  const five = { ...VIEW, rows: [1, 2, 3, 4, 5].map((n) => ({ ref: String(n).repeat(12), scan: false, label: 'row ' + n })), overflow: null };
+  assert.equal(labels(trayTemplate({ brief: five }, actions)).filter((x) => /^row /.test(x)).length, 3);
+});
+
+test('brief: a garbage brief or a missing openRef never throws', () => {
+  for (const brief of ['x', 7, [], { rows: 'no', overflow: 3 }, { rows: [null, { ref: 5 }], statusLine: 9 }]) {
+    assert.doesNotThrow(() => trayTemplate({ scan: SCAN, brief }, {}), JSON.stringify(brief));
+  }
+  const t = trayTemplate({ brief: VIEW }, {});
+  assert.doesNotThrow(() => click(t[1]));
+});
+
+test('brief: the real tray-brief view feeds the template end to end', async () => {
+  const { create } = require('./tray-brief.js');
+  const tb = create({ log: () => {} });
+  await tb.ready;
+  tb.set({ v: 1, generatedAt: new Date().toISOString(), items: [{ key: 'secrets:a:2', rule: 'secrets', severity: 'high', text: 'Project A has 2 secrets in plain sight', why: 'x', source: 'scan', age: 'scan 1 h ago', count: 0, action: { kind: 'go', tab: 'projects', projectId: 'a' } }], more: 0, overflow: [], errors: [] });
+  const opened = [];
+  const t = trayTemplate({ scan: SCAN, brief: tb.view() }, { openRef: (ref) => tb.open(ref, (r) => opened.push(r)) });
+  assert.match(t[0].label, /^Needs you · 1 · 1 new · \d\d:\d\d$/);
+  assert.equal(t[1].label, 'urgent · new · A project has secrets in plain sight', 'projection wording: no project name on the tray');
+  click(t[1]);
+  assert.deepEqual(opened, [{ tab: 'projects', projectId: 'a' }]);
+});

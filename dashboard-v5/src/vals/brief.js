@@ -6,7 +6,9 @@ const SEV = { high: ['urgent', 'var(--red)'], med: ['soon', 'var(--orange)'], lo
 const TAB_LABEL = { money: 'Open Money', system: 'Open System', tasks: 'Open Tasks', claude: 'Open Claude', projects: 'Open Projects', life: 'Open Life', history: 'Open History', automations: 'Open Automations' };
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (iso) => { const t = Date.parse(iso); if (!Number.isFinite(t)) return ''; const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
-const actLabel = (a) => (!a ? '' : a.kind === 'scan' ? 'Scan now' : a.projectId ? 'Open project' : TAB_LABEL[a.tab] || 'Open');
+// Projects › GitHub and Projects › Vercel & Supabase are named: those two actions come from the CI / deploy / pull-request senses
+const SUB_LABEL = { projects: { github: 'Open GitHub', accounts: 'Open Vercel & Supabase' } };
+const actLabel = (a) => (!a ? '' : a.kind === 'scan' ? 'Scan now' : a.projectId ? 'Open project' : (SUB_LABEL[a.tab] || {})[a.sub] || TAB_LABEL[a.tab] || 'Open');
 
 export function briefVals(ctx) {
   const { S, LIVE, live } = ctx;
@@ -16,6 +18,9 @@ export function briefVals(ctx) {
   const items = state === 'ready' && brief && Array.isArray(brief.items) ? brief.items : [];
   const sourceErrors = state === 'ready' && brief && Array.isArray(brief.errors) ? brief.errors : [];
   const more = state === 'ready' && brief ? Number(brief.more) || 0 : 0;
+  // what the "+N more" hides: up to two overflow items, by their own text (names are fine here — it is the main window)
+  const overflow = state === 'ready' && brief && Array.isArray(brief.overflow) ? brief.overflow : [];
+  const named = overflow.map((i) => (i && typeof i.text === 'string' ? i.text.trim() : '')).filter(Boolean).slice(0, 2);
   const busy = !!S.brfBusy;
   if (S.tab === 'home' && live && state === 'ready') this.useMark('brief-panel');   // usage counter: once per arrival on Home, only while the panel can be seen (logic/use-log.js)
   return {
@@ -33,7 +38,7 @@ export function briefVals(ctx) {
       return { key: i.key, sevLabel, sevStyle, text: i.text, why: i.why, meta: 'from ' + i.age,
         actLabel: actLabel(i.action), act: () => this.brfAct(i.action), dismiss: () => this.brfDismiss(i.key) };
     }),
-    brfHasMore: more > 0, brfMoreText: '+' + more + ' more',
+    brfHasMore: more > 0, brfMoreText: '+' + more + ' more' + (named.length ? ' · ' + named.join(' · ') : ''),
     brfHasSourceErrors: sourceErrors.length > 0,
     brfSourceErrorsText: 'Couldn’t read: ' + sourceErrors.map((e) => e.source + ': ' + e.error).join(' · '),
     brfBusy: busy,

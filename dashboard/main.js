@@ -25,6 +25,7 @@ const bakeFreshness = require('./bake-freshness');  // launch-bake mtime short-c
 const { readJsonStore, isPlainObj, emptyTelemetry, telemetryOk } = require('./json-store');   // quarantine-on-corrupt store reads (moved out of main.js for tests)
 const appLog = require('./app-log').create({ appRoot: path.join(__dirname, '..'), env: process.env });   // lifecycle log → logs/app-YYYY-MM-DD.log (app-log.js; gates set HQ_APP_LOG_DIR)
 appLog.attach({ app });   // crashes, hangs, session end, quit — every window
+const trayBrief = require('./tray-brief').create({ log: (f) => appLog.event('use', f), onChange: () => updateTray() });   // the Brief in the tray menu + tooltip (brief.js onBrief feeds it)
 
 // Last-resort safety net: a stray throw/rejection anywhere must never take the
 // whole main process (and every window) down. Log and keep the app alive.
@@ -189,9 +190,10 @@ function trayNotify(title, body) {
 }
 function buildTrayMenu() {
   return Menu.buildFromTemplate(trayMenu.trayTemplate(
-    { scan: latest(), spells: topSpells(3), devServers: activeDevServers.size },
+    { scan: latest(), spells: topSpells(3), devServers: activeDevServers.size, brief: trayBrief.view() },
     {
       show: () => showMainAt({ tab: 'home' }),
+      openRef: (ref) => trayBrief.open(ref, showMainAt),
       scan: () => { if (!runScan()) { const held = refreshLock.held(); trayNotify('WorkspaceHQ', held && held.by === 'mcp' ? require('./refresh-lock').refusalText(held) : liveState.snapshot().scan.state === 'running' ? 'A scan is already running.' : 'The scan didn’t start.'); } },
       quickRun: openCastPalette,
       openAutomations: () => showMainAt({ tab: 'automations' }),
@@ -221,7 +223,7 @@ function buildTrayMenu() {
 function updateTray() {
   if (!tray) return;
   const s = latest();
-  tray.setToolTip(s ? `WorkspaceHQ — L${s.account.level} ${s.account.title} · health ${s.account.health_index} · ${s.account.totals.open_quests} open` : 'WorkspaceHQ');
+  tray.setToolTip(trayBrief.tooltip() || (s ? `WorkspaceHQ — L${s.account.level} ${s.account.title} · health ${s.account.health_index} · ${s.account.totals.open_quests} open` : 'WorkspaceHQ'));
   tray.setContextMenu(buildTrayMenu());   // refresh dynamic quick-actions on every scan
 }
 function createTray() {
@@ -1249,7 +1251,7 @@ if (!app.requestSingleInstanceLock()) {
     const moneyApi = require('./money').init({ ipcMain, dataDir: DATA, getWin: () => win });   // money space: data/money/state.json (IPC-CONTRACT hq:money:*)
     require('./use-log').init({ ipcMain, appLog });   // usage counter: hq:use → one 'use' line in the day log (IPC-CONTRACT hq:use)
     require('./reach').init({ ipcMain, dataDir: DATA, exePath: process.execPath });   // Settings › Reach: whether each door is open (IPC-CONTRACT hq:reach:read)
-    require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, getWins: () => BrowserWindow.getAllWindows() });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)
+    require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, onBrief: (b, fs) => { trayBrief.set(b, fs); updateTray(); }, getWins: () => BrowserWindow.getAllWindows() });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
     createWindow(!START_HIDDEN);
     createTray();

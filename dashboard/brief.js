@@ -5,7 +5,9 @@
 // Never throws at a caller: a source that can't be read becomes an `errors` entry and the brief goes on without it.
 //
 // create({ dataDir, money, hub, liveState, now }) → { compute(), dismiss(key), buildInputs() }   (pure-ish, for tests)
-// init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, intervalMs?, watch?, now? }) → { recompute(), stop() }
+// init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief?, intervalMs?, watch?, now? }) → { recompute(), stop() }
+//   onBrief(brief, firstSeen) is called after each change (and every 10 min otherwise, so the tray's age stays true);
+//   firstSeen = brief-state.json's { key: {first, last} } — it survives the toast bookkeeping (settle merges it back in).
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -13,6 +15,7 @@ const { pathToFileURL } = require('url');
 let core = null;
 const lib = () => core || (core = import(pathToFileURL(path.join(__dirname, 'brief-core.mjs')).href));
 const RECOMPUTE_MS = 15 * 60e3, DEBOUNCE_MS = 1500, KEY_MAX = 200, DISMISSED_MAX = 200;
+const FIRSTSEEN_MAX = 200, FIRSTSEEN_KEEP_MS = 7 * 24 * 3600e3, ONBRIEF_REFRESH_MS = 10 * 60e3;
 
 const msg = (e) => String((e && e.message) || e).slice(0, 200);
 // { value } | { value: null, error } — an absent file is reported with `absent` so each source can phrase it
@@ -20,6 +23,20 @@ function readJson(file) {
   let raw;
   try { raw = fs.readFileSync(file, 'utf8'); } catch (e) { return { value: null, absent: e.code === 'ENOENT', error: e.code === 'ENOENT' ? null : msg(e) }; }
   try { return { value: JSON.parse(raw) }; } catch (e) { return { value: null, error: 'unreadable (' + msg(e) + ')' }; }
+}
+// { key: {first, last} } with both ISO strings; anything else is dropped, at most FIRSTSEEN_MAX entries (the newest `last`)
+function cleanFirstSeen(x) {
+  const out = {};
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return out;
+  const rows = [];
+  for (const [k, v] of Object.entries(x)) {
+    if (typeof k !== 'string' || !k || k.length > KEY_MAX || !v || typeof v !== 'object') continue;
+    const f = Date.parse(v.first), l = Date.parse(v.last);
+    if (Number.isFinite(f) && Number.isFinite(l)) rows.push([k, { first: new Date(f).toISOString(), last: new Date(l).toISOString() }, l]);
+  }
+  rows.sort((a, b) => b[2] - a[2]);
+  for (const [k, v] of rows.slice(0, FIRSTSEEN_MAX)) out[k] = v;
+  return out;
 }
 function writeAtomic(file, value) {
   const tmp = file + '.' + process.pid + '.tmp';
@@ -35,7 +52,8 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     const r = readJson(stateFile).value;
     return { dismissed: Array.isArray(r && r.dismissed) ? r.dismissed.filter((k) => typeof k === 'string').slice(-DISMISSED_MAX) : [],
       toasted: r && r.toasted && typeof r.toasted === 'object' && !Array.isArray(r.toasted) ? r.toasted : {},
-      lastTop: r && typeof r.lastTop === 'string' ? r.lastTop : null };   // change-only toasts: the top key last seen outside quiet hours
+      lastTop: r && typeof r.lastTop === 'string' ? r.lastTop : null,   // change-only toasts: the top key last seen outside quiet hours
+      firstSeen: cleanFirstSeen(r && r.firstSeen) };   // when each live key was first / last on the brief (the tray's "new")
   }
   function saveState(st) { try { writeAtomic(stateFile, st); } catch { /* the brief still works; it just forgets */ } }
 
@@ -63,19 +81,31 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     }
     let liveScan = null;
     try { liveScan = liveState && typeof liveState.snapshot === 'function' ? liveState.snapshot().scan : null; } catch { liveScan = null; }
-    return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH, errors };
+    // the senses' sources (github.json, accounts.json, pc-health detail, the Hub's recent sessions): never throws, a failure is an errors[] entry
+    let s = {};
+    try { s = await require('./brief-sources').gather({ dataDir, hub, now: now(), scan: scanR.value }); }
+    catch (e) { s = { errors: [{ source: 'brief-senses', error: msg(e) }] }; }
+    return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH,
+      github: s.github, vercel: s.vercel, pcDetail: s.pcDetail, sessions: s.sessions, hubProjects: s.hubProjects, sessionTurns: s.sessionTurns, docsRoot: s.docsRoot,
+      errors: errors.concat(Array.isArray(s.errors) ? s.errors : []) };
   }
 
   async function compute() {
     const L = await lib();
     const st = loadState();
     const inputs = await buildInputs();
-    const brief = L.computeBrief(inputs, { now: now(), dismissed: st.dismissed });
+    const t = now();
+    const brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed });
+    // firstSeen: stamp `first` on a key seen for the first time, `last` on every live key, drop keys not live for 7 days
+    const iso = t.toISOString(), firstSeen = {};
+    for (const [k, v] of Object.entries(st.firstSeen)) if (t.getTime() - Date.parse(v.last) < FIRSTSEEN_KEEP_MS) firstSeen[k] = v;
+    for (const it of brief.items.concat(brief.overflow || [])) firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso };
+    st.firstSeen = cleanFirstSeen(firstSeen);
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
-    const sig = JSON.stringify([brief.items, brief.more, brief.errors]);   // generatedAt alone is not a change
+    const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.errors]);   // generatedAt alone is not a change
     const changed = sig !== lastSig;
     lastSig = sig; last = brief;
-    return { brief, changed, state: st };
+    return { brief, changed, state: st, firstSeen: st.firstSeen };
   }
 
   async function dismiss(key) {
@@ -91,7 +121,7 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
   return { compute, dismiss, buildInputs, loadState, saveState, files: { briefFile, stateFile } };
 }
 
-function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, intervalMs = RECOMPUTE_MS, watch = true, now }) {
+function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief, intervalMs = RECOMPUTE_MS, watch = true, now }) {
   const b = create({ dataDir, money, hub, liveState, now });
   const push = (brief) => {
     for (const w of (getWins ? getWins() : [])) { try { if (w && !w.isDestroyed()) w.webContents.send('hq:brief', brief); } catch { /* a window mid-teardown */ } }
@@ -99,12 +129,16 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, interv
   const SEV_WORD = { high: 'urgent', med: 'soon', low: 'when you can' };
   // P2: after every compute, the change-only toast decision (brief-core shouldToast: top item, high only, once per key per
   // 24 h, quiet 23:00–08:00 local). Its history lives in brief-state.json so a restart never re-toasts the same thing.
+  let notifiedAt = 0;
   async function settle(r) {
     if (r.changed) push(r.brief);
+    // the tray (and any later surface) hears about a change, and every 10 minutes otherwise; a throwing listener never fails the brief
+    const t = (now ? now() : new Date()).getTime();
+    if (typeof onBrief === 'function' && (r.changed || t - notifiedAt >= ONBRIEF_REFRESH_MS)) { notifiedAt = t; try { onBrief(r.brief, r.firstSeen); } catch { /* a menu refresh is a courtesy */ } }
     try {
       const L = await lib();
       const d = L.shouldToast(r.brief, b.loadState(), now ? now() : new Date());
-      b.saveState(d.state);
+      b.saveState({ ...d.state, firstSeen: r.firstSeen || b.loadState().firstSeen });   // shouldToast rebuilds the state without it
       if (d.toast && typeof notify === 'function') notify('WorkspaceHQ · ' + (SEV_WORD[d.toast.severity] || d.toast.severity), d.toast.text);
     } catch { /* a toast is a courtesy: it never fails the brief */ }
     return r;
@@ -120,7 +154,7 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, interv
   if (watch) {
     // the facts the brief reads change on disk (scan, PC health, money); its own brief.json writes are ignored, or it would loop
     const watchDir = (dir, names) => { try { const w = fs.watch(dir, (_ev, f) => { if (!f || names.includes(String(f))) schedule(); }); watchers.push(w); return true; } catch { return false; } };
-    watchDir(dataDir, ['latest.json', 'pc-health.json', 'money']);
+    watchDir(dataDir, ['latest.json', 'pc-health.json', 'github.json', 'accounts.json', 'money']);
     const moneyDir = path.join(dataDir, 'money');
     if (!watchDir(moneyDir, ['state.json', 'meta.json'])) {
       // data/money/ appears on the first money write: attach then

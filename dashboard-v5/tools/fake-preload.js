@@ -29,9 +29,13 @@
 const WRITE = 'write', SEND = 'send';
 // Operator Brief fixture (placeholder projects): one item per severity, so the panel and its gates see every state
 const BRIEF = { v: 1, generatedAt: '2026-11-05T09:00:00.000Z', more: 2, errors: [], items: [
-  { key: 'secrets:p1:2', rule: 'secrets', severity: 'high', text: 'Project A has 2 secrets in plain sight', why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: 'scan 1 h ago', action: { kind: 'go', tab: 'projects', projectId: 'p1' } },
-  { key: 'scan-stale:2026-11-03', rule: 'scan-stale', severity: 'med', text: 'Scan data is 2 days old', why: 'Projects, quests and risks are as of 2026-11-03.', source: 'scan', age: 'scan 2 d ago', action: { kind: 'scan' } },
-  { key: 'claude-sync:0:never', rule: 'claude-sync', severity: 'low', text: "claude.ai chats aren't syncing", why: 'None are indexed yet — turn on Sync claude.ai in the browser extension.', source: 'claude', age: 'never synced', action: { kind: 'go', tab: 'claude', sub: 'chats' } },
+  { key: 'secrets:p1:2', rule: 'secrets', severity: 'high', text: 'Project A has 2 secrets in plain sight', why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: 'scan 1 h ago', action: { kind: 'go', tab: 'projects', projectId: 'p1' }, count: 0 },
+  { key: 'scan-stale:2026-11-03', rule: 'scan-stale', severity: 'med', text: 'Scan data is 2 days old', why: 'Projects, quests and risks are as of 2026-11-03.', source: 'scan', age: 'scan 2 d ago', action: { kind: 'scan' }, count: 0 },
+  { key: 'claude-sync:0:never', rule: 'claude-sync', severity: 'low', text: "claude.ai chats aren't syncing", why: 'None are indexed yet — turn on Sync claude.ai in the browser extension.', source: 'claude', age: 'never synced', action: { kind: 'go', tab: 'claude', sub: 'chats' }, count: 0 },
+], overflow: [
+  // the two items the '+2 more' stands for (items 4 and 5): placeholder repos and project, no real names
+  { key: 'ci-red:owner/placeholder-repo:2026-11-04T10:00:00Z', rule: 'ci-red', severity: 'med', text: 'CI is failing on placeholder-repo and 1 more repo', why: 'The last push to it did not pass its checks.', source: 'github', age: 'github.json 1 h ago', count: 1, action: { kind: 'go', tab: 'projects', sub: 'github' } },
+  { key: 'prod-deploy-error:placeholder-site:2026-11-04T09:00:00Z', rule: 'prod-deploy-error', severity: 'high', text: 'placeholder-site failed to deploy to production', why: 'The live site is still on the last good deploy — open the failed one and read its log.', source: 'vercel', age: 'accounts.json 1 h ago', count: 0, action: { kind: 'go', tab: 'projects', sub: 'accounts' } },
 ] };
 // Reach (Settings) fixture: one closed (with its step and a command to copy), one open, one unknown, and the calls row
 const REACH_ROWS = [

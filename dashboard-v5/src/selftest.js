@@ -291,7 +291,10 @@ export async function run(W = window.WHQ) {
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });
         const BI = [bItem('secrets:p:1', 'high', { kind: 'go', tab: 'projects', projectId: (M.P0[0] || {}).id || 'p' }), bItem('scan-stale:d', 'med', { kind: 'scan' }), bItem('claude-sync:0:never', 'low', { kind: 'go', tab: 'claude', sub: 'chats' })];
-        const BV = (items, more = 0, errors = []) => ({ brief: { v: 1, generatedAt: '2026-11-05T09:00:00.000Z', items, more, errors }, error: '', loaded: true });
+        const BV = (items, more = 0, errors = [], overflow) => ({ brief: Object.assign({ v: 1, generatedAt: '2026-11-05T09:00:00.000Z', items, more, errors }, overflow ? { overflow } : {}), error: '', loaded: true });
+        // the senses' items: CI, a failed prod deploy, a waiting pull request (their actions land on Projects › GitHub / Vercel & Supabase)
+        const sItem = (key, severity, text, sub, count = 0) => Object.assign(bItem(key, severity, { kind: 'go', tab: 'projects', sub }), { text, count, source: sub === 'accounts' ? 'vercel' : 'github' });
+        const SI = [sItem('prod-deploy-error:placeholder-site:d', 'high', 'placeholder-site failed to deploy to production', 'accounts'), sItem('ci-red:o/r:d', 'med', 'CI is failing on placeholder-repo and 2 more repos', 'github', 2), sItem('review-waiting:d', 'low', '2 pull requests are waiting on you', 'github', 1)];
         for (const [name, brief, extra] of [
           ['brief-empty', BV([])],
           ['brief-error', { brief: null, error: 'selftest: synthetic brief error', loaded: true }],
@@ -301,6 +304,10 @@ export async function run(W = window.WHQ) {
           ['brief-3-more', BV(BI, 4)],
           ['brief-source-errors', BV([], 0, [{ source: 'pc-health', error: 'unreadable (selftest)' }])],
           ['brief-busy', BV(BI), { brfBusy: true }],
+          ['brief-senses', BV(SI)],
+          ['brief-overflow', BV(BI, 4, [], SI.slice(1))],
+          ['brief-overflow-one', BV(BI, 1, [], SI.slice(2))],
+          ['brief-overflow-source-errors', BV(BI, 2, [{ source: 'github', error: 'data/github.json is partial — its checks were skipped' }], SI.slice(0, 2))],
         ]) {
           await combo([theme, 'p3:' + name].join(' '), () => {
             LV.brief = brief;

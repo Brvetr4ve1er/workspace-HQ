@@ -195,6 +195,27 @@ test('hq_brief returns the brief the app wrote, plus its age in minutes', async 
   assert.ok(out.ageMinutes >= 11 && out.ageMinutes <= 13, 'about 12 minutes old: ' + out.ageMinutes);
 });
 
+test('hq_brief({limit}) returns that many ranked items and the rest as overflow; an out-of-range limit is refused', async () => {
+  const mk = (n) => ({ key: 'ci-red:r' + n + ':x', rule: 'ci-red', severity: 'med', text: 'CI is failing on repo' + n, why: 'x', source: 'github', age: 'github.json 1 h ago', count: 0, action: { kind: 'go', tab: 'projects', sub: 'github' } });
+  const generatedAt = new Date(Date.now() - 2 * 60e3).toISOString();
+  fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify({ v: 1, generatedAt, more: 9, errors: [], items: [1, 2, 3].map(mk), overflow: [4, 5, 6, 7, 8, 9, 10, 11, 12].map(mk) }));
+  const r = await rpc([
+    { id: 32, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 6 } } },
+    { id: 33, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } },
+    { id: 34, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 13 } } },
+    { id: 35, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 0 } } },
+  ]);
+  const six = toolResult(r[32]);
+  assert.equal(six.items.length, 6);
+  assert.equal(six.overflow.length, 6, 'the other six of the twelve');
+  assert.equal(six.items[5].key, 'ci-red:r6:x');
+  assert.equal(six.items[0].count, 0);
+  const dflt = toolResult(r[33]);
+  assert.equal(dflt.items.length, 3, 'the default is the top 3');
+  assert.equal(dflt.overflow.length, 9);
+  for (const id of [34, 35]) { assert.equal(r[id].result.isError, true, 'limit out of range is refused: ' + id); assert.match(JSON.stringify(r[id]), /limit must be/); }
+});
+
 // ---- the assistant's rulebook (assistant-rulebook): async calls, the in-flight drain, the tier table ----
 test('drift: every tool the server lists has a tier on the rulebook, and every description says returned text is data', async () => {
   const r = await rpc([{ id: 40, method: 'tools/list' }]);
