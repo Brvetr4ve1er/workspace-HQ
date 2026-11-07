@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 6 of 8: Money in one minute, then one line per spend from any app) · main
+DONE: Money's empty state is now a one-minute card (Cash DA, CCP / bank DA, RedotPay card USD, today's rate, payday 1-28; all optional but one balance) and Today leads
+  with a one-line spend box ("150 cafe", "taxi 400", "$12.49 netflix card", "hier taxi 400"). Two new intents on the existing hq:money:apply (no new channel; the four-channel
+  pin is unchanged): `start` (one atomic write, up to 3 accounts + rate + payday via money/start.mjs planStart; refused while an unarchived account exists) and
+  `log-line {text, from:'today'|'palette', dry?}` (money/quicklog.mjs parseLine: a ledger row dated today or yesterday, or a pending Inbox slip when unsure: USD with no rate, several
+  numbers; a dry call answers {preview} and writes nothing, money.js apply returns before writeState). The same line works in Ctrl K ("Log a spend · <text>", logic/money-line.js)
+  and in the Ctrl+Alt+X quick-run box (cast.js: amountLine + a top row from the dry preview; with no accounts "Set up Money first (one minute) ›" opens Money › Today; an exact spell
+  name stays on top). The year rule ("2026 plan" is not a spend) lives in three copies (quicklog.mjs, money-line.js, cast.js); dashboard/money-line-parity.test.mjs runs one table through all three.
+  Renderer: vals prefix mst* is taken (34 keys), mixin moneyStartLogic, store.previewMoneyLine (a dry apply that never touches live.money), usage marks money-start / money-quick / palette-money-line
+  through useMark, one whatsNew line (needs mstStart). No XP anywhere. Fake preload answers start / log-line / dry; selftest +7 states; cdp-gate +3 scenarios.
+  Gates: main 1135 pass / 0 fail, money 251/251, renderer 473/473, selftest 2606 combos 0/0/0, cdp-gate 45/45. Goldens: all 152 vals scenarios moved only by the 34 mst*/onMst* keys and whatsNew.changes[14]
+  (golden-diff attributed); the template grew by exactly +5797 chars (start card 5355, quick line 2175, 22 chars of indentation for each interpolation, minus the old "start with what you have" card 1777), tpl.hash re-recorded with a dated line.
+IN-FLIGHT: none from this dish. Two dishes follow in Pass order. Not exercised on the owner's PC: the real Ctrl+Alt+X window (cdp-gate cannot drive it; cast.js is covered by mini-cast + parity tests) and a real first start on the real data/money/.
+ASKS (struct): none. BREAKS: none (additive). The empty state no longer has an "Add an account" button: the start card covers it (any one balance), "Add an account" stays on Today once accounts exist.
+  IPC-CONTRACT's Money paragraph gained an "As built" sentence block (start refused only while an unarchived account exists, the dry reply shape, notes, `at` only on same-day rows).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 5 of 8: WorkspaceHQ Bridge 0.7.0 — pair once, the Brief on the toolbar, find the best version of any image) · main
 DONE: stages 1 and 2 (stage 3, downloads on click, is NOT built: owner answer pending; the manifest gains activeTab and contextMenus only, a test pins no downloads).
   Pairing: the extension's service worker proposes a 4-digit code + 32-byte token, the app asks in a parentless native dialog (Deny default, 60 s timeout, 3 tries per

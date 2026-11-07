@@ -665,6 +665,8 @@ As built (additive to the rows above; nothing was removed or renamed): `sessions
 
 `money.apply` gains (additive) `{type:'start', cashDA?, bankDA?, cardUSD?, fxDaPerUsd?, paydayDay?}` → `{view, note}` \| `{error}` (refused once any account exists), and `{type:'log-line', text, from:'today'\|'palette', dry?}` (`text` at most 200 chars) → `{view, note}` \| `{preview:{kind:'log'\|'slip'\|'none', amount, currency, category, account, date, label, reason}}` when `dry` \| `{error}`. Money still changes only through `hq:money:apply`; the four money channels are unchanged.
 
+As built (additive, no shape changed): `start` is refused only while an unarchived account exists (the condition that shows the start card), so archiving everything cannot lock the card out; a refused start writes nothing and answers `{error}` with the field's own words. A dry `log-line` answers `{preview}` only (no `view`, no state file written, even on a first run); a non-dry one answers `{view, note}` where the note is `logged <label> — undo in Recent`, or `in the Inbox to confirm: <reason>` when the line became a pending slip (USD with no rate: `needs your DA rate`; several numbers). A same-day row carries `at`, a back-dated one (`hier`, `yesterday`) is dated by `date` alone. `from` must be `today` or `palette`. The Ctrl+Alt+X palette reads `hq.money.read()` for `hasAccounts` before it previews or sends; with none it opens Money › Today with `hq.openAt({tab:'money', sub:'today'})`.
+
 ### Client delivery (rows written before the handlers land)
 
 | `window.hq` method | Channel | Args | Returns | Primary surface |
