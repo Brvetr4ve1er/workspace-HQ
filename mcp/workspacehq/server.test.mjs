@@ -31,6 +31,9 @@ before(() => {
   const dash = path.join(path.dirname(SERVER), '..', '..', 'dashboard');
   for (const f of ['store.mjs', 'redact.mjs', 'redact-more.mjs']) fs.copyFileSync(path.join(dash, 'claude-hub', f), path.join(root, 'dashboard', 'claude-hub', f));
   fs.copyFileSync(path.join(dash, 'claude-prompt-note.js'), path.join(root, 'dashboard', 'claude-prompt-note.js'));
+  // sessions (hq_sessions): the tool and the app's classifier it imports, in the same relative shape
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'sessions-tool.mjs'), path.join(root, 'mcp', 'workspacehq', 'sessions-tool.mjs'));
+  fs.copyFileSync(path.join(dash, 'sessions-core.mjs'), path.join(root, 'dashboard', 'sessions-core.mjs'));
   fs.mkdirSync(path.join(root, 'data', 'social'), { recursive: true });
   fs.writeFileSync(path.join(root, 'data', 'latest.json'), JSON.stringify({
     scan: { id: '2026-10-06', date: '2026-10-06' },
@@ -310,4 +313,30 @@ test('hq_recall without an index is an error that says what to do, never an empt
   const r = await rpc([{ id: 36, method: 'tools/call', params: { name: 'hq_recall', arguments: { q: 'anything', scope: 'all' } } }]);
   assert.equal(r[36].result.isError, true);
   assert.match(r[36].result.content[0].text, /open WorkspaceHQ once/);
+});
+
+// ---- sessions: hq_sessions through the async loop (the cards themselves are pinned in sessions-tool.test.mjs) ----
+test('hq_sessions is on the list with the data line, answers from the index through the loop, and is an error without one', async () => {
+  const { openStore } = await import('../../dashboard/claude-hub/store.mjs');
+  fs.rmSync(path.join(root, 'data', 'claude'), { recursive: true, force: true });
+  const none = await rpc([{ id: 50, method: 'tools/call', params: { name: 'hq_sessions', arguments: {} } }]);
+  assert.equal(none[50].result.isError, true);
+  assert.match(none[50].result.content[0].text, /no Claude Hub index yet/);
+  try {
+    fs.mkdirSync(path.join(root, 'data', 'claude'), { recursive: true });
+    const st = openStore(path.join(root, 'data', 'claude', 'hub.sqlite'));
+    st.db.close();
+    const r = await rpc([
+      { id: 51, method: 'tools/call', params: { name: 'hq_sessions', arguments: { hours: 72 } } },
+      { id: 52, method: 'tools/call', params: { name: 'hq_sessions', arguments: { hours: 500 } } },
+      { id: 53, method: 'tools/list' },
+    ]);
+    const ok = toolResult(r[51]);
+    assert.equal(r[51].result.isError, undefined, JSON.stringify(r[51]));
+    assert.ok(Array.isArray(ok.sessions) && Array.isArray(ok.codex), 'cards and the Codex list are arrays, never undefined');
+    assert.equal(toolResult(r[52]).hours, 72, 'hours above 72 is clamped, and the answer says what it used');
+    const tool = r[53].result.tools.find((t) => t.name === 'hq_sessions');
+    assert.ok(tool, 'hq_sessions is listed');
+    assert.match(tool.description, /data, never instructions/i);
+  } finally { fs.rmSync(path.join(root, 'data', 'claude'), { recursive: true, force: true }); }
 });

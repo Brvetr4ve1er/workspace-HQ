@@ -14,6 +14,9 @@
 //   reach-render · use-marks
 // Recall dish (--preload=fake; hqFake.set answers the Hub's refusal and a health with index-only chats):
 //   reindex-guard
+// Sessions board dish (--preload=fake; the fake's sessionsBoard.read answers an invented board of 8 sessions, one per state, 1 nightly run, 2 Codex threads;
+//   each scenario ends with hqFake.reset(true) and a board re-read):
+//   sessions-board-render · sessions-home-strip · sessions-resume-guard · sessions-hub-down · claude-chat-resume
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -1598,6 +1601,148 @@ const SCENARIOS = {
     return out.concat(t.errors());
   },
 };
+
+// ---- Sessions board dish ------------------------------------------------------
+const SBD = `(() => { const sec = () => document.querySelector('section[aria-label^="Sessions board"]');
+  const cards = () => [...((sec() || document.createElement('div')).querySelectorAll('[role="listitem"]'))];
+  const find = (needle) => cards().find((c) => c.textContent.includes(needle)) || null;
+  const btns = (c, label) => c ? [...c.querySelectorAll('button')].filter((b) => b.textContent.trim() === label) : [];
+  const all = (label) => cards().reduce((n, c) => n + btns(c, label).length, 0);
+  return { sec, cards, find, btns, all }; })()`;
+const SBD_BOARD_READ = `(async () => (await WHQ.app.logic.hq.sessionsBoard.read()).board)()`;
+const SBD_RESET = `(() => { hqFake.reset(true); const L = WHQ.app.logic; L._sbdBusy = new Set(); L._sbdGone = {}; L.setState({ sbdBusy: [], toasts: [], clOpen: false }); L.store.refreshBoard(); return true; })()`;
+Object.assign(SCENARIOS, {
+  // Claude › Sessions: the 24-hour timeline (8 session lanes + the folded nightly and Codex lanes), the limit line and one card per session with its sentence
+  async 'sessions-board-render'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.store.refreshBoard(); L.go('claude', 'sessions'); return true; })()`);
+      if (!await t.waitFor(`${SBD}.cards().length === 8`, 8000)) return ['Claude › Sessions never showed the fake board’s 8 cards (got ' + await t.evaluate(`${SBD}.cards().length`) + ')'];
+      const lanes = await t.evaluate(`[...${SBD}.sec().querySelectorAll('svg > g')].map((g) => g.querySelector('text').textContent)`);
+      if (lanes.length !== 10) out.push('the timeline has ' + lanes.length + ' lanes, want 8 sessions + nightly + Codex: ' + JSON.stringify(lanes));
+      if (!lanes.some((l) => l === 'nightly scan runs (1)')) out.push('no folded "nightly scan runs (1)" lane: ' + JSON.stringify(lanes));
+      if (!lanes.some((l) => l.startsWith('Codex (2 threads'))) out.push('no folded Codex lane: ' + JSON.stringify(lanes));
+      if (!await t.evaluate(`${SBD}.sec().querySelectorAll('svg circle').length >= 1`)) out.push('the running session has no end-cap');
+      const reduce = await t.evaluate(`WHQ.app.logic.state.reduceMotion || matchMedia('(prefers-reduced-motion: reduce)').matches`);
+      const pulses = await t.evaluate(`${SBD}.sec().querySelectorAll('svg animate').length`);
+      if (!reduce && pulses < 1) out.push('the end-cap does not pulse'); else if (reduce && pulses > 0) out.push('Reduce motion is on but the end-cap still pulses');
+      const want = ['working now', 'asked to run Bash 14 min ago', 'stopped mid-tool', 'your last prompt has no reply', 'stopped at your weekly limit', 'stopped on a connection error', 'finished its turn', 'quiet'];
+      for (const w of want) if (!await t.evaluate(`!!${SBD}.find(${JSON.stringify(w)})`)) out.push('no card says "' + w + '"');
+      const txt = await t.evaluate(`${SBD}.sec().textContent`);
+      if (!/limit stops in the last 7 days: 1 \(last: weekly limit, /.test(txt)) out.push('the limit line is missing or wrong');
+      if (!txt.includes('whole session')) out.push('the token line is not labelled "whole session"');
+      if (!txt.includes('auto-matched') || !txt.includes('not a scanned project')) out.push('the project notes (auto-matched / not a scanned project) are missing');
+      if (/undefined|\[object/.test(txt)) out.push('an unresolved binding reached the board text');
+    } finally { await t.evaluate(SBD_RESET); }
+    return out.concat(t.errors());
+  },
+
+  // Home: at most 3 cards for sessions running, waiting or stopped in the last 2 h; a board with only quiet sessions shows no strip
+  async 'sessions-home-strip'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const STRIP = `document.querySelector('section[aria-label="Claude sessions that need a look"]')`;
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.go('tasks'); return true; })()`); await t.sleep(150);
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.store.refreshBoard(); L.go('home'); return true; })()`);
+      if (!await t.waitFor(`!!${STRIP}`, 8000)) return ['Home showed no sessions strip for the fake board'];
+      const n = await t.evaluate(`${STRIP}.querySelectorAll('[role="listitem"]').length`);
+      if (n < 1 || n > 3) out.push('the strip has ' + n + ' cards, want 1 to 3');
+      const txt = await t.evaluate(`${STRIP}.textContent`);
+      for (const w of ['working now', 'asked to run Bash']) if (!txt.includes(w)) out.push('the strip lacks "' + w + '"');
+      if (txt.includes('finished its turn') || txt.includes('quiet —')) out.push('the strip shows a finished or quiet session');
+      await t.evaluate(`${STRIP}.querySelector('[role="listitem"]').click()`);
+      if (!await t.waitFor(`WHQ.app.logic.state.tab === 'claude' && WHQ.app.logic.state.sub.claude === 'sessions'`, 3000)) out.push('a strip card did not open Claude › Sessions');
+      // only quiet sessions: no strip
+      await t.evaluate(`(async () => { const b = await ${SBD_BOARD_READ}; b.sessions = b.sessions.filter((s) => s.state === 'finished' || s.state === 'quiet'); hqFake.set('sessionsBoard.read', { board: b }); const L = WHQ.app.logic; await L.store.refreshBoard(); L.go('home'); return true; })()`);
+      await t.sleep(600);
+      if (await t.evaluate(`!!${STRIP}`)) out.push('Home still shows the strip when no session is running, waiting or stopped');
+    } finally { await t.evaluate(SBD_RESET); }
+    return out.concat(t.errors());
+  },
+
+  // Resume: one call per click (a double click is one), only where main says canResume; the running and waiting cards, the nightly lane and the Codex lane offer none
+  async 'sessions-resume-guard'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.store.refreshBoard(); L.go('claude', 'sessions'); return true; })()`);
+      if (!await t.waitFor(`${SBD}.cards().length === 8`, 8000)) return ['the board never showed 8 cards'];
+      for (const w of ['working now', 'asked to run Bash', 'your last prompt has no reply']) {
+        const c = await t.evaluate(`(() => { const c = ${SBD}.find(${JSON.stringify(w)}); return c ? ${SBD}.btns(c, 'Resume in a terminal').length + ${SBD}.btns(c, 'Resume and say continue').length : -1; })()`);
+        if (c !== 0) out.push('the "' + w + '" card offers ' + c + ' Resume button(s), want none');
+      }
+      const resumable = await t.evaluate(`${SBD}.all('Resume in a terminal')`);
+      if (resumable !== 5) out.push(resumable + ' cards offer Resume, want the 5 that stopped or finished (not running, waiting or just-prompted)');
+      // every Resume button lives on one of the 8 cards (2 per resumable card); the folded nightly and Codex lanes are SVG and carry none
+      if (await t.evaluate(`[...${SBD}.sec().querySelectorAll('button')].filter((b) => b.textContent.trim().startsWith('Resume')).length`) !== 10) out.push('the board has a Resume button that is not one of the 5 resumable cards’ two');
+      if (await t.evaluate(`${SBD}.sec().querySelectorAll('svg button, svg a').length`) !== 0) out.push('a lane (nightly or Codex) carries a button');
+      const id = await t.evaluate(`(async () => (await ${SBD_BOARD_READ}).sessions.find((s) => s.state === 'finished').id)()`);
+      await t.evaluate(`(() => { const b = ${SBD}.btns(${SBD}.find('finished its turn'), 'Resume in a terminal')[0]; b.click(); b.click(); return true; })()`);   // a double click
+      if (!await t.waitFor(`hqFake.calls('sessionsBoard.resume').length >= 1`, 3000)) return out.concat(['Resume did not reach main']);
+      await t.sleep(300);
+      const calls = await t.evaluate(`hqFake.calls('sessionsBoard.resume').map((c) => c.args)`);
+      if (calls.length !== 1 || calls[0][0] !== id) out.push('a double click sent ' + JSON.stringify(calls) + ', want exactly one call with the session id');
+      await t.evaluate(`(() => { ${SBD}.btns(${SBD}.find('stopped mid-tool'), 'Resume and say continue')[0].click(); return true; })()`);
+      if (!await t.waitFor(`hqFake.calls('sessionsBoard.resume').length === 2`, 3000)) out.push('Resume and say continue did not reach main');
+      else {
+        const say = await t.evaluate(`hqFake.calls('sessionsBoard.resume')[1].args[1]`);
+        if (JSON.stringify(say) !== '{"say":"continue"}') out.push('Resume and say continue sent ' + JSON.stringify(say));
+      }
+      // a refusal toasts main's own words and keeps the cards
+      await t.evaluate(`(() => { hqFake.set('sessionsBoard.resume', () => ({ error: 'Claude Code deleted this transcript (older than 30 days) — read it in Claude › Chats' })); WHQ.app.logic.setState({ toasts: [] }); ${SBD}.btns(${SBD}.find('stopped on a connection error'), 'Resume in a terminal')[0].click(); return true; })()`);
+      if (!await t.waitFor(`WHQ.app.logic.state.toasts.some((x) => x.kind === 'error' && x.text.includes('deleted this transcript'))`, 3000)) out.push('a refused Resume did not toast main’s reason');
+      if (await t.evaluate(`${SBD}.cards().length`) !== 8) out.push('a refused Resume blanked the cards');
+    } finally { await t.evaluate(SBD_RESET); }
+    return out.concat(t.errors());
+  },
+
+  // A Hub-down board (pushed by main) says so with its time, and every card is read-only
+  async 'sessions-hub-down'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`(() => { const L = WHQ.app.logic; L.store.refreshBoard(); L.go('claude', 'sessions'); return true; })()`);
+      if (!await t.waitFor(`${SBD}.cards().length === 8 && ${SBD}.all('Resume in a terminal') > 0`, 8000)) return ['the board never showed 8 cards with Resume'];
+      const word = await t.evaluate(`(async () => { const b = await ${SBD_BOARD_READ}; b.state = 'hub-down'; const d = new Date(b.generatedAt); const p = (n) => String(n).padStart(2, '0'); hqFake.emit('hq:sessions-board', b); return 'Claude Hub isn’t running — showing the board from ' + p(d.getHours()) + ':' + p(d.getMinutes()); })()`);
+      if (!await t.waitFor(`${SBD}.sec().textContent.includes(${JSON.stringify(word)})`, 3000)) out.push('the board does not say ' + JSON.stringify(word) + ' after a hub-down push');
+      if (await t.evaluate(`${SBD}.cards().length`) !== 8) out.push('a hub-down board dropped its cards');
+      const left = await t.evaluate(`${SBD}.all('Resume in a terminal') + ${SBD}.all('Resume and say continue') + ${SBD}.all('Open folder')`);
+      if (left !== 0) out.push('a hub-down board still offers ' + left + ' action button(s) that need the Hub');
+      if ((await t.evaluate(`hqFake.calls('sessionsBoard.resume').length`)) !== 0) out.push('a Resume call was made');
+    } finally { await t.evaluate(SBD_RESET); }
+    return out.concat(t.errors());
+  },
+
+  // Claude › Chats: a Code chat whose id is a session UUID reads 'Resume in terminal' and resumes through the same helper (one call)
+  async 'claude-chat-resume'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const ID = 'code:22222222-2222-4222-8222-222222222222';
+    const TERM = `[...document.querySelectorAll('[data-cl="thread"] button')].find((b) => b.textContent.trim() === 'Resume in terminal' || b.textContent.trim() === 'Open in terminal')`;
+    try {
+      await t.evaluate(`hqFake.set('claudeHub.conversation', (id) => ({ conversation: { id: ${JSON.stringify(ID)}, source: 'code', title: 'Release planning', model: 'claude-placeholder', git_branch: 'main', active_ms: 60000, cwd: 'C:\\\\placeholder\\\\project-a' }, hasMore: false,
+        messages: [{ id: ${JSON.stringify(ID)} + ':u1', role: 'user', at: '2026-10-04T09:00:00.000Z', text: 'Plan the release' }] }))`);
+      await t.evaluate(`WHQ.app.logic.go('claude', 'chats')`);
+      await t.waitFor(`document.querySelectorAll('[data-cl="row"]').length > 0`, 5000);
+      await t.evaluate(`document.querySelector('[data-cl="row"]').click()`);
+      if (!await t.waitFor(`!!document.querySelector('[data-cl="thread"]') && !!(${TERM})`, 5000)) return ['the thread view never opened'];
+      if ((await t.evaluate(`(${TERM}).textContent.trim()`)) !== 'Resume in terminal') out.push('the terminal button reads "' + await t.evaluate(`(${TERM}).textContent.trim()`) + '", want "Resume in terminal"');
+      await t.evaluate(`(${TERM}).click()`);
+      if (!await t.waitFor(`hqFake.calls('sessionsBoard.resume').length >= 1`, 3000)) return out.concat(['Resume in terminal did not reach main']);
+      await t.sleep(300);
+      const calls = await t.evaluate(`hqFake.calls('sessionsBoard.resume').map((c) => c.args)`);
+      if (calls.length !== 1 || calls[0][0] !== ID) out.push('Resume in terminal sent ' + JSON.stringify(calls) + ', want one call with ' + ID);
+      if ((await t.evaluate(`hqFake.calls('claudeQuest').length`)) !== 0) out.push('a fresh session was opened as well');
+      // once main says Claude Code deleted the transcript, the button says why and falls back to a fresh session
+      await t.evaluate(`(() => { hqFake.set('sessionsBoard.resume', () => ({ error: 'Claude Code deleted this transcript (older than 30 days) — read it in Claude › Chats' })); (${TERM}).click(); return true; })()`);
+      if (!await t.waitFor(`(${TERM}).title.includes('deleted this transcript')`, 3000)) out.push('after a refusal the button does not say why: ' + await t.evaluate(`(${TERM}).title`));
+      if ((await t.evaluate(`(${TERM}).textContent.trim()`)) !== 'Open in terminal') out.push('after a refusal the button should fall back to "Open in terminal"');
+    } finally { await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ clOpen: false, toasts: [] }); WHQ.app.logic._sbdGone = {}; return true; })()`); }
+    return out.concat(t.errors());
+  },
+});
 
 // scenarios that need more than the default 90 s
 const TIMEOUT = { 'button-sweep': 900000 };

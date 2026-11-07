@@ -106,8 +106,10 @@ export const claudeLibLogic = {
     if (ok === TERM_SKIPPED) return;
     if (ok === false) this.toast('error', 'Couldn’t open a terminal · the folder wasn’t accepted (main opens only folders under Documents)');
   },
-  clTerminal() {
+  async clTerminal() {
     const t = this.LIVE.claudeLib.thread, c = t && t.conversation;
+    // a Code chat whose transcript still exists is Resumed (one Resume concept: logic/sessions-board.js, main's refusals); null = open a fresh session as before
+    if (this.sbdChatCan(c) && !this.sbdChatGone(c)) { if (!this.canWrite()) return this.denied(); const r = await this.sbdChatResume(c); if (r !== null) return; }
     return this.clTermAt(c && c.cwd, 'This chat has no recorded folder');
   },
   async clLink(projectId, hqId, state) {

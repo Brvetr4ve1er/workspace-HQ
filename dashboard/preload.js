@@ -167,6 +167,19 @@ contextBridge.exposeInMainWorld('hq', {
       return () => ipcRenderer.removeListener('hq:brief', handler);
     },
   },
+  // Sessions board (IPC-CONTRACT hq:sessions-board:*): every Claude Code session of the last 24 h, where each stopped, and Resume.
+  // Main reads the folder from the Hub; the renderer only ever sends a session id.
+  sessionsBoard: {
+    read: () => ipcRenderer.invoke('hq:sessions-board:read'),
+    resume: (id, opts) => ipcRenderer.invoke('hq:sessions-board:resume', id, opts),
+    openFolder: (id) => ipcRenderer.invoke('hq:sessions-board:open-folder', id),
+    onBoard: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:sessions-board', handler);
+      return () => ipcRenderer.removeListener('hq:sessions-board', handler);
+    },
+  },
+
   // money space (IPC-CONTRACT hq:money:*). Intents only — main validates every field.
   money: {
     read: () => ipcRenderer.invoke('hq:money:read'),

@@ -43,6 +43,7 @@ export function createStore(DATA, hq) {
     llm: null, casts: {},
     money: { view: null, error: '', loaded: false },
     brief: { brief: null, error: '', loaded: false },   // Operator Brief: the last brief main computed (hq:brief:*)   // money space: last view from hq:money:* (main owns the data)
+    board: { board: null, error: '', loaded: false },   // Sessions board: the last board main built (hq:sessions-board:*)
     pcHealth: null,   // a fresher pc-health sidecar than the baked DATA.pcHealth (refreshMachine)
     github: null,     // a fresher data/github.json than the baked DATA.github (refreshGithub)
     accounts: null,   // a fresher data/accounts.json than the baked DATA.accounts (refreshAccounts)
@@ -212,6 +213,19 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.brief || !hq.brief.dismiss) return Promise.resolve({ error: 'the Brief needs the desktop bridge' });
     return Promise.resolve().then(() => hq.brief.dismiss(key)).then(takeBrief).finally(emit);
   }
+  // Sessions board (dashboard/sessions-board.js): main classifies, the store only holds the last answer. A failed read keeps the cards
+  // already shown; a refused resume never touches them (main's reason goes back to the caller untouched).
+  function refreshBoard() {
+    if (!hq || !hq.sessionsBoard || !hq.sessionsBoard.read) return Promise.resolve();
+    return pull(() => hq.sessionsBoard.read(), (r) => {
+      if (r && r.board) live.board = { board: r.board, error: '', loaded: true };
+      else live.board = { board: live.board.board, error: (r && typeof r.error === 'string' && r.error) || 'The sessions board could not be read', loaded: true };
+    });
+  }
+  function resumeSession(id, opts) {
+    if (!hq || !hq.sessionsBoard || !hq.sessionsBoard.resume) return Promise.resolve({ error: 'The sessions board needs the desktop app' });
+    return Promise.resolve().then(() => hq.sessionsBoard.resume(id, opts || {}));
+  }
   function refreshLlm(force) {
     if (!hq || !hq.probeLlm) return Promise.resolve();
     return pull(() => hq.probeLlm({ force: !!force }), (r) => { live.llm = r || null; });
@@ -321,6 +335,10 @@ export function createStore(DATA, hq) {
     }));
     reads.push(refreshLlm(false));
     if (hq.money) reads.push(refreshMoney());
+    if (hq.sessionsBoard) {
+      reads.push(refreshBoard());
+      if (hq.sessionsBoard.onBoard) sub(() => hq.sessionsBoard.onBoard((b) => { if (b && Array.isArray(b.sessions)) { live.board = { board: b, error: '', loaded: true }; emit(); } }));
+    }
     if (hq.brief) {
       reads.push(refreshBrief());
       if (hq.brief.onBrief) sub(() => hq.brief.onBrief((b) => { if (b && Array.isArray(b.items)) { live.brief = { brief: b, error: '', loaded: true }; emit(); } }));
@@ -463,7 +481,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshLlm, refreshMoney, applyMoney, importMoney, refreshBrief, dismissBrief, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshLlm, refreshMoney, applyMoney, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
   };

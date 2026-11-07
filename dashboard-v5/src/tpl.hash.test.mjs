@@ -55,9 +55,10 @@ import tpl from './app.tpl.js';
 // 2026-11-05 project-page (journal Add binds cantAddJournal, greyed out while a save is in flight; one attribute + its <!-- v5: --> marker) (+82 chars / +82 bytes)
 // 2026-11-05 Operator Brief: the brief fragment (tpl/brief.tpl.js) interpolated into home under the greeting, one <!-- v5: --> marker; nothing else moved (+4114 chars / +4129 bytes)
 // 2026-11-07 assistant rulebook: the Reach fragment (tpl/reach.tpl.js) interpolated into ov-settings after Global hotkeys, one <!-- v5: --> marker; nothing else moved (+3795 chars / +3809 bytes — exactly the fragment's own length)
-const SHA256 = '027473afde3a627d7ff74e6172de7923a2a3380b3e75fd25c58e5e9d6996b00f';
-const LENGTH = 306564;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 307083;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-07 sessions board: the board fragment (tpl/sessions-board.tpl.js, +9755 chars) first in Claude › Sessions, the strip fragment (tpl/sessions-strip.tpl.js, +1958 chars) after the Brief on Home, and the Chats thread's terminal button bound to clTerminalLabel / clTerminalTip (a <!-- v5: --> marker, +131 chars): +11844 chars / +11860 bytes in all, nothing else moved
+const SHA256 = '1b6d41cc5268822571a28c5bc7c28a4322b42d3d964b61910cc0241f831ca1a1';
+const LENGTH = 318408;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 318943;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

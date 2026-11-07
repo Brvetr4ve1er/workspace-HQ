@@ -133,7 +133,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -335,6 +335,47 @@ export async function run(W = window.WHQ) {
               L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, settingsOpen: true }, patch));
             });
           } finally { W.store.hq = hq0; L._rchAsked = false; }
+        }
+        // Sessions board (Claude › Sessions) and the Home strip: every state of the board. The board is put straight into the store and the
+        // arrival refresh is held, so the fake's own board doesn't replace it; sbd-offline hides hq.sessionsBoard for one combo (the store's hq).
+        const GEN = '2026-11-07T12:00:00.000Z', NOWMS = Date.parse(GEN), agoIso = (min) => new Date(NOWMS - min * 60e3).toISOString();
+        const sCard = (n, state, o) => Object.assign({ id: String(n).repeat(8) + '-1111-4111-8111-111111111111', title: 'Selftest session ' + n, project: { id: n % 2 ? 'alpha' : null, name: n % 2 ? 'alpha-site' : 'scratch', matched: n % 2 ? 'auto' : 'folder' },
+          branch: 'main', cwdLabel: 'alpha-site', startedAt: agoIso(300 + n), lastAt: agoIso(5 + n * 3), activeMin: 20 + n, messages: 10 + n, tokens: { in: 1000, out: 2000, cacheRead: 90000 }, state,
+          sentence: 'selftest ' + state, longRun: false, canResume: false, canOpen: true }, o || {});
+        const SB = (sessions, extra) => Object.assign({ v: 1, generatedAt: GEN, state: 'ok', sessions, nightly: { count: 1, lastAt: agoIso(600) }, codex: { count: 2, lastAt: '2026-11-04T10:00:00.000Z', recent: [{ title: 'Selftest codex thread', updatedAt: '2026-11-04T10:00:00.000Z' }] },
+          limitStops: { days: 7, count: 1, last: { kind: 'weekly', at: agoIso(360) } }, counts: { total: sessions.length, week: sessions.length + 1 } }, extra || {});
+        const BS = (board) => ({ board, error: '', loaded: true });
+        const running = sCard(1, 'running', { lastAt: agoIso(0.5), sentence: 'working now · 4 turns this hour', activeMin: 130, longRun: true });
+        const waiting = sCard(2, 'waiting-tool', { lastTool: 'Bash', sentence: 'asked to run Bash 14 min ago — no result since (a permission prompt, or a long tool)' });
+        const stopped = sCard(3, 'stopped-mid-tool', { lastAt: agoIso(180), canResume: true, sentence: 'stopped mid-tool: asked to run Edit 3 h ago' });
+        const limited = sCard(4, 'limit', { lastAt: agoIso(360), canResume: true, limitKind: 'weekly', resetsAt: '2026-11-08T17:00:00.000Z', sentence: 'stopped at your weekly limit · resets Sat 5 pm' });
+        const finished = sCard(5, 'finished', { lastAt: agoIso(90), canResume: true, sentence: 'finished its turn 90 min ago' });
+        const quiet = sCard(6, 'quiet', { lastAt: agoIso(500), canResume: false, sentence: 'quiet for 8 h', canOpen: false, why: 'Claude Code deleted this transcript (older than 30 days)' });
+        const many = Array.from({ length: 14 }, (_, i) => sCard(i + 1, ['running', 'finished', 'stopped-mid-tool', 'quiet'][i % 4], { lastAt: agoIso(2 + i * 40), canResume: i % 4 !== 0 }));
+        const hq1 = W.store.hq, rb0 = W.store.refreshBoard;
+        for (const [name, board, where, offline] of [
+          ['sbd-offline', BS(null), 'sessions', true],
+          ['sbd-loading', { board: null, error: '', loaded: false }, 'sessions'],
+          ['sbd-error', { board: null, error: 'selftest: synthetic board error', loaded: true }, 'sessions'],
+          ['sbd-hub-down', BS(SB([stopped, finished].map((c) => Object.assign({}, c, { canResume: false, why: 'Claude Hub isn’t running' })), { state: 'hub-down' })), 'sessions'],
+          ['sbd-empty', BS(SB([], { nightly: { count: 0, lastAt: null }, codex: null, limitStops: { days: 7, count: 0, last: null } })), 'sessions'],
+          ['sbd-working', BS(SB([running])), 'sessions'],
+          ['sbd-waiting', BS(SB([waiting])), 'sessions'],
+          ['sbd-stopped', BS(SB([stopped, quiet])), 'sessions'],
+          ['sbd-limit', BS(SB([limited, finished])), 'sessions'],
+          ['sbd-many', BS(SB(many)), 'sessions'],
+          ['sbd-home-strip', BS(SB([running, waiting, stopped])), 'home'],
+          ['sbd-home-quiet', BS(SB([finished, quiet])), 'home'],
+        ]) {
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (offline && hq1) W.store.hq = Object.assign({}, hq1, { sessionsBoard: undefined });
+              W.store.refreshBoard = () => Promise.resolve();
+              LV.board = board;
+              if (where === 'home') L.go('home'); else L.go('claude', 'sessions');
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }));
+            });
+          } finally { W.store.hq = hq1; W.store.refreshBoard = rb0; }
         }
       }
     } finally {

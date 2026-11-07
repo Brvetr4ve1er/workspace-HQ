@@ -45,6 +45,7 @@ export const CHANGES = [
   { text: 'Automations also lists the interactive Claude skills and commands (they use Claude quota), with kind, source and category filters and a Rescan.', needs: 'rescanLib' },
   { text: 'Projects can be searched by name or stack and filtered by status, and “capture <text>” in the command palette saves an idea.', needs: 'paletteCapture' },
   { text: 'Money is a new space (key 9): breathing room until payday, bills on a runway, jars, and a paste-a-receipt inbox. All local in data/money/, nothing synced.', needs: 'mnyApply' },
+  { text: 'Claude › Sessions is a live board of every Claude Code session from the last 24 hours: a timeline, where each one stopped, this week’s limit stops, and one-click Resume.', needs: 'sbdResume' },
 ];
 
 // ---- pure helpers (unit-tested) ------------------------------------------------

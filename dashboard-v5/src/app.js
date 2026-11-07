@@ -35,6 +35,7 @@ import { accountsLogic } from './logic/accounts.js';
 import { lifeLogic } from './logic/life.js';
 import { moneyLogic } from './logic/money.js';
 import { briefLogic } from './logic/brief.js';
+import { sessionsBoardLogic } from './logic/sessions-board.js';   // Claude › Sessions board + Home strip: Resume, Copy command, Open folder
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
 import { renderVals } from './vals/index.js';
@@ -161,6 +162,8 @@ export class Component extends DCLogic {
     if (moved && S.route && S.route.id) this.store.refreshClaudeForProject && this.store.refreshClaudeForProject(S.route.id);
     if (moved && S.tab === 'history' && !S.route) this.store.refreshClaudeStats && this.store.refreshClaudeStats(30);
     if (moved) this.useArrive();   // a new screen starts a new arrival: a surface marked on Home is marked again after leaving and coming back
+    if (moved && S.tab === 'home') this.sbdArrive('strip');   // sessions board: the Home strip reads the board on arrival (main pushes changes after that)
+    if (moved && S.tab === 'claude' && S.sub.claude === 'sessions') this.sbdArrive('board');
     if (moved && S.tab === 'money') this.store.refreshMoney();   // money: "today" moves on its own (due dates, payday) — re-read on arrival
   }
 
@@ -389,5 +392,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, useLogLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, sessionsBoardLogic, useLogLogic);
 Component.prototype.renderVals = renderVals;

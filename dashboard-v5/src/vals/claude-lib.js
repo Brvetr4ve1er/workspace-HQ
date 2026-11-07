@@ -35,6 +35,9 @@ export function claudeLibVals(ctx) {
     clThreadMore: !!(t && t.hasMore), clEarlier: () => this.clEarlier(), clCloseChat: () => this.clCloseChat(),
     clForgetAsk: !!S.clForgetAsk, clForgetStart: () => this.setState({ clForgetAsk: true }), clForgetCancel: () => this.setState({ clForgetAsk: false }),
     clForget: () => this.clForget(), clTerminal: () => this.clTerminal(),
+    // Resume a Code chat whose transcript exists (logic/sessions-board.js); once main said Claude Code deleted it, say why and keep the fresh-session button
+    clTerminalLabel: this.sbdChatCan(LIVE.claudeLib.thread && LIVE.claudeLib.thread.conversation) && !this.sbdChatGone(LIVE.claudeLib.thread && LIVE.claudeLib.thread.conversation) ? 'Resume in terminal' : 'Open in terminal',
+    clTerminalTip: this.sbdChatGone(LIVE.claudeLib.thread && LIVE.claudeLib.thread.conversation) || 'Open a terminal in this chat’s folder',
     clError: cv.error, clHasError: !!cv.error,
     // Projects (link chips), project-page Claude section, History activity, System Reindex (Task 10)
     isClProjects: sub === 'projects',
