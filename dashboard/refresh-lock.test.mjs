@@ -143,3 +143,49 @@ test('refusal wording: the tray sentence for a session pass, a plain one for the
   assert.match(refusalText({ by: 'app' }), /scan is already running/);
   assert.ok(refusalText(null));
 });
+
+test('two takers that both see the same stale lock: exactly one ends up holding it (no unlink of the faster one\'s live lock)', () => {
+  const d = tmp();
+  try {
+    const clock = { t: T0 };
+    const alive = new Set([2222, 3333]);                 // 999999 is the dead holder
+    fs.writeFileSync(path.join(d, '.refresh.lock'), JSON.stringify({ pid: 999999, by: 'mcp', startedAt: new Date(T0 - 60e3).toISOString() }));
+    let a = null, aTook = null, fired = false;
+    // B's first look at the stale lock is the moment A takes its turn (the interleave the taster simulated)
+    const b = create({ dataDir: d, now: () => clock.t, pid: 3333, isAlive: (p) => { if (!fired) { fired = true; aTook = a.take('app'); } return alive.has(p); } });
+    a = create({ dataDir: d, now: () => clock.t, pid: 2222, isAlive: (p) => alive.has(p) });
+    const bTook = b.take('mcp');
+    assert.equal(aTook, true, 'A reclaimed the stale lock first');
+    assert.equal(bTook, false, 'B must not delete A\'s live lock and take it too');
+    assert.equal(b.held().by, 'app');
+    assert.equal(fs.existsSync(path.join(d, '.refresh.lock.reclaim')), false, 'the reclaim gate is gone afterwards');
+  } finally { rm(d); }
+});
+
+test('a reclaim gate left behind by a crashed taker does not block for long', () => {
+  const d = tmp();
+  try {
+    const { clock, make } = rig(d);
+    fs.writeFileSync(path.join(d, '.refresh.lock'), JSON.stringify({ pid: 999999, by: 'mcp', startedAt: new Date(T0 - 60e3).toISOString() }));
+    const gate = path.join(d, '.refresh.lock.reclaim');
+    fs.writeFileSync(gate, '4242');
+    const t = new Date(T0); fs.utimesSync(gate, t, t);
+    const app = make(1111);
+    assert.equal(app.take('app'), false, 'a gate just made means another taker is mid-reclaim');
+    clock.t = T0 + 30e3;                                   // the gate is now 30 s old: a leftover
+    fs.writeFileSync(path.join(d, '.refresh.lock'), JSON.stringify({ pid: 999999, by: 'mcp', startedAt: new Date(T0 - 60e3).toISOString() }));
+    assert.equal(app.take('app'), true);
+    assert.equal(fs.existsSync(gate), false);
+  } finally { rm(d); }
+});
+
+test('main.js: the post-commit rescan takes the refresh lock before its scan guard and releases it in end()', () => {
+  const src = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+  const i = src.indexOf("path.join(COLLECTOR, 'collector.mjs'))\n      .then(() => runNodeAsync(path.join(COLLECTOR, 'assemble.mjs'), ['--date'");
+  assert.ok(i > 0, 'the do-commit rescan is still where this pin expects it');
+  const block = src.slice(src.lastIndexOf('const s = latest();', i), i);
+  assert.match(block, /refreshLock\.take\('app'\)/);
+  assert.ok(block.indexOf("refreshLock.take('app')") < block.indexOf('liveState.scanBegin()'), 'the lock comes first');
+  assert.match(block, /const end = \(code, err\) => \{[^\n]*refreshLock\.release\('app'\)/, 'end() releases it');
+  assert.match(block, /!liveState\.scanBegin\(\)\) \{ refreshLock\.release\('app'\)/, 'a refused scan guard gives the lock back');
+});

@@ -7,6 +7,9 @@
 //   record(dataDir, fields)                 → the entry written, or null   (auditEntry() + append(); what the MCP guard and the bridge routes call)
 //   read(dataDir)                           → { entries, skipped }   (the .1 generation first, then the live file; skipped = torn / foreign lines)
 //   rotate(dataDir)                         → true | false   (live file → .1, replacing the older generation: exactly one kept)
+//   rotateIfFull(dataDir)                   → true | false   (rotate() only if the live file is STILL past the limit: append's own check can be stale
+//                                                             when another writer rotated in between, and renaming that writer's tiny new file
+//                                                             over .1 would destroy the full older generation)
 // Reachable from CommonJS with: import(pathToFileURL(path.join(__dirname, 'assist-audit.mjs')).href)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,11 +26,16 @@ export function rotate(dataDir) {
   catch { return false; }                                    // another process rotated first, or nothing to rotate
 }
 
+export function rotateIfFull(dataDir) {
+  try { if (fs.statSync(auditPath(dataDir)).size < MAX_BYTES) return false; } catch { return false; }   // looked again right before the rename
+  return rotate(dataDir);
+}
+
 export function append(dataDir, entry) {
   try {
     const file = auditPath(dataDir);
     fs.mkdirSync(dataDir, { recursive: true });
-    try { if (fs.statSync(file).size >= MAX_BYTES) rotate(dataDir); } catch { /* no file yet */ }
+    try { if (fs.statSync(file).size >= MAX_BYTES) rotateIfFull(dataDir); } catch { /* no file yet */ }
     fs.appendFileSync(file, JSON.stringify(entry) + '\n');
     return true;
   } catch { return false; }

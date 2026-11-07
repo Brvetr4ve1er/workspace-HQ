@@ -120,14 +120,41 @@ test('user scope: key presence only; ~/.claude.json values never appear in any o
   } finally { rm(e.root); }
 });
 
-test('bridge: paired when data/.bridge-pairing.json exists, its contents never read into the output', async () => {
+test('bridge: paired only when the pairing file is one the bridge accepts AND the token file is there; contents never reach the output', async () => {
   const e = env();
   try {
-    assert.equal(row(await mk(e).read(), 'bridge').ok, false);
-    fs.writeFileSync(path.join(e.dataDir, '.bridge-pairing.json'), JSON.stringify({ token: 'test-token-0000' }));
+    const pair = path.join(e.dataDir, '.bridge-pairing.json'), tok = path.join(e.dataDir, '.bridge-token');
+    const good = JSON.stringify({ v: 1, origin: 'chrome-extension://abcdefghijklmnop', pairedAt: '2026-11-07T10:00:00Z' });
+    assert.equal(row(await mk(e).read(), 'bridge').ok, false, 'nothing yet');
+    fs.writeFileSync(pair, good);
+    const noTok = row(await mk(e).read(), 'bridge');
+    assert.equal(noTok.ok, false, 'a pairing file without the token fails closed in the bridge');
+    assert.match(noTok.detail, /token is missing/);
+    fs.writeFileSync(tok, '');
+    assert.equal(row(await mk(e).read(), 'bridge').ok, false, 'an empty token');
+    fs.writeFileSync(tok, 'test-token-0000');
     const r = await mk(e).read();
     assert.equal(row(r, 'bridge').ok, true);
     assert.ok(!JSON.stringify(r).includes('test-token-0000'));
+    for (const bad of ['{not json', JSON.stringify({ v: 2, origin: 'chrome-extension://abc' }), JSON.stringify({ v: 1, origin: 'https://example.com' }), JSON.stringify({ token: 'test-token-0000' }), '[]']) {
+      fs.writeFileSync(pair, bad);
+      const x = row(await mk(e).read(), 'bridge');
+      assert.equal(x.ok, false, bad);
+      assert.match(x.detail, /not paired/);
+      assert.ok(x.step, 'and it says the one missing step');
+    }
+  } finally { rm(e.root); }
+});
+
+test('phone door: a boot or start time from another day carries its day, so it cannot read as today', async () => {
+  const e = env();
+  try {
+    const old = row(await mk(e, { probes: { bootTime: () => NOW - 57 * 3600e3 } }).read(), 'phone-door');
+    assert.match(old.detail, /^not running since boot at (Sun|Mon|Tue|Wed|Thu|Fri|Sat) [0-9][0-9]:[0-9][0-9]$/);
+    const far = row(await mk(e, { probes: { bootTime: () => NOW - 20 * 24 * 3600e3 } }).read(), 'phone-door');
+    assert.match(far.detail, /^not running since boot at [0-9]{1,2} [A-Z][a-z]{2} [0-9][0-9]:[0-9][0-9]$/);
+    const started = row(await mk(e, { probes: { processes: async () => [{ pid: 4242, started: new Date(NOW - 3 * 24 * 3600e3).toISOString(), cmd: 'claude.exe remote-control' }] } }).read(), 'phone-door');
+    assert.match(started.detail, /since (Sun|Mon|Tue|Wed|Thu|Fri|Sat) [0-9][0-9]:[0-9][0-9]$/);
   } finally { rm(e.root); }
 });
 

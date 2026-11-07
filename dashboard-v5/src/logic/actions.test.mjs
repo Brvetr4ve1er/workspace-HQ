@@ -224,6 +224,12 @@ test('Scan now refused by main: only its own toast goes, and the reason comes fr
   failed.store.live.scan = { state: 'idle' };
   await failed.c.scanNow();
   assert.deepEqual(failed.c.state.toasts.map((x) => [x.kind, x.text]), [['error', 'The scan didn’t start · spawn powershell.exe ENOENT']]);
+  // main answers a bare false with nothing running and nothing failed: the refresh lock is held by a Claude session's raw pass
+  const locked = make({ runScan: () => false });
+  locked.c.toast = Component.prototype.toast;
+  locked.store.live.scan = { state: 'idle' };
+  await locked.c.scanNow();
+  assert.deepEqual(locked.c.state.toasts.map((x) => [x.kind, x.text]), [['error', 'The scan didn’t start · a raw pass started from a Claude session may be running — try again in a minute']]);
 });
 
 test('a scan this window watched: its end replaces the progress toast; a failure from before the load does not toast', () => {

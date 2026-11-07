@@ -20,6 +20,7 @@ const { pathToFileURL } = require('url');
 const PROBE_MS = 9000;
 const WEEK_MS = 7 * 24 * 3600e3;
 const PHONE_COPY = 'claude remote-control';
+const EXT_ORIGIN = /^(?:chrome|moz)-extension:\/\/[a-z0-9-]{1,64}$/i;   // bridge-pair.js ORIGIN_RE
 
 let mods = null;
 const lib = () => mods || (mods = Promise.all([
@@ -29,6 +30,13 @@ const lib = () => mods || (mods = Promise.all([
 
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (ms) => { const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// HH:MM today; 'Thu 11:00' within a week of `ref`; '2 Nov 11:00' beyond (a time without its day reads as today)
+const when = (ms, ref) => {
+  const d = new Date(ms), r = new Date(ref);
+  if (d.toDateString() === r.toDateString()) return hhmm(ms);
+  return (ref - ms < 6 * 24 * 3600e3 && ref > ms ? DAYS[d.getDay()] : d.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]) + ' ' + hhmm(ms);
+};
 const norm = (p) => String(p || '').replace(/\\/g, '/').toLowerCase();
 
 function withTimeout(p, ms) {
@@ -100,13 +108,13 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
     let procs = null;
     try { procs = await withTimeout(P.processes(), probeTimeoutMs); } catch { procs = null; }
     const copyStep = { step: 'Start it in a terminal that stays open', copy: PHONE_COPY };
-    const bootAt = () => { try { return hhmm(P.bootTime()); } catch { return null; } };
+    const bootAt = () => { try { return when(P.bootTime(), now()); } catch { return null; } };
     const off = (extra) => ({ ...base, ok: false, detail: `not running since boot${bootAt() ? ' at ' + bootAt() : ''}${extra || ''}`, ...copyStep });
     if (Array.isArray(procs)) {
       const hit = procs.find((p) => p && p.pid !== process.pid && typeof p.cmd === 'string' && /remote-control/i.test(p.cmd) && /claude/i.test(p.cmd));
       if (hit) {
         const t = Date.parse(hit.started);
-        return { ...base, ok: true, detail: `running (pid ${hit.pid})${Number.isFinite(t) ? ' since ' + hhmm(t) : ''}` };
+        return { ...base, ok: true, detail: `running (pid ${hit.pid})${Number.isFinite(t) ? ' since ' + when(t, now()) : ''}` };
       }
       return off();
     }
@@ -143,16 +151,33 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
       : off('not registered at user scope — only sessions started in this folder have the workspacehq tools');
   }
 
+  // Paired means what bridge-pair.js means by it: a pairing file that parses (v 1, a browser-extension origin) AND a token file that is
+  // there and not empty. The file contents are checked in memory and never reach the output; the token is only stat-ed.
+  // (The two rules are repeated here on purpose: this module is also loaded from a copied MCP root that has no bridge-pair.js.)
   function bridge() {
     const base = { id: 'bridge', who: 'owner' };
     if (!dataDir) return { ...base, ok: null, detail: 'unknown — no data folder' };
-    try {
-      fs.statSync(path.join(dataDir, '.bridge-pairing.json'));
-      return { ...base, ok: true, detail: 'the browser extension is paired' };
-    } catch (e) {
-      if (e && e.code === 'ENOENT') return { ...base, ok: false, detail: 'not paired', step: 'Open the extension popup and pair it with the app' };
+    const unpaired = (detail) => ({ ...base, ok: false, detail, step: 'Open the extension popup and pair it with the app' });
+    let text;
+    try { text = fs.readFileSync(path.join(dataDir, '.bridge-pairing.json'), 'utf8'); }
+    catch (e) {
+      if (e && e.code === 'ENOENT') return unpaired('not paired');
       return { ...base, ok: null, detail: 'unknown — the pairing file could not be checked' };
     }
+    let j = null;
+    try { j = JSON.parse(text); } catch { j = null; }
+    text = null;
+    if (!j || typeof j !== 'object' || Array.isArray(j) || j.v !== 1 || typeof j.origin !== 'string' || !EXT_ORIGIN.test(j.origin)) {
+      return unpaired('not paired — the pairing file is not one this app accepts');
+    }
+    j = null;
+    try {
+      if (fs.statSync(path.join(dataDir, '.bridge-token')).size < 1) return unpaired('not paired — the bridge token is empty');
+    } catch (e) {
+      if (e && e.code === 'ENOENT') return unpaired('not paired — the bridge token is missing');
+      return { ...base, ok: null, detail: 'unknown — the bridge token could not be checked' };
+    }
+    return { ...base, ok: true, detail: 'the browser extension is paired' };
   }
 
   async function trayIcon() {

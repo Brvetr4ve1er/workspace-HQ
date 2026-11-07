@@ -621,9 +621,12 @@ ipcMain.handle('hq:do-commit', (_e, projPath, message) => {
   // hq:live-state / hq:scan-status show it — and settles BEFORE the reload.
   // scanBegin() false = a scan is already running; it picks the commit up.
   const s = latest();
-  if (s && liveState.scanBegin()) {
+  // Assistant rulebook: it also takes data/.refresh.lock ('app') like runScan, so a Claude session's raw pass
+  // (hq_scan_trigger) and this rescan never run the collector together; a held lock = skip, the next scan picks the commit up.
+  if (s && refreshLock.take('app')) {
+    if (!liveState.scanBegin()) { refreshLock.release('app'); return { ok: true }; }
     let settled = false;
-    const end = (code, err) => { if (settled) return; settled = true; try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
+    const end = (code, err) => { if (settled) return; settled = true; refreshLock.release('app'); try { liveState.scanEnd(code, err); } catch (e) { console.error('scanEnd failed:', e); } };
     runNodeAsync(path.join(COLLECTOR, 'collector.mjs'))
       .then(() => runNodeAsync(path.join(COLLECTOR, 'assemble.mjs'), ['--date', s.scan.id]))
       .then(() => { end(0); selfWrite.note(); rebuildData(); if (win && !win.isDestroyed()) win.reload(); })   // note first: the watcher must not echo this rescan's latest.json

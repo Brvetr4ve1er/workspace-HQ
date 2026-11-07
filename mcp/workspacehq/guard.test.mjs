@@ -311,6 +311,8 @@ test('hq_activity: counts, recent, last scan trigger, skipped lines and the door
     assert.equal(a.lastScanTrigger.ok, true);
     assert.ok(Array.isArray(a.recent) && a.recent.length === 3);
     assert.deepEqual(a.doors.map((d) => d.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls']);
+    assert.ok(a.doors.every((d) => !('copy' in d)), 'no install command or absolute path in an MCP answer');
+    assert.ok(!JSON.stringify(a.doors).includes('server.mjs'));
     const calls = a.doors.find((d) => d.id === 'calls');
     assert.match(calls.detail, /mcp 3/);
     const again = body(await s.call('hq_activity'));

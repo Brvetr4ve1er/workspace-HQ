@@ -98,3 +98,31 @@ test('no free text reaches the file: extra fields on the call are dropped', () =
     for (const s of ['captured thought', 'a title', 'alpha-site', 'args']) assert.ok(!raw.includes(s), s);
   } finally { rm(d); }
 });
+
+test('two writers that both saw a full log: the second does not replace the older generation with the first writer tiny new file', () => {
+  const d = tmp();
+  const realStat = fs.statSync;
+  try {
+    const file = auditPath(d);
+    const big = JSON.stringify(auditEntry(fields(0))) + '\n';
+    const n = Math.ceil(MAX_BYTES / big.length) + 5;
+    fs.writeFileSync(file, big.repeat(n));
+    let fired = false;
+    // writer 1 looks (full) -> before it renames, writer 2 rotates and appends its line (the interleave the taster simulated)
+    fs.statSync = function (p, ...rest) {
+      const r = realStat.call(this, p, ...rest);
+      if (!fired && String(p) === file) {
+        fired = true;
+        fs.statSync = realStat;
+        rotate(d);
+        fs.appendFileSync(file, JSON.stringify(auditEntry(fields(50))) + '\n');
+      }
+      return r;
+    };
+    record(d, fields(51));                                   // writer 1
+    fs.statSync = realStat;
+    const r = read(d);
+    assert.equal(r.entries.length, n + 2, 'nothing lost: the full generation sits in .1, both new lines in the live file');
+    assert.equal(fs.readFileSync(file + '.1', 'utf8').split('\n').filter(Boolean).length, n);
+  } finally { fs.statSync = realStat; rm(d); }
+});

@@ -62,11 +62,36 @@ function create({ dataDir, now = Date.now, pid = process.pid, isAlive = defaultI
           if (!e || e.code !== 'EEXIST') return true;      // the lock is a belt: if the disk will not take it, do not block the caller
           const s = inspect();
           if (s.fresh) return false;
-          try { fs.unlinkSync(file); } catch { /* another process reclaimed it first — the next wx decides */ }
+          return reclaim(body);
         }
       }
       return false;
     } catch { return true; }                                // e.g. the data folder cannot exist: fail open
+  }
+
+  // Replacing a stale lock is one taker at a time (a short-lived `.refresh.lock.reclaim` created with wx): two takers that both saw the
+  // same stale lock must not both unlink and create — the slower one would delete the faster one's live lock. Inside, the lock is
+  // looked at again; a lock that is fresh by then belongs to the faster taker and is left alone.
+  function reclaim(body) {
+    const gate = file + '.reclaim';
+    let have = false;
+    for (let attempt = 0; attempt < 2 && !have; attempt++) {
+      try { fs.writeFileSync(gate, String(pid), { flag: 'wx' }); have = true; }
+      catch (e) {
+        if (!e || e.code !== 'EEXIST') return true;                                  // the disk will not take it: fail open like the lock itself
+        let age = 0;
+        try { age = now() - fs.statSync(gate).mtimeMs; } catch { continue; }          // vanished: try once more
+        if (age < 10e3 && age > -10e3) return false;                                  // another taker is reclaiming right now
+        try { fs.unlinkSync(gate); } catch { /* someone else cleared it */ }          // a crashed reclaimer's leftover
+      }
+    }
+    if (!have) return false;
+    try {
+      if (inspect().fresh) return false;
+      try { fs.unlinkSync(file); } catch { /* already gone */ }
+      try { fs.writeFileSync(file, body, { flag: 'wx' }); return true; }
+      catch (e) { return !!e && e.code !== 'EEXIST'; }                                // EEXIST = a third taker was first
+    } finally { try { fs.unlinkSync(gate); } catch { /* best effort */ } }
   }
 
   function setPid(by, newPid) {

@@ -115,7 +115,8 @@ export const runsLogic = {
     const tid = this.toast('progress', 'Scanning every project · the window reloads when it’s done', { scan: true });
     FX().sfx('run'); FX().event('look', 'Scanning…');
     this._scanStarting = true;
-    const refused = () => { const sc = this.scanStatus(); return sc.running ? 'A scan is already running' : 'The scan didn’t start' + (sc.error ? ' · ' + sc.error : ''); };
+    // a bare false with no failure on record and nothing running here = the shared refresh lock is held by a session's raw pass
+    const refused = () => { const sc = this.scanStatus(); return sc.running ? 'A scan is already running' : 'The scan didn’t start' + (sc.error ? ' · ' + sc.error : ' · a raw pass started from a Claude session may be running — try again in a minute'); };
     return Promise.resolve().then(() => this.hq.runScan()).then(
       (r) => { if (r === false) { this.dismissToast(tid); this.toast(this.scanStatus().running ? 'info' : 'error', refused()); } },
       (e) => { this.dismissToast(tid); this.toast('error', 'The scan didn’t start · ' + ((e && e.message) || e)); })

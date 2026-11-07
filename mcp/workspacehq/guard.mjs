@@ -142,7 +142,8 @@ export function createGuard({ root, dataDir, collectorPath, cwd = process.cwd(),
     let doors;
     try {
       const exe = reach.exePath || path.join(root, 'dashboard', 'node_modules', 'electron', 'dist', 'electron.exe');
-      doors = (await require('../../dashboard/reach.js').create({ dataDir, now, exePath: exe, ...reach }).read()).rows;
+      doors = (await require('../../dashboard/reach.js').create({ dataDir, now, exePath: exe, ...reach }).read()).rows
+        .map(({ copy, ...row }) => row);   // `copy` is the Settings Copy button's command (it carries the install path); an MCP answer keeps the words only
     } catch { doors = []; }
     return { since: s.since, counts: s.counts, recent: s.recent, lastScanTrigger: s.lastScanTrigger, skippedLines: r.skipped, doors };
   }

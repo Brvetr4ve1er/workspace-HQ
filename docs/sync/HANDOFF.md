@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 1 tasting fixes: the assistant's rulebook) · main
+DONE: the app's post-commit rescan (hq:do-commit) now takes data/.refresh.lock like Scan now, so a session's raw pass and the app never run the collector together; a stale lock is
+  replaced under a short `.refresh.lock.reclaim` gate (two takers can no longer both win it); the audit log's rotation looks again right before renaming (two writers can no longer wipe .1);
+  Reach's bridge row says paired only for a pairing file the bridge accepts plus a non-empty data/.bridge-token; the phone row's boot/start time carries its day when not today;
+  hq_activity's door rows no longer carry the `copy` command (it holds the install path; the Settings Copy button keeps it); the usage counter counts a page only while it is visible
+  (a hidden or tray window waits for its first show); a refused Scan now says a session's raw pass may be running. Each with a test that failed before.
+IN-FLIGHT: none.
+ASKS (struct): run-pipeline.ps1 (the nightly run) still takes no lock, so an hq_scan_trigger during it can run the collector together with it. Please have it take/skip on data/.refresh.lock
+  (JSON { pid, by, startedAt }; by must be 'app' or 'mcp', use 'app'; stale = pid gone or older than 15 min; create with flag wx, see dashboard/refresh-lock.js). The tool description, README and CONTRACT row say it is not covered yet.
+BREAKS: none (additive; hq_activity door rows lose the `copy` key).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 7 of 8: client delivery on each project page) · main
 DONE: every project page gets a Client delivery card before its Claude section. Unmarked: "Is this a client job?" with a Mark button, plus the repo's own checklist files as sources
   the owner may pick (nothing is picked automatically); picking one on an unmarked project is plan mode ("Plan: N of M done", no link, no update). Marked: what's left against

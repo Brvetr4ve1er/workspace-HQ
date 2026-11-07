@@ -245,7 +245,7 @@ const TOOLS = [
   },
   {
     name: 'hq_scan_trigger',
-    description: 'Start the collector raw pass (local git only, no LLM, no network) and return at once. Bounded: one pass at a time, shared with the app Scan through data/.refresh.lock, and at most one every 10 minutes (a refusal says why and when to retry). The Brief and latest.json change only after the next app scan (Scan now, or the nightly run).',
+    description: 'Start the collector raw pass (local git only, no LLM, no network) and return at once. Bounded: one pass at a time, shared with the app Scan (and its post-commit rescan) through data/.refresh.lock — the nightly scheduled run does not take that lock yet — and at most one every 10 minutes (a refusal says why and when to retry). The Brief and latest.json change only after the next app scan (Scan now, or the nightly run).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run() { return guard.scanTrigger(); },
   },

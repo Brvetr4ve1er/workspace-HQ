@@ -7,6 +7,9 @@
 // useArrive()  — call from the navigation `moved` branch (src/app.js componentDidUpdate): a new screen starts a new arrival, so a surface
 //   marked on Home is marked again after the owner leaves and comes back. useMark also notices a screen change by itself, so the order of
 //   render and didUpdate does not matter (no double send).
+// A mark is counted only while the window can be SEEN (document.visibilityState === 'visible'): a window that loads hidden (--hidden, a login
+//   item, the tray) or reloads after a scan with nobody there is not an arrival. A mark made while hidden waits and is sent on the first real
+//   show, if the owner is still on the same screen. Without a document (a test rig) the page counts as visible.
 //
 // Reach (Settings): rchEnsure() loads the rows once per opening of Settings, rchLoad() reads hq.reach.read(), rchCopy(text) copies a command.
 // State keys are rch-prefixed: rchRows, rchAt, rchBusy, rchError.
@@ -15,10 +18,14 @@ const screenKey = (self) => {
   return JSON.stringify([S.tab || '', S.route || null, (S.sub && S.tab && S.sub[S.tab]) || '']);
 };
 
+const pageVisible = () => {
+  try { return typeof document === 'undefined' || typeof document.visibilityState !== 'string' || document.visibilityState === 'visible'; } catch { return true; }
+};
+
 export const useLogLogic = {
   _useSync() {
     const key = screenKey(this);
-    if (this._useScreen !== key) { this._useScreen = key; this._useSeen = new Set(); }
+    if (this._useScreen !== key) { this._useScreen = key; this._useSeen = new Set(); this._usePending = null; }
     return this._useSeen || (this._useSeen = new Set());
   },
   useMark(surface, action = 'open') {
@@ -27,6 +34,7 @@ export const useLogLogic = {
     const seen = this._useSync();
     const id = surface + '/' + action;
     if (seen.has(id)) return false;
+    if (!pageVisible()) { this._useWait(id, surface, action); return false; }   // not seen yet: no mark, it waits for the first show
     seen.add(id);
     try {
       const r = send.call(this.hq, surface, action);
@@ -35,6 +43,16 @@ export const useLogLogic = {
     return true;
   },
   useArrive() { this._useSync(); },
+  _useWait(id, surface, action) {
+    (this._usePending || (this._usePending = new Map())).set(id, [surface, action]);
+    if (this._useListening || typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+    this._useListening = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!pageVisible()) return;
+      const waiting = this._usePending; this._usePending = null;
+      if (waiting) for (const [sf, ac] of waiting.values()) this.useMark(sf, ac);   // _useSync inside drops them when the screen changed meanwhile
+    });
+  },
 
   rchEnsure() {
     if (this._rchAsked) return;
