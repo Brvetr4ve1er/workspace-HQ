@@ -80,7 +80,7 @@ export async function run(args = {}, opts = {}) {
     for (const p of store.listProjects({ source: 'code' })) projects[p.id] = p;
     const details = {};
     for (const r of rows) {
-      const got = store.getConversation({ id: r.id, limit: core.TURN_LIMIT });
+      const got = store.getConversation({ id: r.id, limit: core.FETCH_LIMIT });
       details[r.id] = got ? got.messages : [];
     }
     const board = core.buildBoard({ rows, details, projects, now: nowMs, windowMs: hours * 3600e3 });

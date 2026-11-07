@@ -29,6 +29,7 @@ const HELPER = path.join(__dirname, 'claude-resume.cmd');
 const UNSAFE_HELPER_PATH = /["%!&|<>^()]/;
 const BAD_MODES = ['auto', 'dontAsk', 'bypassPermissions', 'acceptEdits', 'plan'];
 const CONTINUE_WORD = 'continue';
+const LIVE_MS = 2 * 60e3;   // a chat whose last row is younger than this is still being written by a running claude
 const TRANSCRIPT_GONE = 'Claude Code deleted this transcript (older than 30 days) — read it in Claude › Chats';
 const WIN = process.platform === 'win32';
 
@@ -57,7 +58,7 @@ function buildArgs({ id, say, mcpConfig } = {}) {
   return args;
 }
 
-function create({ hub, app, repoRoot, env = process.env, spawn = childProcess.spawn, log = (l) => console.log(l), helper = HELPER, fsApi = fs, tmpdir = os.tmpdir() } = {}) {
+function create({ hub, app, repoRoot, env = process.env, spawn = childProcess.spawn, log = (l) => console.log(l), helper = HELPER, fsApi = fs, tmpdir = os.tmpdir(), now = () => Date.now() } = {}) {
   const inflight = new Set();
   let mcpDir = null, mcpFile = null;
   const claudeHome = () => env.HQ_CLAUDE_HOME || path.join(os.homedir(), '.claude');
@@ -88,6 +89,10 @@ function create({ hub, app, repoRoot, env = process.env, spawn = childProcess.sp
     catch (e) { return { error: 'Claude Hub couldn’t answer · ' + String((e && e.message) || e).slice(0, 160) }; }
     const c = r && r.conversation;
     if (!c || c.source !== 'code') return { error: 'refused: that is not an indexed Claude Code chat' };
+    // A chat that wrote a row a moment ago is open in a live terminal: a second claude on the same transcript would interleave into it.
+    // (The board offers Resume only after 30 quiet minutes; the Chats button has no such gate, so main enforces the floor.)
+    const lastMs = Date.parse(c.last_at);
+    if (Number.isFinite(lastMs) && now() - lastMs < LIVE_MS) return { error: 'refused: that chat was active a moment ago — close its window first, then try again' };
     const cwd = c.cwd;
     const why = cwdRefusal(cwd, env);
     if (why) return { error: 'refused: the folder is ' + why };

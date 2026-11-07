@@ -7,6 +7,10 @@
 // straight to hq.sessionsBoard. Usage marks (dashboard/use-log.js allowlist: 'sessions-board' open on arrival, 'sessions-board' resume on a
 // Resume that opened a terminal, 'sessions-strip' open from vals/sessions-board.js while the strip is actually shown) go through useMark.
 const NO_BRIDGE = 'The sessions board needs the desktop app';
+// Refusals that will not change by clicking again (the transcript or the folder is gone or not allowed, the chat is not a Code chat):
+// remembered per chat, so the Chats button says why and falls back to a fresh session. Transient ones (the Hub down, a resume already
+// starting, a chat active a moment ago, a terminal that would not open) are not remembered: the next click may work.
+const STANDING_REFUSAL = /deleted this transcript|^refused: the folder|^refused: that is not an indexed|quote or control character|folder no longer exists|not a folder any more/;
 
 export const sessionsBoardLogic = {
   _sbdMark(surface, action) { try { if (typeof this.useMark === 'function') this.useMark(surface, action || 'open'); } catch { /* a mark never blocks a click */ } },
@@ -28,7 +32,7 @@ export const sessionsBoardLogic = {
     try {
       const r = await this.store.resumeSession(id, say === 'continue' ? { say: 'continue' } : {});
       if (r && r.error) {
-        if (/deleted this transcript/.test(r.error)) { this._sbdGone = Object.assign({}, this._sbdGone, { ['code:' + String(id).replace(/^code:/, '')]: r.error }); this.setState({ sbdGoneAt: Date.now() }); }
+        if (STANDING_REFUSAL.test(r.error)) { this._sbdGone = Object.assign({}, this._sbdGone, { ['code:' + String(id).replace(/^code:/, '')]: r.error }); this.setState({ sbdGoneAt: Date.now() }); }
         this.toast('error', 'Not resumed · ' + r.error);
         return false;
       }

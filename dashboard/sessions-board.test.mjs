@@ -54,7 +54,7 @@ test('poll: asks for 7 days of Code sessions, fetches turns only for changed row
   assert.deepEqual(f.ops('listProjects')[0][1], { source: 'code' });
   assert.equal(f.ops('listProjects').length, 1);
   assert.equal(f.ops('getConversation').length, 2);
-  assert.deepEqual(f.ops('getConversation')[0][1], { id: 'code:' + sid('1'), limit: 8 });
+  assert.deepEqual(f.ops('getConversation')[0][1], { id: 'code:' + sid('1'), limit: 30 });
   assert.equal(board.state, 'ok');
   assert.equal(board.sessions.length, 2, 'the 3 h old row is still inside 24 h');
 
@@ -230,5 +230,29 @@ test('init: three handlers, push only when the board changes, resume and open-fo
   assert.match((await handlers.get('hq:sessions-board:resume')({}, sid('2'), { say: 'rm -rf' })).error, /only the word "continue"/);
   assert.match((await handlers.get('hq:sessions-board:resume')({}, 'nope')).error, /not a Claude Code session id/);
   api.resumer.cleanup();
+  api.stop();
+});
+
+test('init: an unchanged board is still pushed once a minute, so the renderer\u2019s ages never go stale', async () => {
+  const ipcMain = { handle() {} };
+  const sent = [];
+  const win = { isDestroyed: () => false, webContents: { send: (ch, b) => sent.push(b) } };
+  let nowMs = NOW0;
+  // a prompt nobody answered: its sentence ("your last prompt has no reply") carries no age, so the signature never changes
+  const state = { rows: [row('2', { last_at: iso(NOW0 - 10 * MIN) })] };
+  const hub = { request: async (op) => (op === 'listConversations' ? state.rows : op === 'listProjects' ? [] : { conversation: state.rows[0], messages: [t('user', 10 * MIN)] }) };
+  const api = SB.init({ ipcMain, app: { on() {} }, hub, getWins: () => [win], shell: {}, repoRoot: ROOT, intervalMs: 0, now: () => nowMs,
+    env: { HQ_CLAUDE_HOME: home, HQ_CODEX_HOME: path.join(ROOT, 'none') }, appLog() {} });
+  await api.tick();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].sessions[0].state, 'no-reply');
+  nowMs += 30e3; await api.tick();
+  assert.equal(sent.length, 1, 'half a minute later and nothing changed: no push');
+  nowMs += 31e3; await api.tick();
+  assert.equal(sent.length, 2, 'a minute on, the same board is pushed again');
+  assert.equal(sent[1].sessions[0].state, 'no-reply');
+  assert.equal(sent[1].generatedAt, iso(nowMs), 'with a fresh generatedAt');
+  nowMs += 20e3; await api.tick();
+  assert.equal(sent.length, 2);
   api.stop();
 });

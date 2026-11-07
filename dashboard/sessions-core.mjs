@@ -26,7 +26,9 @@ export const HOME_RECENT_MS = 2 * 3600e3;
 export const MAX_LANES = 12;
 export const DAY_MS = 24 * 3600e3;
 export const WEEK_MS = 7 * DAY_MS;
-export const TURN_LIMIT = 8;            // getConversation({ id, limit: TURN_LIMIT })
+export const TURN_LIMIT = 8;            // the newest rows that count as "this hour's turns" (shown as 8+)
+export const FETCH_LIMIT = 30;          // getConversation({ id, limit: FETCH_LIMIT }): enough that subagent rows cannot crowd out the main line
+export const TOOL_REPLY_MS = 5 * 60e3;  // a tool result the model has not answered for this long = stuck or interrupted
 export const NIGHTLY_CWD = 'c:/windows/system32';
 export const STATES = ['running', 'waiting-tool', 'stopped-mid-tool', 'no-reply', 'limit', 'api-error', 'finished', 'quiet'];
 export const LIMIT_KINDS = ['session', 'limit', 'weekly', 'monthly'];
@@ -57,7 +59,8 @@ const dayLabel = (ms) => { const d = new Date(ms); return MONTH_NAMES[d.getMonth
 //   plain limit     "You've hit your limit · resets 9am"                              time-only reset
 //   weekly limit    "You've hit your weekly limit · resets Aug 3, 5pm"                date-form reset
 //   monthly spend   "You've hit your monthly spend limit"                             no reset time
-const HIT = /^\s*(?:you(?:['’]ve| have) hit your|your)\s+((?:session|weekly|monthly spend|opus weekly|sonnet weekly|5-hour|five-hour)\s+)?limit\b/i;
+const INTERRUPTED = /^\s*\[Request interrupted by user/i;   // Esc: Claude Code writes this as a user turn; it is not a prompt
+const HIT = /^\s*you(?:['’]ve| have) hit your\s+((?:session|weekly|monthly spend|opus weekly|sonnet weekly|5-hour|five-hour)\s+)?limit\b/i;
 const OLD = /^\s*(?:(5-hour|five-hour|weekly|session|opus weekly|sonnet weekly)\s+limit reached|claude (?:ai )?usage limit reached)\b/i;
 const RESET_TAIL = /\bresets?(?:\s+at)?\s+(.+?)\s*$/i;
 const TIME_ONLY = /^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$/i;
@@ -128,12 +131,17 @@ export function classify(conv, turns, now) {
   const lastMs = Math.max(lastAtMs ?? -Infinity, lastTurnMs);
   const longRun = num(conv && conv.active_ms) >= LONG_RUN_MIN * 60e3;
   const hourAgo = now - 3600e3;
-  const turnsThisHour = all.filter((t) => { const x = msOf(t.at); return x !== null && x >= hourAgo && x <= now; }).length;
+  const turnsThisHour = all.slice(-TURN_LIMIT).filter((t) => { const x = msOf(t.at); return x !== null && x >= hourAgo && x <= now; }).length;
   const out = (state, sentence, extra) => ({ state, sentence, longRun, turnsThisHour, ...extra });
   const last = main.length ? main[main.length - 1] : null;
   const lastText = last && last.role === 'assistant' && !last.tool_name ? str(last.text) : '';
   const lim = lastText ? parseLimitNotice(lastText, msOf(last.at)) : null;
 
+  // the owner pressed Esc: a stop the owner asked for, not a prompt waiting for an answer and not work in progress
+  if (last && last.role === 'user' && INTERRUPTED.test(str(last.text))) {
+    const t = msOf(last.at) ?? lastMs;
+    return out(Number.isFinite(lastMs) && now - lastMs >= QUIET_MS ? 'quiet' : 'finished', 'you interrupted it ' + ago(t, now));
+  }
   // the notice is the last thing the session said: nothing can be running after it
   if (lim) {
     const fut = lim.resetsAt && Date.parse(lim.resetsAt) > now;
@@ -143,6 +151,10 @@ export function classify(conv, turns, now) {
   }
   if (Number.isFinite(lastMs) && now - lastMs <= RUNNING_MS && now >= lastMs - RUNNING_MS) {
     return out('running', 'working now · ' + turnsThisHour + (turnsThisHour >= TURN_LIMIT ? '+' : '') + ' turn' + (turnsThisHour === 1 ? '' : 's') + ' this hour');
+  }
+  if (!last && all.length) {
+    // rows exist but none is the session's own conversation (subagent or system rows only): say so, do not call it finished
+    return out('quiet', 'only subagent or system activity is indexed · last ' + ago(lastMs, now));
   }
   if (!last) {
     return out(Number.isFinite(lastMs) && now - lastMs >= QUIET_MS ? 'quiet' : 'finished', Number.isFinite(lastMs) ? 'quiet for ' + ago(lastMs, now).replace(' ago', '') : 'no turns indexed yet');
@@ -155,12 +167,14 @@ export function classify(conv, turns, now) {
     return out('stopped-mid-tool', 'stopped mid-tool: asked to run ' + tool + ' ' + ago(lastMainMs, now) + ', no result came back', { lastTool: tool });
   }
   if (last.role === 'user' && age > NO_REPLY_MS) return out('no-reply', 'your last prompt has no reply');
+  // a tool result nothing answered: the model never replied (a hung call, a crash, Esc before the next turn)
+  if (last.role === 'tool' && age > TOOL_REPLY_MS) return out('no-reply', 'the last tool result got no reply (stuck or interrupted)');
   if (last.role === 'assistant' && /^\s*API Error:/i.test(str(last.text))) return out('api-error', 'stopped on a connection error');
-  if (last.role === 'assistant' || last.role === 'tool') {
+  if (last.role === 'assistant') {
     if (Number.isFinite(lastMs) && now - lastMs >= QUIET_MS) return out('quiet', 'quiet — no activity ' + ago(lastMs, now));
     return out('finished', 'finished its turn ' + ago(lastMainMs, now));
   }
-  // a fresh owner prompt (under NO_REPLY_MS) that the running window did not catch, or a tool result with nothing after it
+  // a fresh owner prompt (under NO_REPLY_MS) that the running window did not catch, or a tool result the model is still answering (under TOOL_REPLY_MS)
   return out('running', 'working now · ' + turnsThisHour + ' turn' + (turnsThisHour === 1 ? '' : 's') + ' this hour');
 }
 
@@ -232,8 +246,10 @@ export function buildBoard({ rows = [], details = {}, projects = {}, now, window
     const turns = details[r.id] || [];
     const nightly = isNightly(r.cwd);
     if (!nightly) {
-      const lim = lastLimit(turns);
-      if (lim) { stopsCount++; if (!stopLast || Date.parse(lim.at) > Date.parse(stopLast.at)) stopLast = { kind: lim.kind, at: lim.at }; }
+      for (const lim of limitNotices(turns, now, weekMs)) {
+        stopsCount++;
+        if (!stopLast || Date.parse(lim.at) > Date.parse(stopLast.at)) stopLast = { kind: lim.kind, at: lim.at };
+      }
     }
     if (now - lastMs > windowMs) continue;
     if (nightly) { nightlyCount++; if (nightlyLast === null || lastMs > nightlyLast) nightlyLast = lastMs; continue; }
@@ -260,14 +276,25 @@ export function buildBoard({ rows = [], details = {}, projects = {}, now, window
   return board;
 }
 
-/** The limit notice in a session's last turns (main line, last assistant text), or null. */
-function lastLimit(turns) {
-  const main = mainline(realTurns(turns));
-  const last = main.length ? main[main.length - 1] : null;
-  if (!last || last.role !== 'assistant' || last.tool_name) return null;
-  const at = msOf(last.at);
-  const lim = parseLimitNotice(str(last.text), at);
-  return lim && at !== null ? { kind: lim.kind, at: iso(at) } : null;
+/**
+ * Every distinct usage-limit notice on a session's main line inside the week (the fetched turns, oldest first). A session the
+ * owner continued after the reset ("continue", then a reply) still carries its notice; the same stop repeated (same limit, same
+ * reset) is one stop, a later stop with a new reset is another.
+ */
+function limitNotices(turns, now, weekMs) {
+  const seen = new Set(), found = [];
+  for (const t of mainline(realTurns(turns))) {
+    if (t.role !== 'assistant' || t.tool_name) continue;
+    const at = msOf(t.at);
+    if (at === null || now - at > weekMs) continue;
+    const lim = parseLimitNotice(str(t.text), at);
+    if (!lim) continue;
+    const key = lim.kind + '|' + (lim.resetsAt || dayLabel(at));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    found.push({ kind: lim.kind, at: iso(at) });
+  }
+  return found;
 }
 
 export function boardSignature(board) {

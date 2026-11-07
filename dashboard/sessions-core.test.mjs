@@ -254,3 +254,71 @@ test('ago ladder', () => {
   assert.equal(C.ago(NOW - 49 * H, NOW), '2 d ago');
   assert.equal(C.ago(NaN, NOW), 'age unknown');
 });
+
+// ---------------------------------------------------------------- tasting fixes (sessions board)
+const result = (msAgo) => turn('tool', msAgo, { text: 'ok' });
+
+test('a tool result nothing answered is stuck or interrupted, not "finished"; a fresh one is still being answered', () => {
+  let r = cls(conv({ last_at: at(10 * MIN) }), [turn('user', 12 * MIN), tool(11 * MIN, 'Bash'), result(10 * MIN)]);
+  assert.equal(r.state, 'no-reply');
+  assert.equal(r.sentence, 'the last tool result got no reply (stuck or interrupted)');
+  assert.equal(cls(conv({ last_at: at(4 * MIN) }), [tool(5 * MIN), result(4 * MIN)]).state, 'running', 'inside the grace period the model is still answering');
+  assert.equal(cls(conv({ last_at: at(30 * H) }), [tool(30 * H), result(30 * H)]).state, 'no-reply', 'it stays a stop however old');
+  const b = board([row('a', { last_at: at(10 * MIN) })], { 'code:a': [tool(11 * MIN), result(10 * MIN)] });
+  assert.equal(b.counts.stopped, 1, 'a stopped session, in the Home strip family');
+  assert.deepEqual(C.homeStrip(b, NOW).map((s) => s.id), ['a']);
+});
+
+test('a limit notice survives the owner typing continue: every distinct stop in the fetched turns counts, a repeat of the same one does not', () => {
+  const wk = "You've hit your weekly limit \u00b7 resets Nov 7, 5pm";
+  const cont = [say(3 * H, wk), turn('user', 2 * H, { text: 'continue' }), say(100 * MIN, 'Done.')];
+  let b = board([row('a', { last_at: at(100 * MIN) })], { 'code:a': cont });
+  assert.equal(b.limitStops.count, 1, 'continued after the reset, still one stop');
+  assert.deepEqual(b.limitStops.last, { kind: 'weekly', at: at(3 * H) });
+  const twice = [say(3 * 24 * H, "You've hit your session limit \u00b7 resets 4:30pm"), turn('user', 2 * 24 * H, { text: 'continue' }), say(20 * H, "You've hit your weekly limit \u00b7 resets Nov 7, 5pm"), say(19 * H, 'Done.')];
+  b = board([row('a', { last_at: at(19 * H) })], { 'code:a': twice });
+  assert.equal(b.limitStops.count, 2, 'two different stops in one session');
+  assert.deepEqual(b.limitStops.last, { kind: 'weekly', at: at(20 * H) });
+  const repeat = [say(3 * H, wk), turn('user', 2 * H, { text: 'continue' }), say(100 * MIN, wk)];
+  assert.equal(board([row('a', { last_at: at(100 * MIN) })], { 'code:a': repeat }).limitStops.count, 1, 'the same limit with the same reset is one stop');
+  const old = [say(9 * 24 * H, wk), say(MIN, 'Done.')];
+  assert.equal(board([row('a', { last_at: at(MIN) })], { 'code:a': old }).limitStops.count, 0, 'a notice older than the week is not this week\u2019s');
+});
+
+test('subagent and system rows crowding the window never read as "finished"', () => {
+  const side = Array.from({ length: 8 }, (_, i) => turn('assistant', (11 + i) * MIN, { is_sidechain: 1, tool_name: 'Read' }));
+  const r = cls(conv({ last_at: at(11 * MIN) }), side.reverse());
+  assert.equal(r.state, 'quiet');
+  assert.match(r.sentence, /^only subagent or system activity is indexed · last 11 min ago$/);
+  // with the main line inside a wider window, the last main row decides
+  const wide = [say(40 * MIN, 'All done.'), ...Array.from({ length: 20 }, (_, i) => turn('assistant', (30 - i) * MIN, { is_sidechain: 1, tool_name: 'Grep' }))];
+  assert.equal(cls(conv({ last_at: at(11 * MIN) }), wide).sentence, 'finished its turn 40 min ago');
+  assert.equal(C.FETCH_LIMIT >= 3 * C.TURN_LIMIT, true);
+});
+
+test('this hour\u2019s turn count still reads the newest 8 rows, not the whole fetched window', () => {
+  const many = Array.from({ length: 20 }, (_, i) => tool((40 - i) * 1000));
+  const r = cls(conv({ last_at: at(20e3) }), many);
+  assert.equal(r.state, 'running');
+  assert.equal(r.turnsThisHour, C.TURN_LIMIT);
+  assert.match(r.sentence, /^working now · 8\+ turns this hour$/);
+});
+
+test('only a real notice is a limit stop: prose that starts with "Your \u2026 limit" is not', () => {
+  const prose = 'Your weekly limit tracker now reads the Hub and shows the reset day. Done.';
+  assert.equal(C.parseLimitNotice(prose, NOW), null);
+  assert.equal(cls(conv({ last_at: at(10 * MIN) }), [say(10 * MIN, prose)]).state, 'finished');
+  assert.equal(board([row('a')], { 'code:a': [say(10 * MIN, prose)] }).limitStops.count, 0);
+  assert.equal(C.parseLimitNotice("You've hit your weekly limit \u00b7 resets Nov 7, 5pm", NOW).kind, 'weekly');
+});
+
+test('Esc is an interruption, not a prompt without a reply', () => {
+  for (const text of ['[Request interrupted by user]', '[Request interrupted by user for tool use]']) {
+    const r = cls(conv({ last_at: at(10 * MIN) }), [say(12 * MIN), turn('user', 10 * MIN, { text })]);
+    assert.equal(r.state, 'finished', text);
+    assert.equal(r.sentence, 'you interrupted it 10 min ago');
+  }
+  assert.equal(cls(conv({ last_at: at(7 * H) }), [turn('user', 7 * H, { text: '[Request interrupted by user]' })]).state, 'quiet');
+  assert.equal(cls(conv({ last_at: at(10 * MIN) }), [say(12 * MIN), turn('user', 10 * MIN, { text: 'please continue' })]).state, 'no-reply', 'an ordinary prompt still is');
+  assert.equal(board([row('a', { last_at: at(10 * MIN) })], { 'code:a': [say(12 * MIN), turn('user', 10 * MIN, { text: '[Request interrupted by user]' })] }).counts.stopped, 0);
+});

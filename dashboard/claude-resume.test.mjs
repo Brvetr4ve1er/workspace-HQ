@@ -42,7 +42,7 @@ function rig(o = {}) {
   const tmp = path.join(ROOT, 'tmp-' + Math.random().toString(36).slice(2));
   fs.mkdirSync(tmp);
   const env = { HQ_CLAUDE_HOME: home, SystemRoot: 'C:\\Windows', USERPROFILE: path.join(ROOT, 'userhome'), ProgramFiles: 'C:\\Program Files', ...(o.env || {}) };
-  const r = R.create({ hub, repoRoot: o.repoRoot === undefined ? repo : o.repoRoot, env, spawn, log: (l) => logs.push(l), tmpdir: tmp });
+  const r = R.create({ hub, repoRoot: o.repoRoot === undefined ? repo : o.repoRoot, env, spawn, log: (l) => logs.push(l), tmpdir: tmp, ...(o.now ? { now: o.now } : {}) });
   return { r, spawns, logs, hubCalls, tmp, conv };
 }
 
@@ -238,4 +238,19 @@ test('a double click starts one terminal; a spawn failure is an honest error', a
   const g = rig({ spawnError: true });
   assert.match((await g.r.resume(ID)).error, /Couldn’t open a terminal · no cmd/);
   g.r.cleanup();
+});
+
+test('a chat that wrote a row under 2 minutes ago is refused (it is open in a live terminal); older, or with no time, is not', async () => {
+  const NOW = Date.parse('2026-11-05T12:00:00.000Z');
+  const f = rig({ now: () => NOW, conv: { last_at: new Date(NOW - 90e3).toISOString() } });
+  const out = await f.r.resume(ID);
+  assert.match(out.error, /^refused: that chat was active a moment ago — close its window first/);
+  assert.equal(f.spawns.length, 0);
+  assert.match((await f.r.plan(ID)).error, /active a moment ago/);
+  const ok = rig({ now: () => NOW, conv: { last_at: new Date(NOW - 121e3).toISOString() } });
+  assert.deepEqual(await ok.r.resume(ID), { ok: true });
+  ok.r.cleanup();
+  const noTime = rig({ now: () => NOW });
+  assert.deepEqual(await noTime.r.resume(ID), { ok: true }, 'a row with no last_at is not guessed at');
+  noTime.r.cleanup();
 });

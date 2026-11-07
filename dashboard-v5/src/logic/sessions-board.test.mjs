@@ -294,3 +294,21 @@ test('the templates use tokens only: no raw colours except the gold button ink',
     assert.deepEqual(raw, []);
   }
 });
+
+test('Chats: any standing refusal (folder gone, quote in the path, not a Code chat) is remembered so the button falls back; a transient one is not', async () => {
+  const conv = { id: 'code:11111111-1111-4111-8111-111111111111', source: 'code' };
+  for (const error of ['that folder no longer exists', 'refused: the folder is a drive root', 'that folder is not a folder any more', 'refused: the folder path has a quote or control character', 'refused: that is not an indexed Claude Code chat']) {
+    const f = rig({ resume: { error } });
+    assert.equal(await f.self.sbdChatResume(conv), false, error);
+    assert.equal(f.self.sbdChatGone(conv), error);
+    assert.equal(await f.self.sbdChatResume(conv), null, 'the next click falls back to a fresh session: ' + error);
+    assert.equal(f.calls.filter((c) => c[0] === 'resume').length, 1);
+  }
+  for (const error of ['Claude Hub isn’t running — nothing to resume from', 'a resume of this session is already starting', 'refused: that chat was active a moment ago — close its window first, then try again', 'Couldn’t open a terminal · boom']) {
+    const f = rig({ resume: { error } });
+    assert.equal(await f.self.sbdChatResume(conv), false);
+    assert.equal(f.self.sbdChatGone(conv), '', 'not remembered: ' + error);
+    assert.equal(await f.self.sbdChatResume(conv), false, 'the button still tries');
+    assert.equal(f.calls.filter((c) => c[0] === 'resume').length, 2);
+  }
+});

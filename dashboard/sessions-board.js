@@ -9,7 +9,7 @@
 //          hq:sessions-board:open-folder (id) → { ok } | { error }        (only the cwd of a session that is on the board)
 //          push hq:sessions-board ← the board, only when its signature changed
 //
-// Every 30 s: listConversations({source:'code', since: now − 7 d, limit: 40}) and listProjects once; getConversation(limit 8) only
+// Every 30 s: listConversations({source:'code', since: now − 7 d, limit: 40}) and listProjects once; getConversation(limit 30) only
 // for rows whose last_at changed (cached by id and last_at). The classification (dashboard/sessions-core.mjs, pure) is redone
 // on every tick from the cached turns, so a session that went quiet since the last Hub change is noticed without a Hub call.
 // A Hub error never blanks the board: it keeps the last sessions, marks them read-only and says when they are from.
@@ -22,7 +22,7 @@ let coreP = null, redactP = null;
 const core = () => coreP || (coreP = import(pathToFileURL(path.join(__dirname, 'sessions-core.mjs')).href));
 const redact = () => redactP || (redactP = import(pathToFileURL(path.join(__dirname, 'claude-hub', 'redact.mjs')).href));
 
-const POLL_MS = 30e3, LIST_LIMIT = 40, HUB_TIMEOUT = 8000, CODEX_MAX_BYTES = 8 * 1024 * 1024, CODEX_RECENT = 3;
+const POLL_MS = 30e3, REPUSH_MS = 60e3, LIST_LIMIT = 40, HUB_TIMEOUT = 8000, CODEX_MAX_BYTES = 8 * 1024 * 1024, CODEX_RECENT = 3;
 const STARTING = /not open|starting|not ready|booting|initiali[sz]ing/i;
 const msg = (e) => String((e && e.message) || e).slice(0, 200);
 const isoOf = (v) => {
@@ -104,7 +104,7 @@ function create({ hub, now = () => Date.now(), env = process.env, fsApi = fs, cl
       if (!c || c.lastAt !== r.last_at) {
         try {
           stats.convCalls++;
-          const got = await ask('getConversation', { id: r.id, limit: L.TURN_LIMIT });
+          const got = await ask('getConversation', { id: r.id, limit: L.FETCH_LIMIT });
           turnCache.set(r.id, { lastAt: r.last_at, turns: got && Array.isArray(got.messages) ? got.messages : [] });
         } catch { if (!c) turnCache.set(r.id, { lastAt: null, turns: [] }); }   // one unreadable session never fails the board; retried next tick
       }
@@ -157,15 +157,20 @@ function create({ hub, now = () => Date.now(), env = process.env, fsApi = fs, cl
 function init({ ipcMain, app, hub, getWins, shell, appLog, repoRoot, intervalMs = POLL_MS, now, env = process.env, spawn } = {}) {
   const board = create({ hub, now, env });
   const log = (line) => { try { if (typeof appLog === 'function') appLog(line); } catch { /* logging never fails a handler */ } };
-  const resumer = require('./claude-resume').init({ hub, app, repoRoot, env, ...(spawn ? { spawn } : {}), log });
-  let sig = null;
+  const resumer = require('./claude-resume').init({ hub, app, repoRoot, env, ...(spawn ? { spawn } : {}), ...(now ? { now } : {}), log });
+  const clock = typeof now === 'function' ? now : () => Date.now();
+  let sig = null, pushedAt = -Infinity;
   const tick = async () => {
     try {
       const L = await core();
       const b = await board.poll();
       const s = L.boardSignature(b);
-      if (s !== sig) {
-        sig = s;
+      // The renderer measures every age, the 2 h Home window and the 24 h window from board.generatedAt, which the signature ignores:
+      // a sentence that never changes (no reply, a limit, a connection error) would otherwise leave "last active 4 min ago" on screen for
+      // hours. So an unchanged board is still pushed once a minute, with a fresh generatedAt.
+      const t = clock();
+      if (s !== sig || t - pushedAt >= REPUSH_MS) {
+        sig = s; pushedAt = t;
         for (const w of (getWins ? getWins() : [])) { try { if (w && !w.isDestroyed()) w.webContents.send('hq:sessions-board', b); } catch { /* a window mid-teardown */ } }
       }
     } catch (e) { log('[sessions-board] poll failed · ' + msg(e)); }
