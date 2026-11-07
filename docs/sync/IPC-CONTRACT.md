@@ -677,6 +677,8 @@ As built (additive, no shape changed): `start` is refused only while an unarchiv
 
 Checklist files in a client repo are read, never written; the app fetches nothing for the link (it only reads `data/accounts.json`).
 
+As built (2026-11-07, additive): intents carry their kind in a `type` key (the Money idiom), e.g. `{type:'item-add', projectId, text, milestone?}`; `set-scope-file` with `rel: null` stops using the picked file; the ids of new items, times and done-hashes are minted in main (a renderer-supplied one is ignored; item-toggle and item-remove name an existing id). The view gains fields: `projectId, sourceLabel, sourceNote, fileDetail, walkTruncated, walkError, summary`, and `candidates[]` rows also carry `done`. The scope source order is the owner-picked file, then the checklist kept in the app (when it has items), then SCOPE.md at the repo root (client jobs only; plan mode never defaults). The link is read from `data/accounts.json` `vercel.deploys` (the real location of `deploys[]`; a top-level `deploys` is the fallback), filtered to the matched Vercel project, never another project's. Plan mode (an unmarked project with a picked file) still offers Mark. The MCP result also carries `scopeFile`, `update`, `note`, and `sourceNote`/`fileState`/`fileDetail`/`linkWhy`/`why` where they apply; a refusal is a tool error.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

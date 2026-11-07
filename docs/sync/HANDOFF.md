@@ -12,6 +12,29 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 7 of 8: client delivery on each project page) · main
+DONE: every project page gets a Client delivery card before its Claude section. Unmarked: "Is this a client job?" with a Mark button, plus the repo's own checklist files as sources
+  the owner may pick (nothing is picked automatically); picking one on an unmarked project is plan mode ("Plan: N of M done", no link, no update). Marked: what's left against
+  the agreed scope from an honest source only (the owner-picked checklist file in the repo, else a checklist kept in the app, else SCOPE.md at the repo root; never TODOs, roadmap or
+  insights), the newest link to send (that project's own Vercel preview, else production, with state and age; "No Vercel project linked to this repo" is its own state) and a
+  deterministic update to paste; Copy update puts it on the clipboard, then records ONE `copied` so the next update lists only what was finished since. Nothing is sent, nothing
+  is written to the client's files. Main: dashboard/delivery-core.mjs (pure engine, injected io), dashboard/delivery.js (hq:delivery:read|apply, the only writer of
+  data/delivery.json, Money's idiom: validated intents of at most 16 KB, tmp then rename, corrupt files quarantined as .corrupt, -2, -3); main.js has one init line after the
+  sessions-board hook, preload has `delivery`. MCP hq_delivery (read tier, mcp/workspacehq/delivery-read.mjs, sync, read-only, works with the app closed, marked projects only;
+  server.test.mjs copies delivery-read.mjs, delivery-core.mjs and project-paths.js). Renderer: vals prefix dlv* (taken), deliveryLogic mixin, store.live.delivery +
+  refreshDelivery/applyDelivery (a refused write or a failed read never blanks a card already shown), the fragment tpl/delivery.tpl.js before the Claude section, the card reads on
+  arrival (and on a restored project page). Usage marks go through useMark('delivery-card', 'open') and ('delivery-card', 'copy'). Fix to the cook's work: it called useMark with one
+  argument ('copy' as a surface would have been dropped by the allowlist); it now sends the allowlisted surface with the action. Fake preload has a small stateful stand-in for main
+  (invented alpha-site / beta-app / gamma-tool / delta-lib; any other id starts unmarked), selftest +12 states (dlv-*), cdp-gate +5 scenarios.
+  Gates: main 1136 pass / 0 fail, money 251/251, renderer 473/473, selftest 2630 combos 0/0/0, cdp-gate 50/50. Goldens: all 152 vals scenarios moved only by the dlv*/onDlv* keys
+  (golden-diff attributed); the template grew by exactly +15482 chars (the card fragment), tpl.hash re-recorded with a dated line. The cook's own 48 tests are in the counts.
+IN-FLIGHT: none from this dish. One dish follows in Pass order. Not exercised on the owner's PC: the card against the real data/ (no project is marked, no SCOPE.md exists in the 24 scanned
+  projects), the real Vercel link pick for the 3 projects whose repo matches, phone-size and Arabic / French / English checks (the spec says they come next).
+ASKS (struct): none. BREAKS: none (additive). accounts.json's deploys[] is read from `vercel.deploys` (where it really sits; a top-level `deploys` is the fallback), IPC-CONTRACT's
+  Client delivery section gains an "As built" paragraph for that, the additive view fields and the source order.
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 6 of 8: Money in one minute, then one line per spend from any app) · main
 DONE: Money's empty state is now a one-minute card (Cash DA, CCP / bank DA, RedotPay card USD, today's rate, payday 1-28; all optional but one balance) and Today leads
   with a one-line spend box ("150 cafe", "taxi 400", "$12.49 netflix card", "hier taxi 400"). Two new intents on the existing hq:money:apply (no new channel; the four-channel
