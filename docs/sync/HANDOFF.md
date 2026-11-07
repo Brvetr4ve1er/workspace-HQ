@@ -12,6 +12,25 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 4 of 8: every Claude session on one board, with where each stopped and one-click Resume) · main
+DONE: Claude › Sessions opens on a live board of every Claude Code session of the last 24 h: an inline-SVG lane timeline (12 lanes at most, active part lit,
+  pulsing end-cap, gold now line, nightly runs and Codex folded into one lane each), the 7-day limit-stop line, and one card per session with its project,
+  ages, active time, whole-session tokens and one state sentence. Main: dashboard/sessions-core.mjs (pure classifier), sessions-board.js (30 s poll of the Hub,
+  changed rows only, push on signature change, hq:sessions-board:read|resume|open-folder), claude-resume.js + claude-resume.cmd (Resume: always
+  --permission-mode default, claude-chat.js's cwdRefusal and isSessionId, a missing transcript refused with the 30-day reason, id only as env, per-run MCP config
+  folder removed at quit). Home gets a strip of up to 3 hot sessions; Claude › Chats' terminal button on a Code chat Resumes it. MCP hq_sessions (read tier,
+  sessions-tool.mjs, read-only on hub.sqlite). main.js: one init line. Renderer: store live.board + refreshBoard/resumeSession, sessionsBoardLogic mixin, vals
+  prefix sbd* (taken), board and strip fragments, clTerminalLabel/clTerminalTip, fake SPEC rows with an invented 8-session board (built with the real engine),
+  12 selftest states, 5 cdp scenarios. Usage marks use the allowlisted ids (sessions-board open/resume, sessions-strip).
+  Gates: main 1094 pass / 0 fail (5 skipped), money 251/251, renderer 473/473, selftest 2592 combos 0/0/0, cdp-gate 42/42. Goldens: all 152 vals scenarios
+  moved only by the 32 sbd* keys, clTerminalLabel/clTerminalTip and whatsNew.changes[13] (golden-diff attributed); the template grew by exactly the two fragments
+  and the terminal-button binding (+11844 chars). Real index, counts only: 4 sessions in the last 24 h, 20 Codex threads in the index, 0 errors.
+IN-FLIGHT: none from this dish. Four dishes follow in Pass order. Not exercised against a real terminal (no real Resume was launched; HQ_DRY_LAUNCH logs only).
+ASKS (struct): none. BREAKS: none (additive). IPC-CONTRACT gains an "As built" paragraph under the sessions board rows. Anyone spawning a copied MCP
+  server.mjs needs sessions-tool.mjs and dashboard/sessions-core.mjs beside the hub-read files (server.test.mjs does).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 3 of 8: the Brief sees CI, deploys, pull requests and the session you left, and sits in the tray) · main
 DONE: six new Brief senses (dashboard/brief-senses.mjs: prod-deploy-error, ci-red, session-left-dirty, review-waiting, reboot-pending, money-empty) fed by
   dashboard/brief-sources.js (github.json, accounts.json, pc-health detail, one Hub sessions read + one projects read, 5 s each, never throws). brief-core:
