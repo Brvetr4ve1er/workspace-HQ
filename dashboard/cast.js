@@ -108,7 +108,75 @@
     return null;
   }
 
-  const api = { castable, ago, normOutcome, lastRun, pipCount, rank, pickHits, errText, castProblem };
+  // ---- "Log a spend" (money-quicklog): a number at the start or end of the query adds a top row ----
+  // The gate below is a COPY of dashboard-v5/src/logic/money-line.js (which copies dashboard/money/quicklog.mjs):
+  // dashboard/money-line-parity.test.mjs runs one table of lines through all three, so the year rule can't drift.
+  // The row's words come from main's dry preview (hq.money.apply({type:'log-line', dry:true})), never from here.
+  // ---- BEGIN amountLine block (copy me) ----
+  const MAX_LINE = 200;
+  const CATEGORY_WORDS = ['cafe', 'coffee', 'kahwa', 'courses', 'pain', 'food', 'resto', 'snack', 'taxi', 'bus', 'yassir', 'essence', 'tram', 'metro', 'loyer', 'idoom', 'sonelgaz', 'facture', 'pharmacie', 'pharmacy'];
+  const AL_SP = '[ \\u00A0\\u202F\\u2009]';
+  const AL_NUM = `\\d{1,3}(?:(?:${AL_SP}|[.,])\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?`;
+  const AL_TAG_PRE = 'us\\$|usd|\\$|dzd|da|eur|€';
+  const AL_TAG_POST = 'dzd|dinars?|da|usd|\\$|dollars?|eur|€';
+  const AL_PRE = `(?:(${AL_TAG_PRE})${AL_SP}?)?`;
+  const AL_POST = `(?:${AL_SP}?(${AL_TAG_POST})(?![\\p{L}\\d]))?`;
+  const AL_START = new RegExp(`^${AL_PRE}(${AL_NUM})${AL_POST}(?=\\s|$)`, 'iu');
+  const AL_END = new RegExp(`(?<=^|\\s)${AL_PRE}(${AL_NUM})${AL_POST}$`, 'iu');
+  function alParse(raw) {   // parse.mjs's parseAmount: a separator before exactly three digits is thousands, the last one before 1–2 digits is the point
+    const s = raw.replace(/[\s   ]/g, '');
+    if (!/^\d+(?:[.,]\d+)*$/.test(s)) return null;
+    const m = /^(.*?)[.,](\d{1,2})$/.exec(s), intPart = m ? m[1] : s, frac = m ? m[2] : '';
+    if (!/^\d+(?:[.,]\d{3})*$/.test(intPart)) return null;
+    const n = Number(`${intPart.replace(/[.,]/g, '')}${frac ? `.${frac}` : ''}`);
+    return Number.isFinite(n) ? n : null;
+  }
+  function alTag(t) {
+    if (!t) return '';
+    const x = t.toLowerCase();
+    return x === 'da' || x === 'dzd' || x.startsWith('dinar') ? 'DA' : x === 'usd' || x === 'us$' || x === '$' || x.startsWith('dollar') ? 'USD' : 'EUR';
+  }
+  const alWords = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9$]+/).filter(Boolean);
+  function amountLine(text) {
+    if (typeof text !== 'string') return null;
+    const s0 = text.trim().replace(/\s+/g, ' ');
+    if (!s0 || s0.length > MAX_LINE) return null;
+    const s = s0.replace(/^(?:hier|yesterday) /i, '').replace(/ (?:hier|yesterday)$/i, '');
+    const m = AL_START.exec(s) || AL_END.exec(s);
+    if (!m) return null;
+    const n = alParse(m[2]);
+    if (n === null || n <= 0 || n >= 1e9) return null;
+    const pre = alTag(m[1]), post = alTag(m[3]);
+    if (pre === 'EUR' || post === 'EUR' || (pre && post && pre !== post)) return null;
+    const currency = pre || post, tagged = currency !== '';
+    if (!tagged && /^\d{4}$/.test(m[2]) && n >= 1900 && n <= 2099) {
+      const rest = alWords(s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length));
+      if (!rest.some((w) => CATEGORY_WORDS.includes(w))) return null;
+    }
+    return { amount: Math.round(n * 100) / 100, currency: currency || 'DA', tagged };
+  }
+  // ---- END amountLine block ----
+
+  // the row's text: the dry preview once it is in, the typed line until then; no accounts yet = the one-minute setup
+  function spendText(st, text) {
+    if (st && st.setup) return 'Set up Money first (one minute) ›';
+    const p = st && st.preview;
+    if (p && p.kind === 'log') return 'Log a spend · ' + p.label;
+    if (p && p.kind === 'slip') return 'To the Inbox · ' + p.label + ' — ' + p.reason;
+    if (p && p.kind === 'none') return 'Log a spend · ' + p.reason;
+    return 'Log a spend · ' + String(text || '').trim();
+  }
+  // the spend row goes on top, except behind an exact spell-name match (that one stays first)
+  function withSpendRow(hits, query) {
+    const list = Array.isArray(hits) ? hits : [];
+    const q = String(query || '').trim().toLowerCase();
+    const first = list[0];
+    const exact = !!first && [first.name, first.id].some((v) => v != null && String(v).toLowerCase() === q);
+    const row = { spend: true };
+    return exact ? [first, row, ...list.slice(1)] : [row, ...list];
+  }
+
+  const api = { castable, ago, normOutcome, lastRun, pipCount, rank, pickHits, errText, castProblem, amountLine, spendText, withSpendRow };
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root && root.document) boot(root.document, root.hq);
 
@@ -116,6 +184,8 @@
     const $ = (id) => doc.getElementById(id);
     const has = (name) => !!(hq && typeof hq[name] === 'function');
     let spells = [], tele = { favorites: [], rollup: {} }, hits = [], sel = 0, pending = null, busy = false;
+    let spend = null, spendSeq = 0, spendTimer = 0;   // the Log a spend row's state: { setup, preview }
+    const hasMoney = () => !!(hq && hq.money && typeof hq.money.apply === 'function' && typeof hq.money.read === 'function');
 
     function say(text, tone) {   // the palette's one message line (errors included)
       const m = $('msg');
@@ -131,11 +201,58 @@
     }
 
     function filter() {
-      hits = pickHits(spells, tele, $('q').value);
+      const q = $('q').value;
+      hits = pickHits(spells, tele, q);
       sel = 0;
       closeConfirm();
       say('');
+      spend = null;
+      spendSeq++;
+      clearTimeout(spendTimer);
+      if (hasMoney() && amountLine(q)) {
+        spend = { setup: false, preview: null };
+        hits = withSpendRow(hits, q);
+        queueSpend(q);
+      }
       draw();
+    }
+    // 150 ms after the last keystroke: are there accounts? then a dry run for the row's words (writes nothing)
+    function queueSpend(q) {
+      const mine = spendSeq;
+      spendTimer = setTimeout(async () => {
+        try {
+          const v = await hq.money.read();
+          if (mine !== spendSeq || !spend) return;
+          if (v && v.error) { spend.preview = { kind: 'none', reason: String(v.error) }; draw(); return; }
+          if (!(v && v.view && v.view.hasAccounts)) { spend.setup = true; draw(); return; }
+          spend.setup = false;
+          const r = await hq.money.apply({ type: 'log-line', text: q, from: 'palette', dry: true });
+          if (mine !== spendSeq || !spend) return;
+          spend.preview = r && r.preview ? r.preview : r && r.error ? { kind: 'none', reason: String(r.error) } : null;
+          draw();
+        } catch (e) { /* the typed line stays on the row; Enter shows the real reason */ }
+      }, 150);
+    }
+    // Enter on the spend row: no accounts -> Money > Today; else one log-line, main's note (or its refusal) on the message line
+    async function logSpend() {
+      const q = $('q').value;
+      busy = true;
+      say('');
+      try {
+        const v = await hq.money.read();
+        if (v && v.error) { say(String(v.error)); return; }
+        if (!(v && v.view && v.view.hasAccounts)) {
+          if (has('openAt')) { await hq.openAt({ tab: 'money', sub: 'today' }); hide(); }
+          else say('open Money › Today to set it up');
+          return;
+        }
+        const r = await hq.money.apply({ type: 'log-line', text: q, from: 'palette' });
+        if (!r || r.error) { say(r && r.error ? String(r.error) : 'no answer from the app'); return; }   // the line stays, to be fixed
+        $('q').value = '';
+        filter();
+        say(r.note || 'logged', 'green');
+      } catch (e) { say(errText(e)); }
+      finally { busy = false; }
     }
     function draw() {
       const L = $('list');
@@ -149,6 +266,15 @@
         r.setAttribute('aria-selected', i === sel ? 'true' : 'false');
         // names/icons come from third-party skill frontmatter — textContent only
         const mk = (cls, text) => { const sp = doc.createElement('span'); sp.className = cls; sp.textContent = text; return sp; };
+        if (s.spend) {   // the Log a spend row (money-quicklog)
+          r.appendChild(mk('ic', '₫'));
+          r.appendChild(mk('nm', spendText(spend, $('q').value)));
+          r.appendChild(mk('meta faint', 'money'));
+          r.title = 'enter → log it in Money';
+          r.onclick = () => { sel = i; draw(); cast(); };
+          L.appendChild(r);
+          return;
+        }
         r.appendChild(mk('ic', s.icon || '✴️'));
         r.appendChild(mk('nm', s.name || s.id));
         const roll = tele.rollup && tele.rollup[s.id];
@@ -168,6 +294,7 @@
     async function cast() {
       const s = hits[sel];
       if (!s || busy) return;
+      if (s.spend) { logSpend(); return; }
       if (!has('castSpell')) { say('running spells is not available in this window'); return; }
       const name = s.name || s.id;
       const hash = pending && pending.id === s.id ? pending.content_hash : undefined;

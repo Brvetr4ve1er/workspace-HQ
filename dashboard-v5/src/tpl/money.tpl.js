@@ -2,6 +2,8 @@
 // <!-- v5: money space --> new fragment, joined in src/app.tpl.js after studio. dc-lite dialect only:
 // dotted paths, !, ===; every number arrives finished from vals/money.js (computed main-side).
 // The style constants below are the exact button/input/label strings the other fragments inline.
+// <!-- v5: money quick start --> the start card (no accounts) and the quick line (Today) live in tpl/money-start.tpl.js.
+import { startCard, quickLine } from './money-start.tpl.js';
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
 const GOLD = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
@@ -25,14 +27,9 @@ export default String.raw`        <sc-if value="{{ v.money }}" hint-placeholder-
                 <sc-if value="{{ mnyIsToday }}" hint-placeholder-val="{{ true }}">
                   <div style="display:flex;flex-direction:column;gap:22px">
                     <sc-if value="{{ mnyNoAccounts }}" hint-placeholder-val="{{ false }}">
-                      <section style="${CARD}">
-                        <div style="${LABEL}">start with what you have</div>
-                        <div style="font-size:14px;margin-bottom:10px">Add the money you hold — cash, CCP, the RedotPay card. Breathing room starts from there. Or bring your Ember data in.</div>
-                        <div style="${ROW}"><button type="button" onClick="{{ mnyAcctAdd }}" style="${GOLD}" ${GOLD_HOVER}>Add an account</button><button type="button" onClick="{{ mnyImport }}" style="${BTN}" ${BTN_HOVER}>Import an Ember export…</button></div>
-                      </section>
-                    </sc-if>
+                      ${startCard}                    </sc-if>
                     <sc-if value="{{ mnyHasAccounts }}" hint-placeholder-val="{{ true }}">
-                      <section>
+                      ${quickLine}                      <section>
                         <div style="${LABEL}">breathing room until payday · {{ mnyRoom.payday }}</div>
                         <div style="display:flex;gap:30px;flex-wrap:wrap;align-items:baseline">
                           <div><div style="font-size:38px;line-height:1;color:{{ mnyRoomColor }}">{{ mnyRoom.amount }}</div><div style="font-size:12px;color:var(--muted)">{{ mnyRoom.perDay }} · {{ mnyRoom.days }} left · a forecast, not a verdict</div></div>

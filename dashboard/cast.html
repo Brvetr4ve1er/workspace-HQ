@@ -51,6 +51,8 @@
   .msg { margin: 6px 12px 0; padding: 7px 10px; border-radius: 8px; font-size: 12px; line-height: 1.35; word-break: break-word; flex: none; }
   .msg.red { color: var(--red); background: color-mix(in oklab, var(--red) 10%, transparent); border: 1px solid color-mix(in oklab, var(--red) 45%, transparent); }
 
+  .msg.green { color: var(--green); background: color-mix(in oklab, var(--green) 10%, transparent); border: 1px solid color-mix(in oklab, var(--green) 45%, transparent); }
+
   #confirm { margin: 8px 12px 0; padding: 10px 12px; border-radius: 8px; background: var(--ink); border: 1px solid var(--gold); font-size: 12px; flex: none; }
   #confirm .why { color: var(--accent-text); font-size: 11px; margin-bottom: 5px; }
   #confirm .cmd { color: var(--text); word-break: break-all; max-height: 64px; overflow-y: auto; }
@@ -66,7 +68,7 @@
 <body>
   <div id="pal">
     <div class="inbox">
-      <label class="field"><span class="pr" aria-hidden="true">›</span><input id="q" autofocus spellcheck="false" autocomplete="off" aria-label="Spell to run" aria-controls="list" placeholder="run… (empty = favourites & recent)" /></label>
+      <label class="field"><span class="pr" aria-hidden="true">›</span><input id="q" autofocus spellcheck="false" autocomplete="off" aria-label="Spell to run" aria-controls="list" placeholder="run… or log a spend (150 cafe)" /></label>
     </div>
     <div id="list" role="listbox" aria-label="Spells"></div>
     <div id="empty" hidden>no matching spells</div>

@@ -228,7 +228,19 @@ function createFake(opts) {
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
     ['sessionsBoard.onBoard', 'on:hq:sessions-board'],
     ['money.read', () => ({ view: MONEY.full })],
-    ['money.apply', (intent) => (intent && intent.type === 'log' && !intent.amount ? { error: 'amount needs a number above 0.' } : { view: MONEY.full, note: 'saved' })],
+    // money in one minute + one line per spend: start / log-line / dry answer with placeholder values; a line main would refuse ('hello') answers its own words
+    ['money.apply', (intent) => {
+      const t = intent && intent.type;
+      if (t === 'log' && !intent.amount) return { error: 'amount needs a number above 0.' };
+      if (t === 'start') return { view: MONEY.full, note: 'Money started · 1 account added' };
+      if (t === 'log-line') {
+        const text = String(intent.text || '').trim();
+        if (!/[0-9]/.test(text) || /^hello/i.test(text)) return { error: 'type it like 150 cafe' };
+        if (intent.dry) return { preview: { kind: 'log', amount: 150, currency: 'DA', category: 'Food', account: 'Cash', date: '2026-11-05', label: '150 DA · Food · Cash', reason: '' } };
+        return { view: MONEY.full, note: 'logged 150 DA · Food · Cash — undo in Recent' };
+      }
+      return { view: MONEY.full, note: 'saved' };
+    }],
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
   ];
 

@@ -115,3 +115,30 @@ for (const page of ['cast']) {
     assert.doesNotMatch(html, /\son[a-z]+="/i, 'no inline event handlers');
   });
 }
+
+// ---- "Log a spend" row (money-quicklog): the year rule and where the row sits ---------------------
+test('amountLine: a standalone number at the start or end is a spend; a year or a version is not', () => {
+  for (const l of ['150 cafe', 'cafe 150', '2026 da', '2026 cafe', '$12.49 netflix', 'hier taxi 400']) assert.ok(cast.amountLine(l), l);
+  for (const l of ['2026 plan', 'deploy v2', 'hello', '', '0 cafe']) assert.equal(cast.amountLine(l), null, l);
+  assert.deepEqual(cast.amountLine('150 cafe'), { amount: 150, currency: 'DA', tagged: false });
+  assert.deepEqual(cast.amountLine('$12.49 netflix'), { amount: 12.49, currency: 'USD', tagged: true });
+});
+
+test('withSpendRow: the spend row goes on top, except behind an exact spell-name match', () => {
+  const spells = [{ id: 'a', name: 'deploy' }, { id: 'b', name: 'scan' }];
+  const on = cast.withSpendRow(spells, '150 cafe');
+  assert.equal(on[0].spend, true);
+  assert.equal(on.length, 3);
+  const exact = cast.withSpendRow([{ id: 'x', name: '150 cafe' }, ...spells], '150 Cafe');
+  assert.equal(exact[0].name, '150 cafe', 'an exact spell-name match stays on top');
+  assert.equal(exact[1].spend, true);
+  assert.equal(cast.withSpendRow([], '150').length, 1);
+});
+
+test('spendText: dry preview words, the typed line until then, the one-minute setup with no accounts', () => {
+  assert.equal(cast.spendText({ preview: { kind: 'log', label: '150 DA · Food · Cash' } }, '150 cafe'), 'Log a spend · 150 DA · Food · Cash');
+  assert.equal(cast.spendText(null, ' 150 cafe '), 'Log a spend · 150 cafe');
+  assert.equal(cast.spendText({ setup: true, preview: null }, '150 cafe'), 'Set up Money first (one minute) ›');
+  assert.match(cast.spendText({ preview: { kind: 'slip', label: '$5', reason: 'needs your DA rate' } }, '$5'), /Inbox.*needs your DA rate/);
+  assert.equal(cast.spendText({ preview: { kind: 'none', reason: 'type it like 150 cafe' } }, 'x'), 'Log a spend · type it like 150 cafe');
+});

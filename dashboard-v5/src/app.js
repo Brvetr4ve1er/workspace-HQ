@@ -35,6 +35,7 @@ import { accountsLogic } from './logic/accounts.js';
 import { lifeLogic } from './logic/life.js';
 import { moneyLogic } from './logic/money.js';
 import { briefLogic } from './logic/brief.js';
+import { moneyStartLogic } from './logic/money-start.js';   // Money in one minute: the start card, the quick line, Ctrl K's Log a spend
 import { sessionsBoardLogic } from './logic/sessions-board.js';   // Claude › Sessions board + Home strip: Resume, Copy command, Open folder
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
@@ -392,5 +393,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, sessionsBoardLogic, useLogLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic);
 Component.prototype.renderVals = renderVals;

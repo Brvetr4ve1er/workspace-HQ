@@ -235,3 +235,90 @@ test('the view carries each account’s anchorAt (stable across days; changes on
   const b = await m.apply({ type: 'account-save', id: a.view.accounts[0].id, name: 'Cash', currency: 'DA', balance: '90' });
   assert.notEqual(b.view.accounts[0].anchorAt, first, 're-confirming moves the anchor');
 });
+
+// ---- money in one minute + one line per spend (money-quicklog) ----------------------------------
+test('start creates up to 3 accounts, the rate and the payday in ONE write; all-blank is refused without writing; a second start is refused', async () => {
+  const { m } = bootAt();
+  const blank = await m.apply({ type: 'start', cashDA: '', bankDA: ' ', cardUSD: undefined });
+  assert.match(blank.error, /add at least one balance/);
+  assert.equal(fs.existsSync(m.file), false, 'a refused start writes nothing');
+  const r = await m.apply({ type: 'start', cashDA: '12 000', bankDA: '85000', cardUSD: '40.5', fxDaPerUsd: '245', paydayDay: '25' });
+  assert.equal(r.error, undefined);
+  assert.equal(r.note, 'Money started · 3 accounts added');
+  assert.deepEqual(r.view.accounts.map((a) => a.balance), ['12,000 DA', '85,000 DA', '$40.50']);
+  const s = st(m);
+  assert.equal(s.money.accounts.length, 3);
+  assert.equal(s.money.settings.fxDaPerUsd, 245);
+  assert.equal(s.money.settings.paydayDay, 25);
+  const before = fs.readFileSync(m.file, 'utf8');
+  assert.match((await m.apply({ type: 'start', cashDA: '1' })).error, /already set up/);
+  assert.equal(fs.readFileSync(m.file, 'utf8'), before, 'a repeated or forged start changes nothing');
+  assert.match((await bootAt().m.apply({ type: 'start', cashDA: '-5' })).error, /Cash needs a number/);
+  assert.match((await bootAt().m.apply({ type: 'start', cashDA: '5', paydayDay: '31' })).error, /payday is a day from 1 to 28/);
+});
+
+test('log-line writes the same transaction shape as log, dated yesterday for "hier"', async () => {
+  const { m } = bootAt();
+  await m.apply({ type: 'start', cashDA: '50000' });
+  const a = await m.apply({ type: 'log', amount: '150', category: 'Food', accountId: 'id1', note: 'cafe' });
+  const b = await m.apply({ type: 'log-line', text: '150 cafe', from: 'today' });
+  assert.equal(b.note, 'logged 150 DA · Food · Cash — undo in Recent');
+  const [lineTx, logTx] = st(m).transactions;
+  assert.deepEqual(Object.keys(lineTx).sort(), Object.keys(logTx).sort(), 'same keys as the log intent');
+  for (const k of ['amountDA', 'category', 'note', 'accountId', 'date']) assert.equal(lineTx[k], logTx[k], k);
+  assert.ok(lineTx.at, 'a same-day row carries its instant');
+  const y = await m.apply({ type: 'log-line', text: 'hier taxi 400', from: 'palette' });
+  assert.equal(y.error, undefined);
+  const row = st(m).transactions.find((t) => t.amountDA === 400);
+  assert.equal(row.category, 'Transport');
+  assert.equal(row.amountDA, 400);
+  assert.ok(row.date < lineTx.date, 'dated the day before');
+  assert.equal(row.at, undefined, 'a back-dated row is dated by its day alone');
+  assert.equal(a.error, undefined);
+});
+
+test('log-line: USD with no rate becomes an Inbox slip; with a rate it logs the DA value and keeps the original', async () => {
+  const { m } = bootAt();
+  await m.apply({ type: 'start', cashDA: '1000', cardUSD: '50' });
+  const slip = await m.apply({ type: 'log-line', text: '$12.49 netflix card', from: 'today' });
+  assert.equal(slip.error, undefined);
+  assert.equal(slip.note, 'in the Inbox to confirm: needs your DA rate');
+  assert.equal(st(m).transactions.length, 0, 'nothing reached the ledger');
+  assert.equal(st(m).inbox.candidates.filter((c) => c.status === 'pending').length, 1);
+  await m.apply({ type: 'settings', fxDaPerUsd: '245', paydayDay: '' });
+  const ok = await m.apply({ type: 'log-line', text: '$12.49 netflix card', from: 'today' });
+  assert.match(ok.note, /^logged \$12\.49 · /);
+  const tx = st(m).transactions[0];
+  assert.deepEqual(tx.original, { amount: 12.49, currency: 'USD' });
+  assert.equal(tx.amountDA, 3060, "12.49 x 245, rounded to a whole DA like every other USD row");
+});
+
+test('log-line: a refused line says why and writes nothing; only today/palette are accepted', async () => {
+  const { m } = bootAt();
+  await m.apply({ type: 'start', cashDA: '1000' });
+  const before = fs.readFileSync(m.file, 'utf8');
+  assert.match((await m.apply({ type: 'log-line', text: 'hello', from: 'today' })).error, /type it like 150 cafe/);
+  assert.match((await m.apply({ type: 'log-line', text: '2026 plan', from: 'today' })).error, /year/);
+  assert.match((await m.apply({ type: 'log-line', text: '150 cafe', from: 'tray' })).error, /unknown action/);
+  assert.match((await m.apply({ type: 'log-line', text: 'x'.repeat(201) + ' 5', from: 'today' })).error, /too long/);
+  assert.equal(fs.readFileSync(m.file, 'utf8'), before);
+});
+
+test('a dry log-line previews and never writes (not even a first state file); the four-channel pin is unchanged', async () => {
+  const { m } = bootAt();
+  const empty = await m.apply({ type: 'log-line', text: '150 cafe', from: 'today', dry: true });
+  assert.equal(empty.preview.kind, 'log');
+  assert.equal(fs.existsSync(m.file), false, 'a dry preview creates no file');
+  await m.apply({ type: 'start', cashDA: '1000' });
+  const before = fs.readFileSync(m.file, 'utf8');
+  const p = await m.apply({ type: 'log-line', text: '150 cafe', from: 'today', dry: true });
+  assert.deepEqual(p.preview, { kind: 'log', amount: 150, currency: 'DA', category: 'Food', account: 'Cash', date: p.preview.date, label: '150 DA · Food · Cash', reason: '' });
+  assert.equal(p.view, undefined, 'a dry reply carries no view');
+  const slip = await m.apply({ type: 'log-line', text: '$5 netflix', from: 'palette', dry: true });
+  assert.equal(slip.preview.kind, 'slip');
+  assert.equal((await m.apply({ type: 'log-line', text: 'hello', from: 'today', dry: true })).preview.kind, 'none');
+  assert.equal(fs.readFileSync(m.file, 'utf8'), before, 'dry runs wrote nothing');
+  const handlers = new Map();
+  money.init({ ipcMain: { handle: (ch, fn) => handlers.set(ch, fn) }, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'hq-money-')), getWin: () => null });
+  assert.deepEqual([...handlers.keys()].sort(), ['hq:money:apply', 'hq:money:export', 'hq:money:import', 'hq:money:read']);
+});

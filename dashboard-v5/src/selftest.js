@@ -20,7 +20,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, brfBusy: false,
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, brfBusy: false,
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
@@ -280,6 +280,14 @@ export async function run(W = window.WHQ) {
           ['money-jars-empty', 'jars', MV.empty, {}],
           ['money-slip-armed', 'inbox', MV.ready, { armed: { [promo.id]: true } }],
           ['money-inbox-empty', 'inbox', MV.empty, {}],
+          // money in one minute (the start card, empty view) and the quick line (Today with accounts): typed values, saving, a refusal, the dry preview chip, a slip, a refused line
+          ['mst-empty', 'today', MV.empty, {}, { mst: {} }],
+          ['mst-saving', 'today', MV.empty, {}, { mst: { card: { cashDA: '12 000', cardUSD: '40.50', fx: '245', payday: '25' }, saving: true } }],
+          ['mst-refused', 'today', MV.empty, {}, { mst: { card: { cashDA: '12 000', payday: '31' }, refused: 'payday is a day from 1 to 28.' } }],
+          ['mny-quick-preview', 'today', MV.ready, {}, { mst: { line: '150 cafe', preview: { kind: 'log', amount: 150, currency: 'DA', category: 'Food', account: 'Cash', date: '2026-11-05', label: '150 DA · Food · Cash', reason: '' } } }],
+          ['mny-quick-slip', 'today', MV.ready, {}, { mst: { line: '$12.49 netflix card', preview: { kind: 'slip', amount: 12.49, currency: 'USD', category: 'Other', account: 'Card', date: '2026-11-05', label: '$12.49 · Other · Card', reason: 'needs your DA rate' } } }],
+          ['mny-quick-refused', 'today', MV.ready, {}, { mst: { line: 'hello', preview: { kind: 'none', amount: null, currency: '', category: '', account: '', date: '', label: '', reason: 'type it like 150 cafe' }, lineError: 'type it like 150 cafe' } }],
+          ['mny-quick-note', 'today', MV.ready, {}, { mst: { note: 'logged 150 DA · Food · Cash — undo in Recent' } }],
         ]) {
           // arriving on money (or another sub) re-reads it (app.js componentDidUpdate): let that answer land first
           if (L.state.tab !== 'money' || L.state.sub.money !== sub) { L.go('money', sub); await rendered(); await sleep(250); }

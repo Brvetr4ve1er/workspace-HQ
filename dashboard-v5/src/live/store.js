@@ -194,6 +194,11 @@ export function createStore(DATA, hq) {
     if (!hq || !hq.money || !hq.money.apply) return Promise.resolve({ error: 'money needs the desktop bridge' });
     return Promise.resolve().then(() => hq.money.apply(intent)).then(takeMoney, (e) => ({ error: (e && e.message) || String(e) })).finally(emit);
   }
+  // a dry log-line (the quick line's preview chip): main answers {preview} and writes nothing, so it never touches live.money or emits
+  function previewMoneyLine(text) {
+    if (!hq || !hq.money || !hq.money.apply) return Promise.resolve({ error: 'money needs the desktop bridge' });
+    return Promise.resolve().then(() => hq.money.apply({ type: 'log-line', text, from: 'today', dry: true })).catch((e) => ({ error: (e && e.message) || String(e) }));
+  }
   function importMoney() {
     if (!hq || !hq.money || !hq.money.importFile) return Promise.resolve({ error: 'money needs the desktop bridge' });
     return Promise.resolve().then(() => hq.money.importFile()).then(takeMoney, (e) => ({ error: (e && e.message) || String(e) })).finally(emit);
@@ -481,7 +486,7 @@ export function createStore(DATA, hq) {
   return {
     model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    emit, start, stop, refreshLlm, refreshMoney, applyMoney, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshMachine, refreshGithub, refreshAccounts,
+    emit, start, stop, refreshLlm, refreshMoney, applyMoney, previewMoneyLine, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
     sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
   };

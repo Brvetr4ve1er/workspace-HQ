@@ -33,10 +33,11 @@ import { moneyVals } from './money.js';
 import { briefVals } from './brief.js';
 import { reachVals } from './reach.js';
 import { sessionsBoardVals } from './sessions-board.js';
+import { moneyStartVals } from './money-start.js';   // Money in one minute: the start card + the quick line (mst*)
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, reachVals, sessionsBoardVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, reachVals, sessionsBoardVals, moneyStartVals,
 ];
 
 export function renderVals() {

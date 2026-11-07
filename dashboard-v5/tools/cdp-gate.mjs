@@ -6,6 +6,8 @@
 // Exit 0 every scenario passed · 1 one failed · 2 couldn't connect / bad usage.
 // money scenarios (need --preload=fake; tools/money.fake-views.json is what money.read answers):
 //   money-open-key9 · money-log-spend · money-pay-bill · money-inbox-paste-promo · money-archive-ask · money-button-sweep
+// money in one minute + one line per spend (the empty view is set with hqFake.set; each scenario ends with hqFake.reset(true) and a money re-read):
+//   money-start-card · money-quick-line · palette-log-line
 // Operator Brief scenarios (--preload=fake; the fake's brief.read answers a 3-item placeholder brief with 2 overflow items):
 //   brief-render · brief-act · brief-dismiss
 // Brief senses dish (hqFake.set answers a brief whose items are CI and deploy senses; ends with hqFake.reset(true)):
@@ -1741,6 +1743,115 @@ Object.assign(SCENARIOS, {
       if ((await t.evaluate(`(${TERM}).textContent.trim()`)) !== 'Open in terminal') out.push('after a refusal the button should fall back to "Open in terminal"');
     } finally { await t.evaluate(`(() => { hqFake.reset(true); WHQ.app.logic.setState({ clOpen: false, toasts: [] }); WHQ.app.logic._sbdGone = {}; return true; })()`); }
     return out.concat(t.errors());
+  },
+});
+
+// ---- money in one minute + one line per spend (money-quicklog) -------------------------------------
+// the fake's money.read answers the FULL fixture; a start-card scenario sets the EMPTY one and puts both back (hqFake.reset(true) + a re-read)
+const MST_RESET = `(() => { hqFake.reset(true); const L = WHQ.app.logic; if (L._mstTimer) clearTimeout(L._mstTimer); L._mstBusy = false; L._mstSeq = 0; L.setState({ mst: {}, mny: {}, toasts: [], paletteOpen: false, paletteQuery: '' }); return WHQ.store.refreshMoney().then(() => true); })()`;
+const mstInput = (label) => `document.querySelector(${JSON.stringify('input[aria-label=' + JSON.stringify(label) + ']')})`;
+async function mstType(t, label, text) {
+  const ok = await t.evaluate(`(() => { const i = ${mstInput(label)}; if (!i) return false; i.focus(); i.select && i.select(); return document.activeElement === i; })()`);
+  if (ok) await t.type(text);
+  return ok;
+}
+const mstBtn = (label) => `[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})`;
+const mstCalls = (t, pred) => t.evaluate(`hqFake.calls('money.apply').map((c) => c.args[0]).filter((i) => ${pred})`);
+Object.assign(SCENARIOS, {
+  // Money › Today with no accounts shows the one-minute card; two fields + Start sends exactly ONE start intent (a double click too);
+  // a refusal shows main's words and keeps the typed values
+  async 'money-start-card'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`(() => { hqFake.set('money.read', { view: ${JSON.stringify(MONEY_FIX.empty)} }); const L = WHQ.app.logic; L.setState({ mst: {}, mny: {}, toasts: [] }); L.go('home'); L.go('money', 'today'); return true; })()`);
+      await t.evaluate(`WHQ.store.refreshMoney().then(() => true)`);
+      if (!await t.waitFor(`!!${mstInput('Cash in DA')} && !${mstInput('Spend line')}`, 8000)) return ['the empty Money view did not show the start card (or showed the quick line)'];
+      if (!await t.evaluate(`!!${mstInput('RedotPay card in USD')} && !!${mstInput('DA per 1 USD')} && !!${mstInput('Payday, a day from 1 to 28')} && !!${mstInput('CCP or bank in DA')}`)) out.push('the card lacks one of its five fields');
+      if (!await t.evaluate(`!!${mstBtn('Import an Ember export…')}`)) out.push('"Import an Ember export…" is gone from the card');
+      if (!await mstType(t, 'Cash in DA', '12000')) return out.concat('no Cash field');
+      if (!await mstType(t, 'DA per 1 USD', '245')) return out.concat('no rate field');
+      // a double click in one tick: one intent
+      await t.evaluate(`(() => { const b = ${mstBtn('Start')}; b.click(); b.click(); return true; })()`);
+      if (!await t.waitFor(`hqFake.calls('money.apply').some((c) => c.args[0] && c.args[0].type === 'start')`, 3000)) return out.concat('Start never reached main');
+      await t.sleep(250);
+      const starts = await mstCalls(t, `i && i.type === 'start'`);
+      if (starts.length !== 1) out.push('a double click sent ' + starts.length + ' start intents, want 1');
+      else if (JSON.stringify(starts[0]) !== JSON.stringify({ type: 'start', cashDA: '12000', fxDaPerUsd: '245' })) out.push('start intent ' + JSON.stringify(starts[0]));
+      if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'success' && x[1] === 'Money started · 1 account added')`, 3000)) out.push('no success toast with main\'s note: ' + JSON.stringify(await t.evaluate(`${MNY}.toasts()`)));
+      // a refusal: main's own words, the typed values stay, the view already shown is not blanked
+      await t.evaluate(`(() => { hqFake.reset(); hqFake.set('money.read', { view: ${JSON.stringify(MONEY_FIX.empty)} }); hqFake.set('money.apply', { error: 'Money is already set up — edit accounts on Today.' }); return true; })()`);
+      await t.evaluate(`WHQ.store.refreshMoney().then(() => true)`);
+      if (!await t.waitFor(`!!${mstInput('Cash in DA')}`, 5000)) return out.concat('the card did not come back for the refusal check');
+      if (!await mstType(t, 'Cash in DA', '5000')) return out.concat('no Cash field (2)');
+      await t.evaluate(`${mstBtn('Start')}.click()`);
+      if (!await t.waitFor(`[...document.querySelectorAll('[role="alert"]')].some((a) => a.textContent.includes('Money is already set up — edit accounts on Today.'))`, 3000)) out.push('a refusal did not show main\'s words in the card');
+      if (await t.evaluate(`${mstInput('Cash in DA')}.value`) !== '5000') out.push('the typed Cash value was not kept after the refusal');
+      if (!await t.evaluate(`!!${mstInput('Cash in DA')}`)) out.push('the card disappeared on a refusal');
+      if (await t.evaluate(`!!(WHQ.app.logic.state.mst || {}).saving`)) out.push('the saving guard stayed on after a refusal');
+      out.push(...t.errors());
+    } finally { await t.evaluate(MST_RESET).catch(() => {}); }
+    return out;
+  },
+
+  // Money › Today quick line: typing '150 cafe' shows the dry preview chip (a dry intent, nothing written); Enter sends ONE log-line;
+  // a refusal shows main's error and keeps the line and the view
+  async 'money-quick-line'(t) {
+    const pre = await moneyAt(t, 'today'); if (pre) return pre;
+    const out = [];
+    try {
+      await t.evaluate(`WHQ.app.logic.setState({ mst: {} })`);
+      if (!await mstType(t, 'Spend line', '150 cafe')) return ['no Spend line input on Today'];
+      if (!await t.waitFor(`document.querySelector('main').textContent.includes('150 DA · Food · Cash')`, 3000)) return ['no preview chip "150 DA · Food · Cash" after typing 150 cafe'];
+      const dry = await mstCalls(t, `i && i.type === 'log-line'`);
+      if (!dry.length || dry.some((i) => i.dry !== true)) out.push('before Enter, log-line calls were ' + JSON.stringify(dry) + ' (only dry previews expected)');
+      await t.press('Enter');
+      if (!await t.waitFor(`hqFake.calls('money.apply').some((c) => c.args[0] && c.args[0].type === 'log-line' && !c.args[0].dry)`, 3000)) return out.concat('Enter did not send a log-line');
+      await t.sleep(200);
+      const sent = await mstCalls(t, `i && i.type === 'log-line' && !i.dry`);
+      if (sent.length !== 1) out.push('Enter sent ' + sent.length + ' log-line intents, want 1');
+      else if (JSON.stringify(sent[0]) !== JSON.stringify({ type: 'log-line', text: '150 cafe', from: 'today' })) out.push('log-line intent ' + JSON.stringify(sent[0]));
+      for (const k of ['id', 'at', 'date', 'amount']) if (sent[0] && k in sent[0]) out.push('the renderer minted ' + k);
+      if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'success' && x[1] === 'logged 150 DA · Food · Cash — undo in Recent')`, 3000)) out.push('no toast with main\'s note: ' + JSON.stringify(await t.evaluate(`${MNY}.toasts()`)));
+      if (await t.evaluate(`${mstInput('Spend line')}.value`) !== '') out.push('the line was not cleared after logging');
+      // a line main refuses: its words show, the line stays, the view is not blanked
+      if (!await mstType(t, 'Spend line', 'hello')) return out.concat('no Spend line input (2)');
+      await t.sleep(400);
+      await t.press('Enter');
+      if (!await t.waitFor(`[...document.querySelectorAll('main [role="alert"]')].some((a) => a.textContent.includes('type it like 150 cafe'))`, 3000)) out.push('a refused line did not show main\'s error in the card');
+      if (await t.evaluate(`${mstInput('Spend line')}.value`) !== 'hello') out.push('the refused line was not kept');
+      if (!await t.evaluate(`document.querySelector('main').textContent.includes('breathing room until payday')`)) out.push('the Today view was blanked by a refusal');
+      if (await t.evaluate(`!!(WHQ.app.logic.state.mny || {}).busy || !!WHQ.app.logic._mstBusy`)) out.push('the one-write guard stayed on after a refusal');
+      out.push(...t.errors());
+    } finally { await t.evaluate(MST_RESET).catch(() => {}); }
+    return out;
+  },
+
+  // Ctrl K: '150 cafe' offers "Log a spend · 150 cafe"; Enter sends one log-line (from palette) and toasts main's note; '2026 plan' offers nothing
+  async 'palette-log-line'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const text = (q) => `(async () => { const L = WHQ.app.logic; L.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: ${JSON.stringify(q)}, paletteSel: 0, toasts: [] }); await new Promise((r) => setTimeout(r, 120)); return document.body.textContent; })()`;
+    try {
+      const withLine = await t.evaluate(text('150 cafe'));
+      if (!withLine.includes('Log a spend · 150 cafe')) return ['Ctrl K with "150 cafe" has no "Log a spend · 150 cafe" row'];
+      await t.press('Enter');
+      if (!await t.waitFor(`hqFake.calls('money.apply').some((c) => c.args[0] && c.args[0].type === 'log-line')`, 3000)) return out.concat('Enter on the Log a spend row did not reach main');
+      await t.sleep(200);
+      const sent = await mstCalls(t, `i && i.type === 'log-line'`);
+      if (sent.length !== 1 || JSON.stringify(sent[0]) !== JSON.stringify({ type: 'log-line', text: '150 cafe', from: 'palette' })) out.push('palette intents ' + JSON.stringify(sent));
+      if (!await t.waitFor(`${MNY}.toasts().some((x) => x[0] === 'success' && x[1] === 'logged 150 DA · Food · Cash — undo in Recent')`, 3000)) out.push('no toast with main\'s note: ' + JSON.stringify(await t.evaluate(`${MNY}.toasts()`)));
+      if (await t.evaluate(`!!WHQ.app.logic.state.paletteOpen`)) out.push('the palette stayed open after the row ran');
+      // the year rule: a lone year plus a word that is not a category is not a spend
+      const year = await t.evaluate(text('2026 plan'));
+      if (year.includes('Log a spend ·')) out.push('"2026 plan" offered a Log a spend row (a year is not an amount)');
+      const ver = await t.evaluate(text('deploy v2'));
+      if (ver.includes('Log a spend ·')) out.push('"deploy v2" offered a Log a spend row');
+      const yda = await t.evaluate(text('2026 da'));
+      if (!yda.includes('Log a spend · 2026 da')) out.push('"2026 da" (a tagged amount) did not offer the row');
+      out.push(...t.errors());
+    } finally { await t.evaluate(MST_RESET).catch(() => {}); }
+    return out;
   },
 });
 

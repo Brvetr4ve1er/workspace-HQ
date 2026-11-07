@@ -76,6 +76,7 @@ function create({ dataDir, now = () => new Date(), newId = () => crypto.randomUU
     let r;
     try { r = L.commands.apply(state, intent, { now: now(), newId }); }
     catch (e) { return { error: e instanceof L.commands.MoneyError ? e.message : 'that did not work — ' + e.message }; }
+    if (r.preview) return { preview: r.preview };   // a dry log-line previews and never writes
     try { writeState(r.state); } catch (e) { return { error: 'not saved — could not write money data: ' + e.message }; }
     return reply(L, r.state, r.note);
   }

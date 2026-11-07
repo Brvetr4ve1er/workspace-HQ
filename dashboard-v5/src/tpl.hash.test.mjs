@@ -56,9 +56,10 @@ import tpl from './app.tpl.js';
 // 2026-11-05 Operator Brief: the brief fragment (tpl/brief.tpl.js) interpolated into home under the greeting, one <!-- v5: --> marker; nothing else moved (+4114 chars / +4129 bytes)
 // 2026-11-07 assistant rulebook: the Reach fragment (tpl/reach.tpl.js) interpolated into ov-settings after Global hotkeys, one <!-- v5: --> marker; nothing else moved (+3795 chars / +3809 bytes — exactly the fragment's own length)
 // 2026-11-07 sessions board: the board fragment (tpl/sessions-board.tpl.js, +9755 chars) first in Claude › Sessions, the strip fragment (tpl/sessions-strip.tpl.js, +1958 chars) after the Brief on Home, and the Chats thread's terminal button bound to clTerminalLabel / clTerminalTip (a <!-- v5: --> marker, +131 chars): +11844 chars / +11860 bytes in all, nothing else moved
-const SHA256 = '1b6d41cc5268822571a28c5bc7c28a4322b42d3d964b61910cc0241f831ca1a1';
-const LENGTH = 318408;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 318943;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-07 money in one minute + one line per spend: the start card (tpl/money-start.tpl.js, +5355 chars) replaces the money fragment's "start with what you have" card (-1777 chars) in the no-accounts branch, and the quick line (+2175 chars) leads Today under mnyHasAccounts; each carries a <!-- v5: --> marker; +22 chars of indentation per interpolation, nothing else moved (+5797 chars / +5805 bytes)
+const SHA256 = 'e157665c636439275b0de15bec840427e8a8705cbf402b72aea23aec42920666';
+const LENGTH = 324205;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 324748;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

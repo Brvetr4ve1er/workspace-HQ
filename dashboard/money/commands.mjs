@@ -10,13 +10,15 @@ import { parseAmount, parseMany, INBOX_CATEGORIES } from './parse.mjs';
 import { localDayISO, isValidDayKey } from './dates.mjs';
 import { alreadyLogged } from './dedupe.mjs';
 import { sanitizeState } from './store.mjs';
+import { planStart } from './start.mjs';
+import { parseLine, previewOf } from './quicklog.mjs';
 
 export class MoneyError extends Error {}
 const fail = (msg) => { throw new MoneyError(msg); };
 // 'YYYY-MM-DD' → that day's local noon as ISO (an instant safely inside the owner's day, whatever the zone)
 const localNoonISO = (day) => { const [y, mo, d] = day.split('-').map(Number); return new Date(y, mo - 1, d, 12).toISOString(); };
 
-export const INTENTS = ['account-save', 'account-archive', 'settings', 'log', 'tx-undo', 'obligation-save', 'obligation-archive', 'obligation-pay', 'obligation-unpay', 'jar-save', 'jar-archive', 'jar-move', 'jar-cover', 'split-save', 'payday-run', 'inbox-paste', 'inbox-confirm', 'inbox-reject', 'inbox-clear'];
+export const INTENTS = ['account-save', 'account-archive', 'settings', 'log', 'tx-undo', 'obligation-save', 'obligation-archive', 'obligation-pay', 'obligation-unpay', 'jar-save', 'jar-archive', 'jar-move', 'jar-cover', 'split-save', 'payday-run', 'inbox-paste', 'inbox-confirm', 'inbox-reject', 'inbox-clear', 'start', 'log-line'];
 export const CATEGORIES = [...INBOX_CATEGORIES];
 const KINDS = ['bill', 'variable', 'subscription', 'installment'], CADENCES = ['monthly', 'weekly', 'yearly', 'once'];
 const MAX_PASTE = 20000;
@@ -50,7 +52,7 @@ function must(next, prev, msg) { if (next === prev) fail(msg); return next; }
  * @param state  sanitized state (store.mjs)
  * @param intent { type, ...fields } straight from the renderer
  * @param env    { now: Date, newId: () => string } — injected so tests are deterministic
- * @returns { state, note } note = owner-facing summary for the toast
+ * @returns { state, note } note = owner-facing summary for the toast; a dry log-line also returns { preview } with the state unchanged
  */
 export function apply(state, intent, env) {
   if (!intent || typeof intent !== 'object' || !INTENTS.includes(intent.type)) fail('unknown action.');
@@ -94,6 +96,43 @@ export function apply(state, intent, env) {
       if (cur === 'USD') tx.original = { amount: amt, currency: 'USD' };
       next = { ...s, transactions: [tx, ...s.transactions] };
       note = `logged · ${category}`;
+      break;
+    }
+    case 'start': {
+      // "Money in one minute": up to 3 accounts + the rate + the payday in ONE write (the caller's single writeState)
+      const r = planStart({ accounts: m.accounts, input: x, nowISO, newId });
+      if (!r.ok) fail(r.error);
+      let money = m;
+      for (const account of r.accounts) money = must(moneyReducer(money, { type: 'money/account-upsert', account }), money, 'that account could not be saved.');
+      money = moneyReducer(money, { type: 'money/settings', settings: { fxDaPerUsd: r.settings.fxDaPerUsd ?? m.settings.fxDaPerUsd, paydayDay: r.settings.paydayDay ?? m.settings.paydayDay, split: m.settings.split }, nowISO });
+      next = withMoney(money);
+      note = r.note;
+      break;
+    }
+    case 'log-line': {
+      // one typed line ("150 cafe", "hier taxi 400") → a ledger row, or a pending Inbox slip when unsure; a dry run writes nothing
+      if (x.from !== 'today' && x.from !== 'palette') fail('unknown action.');
+      const r = parseLine(typeof x.text === 'string' ? x.text : '', { accounts: m.accounts.filter((a) => !a.archived), fxDaPerUsd: m.settings.fxDaPerUsd, today });
+      if (x.dry === true) return { state: s, note: '', preview: previewOf(r) };
+      if (r.kind === 'none') fail(r.reason);
+      if (r.kind === 'slip') {
+        const { candidates } = parseMany(r.slipText, { from: '', receivedAt: nowISO });
+        if (!candidates.length) fail(r.reason);
+        const rows = candidates.map((c) => ({ ...c, id: newId(), status: 'pending', txId: null, cleared: false, updatedAt: nowISO }));
+        next = { ...s, inbox: planAdd(s.inbox, rows, nowISO).state };
+        note = `in the Inbox to confirm: ${r.reason}`;
+        break;
+      }
+      const amountDA = toDA(r.amount, r.currency, m.settings.fxDaPerUsd);
+      if (amountDA === null) fail('set your DA rate first — this one is in USD.');
+      const tx = { id: newId(), amountDA, category: CATEGORIES.includes(r.category) ? r.category : 'Other', date: r.date };
+      // only a same-day row gets an instant (inbox-confirm's rule): a back-dated row is dated by its day alone
+      if (r.date === today) tx.at = nowISO;
+      if (r.note) tx.note = r.note.slice(0, 200);
+      if (r.accountId) tx.accountId = r.accountId;
+      if (r.currency === 'USD') tx.original = { amount: r.amount, currency: 'USD' };
+      next = { ...s, transactions: [tx, ...s.transactions] };
+      note = `logged ${r.label} — undo in Recent`;
       break;
     }
     case 'tx-undo': {

@@ -1,6 +1,7 @@
 // The command palette’s items (Ctrl K): verbs, go-to, projects, tasks, automations, commands.
 // Component.prototype mixin (src/app.js): same `this` as the class methods they were.
 import { libKindOf } from './library.js';
+import { amountLine } from './money-line.js';
 
 export const paletteLogic = {
   paletteItems() {
@@ -23,6 +24,8 @@ export const paletteLogic = {
       if (verb === 'theme') ['dark', 'light', 'os'].filter((x) => x.startsWith(arg)).forEach((x) => doItems.push({ glyph: '›', label: 'Theme · ' + x, hint: '', run: () => this.setState({ themePref: x }) }));
       if (verb === 'go') NAV.filter((n) => n.label.toLowerCase().startsWith(arg)).forEach((n) => doItems.push({ glyph: '›', label: 'Go to ' + n.label, hint: '', run: () => this.go(n.id) }));
     }
+    // <!-- v5: a number at the start or end of the query offers to log it as a spend (money-quicklog); the year rule lives in money-line.js -->
+    if (amountLine(raw)) doItems.push({ glyph: '₫', label: 'Log a spend · ' + raw, hint: 'Money', run: () => this.mstLogFromPalette(raw) });
     if (doItems.length) g.push(['Do', doItems]);
     const go = NAV.map((n, i) => ({ glyph: n.glyph, label: n.label, hint: String(i + 1), run: () => this.go(n.id) }));
     [['Map', 'projects', 'map'], ['Archived projects', 'projects', 'archived'], ['Ideas & risks', 'tasks', 'ideas'], ['Library', 'automations', 'library'], ['Sessions', 'claude', 'sessions'], ['Timeline', 'history', 'timeline'], ['Milestones', 'history', 'milestones'], ['Workspace clutter', 'system', 'clutter'], ['Screen time', 'life', 'screen'], ['Notes', 'life', 'notes'], ['Runway', 'money', 'runway'], ['Jars', 'money', 'jars'], ['Money inbox', 'money', 'inbox']].forEach((a) => go.push({ glyph: '↳', label: a[0], hint: NAV.find((n) => n.id === a[1]).label, run: () => this.go(a[1], a[2]) }));

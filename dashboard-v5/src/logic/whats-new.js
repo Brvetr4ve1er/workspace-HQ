@@ -46,6 +46,7 @@ export const CHANGES = [
   { text: 'Projects can be searched by name or stack and filtered by status, and “capture <text>” in the command palette saves an idea.', needs: 'paletteCapture' },
   { text: 'Money is a new space (key 9): breathing room until payday, bills on a runway, jars, and a paste-a-receipt inbox. All local in data/money/, nothing synced.', needs: 'mnyApply' },
   { text: 'Claude › Sessions is a live board of every Claude Code session from the last 24 hours: a timeline, where each one stopped, this week’s limit stops, and one-click Resume.', needs: 'sbdResume' },
+  { text: 'Money starts in one minute (three optional balances, the rate, payday), then one line logs a spend: type “150 cafe” or “taxi 400” on Money › Today, in Ctrl K, or in the Ctrl+Alt+X quick-run box. A line it is unsure about goes to the Inbox instead.', needs: 'mstStart' },
 ];
 
 // ---- pure helpers (unit-tested) ------------------------------------------------
