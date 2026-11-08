@@ -166,12 +166,12 @@
     if (p && p.kind === 'none') return 'Log a spend · ' + p.reason;
     return 'Log a spend · ' + String(text || '').trim();
   }
-  // the spend row goes on top, except behind an exact spell-name match (that one stays first)
+  // the spend row goes on top, except behind a spell whose name the typed text begins (rank 0 in pickHits; it stays first)
   function withSpendRow(hits, query) {
     const list = Array.isArray(hits) ? hits : [];
     const q = String(query || '').trim().toLowerCase();
     const first = list[0];
-    const exact = !!first && [first.name, first.id].some((v) => v != null && String(v).toLowerCase() === q);
+    const exact = !!first && !!q && [first.name, first.id].some((v) => v != null && String(v).toLowerCase().startsWith(q));
     const row = { spend: true };
     return exact ? [first, row, ...list.slice(1)] : [row, ...list];
   }

@@ -174,3 +174,29 @@ test('amountLine and parseLine agree on year handling and on refusals for lines 
     assert.equal(!!a, p.kind !== 'none', t);
   }
 });
+
+test('one tagged amount beside a bare number that is not clearly a count is a slip; a small count stays in the note', () => {
+  const a = P('50 pain 20 da');
+  assert.equal(a.kind, 'slip', 'the 50 could be the amount: ask');
+  assert.match(a.reason, /more than one number/);
+  assert.equal(P('pain 50 20da').kind, 'slip');
+  assert.equal(P('12 cafe 150da').kind, 'slip', 'a count is 1–10 only');
+  assert.equal(P('150da cafe 3').kind, 'slip', 'a count sits before a word');
+  const c = P('3 cafe 150da');
+  assert.deepEqual([c.kind, c.amount, c.note], ['log', 150, '3 cafe']);
+});
+
+test('a minus sign (a refund?) and an ISO date are refused with a reason, never read as a spend', () => {
+  for (const line of ['-150 cafe', 'cafe -150', '150 cafe -20', '-$5 netflix']) {
+    const r = P(line);
+    assert.equal(r.kind, 'none', line);
+    assert.match(r.reason, /refund/, line);
+  }
+  assert.equal(P('taxi - 400').kind, 'log', 'a spaced dash is just punctuation');
+  assert.equal(P('150 cafe-bar').kind, 'log');
+  for (const line of ['2026-11-05 150 cafe', '150 cafe 2026-11-05']) {
+    const r = P(line);
+    assert.equal(r.kind, 'none', line);
+    assert.match(r.reason, /hier|yesterday/, line);
+  }
+});

@@ -133,6 +133,11 @@ test('withSpendRow: the spend row goes on top, except behind an exact spell-name
   assert.equal(exact[0].name, '150 cafe', 'an exact spell-name match stays on top');
   assert.equal(exact[1].spend, true);
   assert.equal(cast.withSpendRow([], '150').length, 1);
+  // a spell whose name the typed text begins (rank 0 in pickHits) stays first: "deploy 2" must not log 2 DA on Enter
+  const prefix = cast.withSpendRow([{ id: 'dp', name: 'Deploy 2 prod' }, ...spells], 'deploy 2');
+  assert.equal(prefix[0].name, 'Deploy 2 prod', 'a prefix match on a spell name stays on top');
+  assert.equal(prefix[1].spend, true);
+  assert.equal(cast.withSpendRow([{ id: 'x', name: 'my 150 cafe' }, ...spells], '150 cafe')[0].spend, true, 'a mere substring match does not outrank the row');
 });
 
 test('spendText: dry preview words, the typed line until then, the one-minute setup with no accounts', () => {

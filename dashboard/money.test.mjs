@@ -322,3 +322,30 @@ test('a dry log-line previews and never writes (not even a first state file); th
   money.init({ ipcMain: { handle: (ch, fn) => handlers.set(ch, fn) }, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'hq-money-')), getWin: () => null });
   assert.deepEqual([...handlers.keys()].sort(), ['hq:money:apply', 'hq:money:export', 'hq:money:import', 'hq:money:read']);
 });
+
+// ---- money-quicklog tasting fixes -------------------------------------------------------------------------
+test('log-line slips: a yesterday slip never swallows today’s line; an exact repeat the same day says it is already there', async () => {
+  const { m } = bootAt();
+  await m.apply({ type: 'start', cashDA: '1000', cardUSD: '50' });   // no rate set: a USD line goes to the Inbox
+  const pending = () => st(m).inbox.candidates.filter((c) => c.status === 'pending');
+  const y = await m.apply({ type: 'log-line', text: 'hier $12.49 netflix card', from: 'today' });
+  assert.equal(y.note, 'in the Inbox to confirm: needs your DA rate');
+  const t = await m.apply({ type: 'log-line', text: '$12.49 netflix card', from: 'today' });
+  assert.equal(t.note, 'in the Inbox to confirm: needs your DA rate', 'today’s line is its own slip');
+  assert.equal(pending().length, 2, 'yesterday and today stay two slips');
+  assert.notEqual(pending()[0].date, pending()[1].date);
+  const again = await m.apply({ type: 'log-line', text: '$12.49 netflix card', from: 'today' });
+  assert.match(again.note, /^already in the Inbox/, 'the repeat says it was not added');
+  assert.equal(pending().length, 2, 'nothing new was added');
+});
+
+test('dry is honoured only by log-line: a forged dry start or log is refused, not written', async () => {
+  const { m } = bootAt();
+  assert.match((await m.apply({ type: 'start', dry: true, cashDA: '1' })).error, /unknown action/);
+  assert.equal(fs.existsSync(m.file), false);
+  await m.apply({ type: 'start', cashDA: '1000' });
+  const before = fs.readFileSync(m.file, 'utf8');
+  assert.match((await m.apply({ type: 'log', dry: true, amount: '5', category: 'Food' })).error, /unknown action/);
+  assert.equal(fs.readFileSync(m.file, 'utf8'), before);
+  assert.equal((await m.apply({ type: 'log-line', text: '150 cafe', from: 'today', dry: true })).preview.kind, 'log');
+});

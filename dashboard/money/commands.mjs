@@ -59,6 +59,7 @@ export function apply(state, intent, env) {
   const now = env.now, nowISO = now.toISOString(), today = localDayISO(now), newId = env.newId;
   const s = state, m = s.money, x = intent;
   const withMoney = (money) => ({ ...s, money });
+  if (x.dry && x.type !== 'log-line') fail('unknown action.');   // only log-line has a dry run; a forged dry flag never turns another intent into a write
   let next, note = '';
   switch (x.type) {
     case 'account-save': {
@@ -119,8 +120,12 @@ export function apply(state, intent, env) {
         const { candidates } = parseMany(r.slipText, { from: '', receivedAt: nowISO });
         if (!candidates.length) fail(r.reason);
         const rows = candidates.map((c) => ({ ...c, id: newId(), status: 'pending', txId: null, cleared: false, updatedAt: nowISO }));
-        next = { ...s, inbox: planAdd(s.inbox, rows, nowISO).state };
-        note = `in the Inbox to confirm: ${r.reason}`;
+        // the typed line only folds into a slip of its OWN day: planAdd's within-a-day rule would let a yesterday slip swallow
+        // today's line (and keep the older date)
+        const days = new Set(rows.map((c) => c.date));
+        const plan = planAdd({ candidates: s.inbox.candidates.filter((c) => days.has(c.date)) }, rows, nowISO);
+        next = { ...s, inbox: { candidates: [...s.inbox.candidates.filter((c) => !days.has(c.date)), ...plan.state.candidates] } };
+        note = plan.added ? `in the Inbox to confirm: ${r.reason}` : `already in the Inbox to confirm: ${r.label}`;
         break;
       }
       const amountDA = toDA(r.amount, r.currency, m.settings.fxDaPerUsd);

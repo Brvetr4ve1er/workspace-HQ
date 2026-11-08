@@ -38,6 +38,7 @@ const PRE = 'us\\$|usd|\\$|dzd|da|eur|€';
 const POST = 'dzd|dinars?|da|usd|\\$|dollars?|eur|€';
 const AMOUNT_RE = new RegExp(`(?<![\\p{L}\\d.,$€])(?:(${PRE})${SP}?)?(${NUM})(?:${SP}?(${POST})(?![\\p{L}\\d]))?(?![\\p{L}\\d])`, 'giu');
 const DATE_WORD = /\b(?:hier|yesterday)\b/giu;
+const ISO_DATE = /(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)/;
 
 const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const words = (s) => fold(s).split(/[^a-z0-9$]+/).filter(Boolean);
@@ -51,6 +52,8 @@ function tagOf(t) {
 }
 const round2 = (n) => Math.round(n * 100) / 100;
 const isYear = (numText, n) => /^\d{4}$/.test(numText) && n >= 1900 && n <= 2099;
+// a bare whole number 1–10 followed by a word is a quantity ("3 cafe"), not a price
+const isCount = (i, s) => !i.tag && Number.isInteger(i.n) && i.n >= 1 && i.n <= 10 && /^ \p{L}/u.test(s.slice(i.end, i.end + 2));
 const hasCategoryWord = (ws) => ws.some((w) => WORD_CATEGORY.has(w));
 
 /* ---- amountLine: a standalone number at the start or the end of the line ---------------------------
@@ -116,6 +119,8 @@ export function parseLine(text, ctx = {}) {
   const dated = DATE_WORD.test(raw); DATE_WORD.lastIndex = 0;
   const date = dated ? addDaysISO(today, -1) : today;
   const s = raw.replace(DATE_WORD, ' ').replace(/\s+/g, ' ').trim();
+  // a written-out date would be dropped from the note and the row would land on today: say so instead of guessing
+  if (ISO_DATE.test(s)) return none('dates are only hier / yesterday here — leave the date out.');
 
   const items = [];
   for (const m of s.matchAll(AMOUNT_RE)) {
@@ -125,13 +130,18 @@ export function parseLine(text, ctx = {}) {
     items.push({ index: m.index, end: m.index + m[0].length, n, numText: m[2], pre, post, tag: pre || post });
   }
   if (!items.length) return none('type it like 150 cafe');
+  // a number glued to a leading minus is a refund or a range: money coming back is the Inbox's job, never a +spend
+  if (items.some((i) => s[i.index - 1] === '-' && (i.index === 1 || /\s/.test(s[i.index - 2])))) return none('a minus sign reads as a refund — refunds go through the Inbox.');
   if (items.some((i) => i.pre === 'EUR' || i.post === 'EUR')) return none('only DA and USD are tracked here.');
   if (items.some((i) => i.pre && i.post && i.pre !== i.post)) return none('that amount names two currencies — use one.');
 
   const tagged = items.filter((i) => i.tag);
   let chosen = null, ambiguous = false;
-  if (tagged.length === 1) chosen = tagged[0];
-  else if (tagged.length === 0 && items.length === 1) chosen = items[0];
+  // one tagged amount wins only when every other number is clearly a count ("3 cafe 150da"); "50 pain 20 da" asks
+  if (tagged.length === 1) {
+    chosen = tagged[0];
+    if (!items.every((i) => i === chosen || isCount(i, s))) ambiguous = true;
+  } else if (tagged.length === 0 && items.length === 1) chosen = items[0];
   else { ambiguous = true; chosen = tagged[0] || items[0]; }
 
   const amount = round2(chosen.n);
