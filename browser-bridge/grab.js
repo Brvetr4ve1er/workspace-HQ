@@ -1,23 +1,34 @@
-// WorkspaceHQ Bridge 0.7.0 — "Find the best version", service-worker half. Classic script (importScripts). A VIEWER: it
-// remembers which image or video was right-clicked and asks the popup to open on it. Nothing is downloaded or fetched, there
-// is no downloads permission and no download stage; saving waits for the owner's yes (see grab-rules.js VIEWER_NOTE).
+// WorkspaceHQ Bridge 0.7.0 — "Find the best version" + download on click, service-worker half. Classic script (importScripts).
+// It remembers which image or video was right-clicked and asks the popup to open on it, and — only when the owner presses
+// Save on ONE row — saves that file with chrome.downloads into Downloads/WorkspaceHQ/grabs/<host>/. Nothing is requested
+// before that click: no scan, no HEAD, no download. There is no "save all" message anywhere; one message = one job.
 //
-// MV3 workers die when idle, so the target lives in chrome.storage.session (never in module state).
+// MV3 workers die when idle, so the right-click target AND the download queue live in chrome.storage.session (never in
+// module state): a worker restart picks the queue up again (install() re-pumps it, and a download event or the hq-grab
+// alarm wakes the worker while a job is pending).
 //
-//   HQGrab.install()            top level of background.js: wires contextMenus.onClicked (a worker restart re-adds it)
+//   HQGrab.install()            top level of background.js: wires contextMenus.onClicked and downloads.onChanged, resumes the queue
 //   HQGrab.registerMenu()       inside chrome.runtime.onInstalled: creates the 'Find the best version' item (image, video)
 //   HQGrab.onMenuClick(info, tab) → stores { tabId, srcUrl, pageUrl, mediaType, at } in storage.session, then opens the
 //                                 popup where chrome.action.openPopup() is allowed; otherwise the badge shows '…'
 //   HQGrab.takeTarget()         → the stored target (or null), clearing the '…' hold so the badge goes back to normal
-//   HQGrab.create(deps)         → the same API over injected { chrome, now } (tests)
+//   HQGrab.enqueue({entry, pageUrl}, sender) → { ok, job? , message? }   the 'grab:save' message: ONE entry, from our own popup only
+//   HQGrab.pump() / idle()      → run / await the queue. Per job: HEAD-check a guessed upgrade of the image's own host (only
+//                                 then), download the best candidate, fall back down the list on failure; at least 1 s between
+//                                 any two requests to a site
+//   HQGrab.create(deps)         → the same API over injected { chrome, now, sleep, fetch } (tests)
 (function (root) {
   'use strict';
   var MENU_ID = 'hq-grab', TARGET_KEY = 'hq_grab_target', HOLD_KEY = 'hq_badge_hold', HOLD_TEXT = '…', TARGET_TTL_MS = 10 * 60 * 1000;
+  var QUEUE_KEY = 'hq_grab_queue', ALARM = 'hq-grab', MIN_GAP_MS = 1000, MAX_PENDING = 10, KEEP_JOBS = 20, HEAD_TIMEOUT_MS = 8000, MAX_VARIANTS = 40;
 
   function create(deps) {
     deps = deps || {};
     var C = function () { return deps.chrome || root.chrome; };
     var now = function () { return deps.now ? deps.now() : Date.now(); };
+    var sleep = function (ms) { return deps.sleep ? deps.sleep(ms) : new Promise(function (r) { setTimeout(r, ms); }); };
+    var doFetch = function () { return deps.fetch || (root.fetch ? root.fetch.bind(root) : null); };
+    var R = function () { return deps.rules || root.HQGrabRules; };
 
     async function put(k, v) { var o = {}; o[k] = v; await C().storage.session.set(o); }
 
@@ -51,11 +62,185 @@
       return got;
     }
 
-    function install() {
-      try { C().contextMenus.onClicked.addListener(function (info, tab) { onMenuClick(info, tab).catch(function () {}); }); } catch (e) { /* no contextMenus */ }
+
+    // ---- download on click: the queue (chrome.storage.session, written only here) ---------------------------------------
+    var chain = Promise.resolve(), running = null;
+
+    async function readQueue() {
+      var q = null;
+      try { q = (await C().storage.session.get(QUEUE_KEY))[QUEUE_KEY]; } catch (e) { q = null; }
+      if (!q || !Array.isArray(q.jobs)) q = { v: 1, seq: 0, lastNetAt: 0, jobs: [] };
+      return q;
+    }
+    // every write goes through one chain: a read-modify-write never interleaves with another one
+    function update(fn) {
+      var p = chain.then(async function () { var q = await readQueue(); var r = await fn(q); await put(QUEUE_KEY, q); return r; });
+      chain = p.then(function () {}, function () {});
+      return p;
+    }
+    function patch(id, fields) { return update(function (q) { var j = q.jobs.filter(function (x) { return x.id === id; })[0]; if (j) Object.assign(j, fields); }); }
+    function isPending(j) { return j.state === 'queued' || j.state === 'saving'; }
+    function viewOf(j) { return { id: j.id, key: j.key, host: j.host, kind: j.kind, state: j.state, tried: j.tried, message: j.message || '' }; }
+
+    function fromPopup(sender) {
+      var rt = C().runtime;
+      if (!sender || !rt || sender.id !== rt.id || sender.tab) return false;
+      var popupUrl = rt.getURL ? rt.getURL('popup.html') : '';
+      return !!popupUrl && typeof sender.url === 'string' && sender.url.indexOf(popupUrl) === 0;
+    }
+    function cleanEntry(e) {
+      var variants = Array.isArray(e.variants) ? e.variants.slice(0, MAX_VARIANTS) : [];
+      return {
+        url: e.url, kind: e.kind === 'video' ? 'video' : 'image',
+        variants: variants.filter(function (v) { return v && typeof v.url === 'string'; }).map(function (v) { var o = { url: v.url }; if (v.w > 0) o.w = +v.w; if (v.x > 0) o.x = +v.x; return o; }),
+      };
     }
 
-    return { install: install, registerMenu: registerMenu, onMenuClick: onMenuClick, takeTarget: takeTarget, MENU_ID: MENU_ID };
+    // The 'grab:save' message. ONE entry per message: an array, or anything else, is refused. Nothing here touches the network.
+    async function enqueue(msg, sender) {
+      if (!fromPopup(sender)) return { ok: false, message: "Can't save from here" };
+      if (!msg || !msg.entry || typeof msg.entry !== 'object' || Array.isArray(msg.entry) || typeof msg.entry.url !== 'string') return { ok: false, message: "Can't save this one" };
+      var rules = R(), entry = cleanEntry(msg.entry);
+      var check = rules.saveCheck(entry, String(msg.pageUrl || ''));
+      if (!check.ok) return { ok: false, message: check.message };
+      var cands = rules.saveCandidates(entry);
+      if (!cands.length) return { ok: false, message: "Can't save this one" };
+      var key = rules.normalizeUrl(entry.url), host = rules.hostOf(entry.url), job = null, full = false;
+      await update(function (q) {
+        var dup = q.jobs.filter(function (j) { return j.key === key && isPending(j); })[0];
+        if (dup) { job = dup; return; }
+        if (q.jobs.filter(isPending).length >= MAX_PENDING) { full = true; return; }
+        job = { id: 'g' + (++q.seq), key: key, host: host, kind: entry.kind, candidates: cands, idx: 0, tried: 0, state: 'queued', downloadId: null, attemptAt: 0, attemptIdx: -1, message: '', at: now() };
+        q.jobs.push(job);
+        while (q.jobs.length > KEEP_JOBS) { var i = q.jobs.findIndex(function (j) { return !isPending(j); }); if (i < 0) break; q.jobs.splice(i, 1); }
+      });
+      if (full) return { ok: false, message: 'Too many saves waiting — try again in a moment' };
+      pump().catch(function () {});
+      return { ok: true, job: viewOf(job) };
+    }
+
+    // At least MIN_GAP_MS between any two requests (a HEAD check or a download), also across a worker restart
+    async function gate() {
+      var q = await readQueue();
+      var wait = Math.min(MIN_GAP_MS, (q.lastNetAt || 0) + MIN_GAP_MS - now());
+      if (wait > 0) await sleep(wait);
+      await update(function (q2) { q2.lastNetAt = now(); });
+    }
+
+    // 'ok' = it is there, 'bad' = it is not (so the next size is tried), 'unknown' = the browser would not let us look
+    async function headCheck(url) {
+      var f = doFetch();
+      if (!f) return 'unknown';
+      try {
+        var init = { method: 'HEAD', credentials: 'omit', redirect: 'manual', cache: 'no-store', referrerPolicy: 'no-referrer' };
+        try { if (root.AbortSignal && root.AbortSignal.timeout) init.signal = root.AbortSignal.timeout(HEAD_TIMEOUT_MS); } catch (e) { /* no timeout */ }
+        var res = await f(url, init);
+        if (!res || res.type === 'opaqueredirect' || !res.ok) return 'bad';
+        var ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+        if (ct && !/^(image|video)\//i.test(ct) && !/octet-stream/i.test(ct)) return 'bad';
+        return 'ok';
+      } catch (e) { return 'unknown'; }
+    }
+
+    // → { state: 'complete'|'interrupted', canceled? } once Chrome says the download ended (also if it already had)
+    function settle(id) {
+      return new Promise(function (resolve) {
+        var done = false, dl = C().downloads;
+        function finish(r) { if (done) return; done = true; try { dl.onChanged.removeListener(listener); } catch (e) { /* ignore */ } resolve(r); }
+        function listener(delta) {
+          if (!delta || delta.id !== id) return;
+          var st = delta.state && delta.state.current;
+          if (st === 'complete') finish({ state: 'complete' });
+          else if (st === 'interrupted') finish({ state: 'interrupted', canceled: !!(delta.error && delta.error.current === 'USER_CANCELED') });
+        }
+        try { dl.onChanged.addListener(listener); } catch (e) { /* the search below still answers */ }
+        Promise.resolve(dl.search({ id: id })).then(function (items) {
+          var it = items && items[0];
+          if (!it) return finish({ state: 'interrupted', canceled: true });   // removed from the list by the owner
+          if (it.state === 'complete') finish({ state: 'complete' });
+          else if (it.state === 'interrupted') finish({ state: 'interrupted', canceled: it.error === 'USER_CANCELED' });
+        }).catch(function () { finish({ state: 'interrupted' }); });
+      });
+    }
+
+    // a download started just before the worker died, whose id never reached the queue
+    async function findStarted(url, since) {
+      try {
+        var items = await C().downloads.search({ url: url });
+        var hit = (items || []).filter(function (d) { return d.startTime && Date.parse(d.startTime) >= since - 2000; })[0];
+        return hit ? hit.id : null;
+      } catch (e) { return null; }
+    }
+
+    async function runJob(id) {
+      var rules = R();
+      for (var guard = 0; guard < 40; guard++) {
+        var q = await readQueue(), job = q.jobs.filter(function (j) { return j.id === id; })[0];
+        if (!job || !isPending(job)) return;
+        var cands = job.candidates, i = job.idx;
+        if (job.downloadId != null) {
+          var r = await settle(job.downloadId);
+          if (r.state === 'complete') { await patch(id, { state: 'saved', tried: i + 1, downloadId: null, message: '' }); return; }
+          if (r.canceled) { await patch(id, { state: 'failed', tried: i + 1, downloadId: null, message: 'saving was canceled' }); return; }
+          await patch(id, { downloadId: null, idx: i + 1, tried: Math.min(i + 1, cands.length) });
+          continue;
+        }
+        if (i >= cands.length) { await patch(id, { state: 'failed', tried: cands.length, message: '' }); return; }
+        var cand = cands[i];
+        if (job.state === 'queued') await patch(id, { state: 'saving' });
+        if (job.attemptAt && job.attemptIdx === i) {
+          var found = await findStarted(cand.url, job.attemptAt);
+          if (found != null) { await patch(id, { downloadId: found }); continue; }
+        }
+        // the only HEAD there is: a guessed bigger version on the image's own host, after the click that queued this job
+        if (cand.guess && rules.hostOf(cand.url) === job.host) {
+          await gate();
+          if ((await headCheck(cand.url)) === 'bad') { await patch(id, { idx: i + 1, tried: Math.min(i + 1, cands.length) }); continue; }
+        }
+        await gate();
+        await patch(id, { attemptAt: now(), attemptIdx: i });
+        try {
+          var dlId = await C().downloads.download({ url: cand.url, filename: rules.grabPath(job.host, cand.url, job.kind), conflictAction: 'uniquify', saveAs: false });
+          if (dlId == null) throw new Error('no download id');
+          await patch(id, { downloadId: dlId });
+        } catch (e) { await patch(id, { idx: i + 1, tried: Math.min(i + 1, cands.length) }); }
+      }
+      await patch(id, { state: 'failed', message: 'could not save' });
+    }
+
+    async function syncAlarm() {
+      var al = C().alarms;
+      if (!al) return;
+      try {
+        var q = await readQueue();
+        if (q.jobs.some(isPending)) al.create(ALARM, { delayInMinutes: 0.5 }); else al.clear(ALARM);
+      } catch (e) { /* optional */ }
+    }
+
+    function pump() {
+      if (running) return running;
+      running = (async function () {
+        try {
+          await syncAlarm();   // a pending save wakes a restarted worker 30 s later if this one dies first
+          for (var n = 0; n < 200; n++) {
+            var q = await readQueue(), job = q.jobs.filter(isPending)[0];
+            if (!job) break;
+            await runJob(job.id);
+          }
+        } finally { running = null; await syncAlarm(); }
+      })();
+      return running;
+    }
+    function idle() { return running || Promise.resolve(); }
+
+    function install() {
+      try { C().contextMenus.onClicked.addListener(function (info, tab) { onMenuClick(info, tab).catch(function () {}); }); } catch (e) { /* no contextMenus */ }
+      // a worker that was restarted mid-save: a download event (or the hq-grab alarm) wakes it, and the queue carries on from storage
+      try { C().downloads.onChanged.addListener(function () { pump().catch(function () {}); }); } catch (e) { /* no downloads API */ }
+      pump().catch(function () {});
+    }
+
+    return { install: install, registerMenu: registerMenu, onMenuClick: onMenuClick, takeTarget: takeTarget, enqueue: enqueue, pump: pump, idle: idle, MENU_ID: MENU_ID, QUEUE_KEY: QUEUE_KEY, ALARM: ALARM, MIN_GAP_MS: MIN_GAP_MS };
   }
 
   var api = create({});

@@ -86,11 +86,11 @@ test('manifest: MV3, version bumped past 0.1.0, popup wired, no remote-code CSP 
 });
 
 // ---- Bridge 0.7.0 ----
-test('manifest 0.7.0: activeTab and contextMenus are added, downloads is not, and loopback stays the only app host', () => {
+test('manifest 0.7.0: activeTab, contextMenus and downloads (save on click) are added, and loopback stays the only app host', () => {
   const m = JSON.parse(read(resolve(EXT, 'manifest.json')));
   assert.equal(m.version, '0.7.0');
-  for (const p of ['tabs', 'storage', 'alarms', 'idle', 'scripting', 'activeTab', 'contextMenus']) assert.ok(m.permissions.includes(p), p);
-  assert.ok(!m.permissions.includes('downloads') && !(m.optional_permissions || []).includes('downloads'));
+  for (const p of ['tabs', 'storage', 'alarms', 'idle', 'scripting', 'activeTab', 'contextMenus', 'downloads']) assert.ok(m.permissions.includes(p), p);
+  assert.ok(!(m.optional_permissions || []).includes('downloads'), 'granted at install, not optional');
   assert.deepEqual(m.host_permissions.filter((h) => /127\.0\.0\.1|localhost/.test(h)).sort(), ['http://127.0.0.1/*', 'http://localhost/*']);
 });
 

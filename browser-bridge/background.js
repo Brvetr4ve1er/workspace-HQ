@@ -76,7 +76,7 @@ async function transition(tab) {
 chrome.runtime.onInstalled.addListener(bootstrap);
 chrome.runtime.onStartup.addListener(bootstrap);
 chrome.runtime.onInstalled.addListener(() => { HQGrab.registerMenu().catch(() => {}); });   // context menus persist across restarts: create the item on install/update only
-HQGrab.install();   // contextMenus.onClicked must be (re)wired every time the worker wakes
+HQGrab.install();   // contextMenus.onClicked and downloads.onChanged are (re)wired every time the worker wakes; a pending save resumes
 async function bootstrap() {
   try { chrome.idle.setDetectionInterval(IDLE_SECONDS); } catch { /* ignore */ }
   chrome.alarms.create('flush', { periodInMinutes: FLUSH_MINUTES });
@@ -118,12 +118,16 @@ chrome.alarms.onAlarm.addListener((a) => {
   else if (a.name === SOCIAL_ALARM) socialTick().catch(() => {});
   else if (a.name === CLAUDE_SYNC_ALARM) claudeSyncTick().catch(() => {});
   else if (a.name === HQAssist.ALARM) HQAssist.tick().catch(() => {});
+  else if (a.name === HQGrab.ALARM) HQGrab.pump().catch(() => {});   // a save left pending by a worker restart carries on
 });
 
 // Popup-driven social actions. 'social:send' is the ONLY publish path and it is
 // only ever sent by a human clicking Approve & Send in the popup — Claude has no
 // channel to reach it. 'social:sync' forces an immediate read-only scrape.
-chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  // 'grab:save' is ONE image or video the owner pressed Save on in the popup (grab.js re-checks the sender, the single entry,
+  // the site and the file type). There is no message for saving several.
+  if (msg && msg.type === 'grab:save') { HQGrab.enqueue(msg, sender).then(reply).catch(() => reply({ ok: false, message: "Can't save this one" })); return true; }
   if (msg && msg.type === 'social:send' && msg.action) { socialSend(msg.action).then(reply); return true; }
   if (msg && msg.type === 'social:sync') { socialTick().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
   // popup "check again": deliver queued focus sessions now instead of on the next alarm

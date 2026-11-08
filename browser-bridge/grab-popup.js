@@ -1,16 +1,20 @@
-// WorkspaceHQ Bridge 0.7.0 — "On this page", popup half of "Find the best version". Classic script (<script> in popup.html,
-// after grab-rules.js and grab-scan.js). A VIEWER: it scans the active tab with chrome.scripting (activeTab), lists what the
-// page offers, best first, and copies a link. It requests nothing itself — no fetch, no XMLHttpRequest, no <img>, so no
-// remote thumbnails — and every page-supplied string is shown through textContent, never as HTML.
+// WorkspaceHQ Bridge 0.7.0 — "On this page", popup half of "Find the best version" + save on click. Classic script (<script> in
+// popup.html, after grab-rules.js and grab-scan.js). It scans the active tab with chrome.scripting (activeTab) and lists what the
+// page offers, best first. It requests nothing itself — no fetch, no XMLHttpRequest, no <img>, so no remote thumbnails — and
+// every page-supplied string is shown through textContent, never as HTML. The only thing that leaves this file is ONE
+// 'grab:save' runtime message per press of a row's Save button; the service worker (grab.js) does the saving.
 //
-//   HQGrabPopup.load() → model  { state: 'ok'|'empty'|'streamed'|'restricted'|'error'|'none', message, rows:[row…], clicked }
+//   HQGrabPopup.load() → model  { state: 'ok'|'empty'|'streamed'|'restricted'|'error'|'none', message, rows:[row…], clicked, pageUrl }
 //        row = { rank, entry, info: describe(), candidates:[{url, guess}], best, clicked }
-//   HQGrabPopup.render(doc, host, model, { copy }) — the section's DOM, text only
+//   HQGrabPopup.render(doc, host, model, { copy, save }) → { paint(jobs) } — the section's DOM, text only; paint() shows each
+//        row's save state (queued, saving, saved to …, could not save) and disables Save while that row is waiting
+//   HQGrabPopup.save(row, pageUrl) → { ok, job?, message? }   sends the one message for this one row
+//   HQGrabPopup.readJobs() → jobs from chrome.storage.session   (the worker is the only writer)
 //   HQGrabPopup.copyText(text) → Promise<boolean>   (navigator.clipboard, falling back to a hidden textarea)
 //   HQGrabPopup.create(deps) → same API over injected { chrome, rules, scan, nav, doc, now } (tests)
 (function (root) {
   'use strict';
-  var TARGET_KEY = 'hq_grab_target', HOLD_KEY = 'hq_badge_hold', TARGET_TTL_MS = 10 * 60 * 1000, MAX_ROWS = 40;
+  var TARGET_KEY = 'hq_grab_target', HOLD_KEY = 'hq_badge_hold', QUEUE_KEY = 'hq_grab_queue', TARGET_TTL_MS = 10 * 60 * 1000, MAX_ROWS = 40;
 
   function create(deps) {
     deps = deps || {};
@@ -47,17 +51,17 @@
       target = picked.target;
       if (!tab) return { state: 'none', message: 'No page to read', rows: [], clicked: '' };
       if (rules.isRestricted(tab.url)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: '' };
-      var clicked = target ? target.srcUrl : '';
+      var clicked = target ? target.srcUrl : '', pageUrl = String(tab.url || '');
       var out;
       try {
         var res = await C().scripting.executeScript({ target: { tabId: tab.id }, func: scanFn(), args: [{ min: rules.MIN_PX }] });
         out = res && res[0] ? res[0].result : null;
       } catch (e) {
         var m = String((e && e.message) || e);
-        if (/cannot access|extensions gallery|cannot be scripted|chrome:\/\//i.test(m)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: clicked };
-        return { state: 'error', message: "Couldn't read this page — " + m.slice(0, 80), rows: [], clicked: clicked };
+        if (/cannot access|extensions gallery|cannot be scripted|chrome:\/\//i.test(m)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: clicked, pageUrl: pageUrl };
+        return { state: 'error', message: "Couldn't read this page — " + m.slice(0, 80), rows: [], clicked: clicked, pageUrl: pageUrl };
       }
-      if (!out || !out.ok) return { state: 'error', message: "Couldn't read this page", rows: [], clicked: clicked };
+      if (!out || !out.ok) return { state: 'error', message: "Couldn't read this page", rows: [], clicked: clicked, pageUrl: pageUrl };
       var listed = out.items.filter(function (e) { return !e.streamed; });
       var streamedCount = (out.streamed || 0) + (/^blob:/i.test(clicked) ? 1 : 0);
       // the right-clicked media on top, even when the scanner filtered it (small, or reached some other way)
@@ -69,8 +73,22 @@
         var cands = rules.candidatesFor(e);
         return { rank: i + 1, entry: e, info: rules.describe(e), candidates: cands, best: cands.length ? cands[0].url : e.url, clicked: i === 0 && !!clicked && !/^blob:/i.test(clicked) };
       });
-      if (!rows.length) return { state: streamedCount ? 'streamed' : 'empty', message: streamedCount ? rules.STREAMED_MESSAGE : rules.EMPTY_MESSAGE, rows: [], clicked: clicked, streamed: streamedCount };
-      return { state: 'ok', message: '', rows: rows, clicked: clicked, streamed: streamedCount, capped: !!out.capped };
+      if (!rows.length) return { state: streamedCount ? 'streamed' : 'empty', message: streamedCount ? rules.STREAMED_MESSAGE : rules.EMPTY_MESSAGE, rows: [], clicked: clicked, streamed: streamedCount, pageUrl: pageUrl };
+      return { state: 'ok', message: '', rows: rows, clicked: clicked, streamed: streamedCount, capped: !!out.capped, pageUrl: pageUrl };
+    }
+
+    // The one message for one row. The worker re-checks everything (sender, one entry, the site, the file type).
+    async function save(row, pageUrl) {
+      var e = row && row.entry;
+      if (!e || typeof e.url !== 'string') return { ok: false, message: "Can't save this one" };
+      var entry = { url: e.url, kind: e.kind === 'video' ? 'video' : 'image', variants: (e.variants || []).map(function (v) { return { url: v.url, w: v.w, x: v.x }; }) };
+      try {
+        var res = await C().runtime.sendMessage({ type: 'grab:save', entry: entry, pageUrl: String(pageUrl || '') });
+        return res && typeof res === 'object' ? res : { ok: false, message: "Couldn't reach the extension — try again" };
+      } catch (err) { return { ok: false, message: "Couldn't reach the extension — try again" }; }
+    }
+    async function readJobs() {
+      try { var q = (await C().storage.session.get(QUEUE_KEY))[QUEUE_KEY]; return q && Array.isArray(q.jobs) ? q.jobs : []; } catch (e) { return []; }
     }
 
     async function copyText(text) {
@@ -86,7 +104,8 @@
       var rules = R();
       function el(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
       if (host.replaceChildren) host.replaceChildren(); else while (host.firstChild) host.removeChild(host.firstChild);
-      host.appendChild(el('div', 'grab-note', rules.VIEWER_NOTE));
+      host.appendChild(el('div', 'grab-note', rules.SAVE_NOTE));
+      var views = [];
       if (model.message) host.appendChild(el('div', 'grab-msg', model.message));
       model.rows.forEach(function (r) {
         var i = r.info, row = el('div', 'grab-row');
@@ -103,14 +122,35 @@
         var btn = el('button', 'mini', firstGuess ? 'Copy guessed link' : 'Copy best link'); btn.type = 'button';
         btn.addEventListener('click', function () { if (handlers && handlers.copy) handlers.copy(r.best, r); });
         row.appendChild(btn);
+        // Save: one button per row, one press = one message = one file. No "save all" anywhere.
+        var can = rules.saveCheck(r.entry, model.pageUrl);
+        var stateEl = el('div', 'grab-state'), saveBtn = null;
+        if (can.ok) {
+          saveBtn = el('button', 'mini', firstGuess ? 'Save guessed size' : 'Save best size'); saveBtn.type = 'button';
+          saveBtn.addEventListener('click', function () { if (saveBtn.disabled) return; saveBtn.disabled = true; if (handlers && handlers.save) handlers.save(r); });
+          row.appendChild(saveBtn);
+        } else stateEl.textContent = can.message;
+        row.appendChild(stateEl);
+        views.push({ key: rules.normalizeUrl(r.entry.url), stateEl: stateEl, saveBtn: saveBtn, base: can.ok ? '' : can.message });
         host.appendChild(row);
       });
       if (model.rows.some(function (r) { return r.candidates.some(function (c) { return c.guess; }); })) host.appendChild(el('div', 'grab-note', rules.GUESS_NOTE));
       if (model.streamed && model.state === 'ok') host.appendChild(el('div', 'grab-note', rules.STREAMED_MESSAGE));
       if (model.capped) host.appendChild(el('div', 'grab-note', 'Showing the biggest ' + model.rows.length + '.'));
+      return {
+        // the newest job per row decides its words; Save is enabled again once that job is finished
+        paint: function (jobs) {
+          views.forEach(function (v) {
+            var mine = (jobs || []).filter(function (j) { return j.key === v.key; }), job = mine[mine.length - 1] || null;
+            v.stateEl.textContent = job ? rules.stateText(job) : v.base;
+            v.stateEl.dataset.state = job ? job.state : '';
+            if (v.saveBtn) v.saveBtn.disabled = !!job && (job.state === 'queued' || job.state === 'saving');
+          });
+        },
+      };
     }
 
-    return { load: load, render: render, copyText: copyText };
+    return { load: load, render: render, copyText: copyText, save: save, readJobs: readJobs };
   }
 
   var api = create({});

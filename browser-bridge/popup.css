@@ -123,7 +123,11 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .grab-cand { font-size: 11px; color: var(--faint); word-break: break-all; }
 .grab-cand + .grab-cand { margin-top: 3px; }
 .grab-cand.guess { font-style: italic; }
-.grab-row .mini { margin-top: 8px; }
+.grab-row .mini { margin-top: 8px; margin-right: 6px; }
+.grab-state { margin-top: 6px; font-size: 11px; color: var(--muted); word-break: break-word; }
+.grab-state:empty { display: none; }
+.grab-state[data-state="saved"] { color: var(--green); }
+.grab-state[data-state="failed"] { color: var(--red); }
 .grab-host { max-height: 280px; overflow-y: auto; }
 .err { color: var(--red); font-size: 11px; margin: 8px 14px 12px; min-height: 14px; word-break: break-all; }
 #claude-status[data-state="paused"], #claude-status[data-state="signed-out"], #claude-status[data-state="app"] { color: var(--gold); }

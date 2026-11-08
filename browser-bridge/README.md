@@ -119,18 +119,42 @@ popup marks them seen. The popup opens on up to three rows with **Open in app**
 item says to start scans in the app (it uses Claude); the extension never starts one.
 Calls are capped per hour and logged by name in `data/assistant-audit.jsonl`.
 
-## On this page: find the best version (0.7.0)
+## On this page: find the best version, and save it on click (0.7.0)
 
 Right-click an image or video → **Find the best version** (or open the popup). The popup
 lists every image and video the active page offers (`<img>` and `srcset`, `<picture>`,
 lazy `data-src`, CSS backgrounds, `<video>`), best first, with the one you clicked on
 top: type, size, host, file name, and "×N bigger than shown" when the page displays a
 smaller copy, plus guessed bigger variants on the same site (X `name=orig`, WordPress
-`-WxH`, Cloudinary, width/size parameters, `/thumb/` segments). **It fetches nothing:**
-no thumbnails, no HEAD checks; rows are text and each has **Copy best link** (**Copy guessed link** when the first link is a guess built from the URL's shape, not one the page itself offers). A right-click is used by the first popup that opens after it; a later open scans the page you are on. The page is
-read with `chrome.scripting` under `activeTab` (granted by your click). Chrome's own pages,
-the Web Store, `blob:` and streamed video say so instead. **Downloads are off:** the
-manifest has no `downloads` permission; saving waits for the owner's yes.
+`-WxH`, Cloudinary, width/size parameters, `/thumb/` segments). Looking costs nothing:
+no thumbnails, no HEAD checks, no downloads; rows are text and each has **Copy best link**
+(**Copy guessed link** when the first link is a guess built from the URL's shape, not one the
+page itself offers). A right-click is used by the first popup that opens after it; a later open
+scans the page you are on. The page is read with `chrome.scripting` under `activeTab`
+(granted by your click). Chrome's own pages and the Web Store say so instead.
+
+**Save, only when you press it.** Each row has one **Save best size** button (**Save guessed
+size** when the first link is a guess). One press saves one file: the best candidate, falling
+back down the list (the page's own larger copies, then the original) if a size fails, into
+`Downloads/WorkspaceHQ/grabs/<host>/` (the image's own site; Chrome's `uniquify` never overwrites,
+no Save As dialog, a sanitized file name). The row then says, in order: *queued*, *saving*,
+*saved to Downloads/WorkspaceHQ/grabs/<host>/*, or *could not save (tried N sizes)*.
+
+- **Permission:** `downloads` (Chrome: "Manage your downloads"; reload the extension to accept it). It is used for
+  nothing else, and only by the Save button.
+- **One at a time, never "save all".** There is no control, message or setting that saves several. A second press on a
+  file that is still waiting is the same save. At most 10 saves wait; the queue lives in `chrome.storage.session`, so a
+  service-worker restart does not lose it, and at least **1 second** passes between any two requests (a download or a check).
+- **The one network check.** Before using a *guessed* bigger version that sits on the **same site as the image**, the
+  extension asks that site once with a `HEAD` request (no cookies, no referrer, no redirects followed): not there, a
+  redirect or a non-image answer means that size is skipped. It only happens after you press Save; a page-offered copy
+  on another host and the original are never checked, and if Chrome will not let the extension look (no host access) the
+  download itself is the check.
+- **What saves:** images, and plain video files (`.mp4`, `.webm`, `.mov`). `blob:` and streamed video (HLS/DASH, a
+  page with no file link) say *streamed video — needs the video helper (not installed)* and start nothing.
+- **Never on Instagram, Facebook or TikTok** (the page or the file host, including their CDNs): the row says
+  *saving is off on Instagram, Facebook and TikTok*. This is the owner's limit of 2026-11-08; the list is
+  `BLOCKED_SITES` in `grab-rules.js`.
 
 ## Social posts: approve or skip
 

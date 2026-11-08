@@ -1,7 +1,7 @@
 // "Find the best version" (stage 2 of Bridge 0.7.0): the page scanner, the upgrade rules, the popup section and the
 // service-worker half — a viewer. Classic extension scripts run in node vms with a fake DOM and a fake chrome
 // (the popup-approval.test.mjs pattern: no jsdom, no browser). Placeholder pages only.
-// Stage 3 (downloads on click) is NOT built: the owner's yes is pending, so this file also pins its absence.
+// Stage 3 (download on click: the queue, pacing, fallback, the HEAD check) is in dashboard/grab-download.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -435,7 +435,7 @@ test('popup states: restricted pages, a refused injection, nothing found, stream
   assert.equal(plain(await p.pop.load()).state, 'none');
 });
 
-test('popup render: every string goes in through textContent; Copy best link hands over the first candidate; the viewer line is there', async () => {
+test('popup render: every string goes in through textContent; Copy best link hands over the first candidate; the Save note is there', async () => {
   const evil = '<img src=x onerror=alert(1)>';
   const p = popupWorld({ scanResult: { ok: true, items: [item('https://alpha-site.test/wp-content/uploads/p-300x200.jpg', 300, 200, { label: evil, shownW: 100, variants: [{ url: 'https://alpha-site.test/wp-content/uploads/p-900x600.jpg', w: 900 }] })], streamed: 0 } });
   const m = await p.pop.load();
@@ -443,16 +443,16 @@ test('popup render: every string goes in through textContent; Copy best link han
   p.pop.render(doc, host, m, { copy: (u) => copied.push(u) });
   const texts = textsOf(host);
   assert.ok(texts.includes(evil), 'shown as plain text');
-  assert.ok(texts.includes('a viewer — see and copy the best version; saving needs your OK for downloads'));
+  assert.ok(texts.includes(Rules.SAVE_NOTE) && /Downloads\/WorkspaceHQ\/grabs\//.test(Rules.SAVE_NOTE), 'says where a click saves, and that nothing is requested before it');
   assert.ok(texts.some((t) => /^jpg · 300×200 · alpha-site\.test · p-300x200\.jpg$/.test(t)));
   assert.ok(texts.includes('×9 bigger than shown'));
   assert.ok(texts.some((t) => t.startsWith('guess · ')));
-  assert.ok(texts.includes('Guesses are built from the link and not checked — nothing is requested.'));
+  assert.ok(texts.includes(Rules.GUESS_NOTE));
   const buttons = []; walk(host, (n) => { if (n.tag === 'button') buttons.push(n); });
-  assert.equal(buttons.length, 1); assert.equal(buttons[0].textContent, 'Copy guessed link', 'the first link is a guess, and the button says so');
+  assert.deepEqual(buttons.map((b) => b.textContent), ['Copy guessed link', 'Save guessed size'], 'one copy and one save for the one row; the first link is a guess, and both say so');
   buttons[0].click();
   assert.deepEqual(copied, ['https://alpha-site.test/wp-content/uploads/p.jpg']);
-  assert.ok(!texts.some((t) => /download|save as/i.test(t.replace('saving needs your OK for downloads', ''))), 'no download control');
+  assert.ok(!buttons.some((b) => /all/i.test(b.textContent)), 'no save-all control');
 });
 
 test('popup render: the button says "best" only when the first link is a variant the page itself offers', async () => {
@@ -462,7 +462,7 @@ test('popup render: the button says "best" only when the first link is a variant
   const doc = fakeDoc(), host = doc.mk('div');
   p.pop.render(doc, host, m, {});
   const buttons = []; walk(host, (n) => { if (n.tag === 'button') buttons.push(n); });
-  assert.equal(buttons[0].textContent, 'Copy best link');
+  assert.deepEqual(buttons.map((b) => b.textContent), ['Copy best link', 'Save best size']);
 });
 
 test('popup: a right-click is spent by the first read — a later open scans the page the owner is on, with nothing marked clicked', async () => {
@@ -590,9 +590,9 @@ test('grab.js: install() wires the click listener once at the top level', async 
   assert.equal(w.session.get('hq_grab_target').tabId, 2);
 });
 
-// ---- stage 3 is not built -------------------------------------------------------------------------------------------
-test('a viewer only: no downloads API, no fetch or XHR, no remote image and no innerHTML in any grab file', () => {
-  for (const f of ['grab-rules.js', 'grab-scan.js', 'grab.js', 'grab-popup.js']) {
+// ---- the pure and page-facing files stay request-free ----------------------------------------------------------------
+test('the scanner, the rules and the popup half make no request and use no downloads API, remote image or innerHTML', () => {
+  for (const f of ['grab-rules.js', 'grab-scan.js', 'grab-popup.js']) {
     const src = read(f).replace(/^\s*\/\/.*$/gm, '');   // header comment lines only; strings and regexes stay
     assert.doesNotMatch(src, /chrome\.downloads|['"]downloads['"]/, f + ': no downloads API or permission');
     assert.doesNotMatch(src, /\bfetch\s*\(/, f + ': no fetch');
@@ -601,8 +601,10 @@ test('a viewer only: no downloads API, no fetch or XHR, no remote image and no i
   }
 });
 
-test('the dish does not widen the manifest\'s download surface', () => {
+test('the manifest asks for downloads (Chrome: "Manage your downloads") and nothing else new for it', () => {
   const m = JSON.parse(read('manifest.json'));
-  assert.ok(!m.permissions.includes('downloads'));
+  assert.equal(m.version, '0.7.0', 'not bumped again: 0.7.0 has not reached the owner yet');
+  assert.ok(m.permissions.includes('downloads'));
   assert.ok(!(m.optional_permissions || []).includes('downloads'));
+  assert.deepEqual(m.permissions.slice().sort(), ['activeTab', 'alarms', 'contextMenus', 'downloads', 'idle', 'scripting', 'storage', 'tabs']);
 });

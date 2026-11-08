@@ -491,9 +491,19 @@ async function loadNeeds() {
 async function loadGrab() {
   try {
     const m = await HQGrabPopup.load();
-    HQGrabPopup.render(document, $('grab-host'), m, {
+    let view = null;
+    view = HQGrabPopup.render(document, $('grab-host'), m, {
       copy: async (url) => toneOf('grab-status', (await HQGrabPopup.copyText(url)) ? 'Copied' : 'Could not copy — select the link above', 'ok'),
+      // one press = one message for this one row; a refusal is said out loud and the row's Save comes back
+      save: async (row) => {
+        const res = await HQGrabPopup.save(row, m.pageUrl);
+        toneOf('grab-status', res.ok ? '' : res.message, res.ok ? '' : 'bad');
+        if (view) view.paint(await HQGrabPopup.readJobs());
+      },
     });
+    view.paint(await HQGrabPopup.readJobs());
+    // the worker writes the queue as it goes (queued, saving, saved, could not save); the popup only reads it
+    try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'session' && ch.hq_grab_queue) view.paint(((ch.hq_grab_queue.newValue || {}).jobs) || []); }); } catch (e) { /* no change events: the next press repaints */ }
   } catch (e) { toneOf('grab-status', 'Could not read this page — ' + String((e && e.message) || e).slice(0, 80), 'bad'); }
 }
 renderPair();
