@@ -465,6 +465,8 @@ Rules: writes are atomic (tmp + rename); a file that fails to parse is moved asi
 `{error}`, it is never overwritten with an empty document (a library that will not parse keeps its `idMap` recoverable);
 the root and every path come from a native dialog or from main, never from the renderer; no network, nothing leaves the machine.
 
+As-built (2026-11-08, search core): the MCP server (`mcp/workspacehq/cosmos-read.mjs`, tool `hq_cosmos_search`) is a second, READ-ONLY reader of `library.json` (`works[]`, `generatedAt`) and `curation.json` (`hidden`, `overrides`); it writes nothing, skips hidden pictures, answers an error (never an empty list) when either file will not parse, and returns only id, title, type, tags and the root-relative path. The curation keys it reads (`favorites`, `hidden`, `overrides`) are unchanged.
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`

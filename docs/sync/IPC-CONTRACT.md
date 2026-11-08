@@ -706,6 +706,12 @@ Path rules (the security surface; full text in the spec §5): the renderer sends
 containment is re-checked after `realpath()`; a manifest path is decoded in exactly one place; no shell, ever; nothing in this space
 touches the network.
 
+As-built (2026-11-08, search core): one more door, NOT an Electron channel. MCP `hq_cosmos_search({q, limit?: 1-20})` (tier
+`read`) reads `data/cosmos/library.json` + `curation.json` directly (works with the app closed) and returns
+`{query, kind, total, shown, rows:[{id, title, type, tags, path}], indexedAt, note}`: hidden pictures never, owner title/tag
+edits applied, `path` root-relative (`imports:<name>` for imports), no thumbnail / hash / colour record. The query grammar is
+ONE file, `dashboard-v5/src/logic/cosmos-search.mjs` (`runSearch`), imported by both the Feed and the MCP reader.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg
