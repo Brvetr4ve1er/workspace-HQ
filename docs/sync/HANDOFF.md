@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (kitchen batch 1 DONE — pushed, live app restarted) · main @ 979ae10
+DONE: all 8 dishes of the 2026-11-07 roadmap, each committed on its own with its tasting fixes: the assistant's rulebook and
+  use counter; recall of past Claude chats on an index that can't be wiped; the Brief's six senses, overflow and tray rows;
+  the Claude sessions board with Resume; Bridge 0.7.0 (pairing, the Brief on the toolbar, Find the best version); Money's
+  one-minute start and quick spend line; client delivery on the project page; Cosmos step one (on main after the owner's
+  yes). The owner's 2026-11-08 yeses also landed: Bridge saves one file per click on every site (no grab-all anywhere;
+  BLOCKED_SITES empty), standing Brief items step aside after 72 h (secrets exempt), and the delivery link follows the
+  production branch (only ready deploys). Gates (sequential, final tree): main 1366 (1365 pass, 1 pre-existing trailer skip),
+  money 253/253, renderer 480/480, selftest 2636 0/0/0, cdp-gate 51/51. CLAUDE.md gains the batch's facts line.
+IN-FLIGHT: none. The hold/cosmos-core branch and its worktree are removed (their commits are on main).
+OWNER STEPS: reload Bridge 0.7.0 in the browser (accept "Manage your downloads"), pin it, Pair and Allow the matching code;
+  pin the tray icon. Optional, owner-gated: the user-scope MCP command (after the nightly-run flag below lands).
+ASKS (struct): (1) the nightly runs get --strict-mcp-config; (2) run-pipeline.ps1 takes data/.refresh.lock like Scan does,
+  so a nightly pass and a session's raw pass never run the collector together; (3) the GPU enumeration for Machine drift.
+BREAKS: once the Bridge is paired, the token is required on every bridge route and CORS reflects only the paired origin;
+  until then today's unpaired extension keeps working. brief.json gains overflow, count and standing (additive).
+
+---
 ## 2026-11-08 · FROM frontend (kitchen fix: Bridge saves only pictures and plain videos; standing Brief items) · main
 DONE: fixes from the taster's pass over the two approved follow-ups (no new feature, no data shape changed).
   Bridge (browser-bridge/grab-rules.js, grab.js): only pictures (.jpg .jpeg .png .gif .webp .avif .bmp .tiff .ico, or a link naming no type) and .mp4/.webm/.mov are saved - an .svg, .html, .exe, .lnk or
