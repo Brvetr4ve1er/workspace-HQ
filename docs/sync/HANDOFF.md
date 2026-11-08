@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-07 · FROM frontend (kitchen batch 1, dish 5 tasting fixes: WorkspaceHQ Bridge 0.7.0) · main
+DONE: unauthenticated bridge calls can no longer flood data/assistant-audit.jsonl or pick tool names: only a request that proved the token is audited as assist.brief / assist.open (pair on
+  success); every earlier refusal is one fixed assist.refused (pair for a failed /pair) with a budget of 20 records an hour. The popup's "On this page" spends the right-click target on its
+  first read and uses it only while that tab is the one the owner is on (otherwise the active tab is scanned, so a closed clicked tab no longer reads "No page to read"). The button says
+  "Copy guessed link" when the first link is a guess. Each with a test that failed before. Not changed: the pair-while-app-down window (any local impostor can answer a /health check, so a
+  pre-check would only change the wording; the spec accepts the window).
+IN-FLIGHT: none.
+ASKS: none.
+BREAKS: none (the audit log gains the tool name assist.refused).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 1 tasting fixes: the assistant's rulebook) · main
 DONE: the app's post-commit rescan (hq:do-commit) now takes data/.refresh.lock like Scan now, so a session's raw pass and the app never run the collector together; a stale lock is
   replaced under a short `.refresh.lock.reclaim` gate (two takers can no longer both win it); the audit log's rotation looks again right before renaming (two writers can no longer wipe .1);
