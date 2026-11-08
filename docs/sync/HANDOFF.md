@@ -12,6 +12,22 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (kitchen fix: Bridge saves only pictures and plain videos; standing Brief items) · main
+DONE: fixes from the taster's pass over the two approved follow-ups (no new feature, no data shape changed).
+  Bridge (browser-bridge/grab-rules.js, grab.js): only pictures (.jpg .jpeg .png .gif .webp .avif .bmp .tiff .ico, or a link naming no type) and .mp4/.webm/.mov are saved - an .svg, .html, .exe, .lnk or
+  ?format=bat is refused ("Can't save this type of file"), also for variants and guesses; a video link naming no type says "Can't tell this video's type" (not "streamed"); X-style ":orig" links keep their type
+  in the file name (AB.jpg, not AB.jpg_orig); a GUESSED size that finishes as a web page (a 200 soft-404 when the HEAD could not run) is deleted again and the next size tried; BLOCKED_SITES gains
+  tiktokcdn-eu.com, ibyteimg.com, byteimg.com, byteoversea.com, fb.com, fb.watch. The extension popup's Needs-you view no longer says "Nothing needs you" while items stand (assist.js).
+  Brief (dashboard/brief.js, tray-brief.js, dashboard-v5/src/vals/brief.js): an item that left the brief and came back starts a fresh 72 h clock (brief-state.json firstSeen rows gain an optional "gone" mark, set by the
+  first computation that finds the key off the brief; it clears if the key is live again within an hour, otherwise the row is dropped; a closed app leaves no mark, so it is not a gap). With only standing items, Home,
+  the tray line, the tooltip and the extension say "Nothing new" (with the standing count and date), never "Nothing needs you". The Home line says "Standing, oldest since 5 Nov:" when several stand ("Standing since" for one);
+  each item's own date stays in its tooltip. Not done on purpose: no Dismiss for a standing item (it is one click from where it is cleared); the badge/high counts still count fresh items only.
+  Tests: brief (2 new), tray-brief (1), assist-ext (1 line), renderer brief logic (2), grab-download (6 new, one old pin on an untyped video changed). CONTRACT unchanged.
+IN-FLIGHT: none. OWNER STEP: reload the extension at chrome://extensions and restart the app (toolsollback.ps1 v5).
+ASKS: none. BREAKS: none.
+
+---
+
 ## 2026-11-08 · FROM frontend (kitchen batch 1: standing Brief items step aside after 3 days) · main
 DONE: the owner's yes ("Brief items that stay unchanged for 3 days step aside, so new ones get the 3 slots; security items like secrets are exempt") is built.
   The engine (dashboard/brief-core.mjs, pure) moves an item whose exact key has been on the brief 72 h or more (brief-state firstSeen[key].first; 71 h stays, 72 h steps aside)
