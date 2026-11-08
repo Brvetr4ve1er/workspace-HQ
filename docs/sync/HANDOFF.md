@@ -12,6 +12,17 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (kitchen batch 1, dish 7 tasting fixes: client delivery) · main
+DONE: the link to send is now the deployed branch's newest READY deploy (the deployed branch = the newest ready production deploy's); a failed, building or work-in-progress-branch preview is never offered,
+  a newer ready preview elsewhere is named on the card ("not the deployed branch"), no production deploy at all falls back to the newest ready preview, and nothing ready says so with state and age. Copy update
+  records the hashes of the text that was copied (an item finished after the card loaded is still reported next time). App-kept items are hashed by their id. hq_delivery's project lookup takes a unique
+  prefix or part of an id or name and says "ambiguous" with the matching ids. Each with a test that failed before; vals golden moved only by the new dlvLinkNewer key, tpl.hash +179 chars.
+IN-FLIGHT: none.
+ASKS: none.
+BREAKS: none (additive: link.basis, link.newer, view.doneHashes, copied.doneHashes; IPC-CONTRACT has the row).
+
+---
+
 ## 2026-11-07 · FROM frontend (kitchen batch 1, dish 5 tasting fixes: WorkspaceHQ Bridge 0.7.0) · main
 DONE: unauthenticated bridge calls can no longer flood data/assistant-audit.jsonl or pick tool names: only a request that proved the token is audited as assist.brief / assist.open (pair on
   success); every earlier refusal is one fixed assist.refused (pair for a failed /pair) with a budget of 20 records an hour. The popup's "On this page" spends the right-click target on its
