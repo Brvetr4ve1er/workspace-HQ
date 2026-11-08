@@ -127,7 +127,7 @@ lazy `data-src`, CSS backgrounds, `<video>`), best first, with the one you click
 top: type, size, host, file name, and "×N bigger than shown" when the page displays a
 smaller copy, plus guessed bigger variants on the same site (X `name=orig`, WordPress
 `-WxH`, Cloudinary, width/size parameters, `/thumb/` segments). **It fetches nothing:**
-no thumbnails, no HEAD checks; rows are text and each has **Copy best link**. The page is
+no thumbnails, no HEAD checks; rows are text and each has **Copy best link** (**Copy guessed link** when the first link is a guess built from the URL's shape, not one the page itself offers). A right-click is used by the first popup that opens after it; a later open scans the page you are on. The page is
 read with `chrome.scripting` under `activeTab` (granted by your click). Chrome's own pages,
 the Web Store, `blob:` and streamed video say so instead. **Downloads are off:** the
 manifest has no `downloads` permission; saving waits for the owner's yes.

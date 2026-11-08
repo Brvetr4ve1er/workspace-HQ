@@ -23,23 +23,28 @@
       var s = C().storage && C().storage.session;
       if (!s) return null;
       var got = null;
-      try { got = (await s.get(TARGET_KEY))[TARGET_KEY] || null; await s.remove(HOLD_KEY); } catch (e) { return null; }
+      // the right-click is spent by the first popup that reads it: a later open scans the page the owner is on
+      try { got = (await s.get(TARGET_KEY))[TARGET_KEY] || null; await s.remove(HOLD_KEY); await s.remove(TARGET_KEY); } catch (e) { return null; }
       try { await C().action.setBadgeText({ text: '' }); } catch (e) { /* the '…' hold is cleared; the next Brief tick repaints the count */ }
       if (got && now() - got.at > TARGET_TTL_MS) return null;
       return got;
     }
 
+    // → { tab, target }. The right-click target counts only while its tab is the one the owner is on; otherwise the active
+    // tab is scanned and the target is dropped (its clicked image belongs to another page). Only when the active tab
+    // cannot be read at all does the clicked tab stand in for it.
     async function pickTab(target) {
-      try {
-        if (target && target.tabId >= 0) return await C().tabs.get(target.tabId);
-        var tabs = await C().tabs.query({ active: true, currentWindow: true });
-        return tabs && tabs[0] ? tabs[0] : null;
-      } catch (e) { return null; }
+      var active = null;
+      try { var tabs = await C().tabs.query({ active: true, currentWindow: true }); active = tabs && tabs[0] ? tabs[0] : null; } catch (e) { active = null; }
+      if (!target || !(target.tabId >= 0)) return { tab: active, target: null };
+      if (active) return active.id === target.tabId ? { tab: active, target: target } : { tab: active, target: null };
+      try { return { tab: await C().tabs.get(target.tabId), target: target }; } catch (e) { return { tab: null, target: null }; }
     }
 
     async function load() {
       var rules = R(), target = await readTarget();
-      var tab = await pickTab(target);
+      var picked = await pickTab(target), tab = picked.tab;
+      target = picked.target;
       if (!tab) return { state: 'none', message: 'No page to read', rows: [], clicked: '' };
       if (rules.isRestricted(tab.url)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: '' };
       var clicked = target ? target.srcUrl : '';
@@ -94,7 +99,8 @@
         var cands = el('div', 'grab-cands');
         r.candidates.forEach(function (c) { cands.appendChild(el('div', 'grab-cand' + (c.guess ? ' guess' : ''), (c.guess ? 'guess · ' : '') + c.url)); });
         row.appendChild(cands);
-        var btn = el('button', 'mini', 'Copy best link'); btn.type = 'button';
+        var firstGuess = r.candidates.length > 0 && !!r.candidates[0].guess;
+        var btn = el('button', 'mini', firstGuess ? 'Copy guessed link' : 'Copy best link'); btn.type = 'button';
         btn.addEventListener('click', function () { if (handlers && handlers.copy) handlers.copy(r.best, r); });
         row.appendChild(btn);
         host.appendChild(row);

@@ -13,7 +13,8 @@
 // Every /assist/* route needs the token (401 'pair first' while no token file exists, so they fail closed) AND the
 // paired origin. Bodies are at most 8 KB (drained, then 413). The projection (brief-project.mjs) is the only text that
 // leaves: this module re-filters it through a field allowlist and never adds keys, names, ids or paths of its own.
-// Each call writes exactly one audit record({door:'browser', tool, tier, ok, ms}) when its answer is sent.
+// Each call writes at most one audit record({door:'browser', tool, tier, ok, ms}) when its answer is sent: under its own name once
+// the token checked out; every refusal before that shares the name 'assist.refused' and a budget of 20 records an hour.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -26,7 +27,8 @@ const CAPS = { brief: 120, open: 60 };   // per hour
 const REF_RE = /^[0-9a-f]{12}$/;
 const SEG_RE = /^[a-z]{2,16}$/;
 const ID_RE = /^[\w.-]{1,80}$/;
-const TIERS = { pair: 'note', 'assist.brief': 'read', 'assist.open': 'read' };
+const TIERS = { pair: 'note', 'assist.brief': 'read', 'assist.open': 'read', 'assist.refused': 'read' };
+const REFUSED_CAP = 20;   // audit records per hour for requests that never proved the token (a flood must not push real history out)
 
 const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const str = (x, n) => (typeof x === 'string' ? x.slice(0, n) : '');
@@ -38,11 +40,13 @@ let store = null;
 let projectLib = null;
 let auditLib = null;
 let hits = { brief: [], open: [] };
+let refusedHits = [];
 
 function setDeps(d) {
   deps = d && d.dataDir ? { now: Date.now, log: () => {}, ...d } : null;
   pairer = null; store = null; projectLib = null; auditLib = null;
   hits = { brief: [], open: [] };
+  refusedHits = [];
   if (deps) {
     store = deps.store || pairing.forDataDir(deps.dataDir);
     pairer = pairing.create({ dataDir: deps.dataDir, dialog: deps.dialog, now: deps.now, log: deps.log, store });
@@ -82,6 +86,17 @@ function readBody(req, max, cb) {
     finish(null, obj);
   });
   req.on('error', () => finish('read error'));
+}
+
+// Only a request that proved the token (or a /pair that succeeded) is audited under its own name. Everything else — an
+// unknown path, a missing header, a wrong origin, a bad token — shares one fixed name and a small hourly budget, so a
+// web page or local process cannot choose tool names or flood the log.
+function refusedBudget() {
+  const t = deps.now();
+  refusedHits = refusedHits.filter((x) => t - x < HOUR);
+  if (refusedHits.length >= REFUSED_CAP) return false;
+  refusedHits.push(t);
+  return true;
 }
 
 function underCap(kind) {
@@ -153,13 +168,15 @@ function handleRoute(req, res, { url, send: rawSend }) {
   const isPair = url === '/pair';
   if (!isPair && !url.startsWith('/assist/')) return false;
   const t0 = Date.now();
-  const tool = isPair ? 'pair' : 'assist.' + url.slice('/assist/'.length);
+  let tool = null;   // set once the token has checked out
   let answered = false;
   const send = (code, obj) => {
     if (answered) return;
     answered = true;
     rawSend(code, obj);
-    audit(tool, code < 400, Date.now() - t0);
+    if (isPair && code < 400) return audit('pair', true, Date.now() - t0);
+    if (tool) return audit(tool, code < 400, Date.now() - t0);
+    if (refusedBudget()) audit(isPair ? 'pair' : 'assist.refused', false, Date.now() - t0);
   };
   if (!deps) { send(503, { ok: false, error: 'not ready' }); req.resume(); return true; }
 
@@ -184,6 +201,7 @@ function handleRoute(req, res, { url, send: rawSend }) {
   const given = req.headers['x-hq-token'];
   if (typeof given !== 'string' || !pairing.sameSecret(given, token)) { send(401, { ok: false, error: 'bad token' }); req.resume(); return true; }
 
+  tool = 'assist.' + op;
   const drain = () => new Promise((r) => { req.on('end', r); req.on('error', r); req.resume(); });
   if (!underCap(op)) { drain().then(() => send(429, { ok: false, error: 'too many requests' })); return true; }
 

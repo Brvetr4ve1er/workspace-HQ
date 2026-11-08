@@ -449,10 +449,57 @@ test('popup render: every string goes in through textContent; Copy best link han
   assert.ok(texts.some((t) => t.startsWith('guess · ')));
   assert.ok(texts.includes('Guesses are built from the link and not checked — nothing is requested.'));
   const buttons = []; walk(host, (n) => { if (n.tag === 'button') buttons.push(n); });
-  assert.equal(buttons.length, 1); assert.equal(buttons[0].textContent, 'Copy best link');
+  assert.equal(buttons.length, 1); assert.equal(buttons[0].textContent, 'Copy guessed link', 'the first link is a guess, and the button says so');
   buttons[0].click();
   assert.deepEqual(copied, ['https://alpha-site.test/wp-content/uploads/p.jpg']);
   assert.ok(!texts.some((t) => /download|save as/i.test(t.replace('saving needs your OK for downloads', ''))), 'no download control');
+});
+
+test('popup render: the button says "best" only when the first link is a variant the page itself offers', async () => {
+  const p = popupWorld({ scanResult: { ok: true, items: [item('https://alpha-site.test/m/a.jpg', 300, 200, { variants: [{ url: 'https://alpha-site.test/m/a-big.jpg', w: 1600 }] })], streamed: 0 } });
+  const m = await p.pop.load();
+  assert.equal(m.rows[0].candidates[0].guess, false);
+  const doc = fakeDoc(), host = doc.mk('div');
+  p.pop.render(doc, host, m, {});
+  const buttons = []; walk(host, (n) => { if (n.tag === 'button') buttons.push(n); });
+  assert.equal(buttons[0].textContent, 'Copy best link');
+});
+
+test('popup: a right-click is spent by the first read — a later open scans the page the owner is on, with nothing marked clicked', async () => {
+  const p = popupWorld({ target: { tabId: 7, srcUrl: 'https://alpha-site.test/m/small-one.jpg', mediaType: 'image', at: 1_000_000 }, scanResult: { ok: true, items: [item('https://alpha-site.test/m/a.jpg', 900, 600)], streamed: 0 } });
+  const first = plain(await p.pop.load());
+  assert.equal(first.rows[0].clicked, true);
+  assert.equal(p.session.has('hq_grab_target'), false, 'the target is consumed');
+  const again = plain(await p.pop.load());
+  assert.equal(again.rows[0].clicked, false);
+  assert.equal(again.clicked, '');
+});
+
+test('popup: a right-click on a tab the owner has left is dropped — the active page is scanned, not the old one, and a closed tab is no "No page to read"', async () => {
+  const other = { id: 9, url: 'https://b.example/page' };
+  const scan = { ok: true, items: [item('https://b.example/m/b.jpg', 900, 600)], streamed: 0 };
+  const target = { tabId: 7, srcUrl: 'https://alpha-site.test/m/small-one.jpg', mediaType: 'image', at: 1_000_000 };
+  // the clicked tab was closed (tabs.get throws) and the owner is on b.example
+  let p = popupWorld({ target, scanResult: scan });
+  p.chrome.tabs = { get: async () => { throw new Error('No tab with id: 7'); }, query: async () => [other] };
+  let m = plain(await p.pop.load());
+  assert.equal(m.state, 'ok');
+  assert.equal(p.calls.executed[0].target.tabId, 9);
+  assert.deepEqual(m.rows.map((r) => r.entry.url.split('/').pop()), ['b.jpg'], 'the old right-click is not injected');
+  // the clicked tab is still open in the background: still not scanned
+  p = popupWorld({ target, scanResult: scan });
+  p.chrome.tabs = { get: async () => ({ id: 7, url: 'https://alpha-site.test/blog/post' }), query: async () => [other] };
+  m = plain(await p.pop.load());
+  assert.equal(p.calls.executed[0].target.tabId, 9);
+  assert.equal(m.rows[0].clicked, false);
+});
+
+test('popup: an active tab that cannot be read at all lets the clicked tab stand in', async () => {
+  const p = popupWorld({ target: { tabId: 7, srcUrl: 'https://alpha-site.test/m/x.jpg', mediaType: 'image', at: 1_000_000 }, scanResult: { ok: true, items: [item('https://alpha-site.test/m/a.jpg', 900, 600)], streamed: 0 } });
+  p.chrome.tabs = { get: async () => ({ id: 7, url: 'https://alpha-site.test/blog/post' }), query: async () => { throw new Error('no window'); } };
+  const m = plain(await p.pop.load());
+  assert.equal(p.calls.executed[0].target.tabId, 7);
+  assert.equal(m.rows[0].clicked, true);
 });
 
 test('popup render: an empty state shows its message and no rows', async () => {

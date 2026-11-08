@@ -222,7 +222,7 @@ test('each call makes exactly one audit record with door browser', async () => {
   await call({ headers: BRIDGE });
   await settle();
   assert.equal(audits.length, 4);
-  assert.deepEqual(audits.map((a) => [a.tool, a.ok]), [['assist.brief', true], ['assist.open', false], ['assist.brief', false], ['assist.brief', false]]);
+  assert.deepEqual(audits.map((a) => [a.tool, a.ok]), [['assist.brief', true], ['assist.open', false], ['assist.refused', false], ['assist.refused', false]]);
   for (const a of audits) {
     assert.equal(a.door, 'browser');
     assert.deepEqual(Object.keys(a).sort(), ['at', 'door', 'ms', 'ok', 'pid', 'tier', 'tool']);
@@ -230,6 +230,27 @@ test('each call makes exactly one audit record with door browser', async () => {
     assert.ok(['read', 'note', 'run', 'stage'].includes(a.tier));
   }
   assert.ok(!JSON.stringify(audits).includes(TOKEN));
+});
+
+test('unauthenticated calls cannot flood the audit log or choose tool names', async () => {
+  setUp();   // fresh budgets
+  audits.length = 0;
+  for (let i = 0; i < 60; i++) {
+    await call({ path: '/assist/junk' + i, origin: 'https://evil.example', headers: {} });                 // no bridge header
+    await call({ path: '/assist/junk' + i, origin: 'https://evil.example', headers: BRIDGE });            // unknown path
+    await call({ path: '/assist/brief', origin: 'https://evil.example', headers: BRIDGE });               // no token
+  }
+  await settle();
+  assert.ok(audits.length <= 20, 'at most 20 refusal records an hour, got ' + audits.length);
+  assert.ok(audits.length > 0, 'refusals are still recorded, within the budget');
+  for (const a of audits) { assert.equal(a.tool, 'assist.refused'); assert.equal(a.ok, false); }
+  assert.ok(!JSON.stringify(audits).includes('junk'));
+  // an authenticated call still gets its own record after the flood
+  audits.length = 0;
+  assert.equal((await call({ headers: authed() })).code, 200);
+  await settle();
+  assert.deepEqual(audits.map((a) => [a.tool, a.ok]), [['assist.brief', true]]);
+  setUp();
 });
 
 test('a broken audit module never breaks a route', async () => {
