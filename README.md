@@ -82,6 +82,20 @@ node --test dashboard-v5/src/*.test.mjs dashboard-v5/src/dc/*.test.mjs dashboard
 node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
 ```
 
+The Cosmos thumbnail check runs in a real, hidden Electron instance (own temporary profile, never the app). It makes its own
+test pictures at run time, proves the colours are not blue-shifted for each decode path (the Windows shell, nativeImage, and the
+hidden Chromium window, which also proves the SVG route is not a tainted canvas), that the decode window cannot reach the network,
+and that 20 large pictures never block the main loop for more than 750 ms. Exit 0 = clean, 1 = a case failed, 2 = timed out (60 s).
+`HQ_COSMOS_CHECK_BREAK=bgr` turns the BGRA to RGBA swap off on purpose and must exit 1. `--avif=<file>` supplies a tiny AVIF to
+decode. `--dry-run=<folder>` runs INSTEAD of the cases: it walks that folder read-only and prints only `ext ok failed` counts, never a name:
+
+```powershell
+dashboard
+ode_moduleselectrondistelectron.exe dashboardcosmos-native.check.js
+dashboard
+ode_moduleselectrondistelectron.exe dashboardcosmos-native.check.js --dry-run=<folder>
+```
+
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
 
 ```powershell
