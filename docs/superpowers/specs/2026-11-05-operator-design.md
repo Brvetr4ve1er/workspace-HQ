@@ -69,7 +69,7 @@ Ranked by severity, high before med before low, then in the rule order below. Pr
 | reboot-pending | `pc-health.json` `detail.rebootPending` is true | low | System › Machine |
 | money-empty | the Money view loaded and has no accounts | low | Money › Today |
 
-The six rules below `claude-sync` (2026-11-07, `dashboard/brief-senses.mjs`) are silent on a missing sidecar; a stale (over 72 h), partial or not-ok one is silent and adds an `errors[]` entry. Items 4 to 12 ride along as `brief.overflow`; every item carries `count` (its "and N more"). The 72-hour step-aside of unchanged items is NOT built (the owner has not approved it).
+The six rules below `claude-sync` (2026-11-07, `dashboard/brief-senses.mjs`) are silent on a missing sidecar; a stale (over 72 h), partial or not-ok one is silent and adds an `errors[]` entry. Items 4 to 12 ride along as `brief.overflow`; every item carries `count` (its "and N more"). Standing (2026-11-08, owner-approved, `brief-core.mjs`): an item whose exact key has stayed unchanged for 72 h with no dismiss (brief-state `firstSeen[key].first`) moves from `items`/`overflow` to `brief.standing` (`[{...item, since}]`, ranked as before) so fresh items take the 3 slots; `more` counts only the fresh ones hidden from the top 3; the `secrets` rule is exempt and keeps its place; a worse value is a new key and starts fresh; toasts are unchanged. Home shows one line under the items, "Standing since 5 Nov: <text> · <text>", each item a button to where it is cleared; the tray and the screen-safe projection show only "2 standing since 5 Nov" (a count and the oldest date, never a name).
 
 When a rule matches several projects, accounts or organs, the item names the worst one and adds "and N more".
 

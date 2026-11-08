@@ -621,6 +621,8 @@ Additive only. Every channel below is NEW or an additive field on an existing on
 
 `hq:brief:read`, `hq:brief:dismiss` and the push `hq:brief` carry `brief.overflow` (additive; items 4 to 12, same shape as `items`, at most 9) and a `count` field on every item. The tray menu is a new surface fed from the same brief: the first line reads from the Brief projection, up to 3 rows and one overflow line go before "Show workspace-hq", and a row opens the main window where that item is cleared (main maps the row's `ref` back to the full action). It never pops up or notifies.
 
+**2026-11-08, additive:** `hq:brief:read`, `hq:brief:dismiss` and the push `hq:brief` also carry `brief.standing` (`[{...item, since: ISO}]`, `[]` when none): items unchanged for 72 h that stepped aside so fresh ones take the 3 slots (`secrets` never does; `more` counts only the fresh ones hidden from the top 3). Home shows one "Standing since 5 Nov: ..." line under the items; the tray shows only "2 standing since 5 Nov". MCP `hq_brief` returns `standing` too. Shapes and rules: CONTRACT "`data/brief.json` — 2026-11-08 amendment".
+
 | Surface | Channel | Args | Returns | Primary surface |
 |---|---|---|---|---|
 | MCP `hq_brief` | (MCP, not IPC) | `{limit?: 1–12}` (default 3; a whole number outside 1–12 is refused) | `{items, overflow, generatedAt, ageMinutes, errors}`: `items` is the first `limit` ranked items, `overflow` the ranked rest (12 at most in all), `more` unchanged | any Claude session |

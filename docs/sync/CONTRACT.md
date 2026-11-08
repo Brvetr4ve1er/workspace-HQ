@@ -374,6 +374,19 @@ Nothing is removed or renamed: the twelve existing rules keep their ids, keys an
 - `data/brief-state.json` gains **`firstSeen`**: `{ "<key>": { "first": ISO, "last": ISO } }`, at most 200 entries, validated on load; `first` is stamped when a key is new, `last` on every live key (items and overflow); keys whose `last` is older than 7 days are pruned.
 - Both files are patterns in `.gitignore` (`data/brief.json*`, `data/brief-state.json*`): a crashed atomic write leaves `<name>.<pid>.tmp`.
 
+#### `data/brief.json` — 2026-11-08 amendment: standing items (frontend lane, additive)
+
+Owner-approved 2026-11-08: Brief items that stay unchanged for 3 days step aside so new ones get the 3 slots; security items like secrets are exempt. Nothing is removed or renamed.
+
+- **`standing`** (new, always an array, `[]` when none): `[{ ...item, since: ISO }]` — the same item shape (`key` `rule` `severity` `text` `why` `source` `age` `action` `count`) plus `since`, the `firstSeen[key].first` of that exact key. Ranked as before (severity, then rule order). A brief.json written before this amendment has no `standing`; readers treat that as `[]`.
+- **The 72 h rule** (`computeBrief(inputs, {now, dismissed, firstSeen})`, pure): a live, undismissed item whose key has been on the brief for **72 h or more** (`now - first >= 72 h`; 71 h stays, 72 h steps aside) moves out of `items`/`overflow` into `standing`. The clock is the exact key's own first time, so a worse value is a new key and starts fresh. A dismissed key is dropped before the rule runs, so it is never standing. The rule `secrets` is exempt and keeps its place however old. With no `firstSeen` nothing is standing.
+- **The choice for `more` and the lists:** `items` = the first 3 fresh items, `overflow` = fresh items 4 to 12, `more` = **fresh items past the top 3 only** (standing ones are never counted in `more`), so "+N more" and `standing` never overlap. `standing` has no cap (at most one item per rule, 18 rules). Hence `more` can drop when an item steps aside.
+- **`brief-state.json`:** unchanged shape. `firstSeen` is now also stamped for standing items (their `last` keeps moving, so the 7-day pruning never takes the clock of a still-live item); keys not live for 7 days are pruned before the engine reads it, so a key that left and came back late starts fresh.
+- **Toasts:** `shouldToast` is untouched. It reads `items[0]`, so a high item that steps aside hands the top to the next fresh one.
+- **Change detection / push:** `hq:brief` is pushed when `standing` moves too.
+- **Projection** (below) gains `standing`: `null` or `{ count, since: "YYYY-MM-DD" (the oldest, local date), line: "2 standing since 5 Nov" }`. A count and a date only: no ref, no name, no text. The tray menu shows `line` as one disabled line after the rows and the "+N more" line; the bridge route `GET /assist/brief` passes the same three fields through its allowlist. Standing items are not in `counts` or `more`.
+- **MCP `hq_brief`** returns `standing` too (the array above, untouched by `limit`; `[]` when the file has none).
+
 #### Brief projection (`dashboard/brief-project.mjs`, pure, no file)
 
 `projectBrief(brief, {now, firstSeen})` → the only form of the Brief the tray, the toolbar badge, the bridge route `GET /assist/brief` and any later phone door may show:
@@ -382,7 +395,8 @@ Nothing is removed or renamed: the twelve existing rules keep their ids, keys an
 { "v": 1, "generatedAt": ISO, "ageMinutes": n, "stale": bool, "counts": { "high": n, "med": n, "low": n },
   "items":    [{ "ref", "rule", "severity", "sevWord", "text", "count", "isNew", "age", "nav": { "kind", "tab", "sub" } }],
   "overflow": [{ "ref", "rule", "severity", "text", "count", "isNew" }],
-  "overflowLine": "...", "more": n, "errorSources": ["..."] }
+  "overflowLine": "...", "more": n, "errorSources": ["..."],
+  "standing": null | { "count": n, "since": "YYYY-MM-DD", "line": "2 standing since 5 Nov" } }   // 2026-11-08, additive
 ```
 
 Allowlisted fields only. `ref` = the first 12 hex of sha256(key). `nav` is `{kind, tab, sub}` and never carries `projectId`. `text` comes from one fixed wording table with a row per rule id (an unknown rule reads "Something needs you"); counts come from `count`; `isNew` means first seen in the last 24 h (from `firstSeen`).

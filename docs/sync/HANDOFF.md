@@ -12,6 +12,21 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (kitchen batch 1: standing Brief items step aside after 3 days) · main
+DONE: the owner's yes ("Brief items that stay unchanged for 3 days step aside, so new ones get the 3 slots; security items like secrets are exempt") is built.
+  The engine (dashboard/brief-core.mjs, pure) moves an item whose exact key has been on the brief 72 h or more (brief-state firstSeen[key].first; 71 h stays, 72 h steps aside)
+  into a new brief.json list `standing` ([{...item, since}], ranked as before). `secrets` never steps aside; a dismissed key never counts; a worse value is a new key and starts fresh.
+  `more` counts only the fresh items hidden from the top 3 (standing ones are not in it), so a fresh item rises into the slots. shouldToast is untouched. brief.js prunes firstSeen before
+  the engine reads it and stamps standing keys too. Home: one line under the items, "Standing since 5 Nov: <text> · <text>", each item a button to where it is cleared. The tray and the
+  screen-safe projection get only "2 standing since 5 Nov" (a count and the oldest date, no names; the bridge route passes the same three fields). MCP hq_brief returns `standing` too.
+  Tests: brief-core (9 new), brief-project, brief, tray-brief, tray-menu, assist-bridge-routes, mcp server, renderer vals (3), selftest rows brief-standing-1 / -2 / -only, cdp scenario brief-standing
+  (the fake preload's BRIEF keeps its 3 items and more: 2, and gains only standing: []). Goldens: the template hash moved (+957 chars / +959 bytes, the one standing block) and all 152 vals
+  scenarios moved ONLY by the three new keys brfHasStanding / brfStanding / brfStandingLead (tools/golden-diff.mjs: every change attributed); both re-recorded. CONTRACT, IPC-CONTRACT and the operator spec updated.
+IN-FLIGHT: none. OWNER STEP: restart the app to load it (tools\rollback.ps1 v5). Keys already in data/brief-state.json keep their first time, so an item the app has shown for 3 days steps aside at once.
+ASKS: none. BREAKS: none (additive: `standing` in brief.json, hq:brief and the projection).
+
+---
+
 ## 2026-11-08 · FROM frontend (kitchen batch 1: Bridge 0.7.0 saves the image or video you click) · main
 DONE: the owner's yes ("the Bridge may download the image or video I click, and check the same site for a bigger version, only when I click") is built. The 0.7.0 manifest (version NOT bumped again:
   0.7.0 has not reached the owner) also asks for `downloads` (Chrome: "Manage your downloads"). In "On this page" each row gets one Save button; a press sends one `grab:save` message and the service worker
