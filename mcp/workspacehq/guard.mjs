@@ -25,6 +25,7 @@ export const TOOL_TIERS = Object.freeze({
   // read
   hq_brief: 'read', hq_status: 'read', hq_quests_list: 'read', hq_social_outbox: 'read', hq_activity: 'read',
   hq_recall: 'read', hq_chat_read: 'read', hq_sessions: 'read', hq_delivery: 'read',   // the last four arrive at the Pass
+  hq_cosmos_search: 'read',
   // note
   hq_capture: 'note', hq_quest_done: 'note', hq_social_cancel: 'note',
   // run

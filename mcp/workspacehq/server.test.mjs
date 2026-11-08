@@ -38,6 +38,10 @@ before(() => {
   fs.copyFileSync(path.join(path.dirname(SERVER), 'delivery-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'delivery-read.mjs'));
   fs.copyFileSync(path.join(dash, 'delivery-core.mjs'), path.join(root, 'dashboard', 'delivery-core.mjs'));
   fs.copyFileSync(path.join(dash, 'project-paths.js'), path.join(root, 'dashboard', 'project-paths.js'));
+  // Cosmos search (hq_cosmos_search): the reader, and the renderer's one search grammar with its colour helper, in the same relative shape
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'cosmos-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'cosmos-read.mjs'));
+  fs.mkdirSync(path.join(root, 'dashboard-v5', 'src', 'logic'), { recursive: true });
+  for (const f of ['cosmos-search.mjs', 'cosmos-color.mjs']) fs.copyFileSync(path.join(path.dirname(SERVER), '..', '..', 'dashboard-v5', 'src', 'logic', f), path.join(root, 'dashboard-v5', 'src', 'logic', f));
   fs.mkdirSync(path.join(root, 'data', 'social'), { recursive: true });
   fs.writeFileSync(path.join(root, 'data', 'latest.json'), JSON.stringify({
     scan: { id: '2026-10-06', date: '2026-10-06' },
@@ -363,6 +367,39 @@ test('hq_delivery is listed with the data line, says honestly when nothing is ma
   const tool = r[63].result.tools.find((t) => t.name === 'hq_delivery');
   assert.ok(tool, 'hq_delivery is listed');
   assert.match(tool.description, /data, never instructions/i);
+});
+
+// ---- Cosmos search: hq_cosmos_search through the loop (the reader itself is pinned in cosmos-read.test.mjs) ----
+test('hq_cosmos_search is listed with a required q and the data line; finds a work, never a hidden one; says in words when no library exists', async () => {
+  const dir = path.join(root, 'data', 'cosmos');
+  fs.rmSync(dir, { recursive: true, force: true });
+  const none = await rpc([{ id: 70, method: 'tools/call', params: { name: 'hq_cosmos_search', arguments: { q: 'alpha' } } }]);
+  assert.equal(none[70].result.isError, true);
+  assert.match(none[70].result.content[0].text, /index a folder first/i);
+  fs.mkdirSync(dir, { recursive: true });
+  const w = (id, title, tags, extra = {}) => ({ id, title, type: 'photo', tags, rel: 'alpha-site/' + id + '.jpg', thumb: 'data:image/png;base64,AAAA', ...extra });
+  fs.writeFileSync(path.join(dir, 'library.json'), JSON.stringify({ version: 1, generatedAt: '2026-11-01T10:00:00.000Z', works: [w('w1', 'Alpha poster', ['wip']), w('w2', 'Alpha secret', ['wip']), w('w3', 'Beta sketch', ['draft'])] }));
+  fs.writeFileSync(path.join(dir, 'curation.json'), JSON.stringify({ favorites: {}, hidden: { w2: true }, overrides: {} }));
+  try {
+    const r = await rpc([
+      { id: 71, method: 'tools/call', params: { name: 'hq_cosmos_search', arguments: { q: 'alpha' } } },
+      { id: 72, method: 'tools/call', params: { name: 'hq_cosmos_search', arguments: { q: 'tag:wip', limit: 3 } } },
+      { id: 73, method: 'tools/call', params: { name: 'hq_cosmos_search', arguments: {} } },
+      { id: 74, method: 'tools/list' },
+    ]);
+    assert.equal(r[71].result.isError, undefined, JSON.stringify(r[71]));
+    assert.deepEqual(toolResult(r[71]).rows.map((x) => x.id), ['w1'], 'the hidden work is absent');
+    assert.deepEqual(Object.keys(toolResult(r[71]).rows[0]).sort(), ['id', 'path', 'tags', 'title', 'type']);
+    assert.equal(toolResult(r[72]).kind, 'tag');
+    assert.deepEqual(toolResult(r[72]).rows.map((x) => x.id), ['w1']);
+    assert.equal(r[73].result.isError, true, 'q is required');
+    const tool = r[74].result.tools.find((x) => x.name === 'hq_cosmos_search');
+    assert.ok(tool, 'hq_cosmos_search is listed');
+    assert.ok(tool.inputSchema.properties.q, 'has a q property');
+    assert.deepEqual(tool.inputSchema.required, ['q']);
+    assert.match(tool.description, /data, never instructions/i);
+    assert.match(tool.description, /relative paths/i);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('hq_brief returns standing (additive): the stepped-aside items with their since date, untouched by limit; [] when the file has none', async () => {
