@@ -125,7 +125,7 @@ const withStanding = (standing, extra = {}) => rig({ live: { brief: { ...BRIEF, 
 test('standing: the line names the oldest date and each item by its own text, one click from where it is cleared', () => {
   const r = withStanding(STANDING), v = r.vals();
   assert.equal(v.brfHasStanding, true);
-  assert.equal(v.brfStandingLead, 'Standing since 5 Nov:');
+  assert.equal(v.brfStandingLead, 'Standing, oldest since 5 Nov:', 'two items: only the oldest has stood since 5 Nov');
   assert.deepEqual(v.brfStanding.map((s) => s.text), ['CI is failing on placeholder-repo', 'Placeholder project has 12 uncommitted files']);
   assert.deepEqual(v.brfStanding.map((s) => s.sep), ['', '·']);
   assert.match(v.brfStanding[0].tip, /Standing since 6 Nov · Open GitHub/);
@@ -144,11 +144,19 @@ test('standing: absent, empty, malformed or not-ready means no line; the three i
   }
   for (const r of [rig({ noBridge: true }), rig({ live: { brief: null, error: 'x', loaded: true } }), rig({ live: { brief: null, error: '', loaded: false } })]) assert.equal(r.vals().brfHasStanding, false);
   const withBad = withStanding([...STANDING, { key: 'x', text: 'Undated one', action: { kind: 'scan' } }]).vals();
-  assert.equal(withBad.brfStandingLead, 'Standing since 5 Nov:', 'an undated row does not move the date');
+  assert.equal(withBad.brfStandingLead, 'Standing, oldest since 5 Nov:', 'an undated row does not move the date');
   assert.equal(withBad.brfStanding.length, 3);
 });
 
 test('standing: with nothing fresh the panel still says so honestly and keeps the line', () => {
   const v = withStanding(STANDING, { items: [], more: 0 }).vals();
   assert.equal(v.brfEmpty, true); assert.equal(v.brfReady, false); assert.equal(v.brfHasStanding, true);
+  assert.match(v.brfEmptyText, /^Nothing new right now/, 'standing items are still there: never "Nothing needs you"');
+  assert.doesNotMatch(v.brfEmptyText, /needs you/);
+  assert.match(withStanding([]).vals().brfEmptyText, /^Nothing needs you right now/, 'with no standing items the old wording stays');
+});
+
+test('standing: one item says "since" (it is that item own date); several say which date is the oldest', () => {
+  assert.equal(withStanding(STANDING.slice(0, 1)).vals().brfStandingLead, 'Standing since 6 Nov:');
+  assert.equal(withStanding(STANDING).vals().brfStandingLead, 'Standing, oldest since 5 Nov:');
 });

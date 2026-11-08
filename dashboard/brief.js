@@ -16,6 +16,7 @@ let core = null;
 const lib = () => core || (core = import(pathToFileURL(path.join(__dirname, 'brief-core.mjs')).href));
 const RECOMPUTE_MS = 15 * 60e3, DEBOUNCE_MS = 1500, KEY_MAX = 200, DISMISSED_MAX = 200;
 const FIRSTSEEN_MAX = 200, FIRSTSEEN_KEEP_MS = 7 * 24 * 3600e3, ONBRIEF_REFRESH_MS = 10 * 60e3;
+const FIRSTSEEN_GAP_MS = 3600e3;   // a key off the brief this long (while the app was computing) starts a new clock when it returns
 
 const msg = (e) => String((e && e.message) || e).slice(0, 200);
 // { value } | { value: null, error } — an absent file is reported with `absent` so each source can phrase it
@@ -24,7 +25,7 @@ function readJson(file) {
   try { raw = fs.readFileSync(file, 'utf8'); } catch (e) { return { value: null, absent: e.code === 'ENOENT', error: e.code === 'ENOENT' ? null : msg(e) }; }
   try { return { value: JSON.parse(raw) }; } catch (e) { return { value: null, error: 'unreadable (' + msg(e) + ')' }; }
 }
-// { key: {first, last} } with both ISO strings; anything else is dropped, at most FIRSTSEEN_MAX entries (the newest `last`)
+// { key: {first, last, gone?} } with ISO strings (gone = when a computation first found the key off the brief); anything else is dropped, at most FIRSTSEEN_MAX entries (the newest `last`)
 function cleanFirstSeen(x) {
   const out = {};
   if (!x || typeof x !== 'object' || Array.isArray(x)) return out;
@@ -32,7 +33,11 @@ function cleanFirstSeen(x) {
   for (const [k, v] of Object.entries(x)) {
     if (typeof k !== 'string' || !k || k.length > KEY_MAX || !v || typeof v !== 'object') continue;
     const f = Date.parse(v.first), l = Date.parse(v.last);
-    if (Number.isFinite(f) && Number.isFinite(l)) rows.push([k, { first: new Date(f).toISOString(), last: new Date(l).toISOString() }, l]);
+    if (!(Number.isFinite(f) && Number.isFinite(l))) continue;
+    const row = { first: new Date(f).toISOString(), last: new Date(l).toISOString() };
+    const g = typeof v.gone === 'string' ? Date.parse(v.gone) : NaN;
+    if (Number.isFinite(g)) row.gone = new Date(g).toISOString();
+    rows.push([k, row, l]);
   }
   rows.sort((a, b) => b[2] - a[2]);
   for (const [k, v] of rows.slice(0, FIRSTSEEN_MAX)) out[k] = v;
@@ -95,13 +100,22 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     const st = loadState();
     const inputs = await buildInputs();
     const t = now();
-    // firstSeen: keys not live for 7 days are forgotten BEFORE the engine reads it (a key that left and came back late starts fresh)
+    // firstSeen: before the engine reads it, forget keys not live for 7 days, and keys a computation found OFF the brief an hour or more ago
+    // (a key that left and came back starts a fresh clock; a closed app leaves no `gone` mark, so it is not a gap)
     const iso = t.toISOString(), firstSeen = {};
-    for (const [k, v] of Object.entries(st.firstSeen)) if (t.getTime() - Date.parse(v.last) < FIRSTSEEN_KEEP_MS) firstSeen[k] = v;
+    for (const [k, v] of Object.entries(st.firstSeen)) {
+      if (t.getTime() - Date.parse(v.last) >= FIRSTSEEN_KEEP_MS) continue;
+      if (v.gone && t.getTime() - Date.parse(v.gone) >= FIRSTSEEN_GAP_MS) continue;
+      firstSeen[k] = v;
+    }
+    const seen = Object.assign({}, firstSeen);
     // standing items (unchanged for 72 h) step aside inside the engine, from firstSeen's first time for the exact key
     const brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed, firstSeen });
     // then stamp `first` on a key seen for the first time and `last` on every live key (standing ones too, or their clock would be pruned)
-    for (const it of brief.items.concat(brief.overflow || [], brief.standing || [])) firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso };
+    const liveKeys = new Set();
+    for (const it of brief.items.concat(brief.overflow || [], brief.standing || [])) { liveKeys.add(it.key); firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso }; }
+    // a remembered key that is not on this brief: mark when it was first found missing (cleared the moment it is live again)
+    for (const [k, v] of Object.entries(seen)) if (!liveKeys.has(k)) firstSeen[k] = { first: v.first, last: v.last, gone: v.gone || iso };
     st.firstSeen = cleanFirstSeen(firstSeen);
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
     const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.errors]);   // generatedAt alone is not a change

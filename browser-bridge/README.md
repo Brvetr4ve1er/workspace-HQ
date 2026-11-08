@@ -149,8 +149,11 @@ no Save As dialog, a sanitized file name). The row then says, in order: *queued*
   extension asks that site once with a `HEAD` request (no cookies, no referrer, no redirects followed): not there, a
   redirect or a non-image answer means that size is skipped. It only happens after you press Save; a page-offered copy
   on another host and the original are never checked, and if Chrome will not let the extension look (no host access) the
-  download itself is the check.
-- **What saves:** images, and plain video files (`.mp4`, `.webm`, `.mov`). `blob:` and streamed video (HLS/DASH, a
+  download itself is the check, with one more look: a guessed size that finishes as a web page (not an image) is deleted
+  again and the next size is tried.
+- **What saves:** pictures (`.jpg .jpeg .png .gif .webp .avif .bmp .tiff .ico`, or a link that names no type), and plain
+  video files (`.mp4`, `.webm`, `.mov`). Any other type (`.svg`, `.html`, `.exe`, `?format=bat`) says *Can't save this type
+  of file*; a video link naming no type says *Can't tell this video's type*. `blob:` and streamed video (HLS/DASH, a
   page with no file link) say *streamed video — needs the video helper (not installed)* and start nothing.
 - **Never on Instagram, Facebook or TikTok** (the page or the file host, including their CDNs): the row says
   *saving is off on Instagram, Facebook and TikTok*. This is the owner's limit of 2026-11-08; the list is

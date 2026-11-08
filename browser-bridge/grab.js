@@ -172,6 +172,19 @@
       } catch (e) { return null; }
     }
 
+    // A GUESSED size that finished but is a web page (a 200 soft-404, or a HEAD that could not run): not a picture, so it is deleted
+    // and the next size is tried. Only guesses are second-guessed; a file the page itself offered is saved as served.
+    async function guessIsPage(downloadId, cand) {
+      if (!cand || !cand.guess) return false;
+      try {
+        var items = await C().downloads.search({ id: downloadId });
+        var mime = items && items[0] && items[0].mime;
+        if (!mime || /^(image|video)\//i.test(mime) || /octet-stream/i.test(mime)) return false;
+        try { if (C().downloads.removeFile) await C().downloads.removeFile(downloadId); } catch (e) { /* the file stays; the next size is still tried */ }
+        return true;
+      } catch (e) { return false; }
+    }
+
     async function runJob(id) {
       var rules = R();
       for (var guard = 0; guard < 40; guard++) {
@@ -180,7 +193,11 @@
         var cands = job.candidates, i = job.idx;
         if (job.downloadId != null) {
           var r = await settle(job.downloadId);
-          if (r.state === 'complete') { await patch(id, { state: 'saved', tried: i + 1, downloadId: null, message: '' }); return; }
+          if (r.state === 'complete') {
+            if (await guessIsPage(job.downloadId, cands[i])) { await patch(id, { downloadId: null, idx: i + 1, tried: Math.min(i + 1, cands.length) }); continue; }
+            await patch(id, { state: 'saved', tried: i + 1, downloadId: null, message: '' });
+            return;
+          }
           if (r.canceled) { await patch(id, { state: 'failed', tried: i + 1, downloadId: null, message: 'saving was canceled' }); return; }
           await patch(id, { downloadId: null, idx: i + 1, tried: Math.min(i + 1, cands.length) });
           continue;

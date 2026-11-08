@@ -226,3 +226,18 @@ test('standing: the view carries only the count and the date line, no row for it
   const none = (await make(brief([SECRETS]), seenAgo([SECRETS.key], 2 * H))).tb.view();
   assert.equal(none.standingLine, null);
 });
+
+test('standing only: the menu line and the tooltip never say "nothing needs you" while a standing item (even a high one) is still there', async () => {
+  const STD = it('secrets', 'high', 'secrets:proj-id-7731:3', { text: 'Zorblax Prime has 3 secrets in its files', since: new Date(2026, 10, 5, 12, 0, 0).toISOString() });
+  const { tb } = await make(brief([], { standing: [STD] }));
+  const v = tb.view();
+  assert.equal(v.status, 'empty');
+  assert.equal(v.total, 0);
+  assert.equal(v.statusLine, 'Nothing new · from the 14:05 brief');
+  assert.equal(v.standingLine, '1 standing since 5 Nov');
+  assert.equal(tb.tooltip(), 'WorkspaceHQ — nothing new · 1 standing since 5 Nov');
+  assert.ok(!JSON.stringify(v).includes('Zorblax'));
+  const none = (await make(brief([]))).tb;
+  assert.equal(none.view().statusLine, 'Nothing needs you · from the 14:05 brief');
+  assert.equal(none.tooltip(), 'WorkspaceHQ — nothing needs you');
+});

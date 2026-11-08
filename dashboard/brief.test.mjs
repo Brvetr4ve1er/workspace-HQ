@@ -294,3 +294,46 @@ test('standing: a dismissed key never counts as standing; the hq:brief push hear
   assert.ok(![...b.items, ...b.overflow, ...b.standing].some((i) => i.key === key), 'a dismissed key is nowhere');
   api.stop();
 });
+
+test('standing: an item that left the brief and came back starts fresh (a gap of an hour or more); a short blip and a closed app do not reset the clock', async () => {
+  const handlers = new Map();
+  let t = new Date(NOW.getTime());
+  const dataDir = tmp();
+  const setDirty = (n) => fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', n)])));
+  setDirty(12);
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [], intervalMs: 0, watch: false, now: () => t });
+  const at = async (h) => { t = new Date(NOW.getTime() + h * 3600e3); return (await handlers.get('hq:brief:read')()).brief; };
+  const dirty = (list) => list.filter((i) => i.rule === 'dirty').map((i) => i.key);
+  await at(0);
+  // gone for 29 h (long enough to be a real absence), back at 30 h: the old clock must not carry over
+  setDirty(0); await at(1);
+  setDirty(12); let b = await at(30);
+  assert.deepEqual(dirty(b.items), ['dirty:a:12']);
+  b = await at(75);   // 75 h after the first sighting, 45 h after it came back
+  assert.deepEqual(dirty(b.items), ['dirty:a:12'], 'a recurring item is fresh again, not standing');
+  assert.deepEqual(b.standing, []);
+  assert.equal(api._brief.loadState().firstSeen['dirty:a:12'].first, new Date(NOW.getTime() + 30 * 3600e3).toISOString());
+  b = await at(103);  // 73 h after it came back: now it has stood 72 h
+  assert.deepEqual(b.standing.map((i) => i.key), ['dirty:a:12']);
+  // a blip of 20 minutes (a half-written file, a failed read) keeps the clock
+  setDirty(0); t = new Date(NOW.getTime() + 104 * 3600e3); await handlers.get('hq:brief:read')();
+  setDirty(12); t = new Date(NOW.getTime() + 104 * 3600e3 + 20 * 60e3);
+  b = (await handlers.get('hq:brief:read')()).brief;
+  assert.deepEqual(b.standing.map((i) => i.key), ['dirty:a:12'], 'a 20-minute blip is not a new item');
+  api.stop();
+});
+
+test('standing: a closed app is not a gap - the item was live at both ends, so its clock keeps running', async () => {
+  const handlers = new Map();
+  let t = new Date(NOW.getTime());
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [], intervalMs: 0, watch: false, now: () => t });
+  await handlers.get('hq:brief:read')();
+  t = new Date(NOW.getTime() + 4 * 86400e3);   // no compute for four days
+  const b = (await handlers.get('hq:brief:read')()).brief;
+  assert.deepEqual(b.standing.map((i) => [i.key, i.since]), [['dirty:a:12', NOW.toISOString()]]);
+  api.stop();
+});

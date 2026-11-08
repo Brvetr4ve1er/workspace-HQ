@@ -73,7 +73,7 @@ function create({ log, now = () => new Date(), onChange } = {}) {
         statusLine = ['Needs you', total].concat(newCount ? [newCount + ' new'] : [], [p.stale || !t ? from : t]).join(' · ');
         if (srcs.length) noteLine = incomplete;
       } else if (srcs.length) { status = 'incomplete'; statusLine = incomplete; }
-      else { status = 'empty'; statusLine = 'Nothing needs you · ' + from; }
+      else { status = 'empty'; statusLine = (p.standing ? 'Nothing new' : 'Nothing needs you') + ' · ' + from; }   // standing items are still there: never claim nothing needs the owner
       const rows = p.items.slice(0, ROWS_MAX).map((x) => ({ ref: x.ref, scan: x.nav.kind === 'scan', label: clip([x.sevWord].concat(x.isNew ? ['new'] : [], [x.text]).join(' · '), LABEL_MAX) }));
       return { status, statusLine, noteLine, standingLine: p.standing ? p.standing.line : null, fromLine: p.stale || !t ? 'from ' + (t || 'earlier') : null, showLevel: false, total, newCount, rows, overflow: p.overflowLine ? { label: clip(p.overflowLine, LABEL_MAX) } : null };
     } catch {
@@ -86,7 +86,7 @@ function create({ log, now = () => new Date(), onChange } = {}) {
     if (v.status === 'not-ready') return null;
     let s;
     if (v.total > 0) s = 'WorkspaceHQ — ' + v.total + (v.total === 1 ? ' needs you' : ' need you') + (v.newCount ? ' · ' + v.newCount + ' new' : '');
-    else s = v.status === 'incomplete' ? 'WorkspaceHQ — brief incomplete' : 'WorkspaceHQ — nothing needs you';
+    else s = v.status === 'incomplete' ? 'WorkspaceHQ — brief incomplete' : v.standingLine ? 'WorkspaceHQ — nothing new · ' + v.standingLine : 'WorkspaceHQ — nothing needs you';
     // honest state: an old brief says whose time it is, a partial one says so (the menu header says both too)
     if (v.fromLine) s += ' · ' + v.fromLine;
     if (v.status === 'incomplete' && v.total > 0) s += ' · incomplete';

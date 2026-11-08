@@ -1540,12 +1540,12 @@ const SCENARIOS = {
     return out.concat(t.errors());
   },
 
-  // Brief standing line: items unchanged for 3 days step aside to ONE line under the 3 items ("Standing since 5 Nov: <text> · <text>"), each
+  // Brief standing line: items unchanged for 3 days step aside to ONE line under the 3 items ("Standing, oldest since 5 Nov: <text> · <text>"), each
   // still a button that goes where it is cleared; the 3 items and "+2 more" stay as they were; the default fake brief shows no such line
   async 'brief-standing'(t) {
     const pre = await briefAt(t); if (pre) return pre;
     const out = [];
-    if (await t.evaluate(`${BRF}.sec().textContent.includes('Standing since')`)) out.push('the default fake brief shows a standing line');
+    if (await t.evaluate(`${BRF}.sec().textContent.includes('Standing')`)) out.push('the default fake brief shows a standing line');
     const std = (key, rule, since, text, action) => ({ key, rule, severity: 'low', text, why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', count: 0, since, action });
     const standing = [std('ci-red:owner/placeholder-repo:2026-11-02T10:00:00Z', 'ci-red', '2026-11-05T09:00:00.000Z', 'CI is failing on placeholder-repo', { kind: 'go', tab: 'projects', sub: 'github' }),
       std('unpushed:p9:3', 'unpushed', '2026-11-06T09:00:00.000Z', 'Placeholder project has 3 commits not pushed', { kind: 'go', tab: 'tasks' })];
@@ -1555,9 +1555,9 @@ const SCENARIOS = {
       // the fake's own brief plus the two stepped-aside items (its 3 items and more: 2 stay exactly as they are)
       await t.evaluate(`(() => { const b = JSON.parse(JSON.stringify(WHQ.store.live.brief.brief)); b.standing = ${JSON.stringify(standing)}; hqFake.set('brief.read', { brief: b }); return true; })()`);
       await home();
-      if (!await t.waitFor(`${BRF}.sec().textContent.includes('Standing since')`, 8000)) return out.concat(['the standing line never rendered']);
+      if (!await t.waitFor(`${BRF}.sec().textContent.includes('Standing, oldest since')`, 8000)) return out.concat(['the standing line never rendered']);
       const text = await t.evaluate(`${BRF}.sec().textContent.replace(/\\s+/g, ' ')`);
-      if (!/Standing since 5 Nov:\s*CI is failing on placeholder-repo\s*·\s*Placeholder project has 3 commits not pushed/.test(text)) out.push('the line reads wrong: ' + text.slice(text.indexOf('Standing')));
+      if (!/Standing, oldest since 5 Nov:\s*CI is failing on placeholder-repo\s*·\s*Placeholder project has 3 commits not pushed/.test(text)) out.push('the line reads wrong: ' + text.slice(text.indexOf('Standing')));
       if ((await t.evaluate(`${BRF}.items().length`)) !== 3) out.push('the standing line changed the 3 items (got ' + await t.evaluate(`${BRF}.items().length`) + ')');
       if (!text.includes('+2 more')) out.push('"+2 more" went missing');
       const labels = await t.evaluate(`${line}.map((x) => x.textContent.trim())`);
@@ -1565,7 +1565,7 @@ const SCENARIOS = {
       await t.evaluate(`${line}[0].click()`);
       if (!await t.waitFor(`WHQ.app.logic.state.tab === 'projects' && WHQ.app.logic.state.sub.projects === 'github'`, 3000)) out.push('a standing item did not go where it is cleared (Projects › GitHub)');
       await home();
-      if (!await t.waitFor(`${BRF}.sec().textContent.includes('Standing since')`, 5000)) return out.concat(['the standing line did not come back']);
+      if (!await t.waitFor(`${BRF}.sec().textContent.includes('Standing, oldest since')`, 5000)) return out.concat(['the standing line did not come back']);
       await t.evaluate(`${line}[1].click()`);
       if (!await t.waitFor(`WHQ.app.logic.state.tab === 'tasks'`, 3000)) out.push('the second standing item did not open Tasks');
       if ((await t.evaluate(`hqFake.calls('brief.dismiss').length`)) !== 0) out.push('acting on a standing item dismissed something');

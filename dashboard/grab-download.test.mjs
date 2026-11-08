@@ -46,6 +46,7 @@ function makeBrowser(clock) {
   const cfg = {
     outcome: (url) => 'complete',                // 'complete' | 'interrupted' | 'hang' | 'canceled'
     throwFor: () => false,
+    mime: () => 'image/jpeg',                   // what Chrome reports for a finished download
     head: () => ({ ok: true, status: 200, type: 'basic', ct: 'image/jpeg' }),   // or { throws: true }
   };
   function chromeFor() {
@@ -65,7 +66,7 @@ function makeBrowser(clock) {
           log.downloads.push({ ...plain(opts), at: clock.now() });
           if (cfg.throwFor(opts.url)) throw new Error('Invalid filename');
           const id = ++nextId;
-          const it = { id, url: opts.url, state: 'in_progress', startTime: new Date(clock.now()).toISOString(), error: '' };
+          const it = { id, url: opts.url, state: 'in_progress', startTime: new Date(clock.now()).toISOString(), error: '', mime: cfg.mime(opts.url) };
           items.set(id, it);
           const how = cfg.outcome(opts.url);
           if (how !== 'hang') setImmediate(() => browser.finish(id, how));
@@ -354,7 +355,7 @@ test('a download that Chrome started just before the worker died (its id never s
 // ---- what may be saved --------------------------------------------------------------------------------------------------------------
 test('blob: and streamed video say they need the video helper and start nothing; plain .mp4 .webm .mov save', async () => {
   const { clock, browser, save, settled, w } = setup();
-  for (const [url, kind] of [['blob:https://alpha-site.test/1234-5678', 'video'], ['https://alpha-site.test/v/stream.m3u8', 'video'], ['https://alpha-site.test/v/manifest.mpd', 'video'], ['https://alpha-site.test/v/watch', 'video'], ['blob:https://alpha-site.test/9', 'image']]) {
+  for (const [url, kind] of [['blob:https://alpha-site.test/1234-5678', 'video'], ['https://alpha-site.test/v/stream.m3u8', 'video'], ['https://alpha-site.test/v/manifest.mpd', 'video'], ['blob:https://alpha-site.test/9', 'image']]) {
     const r = await save(img(url, [], kind));
     assert.deepEqual(plain(r), { ok: false, message: STREAMED }, url);
   }
@@ -490,4 +491,67 @@ test('wiring: one grab message type, the hq-grab alarm, the resume at the top of
   assert.doesNotMatch(grabJs, /XMLHttpRequest|new Image\b|sendBeacon|WebSocket/);
   const rules = read('grab-rules.js');
   assert.match(rules, /Downloads\/WorkspaceHQ\/grabs\/<site>\//);
+});
+
+// ---- only pictures and plain videos are saved (follow-up fixes, 2026-11-08) -------------------------------------------------------
+test('only picture and video types are saved: an .exe, .html, .svg, .lnk or ?format=bat on an image row is refused and nothing downloads', async () => {
+  const { browser, save, w } = setup();
+  for (const u of ['https://alpha-site.test/m/x.exe', 'https://alpha-site.test/m/x.html', 'https://alpha-site.test/m/x.svg', 'https://alpha-site.test/m/x.lnk', 'https://alpha-site.test/m/x.bat', 'https://alpha-site.test/m/i?format=bat', 'https://alpha-site.test/m/x.php']) {
+    const r = await save(img(u));
+    assert.deepEqual(plain(r), { ok: false, message: "Can't save this type of file" }, u);
+  }
+  assert.equal(browser.queue().length, 0); assert.equal(browser.log.downloads.length, 0);
+  for (const u of ['https://alpha-site.test/m/x.exe', 'https://alpha-site.test/m/x.mp4.exe']) assert.equal((await save(img(u, [], 'video'))).ok, false);
+  // pictures, with or without a type in the link, still save
+  for (const u of ['https://alpha-site.test/m/a.JPG', 'https://alpha-site.test/m/a.jpeg', 'https://alpha-site.test/m/a.png', 'https://alpha-site.test/m/a.gif', 'https://alpha-site.test/m/a.webp', 'https://alpha-site.test/m/a.avif', 'https://alpha-site.test/m/a.bmp', 'https://alpha-site.test/m/a.tiff', 'https://alpha-site.test/m/a.ico', 'https://alpha-site.test/m/a', 'https://alpha-site.test/m/a?format=png']) assert.equal(w.rules.saveCheck(img(u)).ok, true, u);
+  for (const u of ['https://alpha-site.test/v/a.mp4', 'https://alpha-site.test/v/a.webm', 'https://alpha-site.test/v/a.mov']) assert.equal(w.rules.saveCheck(img(u, [], 'video')).ok, true, u);
+});
+
+test('a candidate with a type that is not a picture is never tried: a variant or a guess ending in .exe or ?format=bat is dropped', () => {
+  const { w } = setup();
+  const urls = (e) => plain(w.rules.saveCandidates(e)).map((c) => c.url);
+  assert.deepEqual(urls(img('https://alpha-site.test/m/a.jpg', [{ url: 'https://alpha-site.test/m/a-big.exe', w: 2000 }, { url: 'https://alpha-site.test/m/a-huge?format=bat', w: 3000 }, { url: 'https://alpha-site.test/m/a-ok.png', w: 1000 }])), ['https://alpha-site.test/m/a-ok.png', 'https://alpha-site.test/m/a.jpg']);
+});
+
+test('a video link with no type says it cannot tell the type; only a streamed one says streamed', () => {
+  const { w } = setup();
+  assert.equal(w.rules.saveCheck(img('https://alpha-site.test/v/123', [], 'video')).message, "Can't tell this video's type");
+  assert.equal(w.rules.saveCheck(img('https://alpha-site.test/v/a.m3u8', [], 'video')).message, STREAMED);
+  assert.equal(w.rules.saveCheck(img('blob:https://alpha-site.test/uuid', [], 'video')).message, STREAMED);
+});
+
+test('X-style ":orig" candidates keep their type in the file name', () => {
+  const { w } = setup();
+  assert.equal(w.rules.grabPath('pbs.alpha-site.test', 'https://pbs.alpha-site.test/media/AB.jpg:orig', 'image'), 'WorkspaceHQ/grabs/pbs.alpha-site.test/AB.jpg');
+  assert.equal(w.rules.grabPath('pbs.alpha-site.test', 'https://pbs.alpha-site.test/media/AB?format=png&name=orig', 'image'), 'WorkspaceHQ/grabs/pbs.alpha-site.test/AB.png');
+  assert.equal(w.rules.saveCheck(img('https://pbs.alpha-site.test/media/AB.exe:orig')).ok, false);
+});
+
+test('the sibling CDNs of Instagram, Facebook and TikTok are blocked too', () => {
+  const { w } = setup();
+  for (const u of ['https://tiktokcdn-eu.com/a.jpg', 'https://p16.ibyteimg.com/a.jpg', 'https://x.byteimg.com/a.jpg', 'https://v16m.byteoversea.com/a.mp4', 'https://a.fb.com/x.jpg', 'https://fb.watch/x.jpg']) assert.equal(w.rules.saveCheck(img(u)).ok, false, u);
+  assert.equal(w.rules.saveCheck(img('https://notfb.com/x.jpg')).ok, true);
+});
+
+test('a guess that could not be HEAD-checked but came back as a web page is not kept: the file is removed and the next size is tried', async () => {
+  const { clock, browser, settled } = setup();
+  browser.cfg.head = () => ({ throws: true });                       // no host access: the HEAD cannot run
+  browser.cfg.mime = (url) => (url === WP_BIG ? 'text/html' : 'image/jpeg');   // a 200 soft-404 page for the guess
+  const removed = [];
+  const w2 = worker(browser, clock);   // a worker whose chrome can also delete a finished download
+  w2.chrome.downloads.removeFile = async (id) => { removed.push(id); };
+  const r = await w2.grab.enqueue({ type: 'grab:save', entry: img(WP), pageUrl: PAGE }, POPUP_SENDER);
+  assert.equal(r.ok, true);
+  assert.ok(await clock.until(settled));
+  assert.deepEqual(browser.log.downloads.map((d) => d.url), [WP_BIG, WP]);
+  assert.equal(browser.queue()[0].state, 'saved'); assert.equal(browser.queue()[0].tried, 2);
+  assert.equal(removed.length, 1, 'the web page saved as a picture is deleted again');
+});
+
+test('a plain download with an image type is never second-guessed', async () => {
+  const { clock, browser, save, settled } = setup();
+  browser.cfg.mime = () => 'application/octet-stream';
+  await save(img('https://alpha-site.test/m/a.jpg'));
+  assert.ok(await clock.until(settled));
+  assert.equal(browser.queue()[0].state, 'saved'); assert.equal(browser.log.downloads.length, 1);
 });

@@ -162,10 +162,12 @@
 
   // ---- download on click: what may be saved, where, and what to say about it ---------------------------------------
   var VIDEO_EXT = ['mp4', 'webm', 'mov'];
+  var IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff', 'tif', 'ico'];   // the only types that are saved; an .svg, .html or .exe is not a picture to save
+  var TYPE_MESSAGE = "Can't save this type of file";
   var SAVE_ROOT = 'WorkspaceHQ/grabs';
   var MAX_TRIES = 6;   // the first five candidates and the original
   // Instagram, Facebook and TikTok: nothing is saved from them, not even one at a click (the owner's limit, 2026-11-08)
-  var BLOCKED_SITES = ['instagram.com', 'cdninstagram.com', 'facebook.com', 'fbcdn.net', 'fbsbx.com', 'tiktok.com', 'tiktokcdn.com', 'tiktokcdn-us.com', 'tiktokv.com', 'muscdn.com'];
+  var BLOCKED_SITES = ['instagram.com', 'cdninstagram.com', 'facebook.com', 'fbcdn.net', 'fbsbx.com', 'tiktok.com', 'tiktokcdn.com', 'tiktokcdn-us.com', 'tiktokcdn-eu.com', 'tiktokv.com', 'muscdn.com', 'ibyteimg.com', 'byteimg.com', 'byteoversea.com', 'fb.com', 'fb.watch'];
   var BLOCKED_MESSAGE = 'saving is off on Instagram, Facebook and TikTok';
   var RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
@@ -174,13 +176,27 @@
     h = String(h || '').toLowerCase().replace(/\.$/, '');
     return BLOCKED_SITES.some(function (b) { return h === b || h.slice(-(b.length + 1)) === '.' + b; });
   }
-  function extOf(u) {
-    var x = parse(u); if (!x) return '';
-    var seg = x.pathname.split('/').filter(Boolean).pop() || '';
-    var m = seg.match(/\.([A-Za-z0-9]{2,5})$/);
-    return m ? m[1].toLowerCase() : '';
+  // the last path segment, decoded, without an X-style ":orig" / ":large" tail
+  function leafOf(x) {
+    var raw = x.pathname.split('/').filter(Boolean).pop() || '';
+    try { raw = decodeURIComponent(raw); } catch (e) { /* keep as is */ }
+    return raw.replace(/:[A-Za-z0-9_]+$/, '');
   }
-  function isPlainVideoUrl(u) { return VIDEO_EXT.indexOf(extOf(u)) >= 0; }
+  // the type the saved file will carry: the one in the path, else ?format= (X-style); '' when the link names none
+  function typeOf(u) {
+    var x = parse(u); if (!x) return '';
+    var m = leafOf(x).match(/\.([A-Za-z0-9]{2,5})$/);
+    if (m) return m[1].toLowerCase();
+    var f = x.searchParams.get('format');
+    return f && /^[A-Za-z0-9]{2,5}$/.test(f) ? f.toLowerCase() : '';
+  }
+  var STREAM_EXT = ['m3u8', 'mpd', 'ts', 'm4s'];
+  // 'ok' | 'streamed' (a manifest or segment, not a file) | 'untyped' (a video with no type) | 'type' (not a picture or plain video)
+  function typeVerdict(u, kind) {
+    var e = typeOf(u);
+    if (kind === 'video') { if (VIDEO_EXT.indexOf(e) >= 0) return 'ok'; if (!e) return 'untyped'; return STREAM_EXT.indexOf(e) >= 0 ? 'streamed' : 'type'; }
+    return !e || IMAGE_EXT.indexOf(e) >= 0 ? 'ok' : 'type';
+  }
 
   function saveCheck(entry, pageUrl) {
     if (!entry || typeof entry.url !== 'string') return { ok: false, message: "Can't save this one" };
@@ -188,13 +204,16 @@
     var x = parse(entry.url);
     if (!x) return { ok: false, message: "Can't save this one" };
     if (isBlockedHost(x.hostname) || (pageUrl && isBlockedHost(hostOf(pageUrl)))) return { ok: false, message: BLOCKED_MESSAGE };
-    if (entry.kind === 'video' && !isPlainVideoUrl(entry.url)) return { ok: false, message: api.STREAMED_MESSAGE };
+    var tv = typeVerdict(entry.url, entry.kind);
+    if (tv === 'streamed') return { ok: false, message: api.STREAMED_MESSAGE };
+    if (tv === 'untyped') return { ok: false, message: "Can't tell this video's type" };
+    if (tv === 'type') return { ok: false, message: TYPE_MESSAGE };
     return { ok: true };
   }
   function saveCandidates(entry) {
     var ok = candidatesFor(entry).filter(function (c) {
       if (isBlockedHost(hostOf(c.url))) return false;
-      return !(entry.kind === 'video' && !isPlainVideoUrl(c.url));
+      return typeVerdict(c.url, entry.kind) === 'ok';
     });
     if (ok.length > MAX_TRIES) ok = ok.slice(0, MAX_TRIES - 1).concat(ok.slice(-1));
     return ok;
@@ -210,14 +229,10 @@
     return h.slice(0, 80) || 'unknown-host';
   }
   function fileNameFor(url, kind) {
-    var x = parse(url), raw = '';
-    if (x) { raw = x.pathname.split('/').filter(Boolean).pop() || ''; try { raw = decodeURIComponent(raw); } catch (e) { /* keep as is */ } }
-    var ext = (raw.match(/\.([A-Za-z0-9]{2,5})$/) || [])[1] || '';
-    var base = ext ? raw.slice(0, -(ext.length + 1)) : raw;
-    if (!ext && x) {   // X-style links carry the type in the query (?format=jpg)
-      var f = x.searchParams.get('format');
-      if (f && /^[A-Za-z0-9]{2,5}$/.test(f)) ext = f;
-    }
+    var x = parse(url), raw = x ? leafOf(x) : '';
+    var own = (raw.match(/\.([A-Za-z0-9]{2,5})$/) || [])[1] || '';
+    var base = own ? raw.slice(0, -(own.length + 1)) : raw;
+    var ext = typeOf(url);   // the path's type, else ?format= (X-style)
     base = safeSegment(base, 80);
     if (!base || RESERVED.test(base)) base = (kind === 'video' ? 'video' : 'image') + (base ? '-' + base : '');
     ext = ext.toLowerCase();

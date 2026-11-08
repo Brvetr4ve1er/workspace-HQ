@@ -35,7 +35,8 @@ export function briefVals(ctx) {
     brfError: state === 'error', brfErrorText: B.error || '',
     brfLoading: state === 'loading',
     brfEmpty: state === 'ready' && items.length === 0 && more === 0 && sourceErrors.length === 0,
-    brfEmptyText: 'Nothing needs you right now' + (hhmm(brief && brief.generatedAt) ? ' · from the ' + hhmm(brief.generatedAt) + ' brief' : ''),
+    // standing items are still there (3+ days old): the panel must not claim nothing needs the owner while a high one has stood for days
+    brfEmptyText: (standing.length ? 'Nothing new right now' : 'Nothing needs you right now') + (hhmm(brief && brief.generatedAt) ? ' · from the ' + hhmm(brief.generatedAt) + ' brief' : ''),
     brfReady: state === 'ready' && (items.length > 0 || more > 0),
     brfItems: items.map((i) => {
       const [sevLabel, color] = SEV[i.severity] || SEV.low;
@@ -45,7 +46,7 @@ export function briefVals(ctx) {
         actLabel: actLabel(i.action), act: () => this.brfAct(i.action), dismiss: () => this.brfDismiss(i.key) };
     }),
     brfHasStanding: standing.length > 0,
-    brfStandingLead: standing.length ? 'Standing since ' + sinceDay + ':' : '',
+    brfStandingLead: !standing.length ? '' : standing.length === 1 ? 'Standing since ' + sinceDay + ':' : 'Standing, oldest since ' + sinceDay + ':',   // only the oldest has stood since that date; each item's own date is in its tooltip
     brfStanding: standing.map((i, n) => ({ key: i.key, text: i.text.trim(), sep: n ? '·' : '', tip: 'Standing since ' + (dayOf(i.since) || 'a while') + ' · ' + actLabel(i.action), act: () => this.brfAct(i.action) })),
     brfHasMore: more > 0, brfMoreText: '+' + more + ' more' + (named.length ? ' · ' + named.join(' · ') : ''),
     brfHasSourceErrors: sourceErrors.length > 0,

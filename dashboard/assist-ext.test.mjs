@@ -322,6 +322,8 @@ test('needsModel: the honest states, word for word', () => {
   assert.equal(m({ state: 'unpaired' }).title, 'Not paired — pair to see the Brief here');
   assert.equal(m({ state: 'pairing', code: '1234' }).title, 'Pairing — check the code in the WorkspaceHQ window');
   assert.equal(m({ state: 'ok', brief: mkBrief({ items: [], overflow: [], overflowLine: '', more: 0 }), unseen: [] }).title, 'Nothing needs you · from the 14:05 brief');
+  // items that stepped aside after 3 days are still there: never "Nothing needs you" while one stands
+  assert.equal(m({ state: 'ok', brief: mkBrief({ items: [], overflow: [], overflowLine: '', more: 0, standing: { count: 2, since: '2026-11-05', line: '2 standing since 5 Nov' } }), unseen: [] }).title, 'Nothing new · 2 standing since 5 Nov · from the 14:05 brief');
   const inc = m({ state: 'ok', brief: mkBrief({ errorSources: ['github', 'money'] }), unseen: [] });
   assert.equal(inc.incomplete, 'Brief incomplete · github · money');
   const guard = m({ state: 'offline', code: 'impostor', detail: 'something else is answering on port 47821 — not sent' });

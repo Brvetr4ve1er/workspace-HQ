@@ -224,7 +224,8 @@
     if (b.errorSources && b.errorSources.length) m.incomplete = 'Brief incomplete · ' + b.errorSources.join(' · ');
     var stale = isStale(b);
     if (stale) m.note = 'This Brief is ' + (b.ageMinutes != null ? b.ageMinutes + ' min' : 'old') + ' old — open WorkspaceHQ to refresh it';
-    if (!m.rows.length) m.title = 'Nothing needs you' + (at ? ' · from the ' + at + ' brief' : '');
+    var stood = b.standing && b.standing.count > 0 && typeof b.standing.line === 'string' ? b.standing.line : '';   // stepped aside after 3 days, still there
+    if (!m.rows.length) m.title = (stood ? 'Nothing new · ' + stood : 'Nothing needs you') + (at ? ' · from the ' + at + ' brief' : '');
     return m;
   }
 
