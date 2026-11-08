@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (kitchen batch 1: Bridge 0.7.0 saves the image or video you click) · main
+DONE: the owner's yes ("the Bridge may download the image or video I click, and check the same site for a bigger version, only when I click") is built. The 0.7.0 manifest (version NOT bumped again:
+  0.7.0 has not reached the owner) also asks for `downloads` (Chrome: "Manage your downloads"). In "On this page" each row gets one Save button; a press sends one `grab:save` message and the service worker
+  (grab.js) saves that file with chrome.downloads into Downloads/WorkspaceHQ/grabs/<image host>/ (uniquify, no Save As, a sanitized name), falling back down the candidate list; the row says queued, saving,
+  saved to Downloads/WorkspaceHQ/grabs/<host>/, or could not save (tried N sizes). The queue lives in chrome.storage.session (a worker restart resumes it; a download event or the hq-grab alarm wakes the worker),
+  at least 1 s passes between any two requests, one entry per message, at most 10 waiting, and there is no save-all anywhere. The only network call is one HEAD (no cookies, no referrer, no redirects) on a
+  GUESSED bigger version on the image's own host, made only after Save; a page-offered copy on another host and the original are never checked. Plain .mp4 .webm .mov save; blob: and streamed video say they need the video helper.
+  DECISION TO CONFIRM: the owner's limit named Instagram, Facebook and TikTok. The task wording could mean only "no save-all there"; there is no save-all at all, so I read it as the safer thing: nothing is saved from those
+  sites (page or file host, CDNs included), the row says why, and Copy still works. The list is BLOCKED_SITES in browser-bridge/grab-rules.js; delete entries to lift it.
+  Tests: dashboard/grab-download.test.mjs (new, 22) and grab-ext.test.mjs / popup-tokens.test.mjs (the "no downloads" pins now expect it). README updated. No data shape changed, so CONTRACT.md has no entry.
+IN-FLIGHT: none. OWNER STEP: reload the extension at chrome://extensions (Chrome asks about "Manage your downloads"), then right-click an image, press Save.
+ASKS: none. BREAKS: none (extension-only; no route, IPC or data/ change).
+
+---
 ## 2026-11-08 · FROM frontend (kitchen batch 1: Cosmos step one moves onto main — the owner said yes to publishing) · main @ f46b0c2
 DONE: the owner answered the three before-cooking questions on 2026-11-08: yes to publishing the ported Cosmos code, yes to
   download on click in the Bridge, yes to standing Brief items stepping aside after 3 days. So the HOLD is lifted: the Cosmos
