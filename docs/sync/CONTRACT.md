@@ -25,6 +25,7 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 | `data/.refresh.lock` | taken and released by the MCP `hq_scan_trigger` and by the app's Scan now (`dashboard/refresh-lock.js`) | runtime state, **don't validate** · gitignored · frontend lane |
 | `data/.bridge-pairing.json` | written by the bridge pair route (`dashboard/assist-bridge-routes.js`) after the owner's Allow | `{v:1, origin, pairedAt}` · gitignored · frontend lane |
 | `data/delivery.json` | `dashboard/delivery.js` only (renderer and MCP get a derived view) | client delivery checklists · gitignored · frontend lane |
+| `data/cosmos/` (config, library, curation, cleanup, thumbs, imports, clips) | `dashboard/cosmos.js` only (renderer gets it over `hq:cosmos:*`); the collector and `build-data` never read it | owner image library and curation · gitignored · frontend lane · section below |
 
 ## Load-bearing fields in `latest.json` (renderer will crash/blank without these)
 
@@ -428,6 +429,27 @@ Written only by `dashboard/delivery.js` (validated intents of at most 16 KB; ato
 ```
 
 Checklist files in a client repo (SCOPE.md or a file the owner picked) are **read, never written**: main resolves the project path, takes the real path of the root and of the file, requires the file to sit inside the root, be `.md` and be at most 64 KB. The candidate list comes from a bounded walk (3 folders deep, skipping `node_modules`, dot folders, `dist`, `build`; at most 500 files looked at). No amounts, prices or payments are stored. Readers of this file: the renderer over `hq:delivery:*` and the MCP `hq_delivery` (which also reads `latest.json` and `accounts.json`).
+
+### `data/cosmos/` — Cosmos space (frontend lane, local only, gitignored) — 2026-11-07, additive
+
+Rows written before the code lands. `dashboard/cosmos.js` (new, CommonJS) will be the only writer; the collector and
+`build-data` never read this folder, and nothing here enters `window.DATA`, `latest.json` or any scan bundle.
+Spec: `docs/superpowers/specs/2026-11-07-cosmos-space-design.md` (§3 files, §4 element ids, §5 channels and path rules).
+The directory is gitignored as a pattern (it also covers temp files) and pinned in `tools/gitignore-owner-data.test.mjs`.
+
+| File | Shape |
+|---|---|
+| `config.json` | `{ version, root, indexedAt }`. `root: null` = never indexed (shown differently from an empty library) |
+| `library.json` | `{ version, generatedAt, root, idMap, works[], dupes }`. `idMap` = `{ version:1, entries:[{rel, id}] }`, the sticky map from relative path to element id (append-only: a known id is never changed, reused or re-suffixed; it survives every re-index). Each work: `id`, `rel` (root-relative, `/` separators), `title`, `type`, `width`, `height`, `orientation`, `color`, `palette`, `thumb`, `video`, `contentHash`, `perceptualHash`, `tags`, `createdAt`. Load-bearing: `id`, `rel`, `width`, `height` (an unknown size is written as 1:1 with `thumb: null`, never omitted) |
+| `curation.json`, `curation.json.prev` | clusters, favourites, hidden, overrides: the irreplaceable half. `.prev` is the previous good copy, refreshed before every write |
+| `cleanup.json` | dismissed duplicate clusters and junk candidates. Dismissals only; nothing here deletes a file |
+| `thumbs/<id>.jpg` | 560 px JPEG thumbnails, rebuildable |
+| `imports/` | files dropped onto the Feed, copied in and indexed like any other file; in the id map their path is `imports:<file name>` |
+| `clips/` | reserved for the clipper (later) |
+
+Rules: writes are atomic (tmp + rename); a file that fails to parse is moved aside as `*.corrupt` and the read answers
+`{error}`, it is never overwritten with an empty document (a library that will not parse keeps its `idMap` recoverable);
+the root and every path come from a native dialog or from main, never from the renderer; no network, nothing leaves the machine.
 
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),

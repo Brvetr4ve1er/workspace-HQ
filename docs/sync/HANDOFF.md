@@ -12,6 +12,17 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (kitchen batch 1: Cosmos step one moves onto main — the owner said yes to publishing) · main @ f46b0c2
+DONE: the owner answered the three before-cooking questions on 2026-11-08: yes to publishing the ported Cosmos code, yes to
+  download on click in the Bridge, yes to standing Brief items stepping aside after 3 days. So the HOLD is lifted: the Cosmos
+  files from hold/cosmos-core (dashboard/cosmos/*.mjs + tests, the Cosmos spec and plan) land on main as fresh commits, with
+  the README test line and the dated data/cosmos/ CONTRACT section + the ten hq:cosmos:* IPC-CONTRACT rows joined in by hand
+  (both sides were additive). The hold branch and its worktree are no longer needed and get removed after the push.
+IN-FLIGHT: the two follow-ups the yeses unlock (Bridge stage 3: download on click; the Brief's 72 h step-aside), then the
+  batch's final gates, push and live restart.
+ASKS (struct): none new. BREAKS: none (additive; dashboard/cosmos/ is new and nothing loads it until batch 2).
+
+---
 ## 2026-11-08 · FROM frontend (kitchen batch 1, dish 7 tasting fixes: client delivery) · main
 DONE: the link to send is now the deployed branch's newest READY deploy (the deployed branch = the newest ready production deploy's); a failed, building or work-in-progress-branch preview is never offered,
   a newer ready preview elsewhere is named on the card ("not the deployed branch"), no production deploy at all falls back to the newest ready preview, and nothing ready says so with state and age. Copy update

@@ -681,6 +681,29 @@ As built (2026-11-07, additive): intents carry their kind in a `type` key (the M
 
 As built (2026-11-08, additive; tasting fixes): the view's `link` is only ever a READY deploy of the deployed branch — the branch of the newest ready production deploy; its newest ready deploy (preview or production) is the link. Only a project with no production deploy at all falls back to the newest ready preview of any branch (`link.basis:'no-production'`, else `'deployed-branch'`). `link.branch` is the branch it came from; `link.newer` is `{branch, at}` when a newer ready preview exists on another branch (named on the card, never offered), else `null`. When nothing is ready there is no link and `linkWhy` says what the newest deploy is doing ("is not ready (error, 2 h ago)"). The view gains `doneHashes:[string]` (the hashes of the items done in the text shown); `copied` may carry `doneHashes` from the card that was copied — main records only those the live source still has as done (none sent = the live set; a non-array or over-500 list is refused), so an item finished after the card loaded is still reported by the next update. MCP `hq_delivery` `project` is an exact id or name (any case), else a unique prefix or part of the id or name; several matches answer which ids.
 
+## 2026-11-07 — Cosmos space (rows written before the handler lands)
+
+Additive only. New file `dashboard/cosmos.js` + `dashboard/cosmos/*.mjs` (one hook line in `main.js`, taking `getWin` and
+`castSend`); 10th destination, key 0. Spec: `docs/superpowers/specs/2026-11-07-cosmos-space-design.md`. Data: `data/cosmos/`
+(see CONTRACT.md). Every renderer call feature-detects `window.hq.cosmos`.
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `cosmos.read({force?})` | `hq:cosmos:read` | `{ force?: boolean }` | `{ state, config, works, dupes, curation, cleanup, stale? }`; `state` = `empty` (never indexed) | `ready` | `error` · `{error}` (the renderer keeps what it had) | COSMOS (read on arrival, not at boot) |
+| `cosmos.apply(intent)` | `hq:cosmos:apply` | `{type, …fields}`: an INTENT, never an entity or a whole document. `type` ∈ `favorite` `hide` `tags` `title` `cluster-save` `cluster-delete` `cluster-add` `cluster-remove` `cleanup-dismiss` (the final list belongs to the engine batch) | `{view?, note}` after the write landed (atomic tmp + rename) · `{error}` with owner-facing copy when refused (unknown type or id, > 64 KB, bad field), nothing written. Ids and timestamps are minted in main | COSMOS |
+| `cosmos.pickFolder()` | `hq:cosmos:pick-folder` | — (native folder dialog) | the absolute path · `null` if cancelled | COSMOS (empty state) |
+| `cosmos.index()` | `hq:cosmos:index` | — (the root is the last picked folder or `config.json`'s) | `true` (accepted; progress arrives on the push) · `{ok:false, reason, message}` | COSMOS |
+| `cosmos.cancelIndex()` | `hq:cosmos:cancel-index` | — | `true` | COSMOS |
+| `cosmos.trash(ids)` | `hq:cosmos:trash` | element ids (never paths) | `{trashed: id[], failed: [{id, message}]}`; deletes go to the Recycle Bin only, and the renderer removes only what main reports as trashed | COSMOS |
+| `cosmos.reveal(id)` | `hq:cosmos:reveal` | one element id | `true` · `{ok:false, message}` | COSMOS |
+| `cosmos.importFiles(paths)` | `hq:cosmos:import-files` | absolute paths of a drop (from `webUtils.getPathForFile`); copied into `data/cosmos/imports/` at a destination computed in main | `{imported: n, skipped: [{path, reason}]}` | COSMOS (Feed drop) |
+| `cosmos.importFromLocal()` | `hq:cosmos:import-local` | — (main opens its own file dialog for the old gallery's backup envelope and manifest) | `{clusters, favorites, hidden, overrides, missingIds[], seeded, skipped[]}` · `{ok:false, reason, message}` | COSMOS (one-time migration) |
+| `cosmos.onProgress(cb)` | push `hq:cosmos:index-progress` | — | `{phase: 'walk' | 'thumbs' | 'hashes' | 'dupes', done, total, done_all?}`, at most 4 a second; returns an unsubscribe that the space's `stop()` must call | COSMOS |
+
+Path rules (the security surface; full text in the spec §5): the renderer sends ids, never absolute paths, for a read or a delete;
+containment is re-checked after `realpath()`; a manifest path is decoded in exactly one place; no shell, ever; nothing in this space
+touches the network.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

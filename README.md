@@ -77,6 +77,7 @@ Tests (Node 25; the Claude Hub tests need Node 22.13 or newer for `node:sqlite`)
 node --test dashboard/*.test.mjs
 node --test dashboard/claude-hub/*.test.mjs
 node --test dashboard/money/*.test.mjs
+node --test dashboard/cosmos/*.test.mjs
 node --test dashboard-v5/src/*.test.mjs dashboard-v5/src/dc/*.test.mjs dashboard-v5/src/live/*.test.mjs dashboard-v5/src/logic/*.test.mjs dashboard-v5/src/elements/*.test.mjs dashboard-v5/src/vals/*.test.mjs dashboard-v5/styles/*.test.mjs dashboard-v5/tools/*.test.mjs
 node --test tools/*.test.mjs tools/trailer/*.test.mjs mcp/workspacehq/*.test.mjs
 ```
