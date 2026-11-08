@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src file:">
+<title>Cosmos decode</title>
+<!-- Static page for the ONE hidden BrowserWindow that decodes what nativeImage cannot (WebP, AVIF, SVG, GIF,
+     anything the shell had no thumbnail for). dashboard/cosmos-electron.js drives it with executeJavaScript:
+     images arrive as data: URLs (a file: image would taint the canvas), videos are shown through media-src file:
+     and captured by the window, never drawn on the canvas. It has no script of its own and cannot reach the
+     network: default-src 'none', plus a webRequest handler that cancels every scheme but file/data/blob/devtools. -->
+</head>
+<body>
+<canvas id="c" width="1" height="1"></canvas>
+</body>
+</html>
