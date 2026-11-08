@@ -36,6 +36,15 @@ export default String.raw`            <!-- v5: Operator Brief — the 1–3 thin
                   </div>
                   <sc-if value="{{ brfHasMore }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--muted)">{{ brfMoreText }} · dismiss one to see the next</div></sc-if>
                 </sc-if>
+                <!-- v5: Brief standing line — items unchanged for 3 days step aside here, each still one click from where it is cleared -->
+                <sc-if value="{{ brfHasStanding }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-size:12px;color:var(--muted)">
+                    <span>{{ brfStandingLead }}</span>
+                    <sc-for list="{{ brfStanding }}" as="s" hint-placeholder-count="2">
+                      <span style="display:inline-flex;align-items:baseline;gap:8px"><span aria-hidden="true">{{ s.sep }}</span><button type="button" onClick="{{ s.act }}" title="{{ s.tip }}" style="background:none;border:0;padding:0;font:inherit;color:var(--text);text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-align:left">{{ s.text }}</button></span>
+                    </sc-for>
+                  </div>
+                </sc-if>
                 <sc-if value="{{ brfHasSourceErrors }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--orange)">{{ brfSourceErrorsText }}</div></sc-if>
               </section>
             </sc-if>

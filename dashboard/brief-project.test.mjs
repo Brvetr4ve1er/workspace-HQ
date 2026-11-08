@@ -29,7 +29,7 @@ const P = () => projectBrief(BRIEF, { now: NOW, firstSeen: FIRST });
 
 test('snapshot of the key set: top level, items and overflow rows', () => {
   const p = P();
-  assert.deepEqual(Object.keys(p), ['v', 'generatedAt', 'ageMinutes', 'stale', 'counts', 'items', 'overflow', 'overflowLine', 'more', 'errorSources']);
+  assert.deepEqual(Object.keys(p), ['v', 'generatedAt', 'ageMinutes', 'stale', 'counts', 'items', 'overflow', 'overflowLine', 'more', 'errorSources', 'standing']);
   assert.deepEqual(Object.keys(p.items[0]), ['ref', 'rule', 'severity', 'sevWord', 'text', 'count', 'isNew', 'age', 'nav']);
   assert.deepEqual(Object.keys(p.overflow[0]), ['ref', 'rule', 'severity', 'text', 'count', 'isNew']);
   assert.equal(p.v, 1);
@@ -135,4 +135,26 @@ test('deterministic for a fixed now, accepts a Date or ms, and survives garbage'
   assert.equal(projectBrief([], {}), null);
   const g = projectBrief({ items: [null, 5, { key: 1 }, { key: 'a', rule: 'ci-red', severity: 'extreme' }], overflow: 'no', errors: 'no', more: 'lots' }, {});
   assert.deepEqual(g.items, []); assert.deepEqual(g.overflow, []); assert.equal(g.more, 0); assert.equal(g.overflowLine, '');
+});
+
+// ---- standing: a count and a date, never a ref or a name (2026-11-08) ---------------------------------------------------------
+const STD = (key, since, rule = 'dirty') => it(rule, 'low', key, { text: 'STANDING NAME Zorblax', why: 'STANDING WHY', since, action: { kind: 'go', tab: 'projects', projectId: PID } });
+
+test('standing: the projection carries only { count, since, line }, the oldest date, and holds no names', () => {
+  const p = projectBrief({ ...BRIEF, standing: [STD('dirty:' + PID + ':12', '2026-11-06T12:00:00.000Z'), STD('unpushed:' + PID + ':3', '2026-11-05T12:00:00.000Z', 'unpushed')] }, { now: NOW, firstSeen: FIRST });
+  assert.deepEqual(p.standing, { count: 2, since: '2026-11-05', line: '2 standing since 5 Nov' });
+  const s = JSON.stringify(p);
+  for (const bad of ['STANDING NAME', 'Zorblax', 'STANDING WHY', 'dirty:', refOf('dirty:' + PID + ':12')]) assert.ok(!s.includes(bad), bad);
+  assert.deepEqual(p.items, P().items, 'the items do not move');
+  assert.deepEqual(p.counts, P().counts, 'standing is not in counts');
+  assert.equal(p.more, P().more);
+});
+
+test('standing: none, malformed or undated rows give null; a row that is not a live item is not counted', () => {
+  assert.equal(P().standing, null);
+  assert.equal(projectBrief({ ...BRIEF, standing: [] }, { now: NOW }).standing, null);
+  assert.equal(projectBrief({ ...BRIEF, standing: 'no' }, { now: NOW }).standing, null);
+  assert.equal(projectBrief({ ...BRIEF, standing: [STD('k', 'garbage'), null, 5, { key: 'x', rule: 'dirty', severity: 'extreme', since: '2026-11-05T12:00:00.000Z' }] }, { now: NOW }).standing, null);
+  assert.equal(projectBrief({ ...BRIEF, standing: [STD('k', '2026-11-05T12:00:00.000Z'), STD('j', 'garbage')] }, { now: NOW }).standing.count, 1);
+  assert.equal(projectBrief({ ...BRIEF, standing: [STD('k', '2026-11-05T12:00:00.000Z')] }, { now: NOW }).standing.line, '1 standing since 5 Nov');
 });

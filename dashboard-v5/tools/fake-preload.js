@@ -28,7 +28,7 @@
 
 const WRITE = 'write', SEND = 'send';
 // Operator Brief fixture (placeholder projects): one item per severity, so the panel and its gates see every state
-const BRIEF = { v: 1, generatedAt: '2026-11-05T09:00:00.000Z', more: 2, errors: [], items: [
+const BRIEF = { v: 1, generatedAt: '2026-11-05T09:00:00.000Z', more: 2, errors: [], standing: [], items: [
   { key: 'secrets:p1:2', rule: 'secrets', severity: 'high', text: 'Project A has 2 secrets in plain sight', why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: 'scan 1 h ago', action: { kind: 'go', tab: 'projects', projectId: 'p1' }, count: 0 },
   { key: 'scan-stale:2026-11-03', rule: 'scan-stale', severity: 'med', text: 'Scan data is 2 days old', why: 'Projects, quests and risks are as of 2026-11-03.', source: 'scan', age: 'scan 2 d ago', action: { kind: 'scan' }, count: 0 },
   { key: 'claude-sync:0:never', rule: 'claude-sync', severity: 'low', text: "claude.ai chats aren't syncing", why: 'None are indexed yet — turn on Sync claude.ai in the browser extension.', source: 'claude', age: 'never synced', action: { kind: 'go', tab: 'claude', sub: 'chats' }, count: 0 },

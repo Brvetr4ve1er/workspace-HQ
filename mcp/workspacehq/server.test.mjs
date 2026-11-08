@@ -364,3 +364,21 @@ test('hq_delivery is listed with the data line, says honestly when nothing is ma
   assert.ok(tool, 'hq_delivery is listed');
   assert.match(tool.description, /data, never instructions/i);
 });
+
+test('hq_brief returns standing (additive): the stepped-aside items with their since date, untouched by limit; [] when the file has none', async () => {
+  const mk = (n, o = {}) => ({ key: 'dirty:p' + n + ':12', rule: 'dirty', severity: 'low', text: 'Placeholder p' + n + ' has 12 uncommitted files', why: 'x', source: 'scan', age: 'scan 1 h ago', count: 0, action: { kind: 'go', tab: 'projects', projectId: 'p' + n }, ...o });
+  const generatedAt = new Date(Date.now() - 2 * 60e3).toISOString();
+  fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify({ v: 1, generatedAt, more: 0, errors: [], items: [mk(1)], overflow: [], standing: [mk(2, { since: '2026-11-05T09:00:00.000Z' }), mk(3, { since: '2026-11-04T09:00:00.000Z' })] }));
+  const r = await rpc([
+    { id: 36, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } },
+    { id: 37, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 12 } } },
+  ]);
+  for (const id of [36, 37]) {
+    const out = toolResult(r[id]);
+    assert.deepEqual(out.items.map((i) => i.key), ['dirty:p1:12']);
+    assert.deepEqual(out.standing.map((i) => [i.key, i.since]), [['dirty:p2:12', '2026-11-05T09:00:00.000Z'], ['dirty:p3:12', '2026-11-04T09:00:00.000Z']], 'ranked as the app wrote them, limit does not touch them');
+  }
+  fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify({ v: 1, generatedAt, more: 0, errors: [], items: [mk(1)] }));
+  const old = await rpc([{ id: 38, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]);
+  assert.deepEqual(toolResult(old[38]).standing, [], 'a brief.json written before standing existed answers []');
+});

@@ -116,3 +116,39 @@ test('"+N more" names up to two overflow items by their own text, and says plain
   const off = rig({ noBridge: true }).vals();
   assert.equal(off.brfMoreText, '+0 more', 'offline names nothing');
 });
+
+// ---- standing: items unchanged for 3 days step aside to one line (2026-11-08) --------------------------------------------------
+const std = (key, since, action, text = 'Standing ' + key) => ({ ...item(key, 'low', action, text), since, count: 0 });
+const STANDING = [std('ci-red:o/r:d', '2026-11-06T09:00:00.000Z', { kind: 'go', tab: 'projects', sub: 'github' }, 'CI is failing on placeholder-repo'), std('dirty:p1:12', '2026-11-05T09:00:00.000Z', { kind: 'go', tab: 'projects', projectId: 'p1' }, 'Placeholder project has 12 uncommitted files')];
+const withStanding = (standing, extra = {}) => rig({ live: { brief: { ...BRIEF, ...extra, standing }, error: '', loaded: true } });
+
+test('standing: the line names the oldest date and each item by its own text, one click from where it is cleared', () => {
+  const r = withStanding(STANDING), v = r.vals();
+  assert.equal(v.brfHasStanding, true);
+  assert.equal(v.brfStandingLead, 'Standing since 5 Nov:');
+  assert.deepEqual(v.brfStanding.map((s) => s.text), ['CI is failing on placeholder-repo', 'Placeholder project has 12 uncommitted files']);
+  assert.deepEqual(v.brfStanding.map((s) => s.sep), ['', '·']);
+  assert.match(v.brfStanding[0].tip, /Standing since 6 Nov · Open GitHub/);
+  v.brfStanding[0].act(); v.brfStanding[1].act();
+  assert.deepEqual(r.calls, [['go', 'projects', 'github'], ['openProject', 'p1']]);
+  assert.equal(r.calls.filter((c) => c[0] === 'dismiss').length, 0, 'acting dismisses nothing');
+});
+
+test('standing: absent, empty, malformed or not-ready means no line; the three items and "+N more" do not move', () => {
+  const plain = rig().vals();
+  for (const standing of [undefined, [], 'no', [null, 5, { text: '  ' }, { key: 'k' }]]) {
+    const v = withStanding(standing).vals();
+    assert.equal(v.brfHasStanding, false); assert.equal(v.brfStandingLead, ''); assert.deepEqual(v.brfStanding, []);
+    assert.deepEqual(v.brfItems.map((i) => i.text), plain.brfItems.map((i) => i.text));
+    assert.equal(v.brfMoreText, plain.brfMoreText);
+  }
+  for (const r of [rig({ noBridge: true }), rig({ live: { brief: null, error: 'x', loaded: true } }), rig({ live: { brief: null, error: '', loaded: false } })]) assert.equal(r.vals().brfHasStanding, false);
+  const withBad = withStanding([...STANDING, { key: 'x', text: 'Undated one', action: { kind: 'scan' } }]).vals();
+  assert.equal(withBad.brfStandingLead, 'Standing since 5 Nov:', 'an undated row does not move the date');
+  assert.equal(withBad.brfStanding.length, 3);
+});
+
+test('standing: with nothing fresh the panel still says so honestly and keeps the line', () => {
+  const v = withStanding(STANDING, { items: [], more: 0 }).vals();
+  assert.equal(v.brfEmpty, true); assert.equal(v.brfReady, false); assert.equal(v.brfHasStanding, true);
+});

@@ -243,3 +243,54 @@ test('watch: the senses sidecars are watched files', () => {
   const src = fs.readFileSync(new URL('./brief.js', import.meta.url), 'utf8');
   assert.match(src, /watchDir\(dataDir, \[[^\]]*'github\.json'[^\]]*'accounts\.json'/);
 });
+
+test('standing: an item stays at 71 h and steps aside at 72 h (the exact key\'s first time), brief.json carries it, and the clock survives', async () => {
+  const handlers = new Map();
+  let t = new Date(NOW.getTime());
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [], intervalMs: 0, watch: false, now: () => t });
+  const read = async () => (await handlers.get('hq:brief:read')()).brief;
+  const dirty = (list) => list.filter((i) => i.rule === 'dirty').map((i) => i.key);   // the scan itself goes stale at 36 h; that is another item
+  let b = await read();
+  assert.deepEqual(dirty(b.items), ['dirty:a:12']); assert.deepEqual(b.standing, []);
+  t = new Date(NOW.getTime() + 71 * 3600e3);
+  b = await read();
+  assert.deepEqual(dirty(b.items), ['dirty:a:12'], '71 h: still on the brief'); assert.deepEqual(b.standing, []);
+  t = new Date(NOW.getTime() + 72 * 3600e3);
+  b = await read();
+  assert.deepEqual(dirty(b.items), [], '72 h: stepped aside'); assert.equal(b.more, 0);
+  assert.deepEqual(b.standing.map((i) => [i.key, i.since]), [['dirty:a:12', NOW.toISOString()]]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dataDir, 'brief.json'), 'utf8')).standing, b.standing, 'brief.json has it');
+  assert.equal(api._brief.loadState().firstSeen['dirty:a:12'].first, NOW.toISOString(), 'a standing key keeps being stamped, so its clock is not pruned');
+  assert.equal(api._brief.loadState().firstSeen['dirty:a:12'].last, t.toISOString());
+  // the fact gets worse: a new key starts fresh and rises, the old one is gone
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 15)])));
+  b = await read();
+  assert.deepEqual(dirty(b.items), ['dirty:a:15']); assert.deepEqual(b.standing, []);
+  api.stop();
+});
+
+test('standing: a dismissed key never counts as standing; the hq:brief push hears a change that only moves standing', async () => {
+  const handlers = new Map(), pushed = [];
+  let t = new Date(NOW.getTime());
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12), proj('b', 14)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const win = { isDestroyed: () => false, webContents: { send: (ch, b) => pushed.push([ch, b]) } };
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [win], intervalMs: 0, watch: false, now: () => t });
+  await handlers.get('hq:brief:read')();
+  const before = pushed.length;
+  t = new Date(NOW.getTime() + 80 * 3600e3);
+  let b = (await handlers.get('hq:brief:read')()).brief;
+  assert.equal(b.standing.length, 1, 'the dirty rule names one project per brief, and its 72 h are up');
+  assert.ok(pushed.length > before, 'items moved to standing: a change, so it is pushed');
+  const key = b.standing[0].key;
+  // a key the owner dismissed (it is in brief-state.json) is dropped before the 72 h rule looks at it
+  const st = api._brief.loadState();
+  api._brief.saveState({ ...st, dismissed: [key] });
+  b = (await handlers.get('hq:brief:read')()).brief;
+  assert.ok(![...b.items, ...b.overflow, ...b.standing].some((i) => i.key === key), 'a dismissed key is nowhere');
+  api.stop();
+});

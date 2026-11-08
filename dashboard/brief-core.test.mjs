@@ -237,3 +237,76 @@ test('a sense that throws or sees garbage skips only itself', () => {
   const b = run(withSenses({ scan: { projects: [proj('a', { dirty: 12 })] } }, { github: 'nope', vercel: 7, pcDetail: [], sessions: 'x', hubProjects: null, sessionTurns: 3 }));
   assert.deepEqual(rules(b), ['dirty']);
 });
+
+// ---- standing: items unchanged for 72 h step aside (2026-11-08, owner-approved) ------------------------------------------------
+// firstSeen = brief-state.json's { key: {first, last} }; the engine reads the exact key's first time and never mutates anything
+const seen = (o) => Object.fromEntries(Object.entries(o).map(([k, agoMs]) => [k, { first: iso(agoMs), last: iso(0) }]));
+const runS = (inputs, firstSeen, dismissed = []) => computeBrief(inputs, { now: NOW, dismissed, firstSeen });
+const fourOf = () => base({ scan: { projects: [proj('a', { dirty: 12 }), proj('s', {}, { secrets_found: 1 })], quests: [{ id: 'q1', title: 'Placeholder quest', tier: 'red', status: 'open' }] } });
+
+test('standing: 71 h stays on the brief, 72 h steps aside, with its first time as since', () => {
+  const k = 'dirty:a:12';
+  let b = runS(base({ scan: { projects: [proj('a', { dirty: 12 })] } }), seen({ [k]: 71 * H }));
+  assert.deepEqual(b.items.map((i) => i.key), [k]); assert.deepEqual(b.standing, []);
+  b = runS(base({ scan: { projects: [proj('a', { dirty: 12 })] } }), seen({ [k]: 72 * H }));
+  assert.deepEqual(b.items, []); assert.equal(b.standing.length, 1);
+  assert.equal(b.standing[0].key, k); assert.equal(b.standing[0].since, iso(72 * H)); assert.equal(b.standing[0].rule, 'dirty');
+  assert.equal(b.standing[0].count, 0); assert.equal(b.standing[0].severity, 'low');
+});
+
+test('standing: without firstSeen (or a key it has not seen) nothing steps aside', () => {
+  const inputs = base({ scan: { projects: [proj('a', { dirty: 12 })] } });
+  assert.deepEqual(computeBrief(inputs, { now: NOW }).standing, []);
+  assert.equal(computeBrief(inputs, { now: NOW }).items.length, 1);
+  assert.deepEqual(runS(inputs, seen({ 'dirty:a:99': 9 * D })).standing, [], 'a worse value is a new key: its clock starts fresh');
+  assert.deepEqual(runS(inputs, { 'dirty:a:12': { first: 'garbage', last: iso(0) } }).standing, []);
+  assert.deepEqual(runS(inputs, { 'dirty:a:12': { first: new Date(NOW.getTime() + H).toISOString(), last: iso(0) } }).standing, [], 'a first time in the future is not old');
+});
+
+test('standing: a changed value is a new key, so a worse count starts fresh and rises', () => {
+  const was = runS(base({ scan: { projects: [proj('a', { dirty: 12 })] } }), seen({ 'dirty:a:12': 5 * D }));
+  assert.equal(was.standing.length, 1);
+  const now = runS(base({ scan: { projects: [proj('a', { dirty: 15 })] } }), seen({ 'dirty:a:12': 5 * D }));
+  assert.deepEqual(now.items.map((i) => i.key), ['dirty:a:15']); assert.deepEqual(now.standing, []);
+});
+
+test('standing: secrets are exempt and keep their place, however old', () => {
+  const b = runS(fourOf(), seen({ 'secrets:s:1': 30 * D, 'quest-red:q1': 30 * D }));
+  assert.deepEqual(b.items.map((i) => i.rule), ['secrets', 'dirty'], 'secrets stays, the standing quest steps aside');
+  assert.deepEqual(b.standing.map((i) => i.rule), ['quest-red']);
+});
+
+test('standing: a dismissed key never counts, standing or not', () => {
+  const b = runS(fourOf(), seen({ 'quest-red:q1': 30 * D, 'dirty:a:12': 30 * D }), ['quest-red:q1']);
+  assert.deepEqual(b.standing.map((i) => i.key), ['dirty:a:12']);
+  assert.ok(![...b.items, ...b.overflow, ...b.standing].some((i) => i.key === 'quest-red:q1'));
+});
+
+test('standing: fresh items rise into the top 3, standing keep their rank and are not counted in more', () => {
+  const inputs = base({ scan: { projects: [proj('s', {}, { secrets_found: 1 }), proj('u', { ahead: 2, unpushed: true }), proj('a', { dirty: 12 })], quests: [{ id: 'q1', title: 'Placeholder quest', tier: 'red', status: 'open' }] } });
+  const plain = run(inputs);
+  assert.deepEqual(plain.items.map((i) => i.rule), ['secrets', 'quest-red', 'unpushed']); assert.equal(plain.more, 1);
+  const b = runS(inputs, seen({ 'quest-red:q1': 4 * D, 'unpushed:u:2': 5 * D }));
+  assert.deepEqual(b.items.map((i) => i.rule), ['secrets', 'dirty'], 'the dirty item rose into the slots');
+  assert.equal(b.more, 0, 'more counts only what is fresh and hidden');
+  assert.deepEqual(b.standing.map((i) => i.rule), ['quest-red', 'unpushed'], 'ranked as before');
+  assert.deepEqual(b.standing.map((i) => i.since), [iso(4 * D), iso(5 * D)]);
+  assert.deepEqual(Object.keys(b.standing[0]), [...Object.keys(b.items[0]), 'since']);
+});
+
+test('standing: the brief keeps every other field, and does not mutate firstSeen', () => {
+  const fs0 = seen({ 'dirty:a:12': 4 * D }), copy = JSON.stringify(fs0);
+  const b = runS(base({ scan: { projects: [proj('a', { dirty: 12 })] } }), fs0);
+  assert.equal(JSON.stringify(fs0), copy);
+  assert.deepEqual(Object.keys(b), ['v', 'generatedAt', 'items', 'more', 'overflow', 'standing', 'errors']);
+  assert.equal(b.v, 1); assert.deepEqual(b.errors, []);
+});
+
+test('standing: toasts are unchanged - the table above is untouched, and a stepped-aside high item hands the top to the next one', () => {
+  const inputs = base({ scan: { projects: [proj('a', { dirty: 12 })], quests: [{ id: 'q1', title: 'Placeholder quest', tier: 'red', status: 'open' }] } });
+  const b = runS(inputs, seen({ 'quest-red:q1': 4 * D }));
+  assert.equal(b.items[0].rule, 'dirty');
+  const r = shouldToast(b, { toasted: {}, lastTop: 'quest-red:q1' }, new Date(2026, 10, 5, 12, 0, 0));
+  assert.equal(r.toast, null, 'a low item on top never toasts');
+  assert.equal(r.state.lastTop, 'dirty:a:12');
+});

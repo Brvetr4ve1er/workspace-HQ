@@ -1,7 +1,11 @@
 // Operator Brief engine (spec docs/superpowers/specs/2026-11-05-operator-design.md). PURE: no IO, no clock, no LLM —
 // the same inputs and `now` always give the same brief, so it's explainable and works with every model down.
 //
-// computeBrief(inputs, { now, dismissed }) → { v:1, generatedAt, items:[≤ 3], more, overflow:[items 4 to 12, same shape], errors }
+// computeBrief(inputs, { now, dismissed, firstSeen }) → { v:1, generatedAt, items:[≤ 3], more, overflow:[items 4 to 12, same shape], standing:[{...item, since}], errors }
+//   standing (2026-11-08): an item whose exact key has been on the brief for 72 h or more (firstSeen[key].first, brief-state.json) and
+//   was never dismissed steps aside so fresh items take the 3 slots. It keeps its rank among the standing, carries `since` (that first
+//   time, ISO) and is NOT counted in `more` (more = what is hidden from the top 3 among the fresh). Security items (STANDING_EXEMPT:
+//   secrets) never step aside. A worse value is a new key, so its clock starts fresh. Without `firstSeen` nothing is standing.
 //   inputs = { scan: latest.json, liveScan: {state, endedAt, code}, pc: pc-health.json, money: the money view,
 //              moneyMeta: {lastExportAt}, hub: {webCount, lastSyncAt}, errors: [{source, error}],
 //              + the senses' sources (brief-sources.js): github, vercel, pcDetail, sessions, sessionTurns, hubProjects, docsRoot } — any may be null
@@ -15,6 +19,7 @@ export const RULES = ['scan-failed', 'secrets', 'prod-deploy-error', 'money-late
 export const SEV_RANK = { high: 0, med: 1, low: 2 };
 const CAP = 3, OVERFLOW_MAX = 12;   // items 4 to 12 ride along as brief.overflow
 const H = 3600e3, D = 24 * H;
+export const STANDING_MS = 72 * H, STANDING_EXEMPT = ['secrets'];   // items unchanged this long step aside; the secrets rule never does
 const SCAN_STALE_MS = 36 * H, DIRTY_MIN = 10, BACKUP_MS = 30 * D, SYNC_STALE_MS = 3 * D;
 const QUIET_FROM = 23, QUIET_TO = 8, TOAST_EVERY_MS = 24 * H;
 
@@ -141,6 +146,7 @@ export function computeBrief(inputs, opts) {
   const nowD = o.now instanceof Date ? o.now : new Date(0);
   const now = nowD.getTime();
   const dismissed = new Set(arr(o.dismissed).map(String));
+  const seen = isObj(o.firstSeen) ? o.firstSeen : {};
   const scan = isObj(i.scan) ? i.scan : null;
   const scanMs = scan && isObj(scan.scan) ? msOf(scan.scan.date) : null;
   const ctx = {
@@ -166,7 +172,13 @@ export function computeBrief(inputs, opts) {
   // stable: severity first, rule order within a severity (all[] is already in rule order)
   all.sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);
   const errors = arr(i.errors).filter((e) => isObj(e) && typeof e.source === 'string' && typeof e.error === 'string').map((e) => ({ source: e.source, error: e.error }));
-  return { v: 1, generatedAt: nowD.toISOString(), items: all.slice(0, CAP), more: Math.max(0, all.length - CAP), overflow: all.slice(CAP, OVERFLOW_MAX), errors };
+  // standing: unchanged for 72 h (the exact key's first time), not a security item; a dismissed key is already out of all[], so it never counts
+  const fresh = [], standing = [];
+  for (const it of all) {
+    const f = STANDING_EXEMPT.includes(it.rule) || !isObj(seen[it.key]) ? null : msOf(seen[it.key].first);
+    if (f !== null && now - f >= STANDING_MS) standing.push({ ...it, since: new Date(f).toISOString() }); else fresh.push(it);
+  }
+  return { v: 1, generatedAt: nowD.toISOString(), items: fresh.slice(0, CAP), more: Math.max(0, fresh.length - CAP), overflow: fresh.slice(CAP, OVERFLOW_MAX), standing, errors };
 }
 
 export function shouldToast(brief, state, now) {

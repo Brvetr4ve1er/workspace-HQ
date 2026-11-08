@@ -248,3 +248,14 @@ test('brief: the real tray-brief view feeds the template end to end', async () =
   click(t[1]);
   assert.deepEqual(opened, [{ tab: 'projects', projectId: 'a' }]);
 });
+
+test('brief: a standing line (a count and a date) is a disabled line after the rows and the +N more line; absent changes nothing', () => {
+  const { actions } = spyActions();
+  const without = trayTemplate({ scan: SCAN, spells: SPELLS, brief: VIEW }, actions);
+  const withLine = trayTemplate({ scan: SCAN, spells: SPELLS, brief: { ...VIEW, standingLine: '2 standing since 5 Nov' } }, actions);
+  const i = withLine.findIndex((x) => x.label === '2 standing since 5 Nov');
+  assert.ok(i > 0); assert.equal(withLine[i].enabled, false); assert.equal(withLine[i].click, undefined);
+  assert.equal(withLine[i - 1].label, VIEW.overflow.label, 'right after the +N more line');
+  assert.deepEqual(labels(withLine.filter((_, n) => n !== i)), labels(without));
+  assert.equal(JSON.stringify(trayTemplate({ scan: SCAN, spells: SPELLS, brief: { ...VIEW, standingLine: null } }, actions)), JSON.stringify(without));
+});

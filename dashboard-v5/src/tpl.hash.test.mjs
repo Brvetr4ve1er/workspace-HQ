@@ -59,9 +59,10 @@ import tpl from './app.tpl.js';
 // 2026-11-07 money in one minute + one line per spend: the start card (tpl/money-start.tpl.js, +5355 chars) replaces the money fragment's "start with what you have" card (-1777 chars) in the no-accounts branch, and the quick line (+2175 chars) leads Today under mnyHasAccounts; each carries a <!-- v5: --> marker; +22 chars of indentation per interpolation, nothing else moved (+5797 chars / +5805 bytes)
 // 2026-11-07 client delivery: the card fragment (tpl/delivery.tpl.js, +15482 chars — exactly the fragment's own length) interpolated into project-page before the Claude section, one <!-- v5: --> marker; nothing else moved (+15482 chars / +15504 bytes)
 // 2026-11-08 client delivery tasting fixes: one line in the card fragment (tpl/delivery.tpl.js) — the "a newer preview on <branch> is not the deployed branch" note under the link, +179 chars / +179 bytes, nothing else moved
-const SHA256 = '3d64326f3c6a2d45793d28d8c4e3a7d3282a6d6ec4cfd5f5e0a75da952c3cb33';
-const LENGTH = 339866;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 340431;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-08 Brief standing line: one block in the brief fragment (tpl/brief.tpl.js) under the items - "Standing since 5 Nov: <text> · <text>" with each item a button, bound to brfHasStanding / brfStandingLead / brfStanding, with its <!-- v5: --> marker; nothing else moved (+957 chars / +959 bytes)
+const SHA256 = '538694b380ece69bf233f42401f5acc980919804a692d1f51114bc1ac4ea6907';
+const LENGTH = 340823;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 341390;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

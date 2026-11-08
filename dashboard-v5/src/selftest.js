@@ -303,8 +303,14 @@ export async function run(W = window.WHQ) {
         // the senses' items: CI, a failed prod deploy, a waiting pull request (their actions land on Projects › GitHub / Vercel & Supabase)
         const sItem = (key, severity, text, sub, count = 0) => Object.assign(bItem(key, severity, { kind: 'go', tab: 'projects', sub }), { text, count, source: sub === 'accounts' ? 'vercel' : 'github' });
         const SI = [sItem('prod-deploy-error:placeholder-site:d', 'high', 'placeholder-site failed to deploy to production', 'accounts'), sItem('ci-red:o/r:d', 'med', 'CI is failing on placeholder-repo and 2 more repos', 'github', 2), sItem('review-waiting:d', 'low', '2 pull requests are waiting on you', 'github', 1)];
+        // standing: items unchanged for 3 days that stepped aside (brief-core.mjs); the Home line names each one and keeps it clickable
+        const STD = [Object.assign(bItem('ci-red:o/r:d1', 'med', { kind: 'go', tab: 'projects', sub: 'github' }), { text: 'CI is failing on placeholder-repo', since: '2026-11-05T09:00:00.000Z' }), Object.assign(bItem('dirty:p:12', 'low', { kind: 'go', tab: 'projects', projectId: (M.P0[0] || {}).id || 'p' }), { text: 'Placeholder project has 12 uncommitted files', since: '2026-11-06T09:00:00.000Z' })];
+        const BSTD = (items, standing, more = 0) => { const v = BV(items, more); v.brief.standing = standing; return v; };
         for (const [name, brief, extra] of [
           ['brief-empty', BV([])],
+          ['brief-standing-1', BSTD(BI, STD.slice(0, 1))],
+          ['brief-standing-2', BSTD(BI.slice(0, 2), STD, 1)],
+          ['brief-standing-only', BSTD([], STD)],
           ['brief-error', { brief: null, error: 'selftest: synthetic brief error', loaded: true }],
           ['brief-loading', { brief: null, error: '', loaded: false }],
           ['brief-1', BV(BI.slice(0, 1))],

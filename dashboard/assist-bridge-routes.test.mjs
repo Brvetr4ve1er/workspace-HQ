@@ -296,3 +296,10 @@ test('the real brief-project.mjs leaks no fixture name through the route', { ski
   for (const bit of SECRET_BITS) assert.ok(!r.raw.includes(bit), `real projection leaked ${bit}`);
   setUp();
 });
+
+test('cleanProjection passes the standing count and date, and nothing else a standing row might carry', () => {
+  const out = routes.cleanProjection({ v: 1, items: [], overflow: [], standing: { count: 2, since: '2026-11-05', line: '2 standing since 5 Nov', text: 'NAME-LEAK', items: [{ key: 'KEY-LEAK' }] } });
+  assert.deepEqual(out.standing, { count: 2, since: '2026-11-05', line: '2 standing since 5 Nov' });
+  assert.ok(!JSON.stringify(out).includes('LEAK'));
+  for (const none of [undefined, null, 'x', { count: 0 }, { count: 'many' }]) assert.equal(routes.cleanProjection({ v: 1, standing: none }).standing, null);
+});

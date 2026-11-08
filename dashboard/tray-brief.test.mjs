@@ -213,3 +213,16 @@ test('set(garbage) keeps the tray honest; routeOf only passes well-formed routes
   assert.equal(routeOf({ kind: 'scan' }), null);
   assert.deepEqual(routeOf({ kind: 'go', tab: 'projects', sub: 'A B', projectId: 'bad id!' }), { tab: 'projects' });
 });
+
+test('standing: the view carries only the count and the date line, no row for it, and the tooltip is unchanged', async () => {
+  const STD = it('dirty', 'low', 'dirty:proj-id-7731:12', { text: 'Zorblax Prime has 12 uncommitted files', since: new Date(2026, 10, 5, 12, 0, 0).toISOString() });
+  const { tb } = await make(brief([SECRETS], { standing: [STD] }), seenAgo([SECRETS.key], 2 * H));
+  const v = tb.view();
+  assert.equal(v.standingLine, '1 standing since 5 Nov');
+  assert.equal(v.rows.length, 1, 'a standing item is not a row');
+  assert.equal(v.total, 1, 'and not in the total');
+  assert.ok(!JSON.stringify(v).includes('Zorblax') && !JSON.stringify(v).includes('proj-id-7731'));
+  assert.equal(tb.tooltip(), 'WorkspaceHQ — 1 needs you · 1 new');
+  const none = (await make(brief([SECRETS]), seenAgo([SECRETS.key], 2 * H))).tb.view();
+  assert.equal(none.standingLine, null);
+});

@@ -3,7 +3,8 @@
 // projectBrief(brief, { now, firstSeen }) → null | {
 //   v:1, generatedAt, ageMinutes, stale, counts:{high,med,low},
 //   items:[{ ref, rule, severity, sevWord, text, count, isNew, age, nav:{kind,tab,sub} }],
-//   overflow:[{ ref, rule, severity, text, count, isNew }], overflowLine, more, errorSources:[source names] }
+//   overflow:[{ ref, rule, severity, text, count, isNew }], overflowLine, more, errorSources:[source names],
+//   standing: null | { count, since:'YYYY-MM-DD', line:'2 standing since 5 Nov' } }   (the items that stepped aside after 72 h: a count and the date, never a ref or a name)
 //
 // This is the ONLY text the tray, the toolbar badge and any later phone door may show. It is built from an allowlist:
 // wording comes from one fixed table keyed by rule id (never from the item's own text, which names projects, bills and
@@ -40,6 +41,7 @@ export const WORDING = {
   'money-empty': { one: "Money isn't set up yet", short: 'Money is not set up yet' },
   'claude-sync': { one: "claude.ai chats aren't syncing", short: "claude.ai chats aren't syncing" },
 };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
 const arr = (x) => (Array.isArray(x) ? x : []);
@@ -90,9 +92,16 @@ export function projectBrief(brief, { now, firstSeen } = {}) {
   // "+4 more · CI failing on 4 repos · 2 pull requests waiting": at most two rule phrases, in ranked order, projection wording
   const phrases = arr(brief.overflow).filter(live).slice(0, 2).map((it) => phrase(it.rule, it.count, true));
   const overflowLine = more > 0 ? ['+' + more + ' more'].concat(phrases).join(' · ') : '';
+  // standing: how many stepped aside and since when (the oldest) — a count and a date; the items themselves never get in
+  let standing = null;
+  const sMs = arr(brief.standing).filter((it) => live(it) && msOf(it.since) !== null).map((it) => msOf(it.since));
+  if (sMs.length) {
+    const d = new Date(Math.min(...sMs)), pad = (n) => String(n).padStart(2, '0');
+    standing = { count: sMs.length, since: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()), line: sMs.length + ' standing since ' + d.getDate() + ' ' + MONTHS[d.getMonth()] };
+  }
   const gen = msOf(brief.generatedAt);
   const ageMinutes = gen === null ? null : Math.max(0, Math.floor((t - gen) / 60e3));
   const sources = [];
   for (const e of arr(brief.errors)) if (isObj(e) && typeof e.source === 'string' && /^[a-z0-9-]{1,24}$/.test(e.source) && !sources.includes(e.source)) sources.push(e.source);
-  return { v: 1, generatedAt: gen === null ? null : new Date(gen).toISOString(), ageMinutes, stale: ageMinutes === null || ageMinutes > STALE_MIN, counts, items, overflow, overflowLine, more, errorSources: sources };
+  return { v: 1, generatedAt: gen === null ? null : new Date(gen).toISOString(), ageMinutes, stale: ageMinutes === null || ageMinutes > STALE_MIN, counts, items, overflow, overflowLine, more, errorSources: sources, standing };
 }

@@ -79,6 +79,7 @@ function trayTemplate(state, actions) {
     if (br.noteLine) head.push({ label: String(br.noteLine), enabled: false });
     for (const r of (Array.isArray(br.rows) ? br.rows : []).slice(0, 3)) if (r && typeof r.ref === 'string') head.push({ label: String(r.label || ''), click: r.scan ? runScanRow(r.ref) : run('openRef', r.ref) });
     if (br.overflow && br.overflow.label) head.push({ label: String(br.overflow.label), click: run('show') });
+    if (br.standingLine) head.push({ label: String(br.standingLine), enabled: false });   // items that stepped aside after 72 h: a count and a date, no names
   } else head.push({ label: statusLine(scan), enabled: false });
 
   const items = [

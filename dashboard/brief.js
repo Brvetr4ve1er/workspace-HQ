@@ -95,14 +95,16 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     const st = loadState();
     const inputs = await buildInputs();
     const t = now();
-    const brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed });
-    // firstSeen: stamp `first` on a key seen for the first time, `last` on every live key, drop keys not live for 7 days
+    // firstSeen: keys not live for 7 days are forgotten BEFORE the engine reads it (a key that left and came back late starts fresh)
     const iso = t.toISOString(), firstSeen = {};
     for (const [k, v] of Object.entries(st.firstSeen)) if (t.getTime() - Date.parse(v.last) < FIRSTSEEN_KEEP_MS) firstSeen[k] = v;
-    for (const it of brief.items.concat(brief.overflow || [])) firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso };
+    // standing items (unchanged for 72 h) step aside inside the engine, from firstSeen's first time for the exact key
+    const brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed, firstSeen });
+    // then stamp `first` on a key seen for the first time and `last` on every live key (standing ones too, or their clock would be pruned)
+    for (const it of brief.items.concat(brief.overflow || [], brief.standing || [])) firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso };
     st.firstSeen = cleanFirstSeen(firstSeen);
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
-    const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.errors]);   // generatedAt alone is not a change
+    const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.errors]);   // generatedAt alone is not a change
     const changed = sig !== lastSig;
     lastSig = sig; last = brief;
     return { brief, changed, state: st, firstSeen: st.firstSeen };

@@ -138,6 +138,7 @@ function cleanProjection(p) {
     overflow: list(p.overflow, false).slice(0, 12),
     overflowLine: str(p.overflowLine, 200),
     more: n(p.more),
+    standing: isObj(p.standing) && n(p.standing.count) > 0 ? { count: n(p.standing.count), since: str(p.standing.since, 10), line: str(p.standing.line, 40) } : null,
     errorSources: Array.isArray(p.errorSources) ? p.errorSources.filter((s) => typeof s === 'string').map((s) => s.slice(0, 40)).slice(0, 12) : [],
   };
 }
