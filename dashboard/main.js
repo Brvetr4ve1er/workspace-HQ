@@ -145,6 +145,9 @@ function createWindow(show = true) {
   win = new BrowserWindow({
     width: 1180, height: 820, backgroundColor: '#0d1117', title: 'WorkspaceHQ',
     icon: path.join(DIR, 'icon.png'), show,
+    // A hidden start (--hidden, the login item) must load as hidden: Electron's default keeps a never-shown window's page
+    // "visible", which counted every login as the owner opening Home (hq:use). Nothing here waits on 'ready-to-show'.
+    paintWhenInitiallyHidden: show,
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(DIR, 'preload.js') },
   });
   const uiv = uiVersion();   // always loads dashboard-v5; a flag still naming v2–v4 is only logged
