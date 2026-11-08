@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-08 · FROM frontend (batch 2 started: the Cosmos space on key 0) · main @ 0572b38
+DONE: the plan docs/superpowers/plans/2026-11-08-cosmos-batch2.md (7 dishes, three cook waves) from the Cosmos design and its
+  port package; the owner asked "start batch 2 with the cosmos space".
+IN-FLIGHT: batch 2 Cosmos cooking (new files only until the Pass): dashboard/cosmos/*.mjs (index engine, native adapters),
+  dashboard/cosmos.js (+ helpers), dashboard/cosmos-native.check.js, dashboard-v5/src/logic/cosmos-*.mjs (search, layout),
+  the renderer slice/vals/logic/templates, the gates (an invented library generator, selftest states, cdp scenarios), and
+  MCP hq_cosmos_search. Then, in the Pass, edits to: dashboard/main.js (one hook), preload.js, use-log.js, fake-preload.js,
+  tools/cdp-gate.mjs, src/selftest.js, src/app.js, app.tpl.js, live/catalog.mjs (NAV[9] cosmos, key 0), live/store.js,
+  logic/palette.js, logic/whats-new.js, vals/{index,shell,ctx}.js, elements/hq-v3.js, the goldens, mcp/workspacehq/{guard,
+  server}.mjs (+ tests, README), docs/sync/{IPC-CONTRACT,CONTRACT}.md (additive As-built notes), README.md, CLAUDE.md.
+ASKS (struct): none. BREAKS: none yet (additive; key 0 gains a destination, nothing else moves).
+
+---
 ## 2026-11-08 · FROM frontend (kitchen batch 1 DONE — pushed, live app restarted) · main @ 979ae10
 DONE: all 8 dishes of the 2026-11-07 roadmap, each committed on its own with its tasting fixes: the assistant's rulebook and
   use counter; recall of past Claude chats on an index that can't be wiped; the Brief's six senses, overflow and tray rows;
