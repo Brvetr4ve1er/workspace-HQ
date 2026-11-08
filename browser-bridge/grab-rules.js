@@ -166,8 +166,11 @@
   var TYPE_MESSAGE = "Can't save this type of file";
   var SAVE_ROOT = 'WorkspaceHQ/grabs';
   var MAX_TRIES = 6;   // the first five candidates and the original
-  // Instagram, Facebook and TikTok: nothing is saved from them, not even one at a click (the owner's limit, 2026-11-08)
-  var BLOCKED_SITES = ['instagram.com', 'cdninstagram.com', 'facebook.com', 'fbcdn.net', 'fbsbx.com', 'tiktok.com', 'tiktokcdn.com', 'tiktokcdn-us.com', 'tiktokcdn-eu.com', 'tiktokv.com', 'muscdn.com', 'ibyteimg.com', 'byteimg.com', 'byteoversea.com', 'fb.com', 'fb.watch'];
+  // Sites where nothing is saved, not even one file at a click. EMPTY on purpose: the owner's yes of 2026-11-08 allows one
+  // save per click on every site, Instagram, Facebook and TikTok included, and rules out only "grab all", which exists
+  // nowhere in the Bridge. To switch a site off again, add its domain here (it matches the host and every subdomain), e.g.
+  // 'instagram.com', 'cdninstagram.com', 'facebook.com', 'fbcdn.net', 'tiktok.com', 'tiktokcdn.com'.
+  var BLOCKED_SITES = [];
   var BLOCKED_MESSAGE = 'saving is off on Instagram, Facebook and TikTok';
   var RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 

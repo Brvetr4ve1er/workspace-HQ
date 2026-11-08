@@ -371,20 +371,18 @@ test('blob: and streamed video say they need the video helper and start nothing;
   assert.deepEqual(plain(w.rules.saveCandidates(img('https://alpha-site.test/v/a.mp4', [{ url: 'https://alpha-site.test/v/a.m3u8', w: 1920 }], 'video'))).map((c) => c.url), ['https://alpha-site.test/v/a.mp4']);
 });
 
-test('nothing is saved from Instagram, Facebook or TikTok: not the page, not the file host, not a variant', async () => {
+test('Instagram, Facebook and TikTok save one file per click like any other site (the owner\'s yes of 2026-11-08 rules out only grab-all, which exists nowhere)', async () => {
   const { browser, save, w } = setup();
-  const blocked = 'saving is off on Instagram, Facebook and TikTok';
-  assert.equal((await save(img('https://alpha-site.test/m/a.jpg'), { pageUrl: 'https://www.instagram.com/p/abc/' })).message, blocked);
-  assert.equal((await save(img('https://alpha-site.test/m/a.jpg'), { pageUrl: 'https://m.facebook.com/photo' })).message, blocked);
-  assert.equal((await save(img('https://alpha-site.test/m/a.jpg'), { pageUrl: 'https://www.tiktok.com/@x/video/1' })).message, blocked);
-  assert.equal((await save(img('https://scontent-xyz.cdninstagram.com/v/t51/a.jpg'))).message, blocked);
-  assert.equal((await save(img('https://video.fbcdn.net/v/a.mp4', [], 'video'))).message, blocked);
-  assert.equal((await save(img('https://v16.tiktokcdn.com/a.mp4', [], 'video'))).message, blocked);
-  assert.equal(browser.queue().length, 0);
-  assert.deepEqual(plain(w.rules.saveCandidates(img('https://alpha-site.test/m/a.jpg', [{ url: 'https://scontent.cdninstagram.com/a-big.jpg', w: 2000 }]))).map((c) => c.url), ['https://alpha-site.test/m/a.jpg']);
-  // a look-alike is not blocked (the match is on a label boundary)
-  assert.equal(w.rules.saveCheck(img('https://notinstagram.com/a.jpg')).ok, true);
-  assert.equal(w.rules.saveCheck(img('https://alpha-site.test/a.jpg'), 'https://facebook.com.alpha-site.test/').ok, true);
+  assert.equal((await save(img('https://alpha-site.test/m/a.jpg'), { pageUrl: 'https://www.instagram.com/p/abc/' })).ok, true);
+  assert.equal((await save(img('https://alpha-site.test/m/b.jpg'), { pageUrl: 'https://m.facebook.com/photo' })).ok, true);
+  assert.equal((await save(img('https://alpha-site.test/m/c.jpg'), { pageUrl: 'https://www.tiktok.com/@x/video/1' })).ok, true);
+  assert.equal((await save(img('https://scontent-xyz.cdninstagram.com/v/t51/a.jpg'))).ok, true);
+  assert.equal((await save(img('https://video.fbcdn.net/v/a.mp4', [], 'video'))).ok, true);
+  assert.equal((await save(img('https://v16.tiktokcdn.com/a.mp4', [], 'video'))).ok, true);
+  assert.equal(browser.queue().length, 6, 'six clicks, six saves queued: still one per click');
+  // a bigger copy the page offers on their CDN is a candidate like any other
+  assert.ok(plain(w.rules.saveCandidates(img('https://alpha-site.test/m/a.jpg', [{ url: 'https://scontent.cdninstagram.com/a-big.jpg', w: 2000 }]))).map((c) => c.url).includes('https://scontent.cdninstagram.com/a-big.jpg'));
+  assert.equal(w.rules.isBlockedHost('www.instagram.com'), false);
 });
 
 test('file names are safe: no separators, no dot segments, no reserved Windows names, a bounded length, and the type kept', () => {
@@ -468,12 +466,12 @@ test('the popup shows the helper message instead of a Save button for streamed o
   const saves = d.buttons().filter((b) => /^Save/.test(b.textContent));
   assert.equal(saves.length, 2, 'the streamed row has none');
   assert.ok(!d.buttons().some((b) => /\ball\b/i.test(b.textContent)));
-  // on a blocked page every row says why and none has Save
+  // on an Instagram page a row still has exactly its own Save button, and nothing saves the whole page
   const pop2 = popupWith([scanItem('https://alpha-site.test/m/a.jpg')], { id: 7, url: 'https://www.instagram.com/p/x/' });
   const d2 = fakeDom();
   pop2.render(d2.doc, d2.host, await pop2.load(), { save() {} });
-  assert.deepEqual(d2.states().map((n) => n.textContent), ['saving is off on Instagram, Facebook and TikTok']);
-  assert.equal(d2.buttons().filter((b) => /^Save/.test(b.textContent)).length, 0);
+  assert.equal(d2.buttons().filter((b) => /^Save/.test(b.textContent)).length, 1);
+  assert.ok(!d2.buttons().some((b) => /\ball\b/i.test(b.textContent)));
 });
 
 // ---- wiring in the files --------------------------------------------------------------------------------------------------------------
@@ -527,10 +525,9 @@ test('X-style ":orig" candidates keep their type in the file name', () => {
   assert.equal(w.rules.saveCheck(img('https://pbs.alpha-site.test/media/AB.exe:orig')).ok, false);
 });
 
-test('the sibling CDNs of Instagram, Facebook and TikTok are blocked too', () => {
+test('no site is switched off today: the sibling CDNs of Instagram, Facebook and TikTok pass the save check like any host', () => {
   const { w } = setup();
-  for (const u of ['https://tiktokcdn-eu.com/a.jpg', 'https://p16.ibyteimg.com/a.jpg', 'https://x.byteimg.com/a.jpg', 'https://v16m.byteoversea.com/a.mp4', 'https://a.fb.com/x.jpg', 'https://fb.watch/x.jpg']) assert.equal(w.rules.saveCheck(img(u)).ok, false, u);
-  assert.equal(w.rules.saveCheck(img('https://notfb.com/x.jpg')).ok, true);
+  for (const u of ['https://tiktokcdn-eu.com/a.jpg', 'https://p16.ibyteimg.com/a.jpg', 'https://x.byteimg.com/a.jpg', 'https://v16m.byteoversea.com/a.mp4', 'https://a.fb.com/x.jpg', 'https://fb.watch/x.jpg']) assert.equal(w.rules.saveCheck(img(u, [], /\.mp4$/.test(u) ? 'video' : 'image')).ok, true, u);
 });
 
 test('a guess that could not be HEAD-checked but came back as a web page is not kept: the file is removed and the next size is tried', async () => {

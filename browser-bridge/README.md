@@ -155,9 +155,9 @@ no Save As dialog, a sanitized file name). The row then says, in order: *queued*
   video files (`.mp4`, `.webm`, `.mov`). Any other type (`.svg`, `.html`, `.exe`, `?format=bat`) says *Can't save this type
   of file*; a video link naming no type says *Can't tell this video's type*. `blob:` and streamed video (HLS/DASH, a
   page with no file link) say *streamed video — needs the video helper (not installed)* and start nothing.
-- **Never on Instagram, Facebook or TikTok** (the page or the file host, including their CDNs): the row says
-  *saving is off on Instagram, Facebook and TikTok*. This is the owner's limit of 2026-11-08; the list is
-  `BLOCKED_SITES` in `grab-rules.js`.
+- **Every site, one file per click** — Instagram, Facebook and TikTok included. The owner's yes of 2026-11-08 rules out
+  only "grab all on this page", and there is no grab-all anywhere in the Bridge. To switch a site off, add its domain to
+  `BLOCKED_SITES` in `grab-rules.js` (empty today); its rows then say *saving is off on Instagram, Facebook and TikTok*.
 
 ## Social posts: approve or skip
 
