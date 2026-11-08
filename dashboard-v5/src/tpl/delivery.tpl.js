@@ -69,6 +69,7 @@ export default String.raw`                <!-- v5: Client delivery — what is l
                               <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-size:13px;color:var(--text)">{{ dlvLinkKind }}</span><span style="${MUTED}">{{ dlvLinkMeta }}</span></div>
                               <div style="font-family:var(--term);font-size:12px;color:var(--link);word-break:break-all">{{ dlvLinkUrl }}</div>
                               <sc-if value="{{ dlvLinkNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--faint)">{{ dlvLinkNote }}</div></sc-if>
+                              <sc-if value="{{ dlvLinkNewer }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--faint)">{{ dlvLinkNewer }}</div></sc-if>
                               <sc-if value="{{ dlvLinkWarn }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--orange)">{{ dlvLinkWarn }}</div></sc-if>
                               <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onClick="{{ dlvLinkCopy }}" style="${BTN}" ${BTN_HOVER}>Copy link</button><button type="button" onClick="{{ dlvLinkOpen }}" style="${BTN}" ${BTN_HOVER}>Open</button></div>
                             </div>

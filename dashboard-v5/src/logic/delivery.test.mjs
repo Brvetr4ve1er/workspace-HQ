@@ -16,7 +16,7 @@ const VIEW = (o = {}) => ({
   fileState: null, fileDetail: null, candidates: [{ rel: 'docs/plan.md', items: 4, done: 1 }], walkTruncated: false, walkError: null,
   milestones: [{ name: 'Design', done: 1, total: 2, items: [{ id: 'i-1', text: 'home page', done: true }, { id: 'i-2', text: 'gallery', done: false }] }],
   done: 1, total: 2, summary: '1 of 2 done', doneSince: ['home page'],
-  link: { kind: 'preview', url: 'https://alpha-site-abc.vercel.app', state: 'ready', at: iso(2 * 3600e3), branch: 'feat' }, linkWhy: null,
+  link: { kind: 'preview', url: 'https://alpha-site-abc.vercel.app', state: 'ready', at: iso(2 * 3600e3), branch: 'feat', basis: 'deployed-branch', newer: null }, linkWhy: null, doneHashes: ['aaaa1111'],
   update: 'Alpha Site — update 7 Nov · Done so far: home page · Still to do (1 of 2): gallery', lastCopyAt: null, ...o,
 });
 
@@ -72,7 +72,8 @@ test('client card: counts, milestones, link with its state, the update, and the 
   assert.deepEqual([v.dlvIsClient, v.dlvNotClient, v.dlvHasCounts, v.dlvCountText], [true, false, true, '1 of 2 done · 50%']);
   assert.deepEqual(v.dlvMilestones[0].items.map((i) => [i.text, i.mark, i.canToggle]), [['home page', '[x]', true], ['gallery', '[ ]', true]]);
   assert.equal(v.dlvMilestones[0].countText, '1 of 2');
-  assert.deepEqual([v.dlvHasLink, v.dlvLinkKind, v.dlvLinkNote, v.dlvLinkWarn, v.dlvLinkMeta], [true, 'Preview link', 'May need a Vercel login', '', 'ready · 2 h ago · feat']);
+  assert.deepEqual([v.dlvHasLink, v.dlvLinkKind, v.dlvLinkNote, v.dlvLinkWarn, v.dlvLinkMeta], [true, 'Preview link', 'May need a Vercel login', '', 'ready · 2 h ago · from feat']);
+  assert.equal(v.dlvLinkNewer, '');
   assert.equal(v.dlvHasUpdate, true); assert.match(v.dlvLastCopy, /Not copied yet/);
   assert.deepEqual([v.dlvHasCands, v.dlvCandsText, v.dlvShowAdd], [true, '1 checklist file found in this repo', true]);
   const bad = rig({ delivery: { byProject: { 'alpha-site': VIEW({ link: { kind: 'production', url: 'https://x.vercel.app', state: 'error', at: iso(60e3), branch: null } }) } } }).vals();
@@ -121,7 +122,8 @@ test('Copy update calls copy() and then sends one copied intent (and counts the 
   const { self, calls, copies } = rig();
   await Promise.all([self.dlvCopyUpdate(), self.dlvCopyUpdate()]);
   assert.equal(copies.length, 1); assert.match(copies[0][0], /^Alpha Site — update/);
-  assert.deepEqual(applies(calls), [{ projectId: 'alpha-site', type: 'copied' }]);
+  // the hashes of the card that was copied from travel with the intent (main keeps only those still done)
+  assert.deepEqual(applies(calls), [{ projectId: 'alpha-site', type: 'copied', doneHashes: ['aaaa1111'] }]);
   assert.ok(calls.findIndex((c) => c[0] === 'mark') < calls.findIndex((c) => c[0] === 'apply'));
   assert.ok(calls.some((c) => c[0] === 'mark' && c[1] === 'delivery-card' && c[2] === 'copy'));
 });
@@ -169,4 +171,19 @@ test('arriving reads the card and counts the open; Open goes through the account
   assert.deepEqual(calls.at(-1), ['open', 'https://alpha-site-abc.vercel.app']);
   const noMark = rig(); noMark.self.useMark = undefined;
   assert.doesNotThrow(() => noMark.self.dlvArrive('alpha-site'));   // the rulebook's mark may not exist yet
+});
+
+test('the link line says which branch it is from, names a newer preview elsewhere without offering it, and labels a no-production fallback', () => {
+  const lk = (o) => ({ kind: 'production', url: 'https://alpha-site-prod.vercel.app', state: 'ready', at: iso(3600e3), branch: 'feature/landing', basis: 'deployed-branch', newer: null, ...o });
+  const vals = (link) => rig({ delivery: { byProject: { 'alpha-site': VIEW({ link }) } } }).vals();
+  const a = vals(lk({ newer: { branch: 'wip/experiment', at: iso(60e3) } }));
+  assert.equal(a.dlvLinkMeta, 'ready · 1 h ago · from feature/landing');
+  assert.equal(a.dlvLinkNewer, 'A newer preview on wip/experiment is not the deployed branch');
+  assert.equal(a.dlvLinkUrl, 'https://alpha-site-prod.vercel.app', 'the newer preview is not what the card offers');
+  assert.equal(vals(lk()).dlvLinkNewer, '');
+  const f = vals(lk({ kind: 'preview', basis: 'no-production' }));
+  assert.match(f.dlvLinkNote, /No production deploy yet, so this is the newest ready preview/);
+  // no link because nothing is ready: the honest sentence from main is shown, no link controls
+  const n = rig({ delivery: { byProject: { 'alpha-site': VIEW({ link: null, linkWhy: 'The newest deploy is not ready (error, 2 h ago) — there is no link to send yet' }) } } }).vals();
+  assert.deepEqual([n.dlvHasLink, n.dlvNoLink, n.dlvNoLinkText], [false, true, 'The newest deploy is not ready (error, 2 h ago) — there is no link to send yet']);
 });

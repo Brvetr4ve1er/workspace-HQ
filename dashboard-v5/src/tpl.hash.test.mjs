@@ -58,9 +58,10 @@ import tpl from './app.tpl.js';
 // 2026-11-07 sessions board: the board fragment (tpl/sessions-board.tpl.js, +9755 chars) first in Claude › Sessions, the strip fragment (tpl/sessions-strip.tpl.js, +1958 chars) after the Brief on Home, and the Chats thread's terminal button bound to clTerminalLabel / clTerminalTip (a <!-- v5: --> marker, +131 chars): +11844 chars / +11860 bytes in all, nothing else moved
 // 2026-11-07 money in one minute + one line per spend: the start card (tpl/money-start.tpl.js, +5355 chars) replaces the money fragment's "start with what you have" card (-1777 chars) in the no-accounts branch, and the quick line (+2175 chars) leads Today under mnyHasAccounts; each carries a <!-- v5: --> marker; +22 chars of indentation per interpolation, nothing else moved (+5797 chars / +5805 bytes)
 // 2026-11-07 client delivery: the card fragment (tpl/delivery.tpl.js, +15482 chars — exactly the fragment's own length) interpolated into project-page before the Claude section, one <!-- v5: --> marker; nothing else moved (+15482 chars / +15504 bytes)
-const SHA256 = 'ddeb074a7a494f61985e6c7f49aa7bda86a6dc9f3dc64e8d162cf9d2834c1353';
-const LENGTH = 339687;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 340252;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-08 client delivery tasting fixes: one line in the card fragment (tpl/delivery.tpl.js) — the "a newer preview on <branch> is not the deployed branch" note under the link, +179 chars / +179 bytes, nothing else moved
+const SHA256 = '3d64326f3c6a2d45793d28d8c4e3a7d3282a6d6ec4cfd5f5e0a75da952c3cb33';
+const LENGTH = 339866;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 340431;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

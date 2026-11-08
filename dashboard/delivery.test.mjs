@@ -61,11 +61,33 @@ test('client mode defaults to SCOPE.md at the root, builds the update, and copie
   assert.equal(saved.projects['alpha-site'].lastCopy.doneHashes.length, 1);
 });
 
-test('the renderer cannot smuggle its own doneHashes into copied', async () => {
+test('the renderer cannot smuggle hashes into copied: an unknown hash is never recorded, a malformed list is refused', async () => {
   const { d, dataDir } = make();
   await d.apply({ type: 'mark-client', projectId: 'alpha-site', on: true });
+  const saved = () => JSON.parse(fs.readFileSync(path.join(dataDir, 'delivery.json'), 'utf8')).projects['alpha-site'].lastCopy;
   await d.apply({ type: 'copied', projectId: 'alpha-site', doneHashes: ['deadbeef', 'cafef00d'] });
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'delivery.json'), 'utf8')).projects['alpha-site'].lastCopy.doneHashes.length, 1);
+  assert.deepEqual(saved().doneHashes, [], 'hashes the source does not have as done are dropped');
+  const bad = await d.apply({ type: 'copied', projectId: 'alpha-site', doneHashes: 'nope' });
+  assert.match(bad.error, /unknown action/);
+  const big = await d.apply({ type: 'copied', projectId: 'alpha-site', doneHashes: Array.from({ length: 501 }, (_, i) => String(i)) });
+  assert.match(big.error, /unknown action/);
+});
+
+test('copied records what the owner SAW: an item finished after the card loaded is still reported in the next update', async () => {
+  const { d, dataDir, root } = make({ scope: '## M\n- [x] one\n- [ ] two\n' });
+  const seen = await d.apply({ type: 'mark-client', projectId: 'alpha-site', on: true });
+  assert.match(seen.update, /Done so far: one · Still to do \(1 of 2\): two/);
+  const saved = () => JSON.parse(fs.readFileSync(path.join(dataDir, 'delivery.json'), 'utf8')).projects['alpha-site'].lastCopy;
+  // the owner (or a Claude session) ticks 'two' after the card was loaded and before Copy was clicked
+  fs.writeFileSync(path.join(root, 'SCOPE.md'), '## M\n- [x] one\n- [x] two\n');
+  const after = await d.apply({ type: 'copied', projectId: 'alpha-site', doneHashes: seen.doneHashes });
+  assert.deepEqual(after.doneSince, ['two'], 'two was not in the copied text, so it is still new');
+  assert.match(after.update, /Done since 7 Nov: two · Everything in the agreed scope is done/);
+  assert.equal(saved().doneHashes.length, 1);
+  // a hash the card held for an item that was un-ticked meanwhile is not recorded either
+  fs.writeFileSync(path.join(root, 'SCOPE.md'), '## M\n- [ ] one\n- [x] two\n');
+  await d.apply({ type: 'copied', projectId: 'alpha-site', doneHashes: after.doneHashes });
+  assert.equal(saved().doneHashes.length, 1);
 });
 
 test('a checklist kept in the app: add, toggle, remove; ids are minted in main', async () => {

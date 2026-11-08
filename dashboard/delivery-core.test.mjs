@@ -43,29 +43,69 @@ test('remote and repo matching: forms, case, .git, null, no match', () => {
   assert.deepEqual(C.matchVercelProjects('alpha/site', null), []);
 });
 
-const dep = (project, target, at, state = 'ready') => ({ project, target, state, at, url: `https://${project}-${at.slice(5, 10)}-${target}.vercel.app`, branch: 'main' });
+const dep = (project, target, at, state = 'ready', branch = 'main') => ({ project, target, state, at, url: `https://${project}-${at.slice(5, 10)}-${target}-${state}-${branch.replace(/\W/g, '')}.vercel.app`, branch });
 const accounts = (deploys, projects) => ({ vercel: { state: 'ok', projects: projects || [{ name: 'alpha-site', repo: 'alpha/site' }, { name: 'beta-app', repo: 'alpha/beta' }], deploys } });
 
-test('link pick: another project\'s deploy is never taken, preview beats production, newest wins', () => {
+test('link pick: another project\'s deploy is never taken, and the newest ready deploy of the deployed branch wins', () => {
   const a = accounts([
     dep('beta-app', 'preview', '2026-11-07T09:00:00Z'),   // newer, but another project's
     dep('alpha-site', 'production', '2026-11-06T09:00:00Z'),
     dep('alpha-site', 'preview', '2026-11-03T09:00:00Z'),
     dep('alpha-site', 'preview', '2026-11-05T09:00:00Z'),
-    dep('alpha-site', 'production', '2026-11-07T08:00:00Z'),
+    dep('alpha-site', 'production', '2026-11-04T08:00:00Z'),
   ]);
   const { link, linkWhy } = C.linkFor('github.com/alpha/site', a);
   assert.equal(linkWhy, null);
-  assert.equal(link.kind, 'preview'); assert.equal(link.at, '2026-11-05T09:00:00Z'); assert.match(link.url, /^https:\/\/alpha-site-11-05-preview/);
+  assert.equal(link.kind, 'production'); assert.equal(link.at, '2026-11-06T09:00:00Z'); assert.match(link.url, /^https:\/\/alpha-site-11-06-production/);
+  assert.equal(link.branch, 'main'); assert.equal(link.newer, null);
 });
-test('link pick: production fallback, projects[].latest preview, none, and the honest reasons', () => {
+test('link pick: previews of a work-in-progress branch (some failed) are never the link; the production branch is', () => {
+  const a = accounts([
+    dep('alpha-site', 'preview', '2026-11-07T09:00:00Z', 'error', 'wip/experiment'),
+    dep('alpha-site', 'preview', '2026-11-07T08:00:00Z', 'ready', 'wip/experiment'),
+    dep('alpha-site', 'preview', '2026-11-06T09:00:00Z', 'ready', 'feature/landing'),
+    dep('alpha-site', 'production', '2026-11-05T09:00:00Z', 'ready', 'feature/landing'),
+    dep('alpha-site', 'production', '2026-11-04T09:00:00Z', 'ready', 'old/branch'),
+    dep('alpha-site', 'preview', '2026-11-03T09:00:00Z', 'ready', 'old/branch'),
+  ]);
+  const { link } = C.linkFor('alpha/site', a, NOW.getTime());
+  assert.equal(link.branch, 'feature/landing'); assert.equal(link.state, 'ready');
+  assert.equal(link.kind, 'preview'); assert.equal(link.at, '2026-11-06T09:00:00Z');   // the deployed branch's newest ready deploy, a preview here
+  assert.deepEqual(link.newer, { branch: 'wip/experiment', at: '2026-11-07T08:00:00Z' }, 'the newer ready preview elsewhere is named, not offered');
+  assert.equal(link.basis, 'deployed-branch');
+  // the deployed branch is the newest READY production deploy's: a newer failed production deploy does not move it
+  const b = accounts([dep('alpha-site', 'production', '2026-11-07T07:00:00Z', 'error', 'wip/experiment'), dep('alpha-site', 'production', '2026-11-05T09:00:00Z', 'ready', 'feature/landing')]);
+  assert.equal(C.linkFor('alpha/site', b).link.branch, 'feature/landing');
+  // a newer building deploy on the same branch is not offered either
+  const c = accounts([dep('alpha-site', 'preview', '2026-11-07T07:00:00Z', 'building', 'feature/landing'), dep('alpha-site', 'production', '2026-11-05T09:00:00Z', 'ready', 'feature/landing')]);
+  assert.equal(C.linkFor('alpha/site', c).link.at, '2026-11-05T09:00:00Z');
+});
+test('link pick: no production deploy at all falls back to the newest ready preview of any branch, labelled', () => {
+  const a = accounts([dep('alpha-site', 'preview', '2026-11-07T09:00:00Z', 'error', 'wip/experiment'), dep('alpha-site', 'preview', '2026-11-06T09:00:00Z', 'ready', 'wip/experiment'), dep('alpha-site', 'preview', '2026-11-05T09:00:00Z', 'ready', 'feature/landing')]);
+  const { link } = C.linkFor('alpha/site', a);
+  assert.equal(link.at, '2026-11-06T09:00:00Z'); assert.equal(link.basis, 'no-production'); assert.equal(link.newer, null);
+});
+test('link pick: nothing ready gives no link and says what the newest deploy is doing', () => {
+  const a = accounts([dep('alpha-site', 'preview', '2026-11-07T08:00:00Z', 'error', 'wip/experiment'), dep('alpha-site', 'preview', '2026-11-06T08:00:00Z', 'building', 'feature/landing')]);
+  const r = C.linkFor('alpha/site', a, NOW.getTime());
+  assert.equal(r.link, null); assert.match(r.linkWhy, /newest deploy is not ready \(error, 2 h ago\) — there is no link to send yet/);
+  // production failing on its branch: that branch's newest deploy is the one named, and a ready preview elsewhere is not offered
+  const b = accounts([dep('alpha-site', 'production', '2026-11-05T09:00:00Z', 'error', 'feature/landing'), dep('alpha-site', 'preview', '2026-11-07T09:00:00Z', 'ready', 'wip/experiment')]);
+  const rb = C.linkFor('alpha/site', b, NOW.getTime());
+  assert.equal(rb.link, null); assert.match(rb.linkWhy, /deployed branch is not ready \(error, 2 d ago\)/);
+});
+test('link pick: the projects\' own latest / prod snapshots, none, and the honest reasons', () => {
   const only = accounts([dep('alpha-site', 'production', '2026-11-01T09:00:00Z'), dep('alpha-site', 'production', '2026-11-04T09:00:00Z')]);
   assert.equal(C.linkFor('alpha/site', only).link.kind, 'production');
   assert.equal(C.linkFor('alpha/site', only).link.at, '2026-11-04T09:00:00Z');
-  const viaLatest = accounts([], [{ name: 'alpha-site', repo: 'alpha/site', latest: dep('alpha-site', 'preview', '2026-11-02T09:00:00Z'), prod: dep('alpha-site', 'production', '2026-11-06T09:00:00Z') }]);
+  // production and latest snapshots carried on the project (no deploys[] rows): same branch, the newer one is the link
+  const viaOwn = accounts([], [{ name: 'alpha-site', repo: 'alpha/site', latest: dep('alpha-site', 'preview', '2026-11-02T09:00:00Z'), prod: dep('alpha-site', 'production', '2026-11-06T09:00:00Z') }]);
+  assert.equal(C.linkFor('alpha/site', viaOwn).link.kind, 'production');
+  const viaLatest = accounts([], [{ name: 'alpha-site', repo: 'alpha/site', latest: dep('alpha-site', 'preview', '2026-11-02T09:00:00Z') }]);
   assert.equal(C.linkFor('alpha/site', viaLatest).link.kind, 'preview');
-  const viaProd = accounts([], [{ name: 'alpha-site', repo: 'alpha/site', prod: dep('alpha-site', 'production', '2026-11-06T09:00:00Z') }]);
-  assert.equal(C.linkFor('alpha/site', viaProd).link.kind, 'production');
+  // prod: null on the project row does not hide the production deploy rows
+  const prodNull = accounts([dep('alpha-site', 'production', '2026-11-04T09:00:00Z', 'ready', 'feature/landing'), dep('alpha-site', 'preview', '2026-11-05T09:00:00Z', 'ready', 'wip/experiment')], [{ name: 'alpha-site', repo: 'alpha/site', prod: null, latest: dep('alpha-site', 'preview', '2026-11-05T09:00:00Z', 'ready', 'wip/experiment') }]);
+  assert.equal(C.linkFor('alpha/site', prodNull).link.branch, 'feature/landing');
   assert.match(C.linkFor('alpha/site', accounts([])).linkWhy, /no deploys/);
   assert.equal(C.linkFor('alpha/unknown', only).linkWhy, 'No Vercel project linked to this repo');
   assert.match(C.linkFor(null, only).linkWhy, /No GitHub remote/);
@@ -76,6 +116,16 @@ test('link pick: production fallback, projects[].latest preview, none, and the h
   assert.equal(C.linkFor('alpha/site', { vercel: { projects: [{ name: 'alpha-site', repo: 'alpha/site' }] }, deploys: [dep('alpha-site', 'preview', '2026-11-05T09:00:00Z')] }).link.kind, 'preview');
 });
 
+test('app-kept items are identified by their own id: removing an earlier twin does not shift the later one\'s hash', () => {
+  const item = (id, text, done) => ({ id, text, milestone: '', done, doneAt: null });
+  const mk = (items, lastCopy = null) => C.buildView({ projectId: 'p', name: 'P', entry: { client: true, scopeFile: null, items, lastCopy }, scope: { source: 'app', scopeFile: null, candidates: [] }, accounts: null, remote: null, now: NOW });
+  const both = mk([item('i-a', 'review copy', false), item('i-b', 'review copy', true)]);
+  const copied = { at: '2026-11-06T10:00:00Z', doneHashes: both.doneHashes };
+  const after = mk([item('i-b', 'review copy', true)], copied);   // the first twin was removed
+  assert.deepEqual(after.view.doneSince, [], 'the twin that was already reported stays reported');
+  assert.deepEqual(after.doneHashes, both.doneHashes);
+});
+
 test('update text is deterministic for a fixed now, and doneSince goes by hash', () => {
   const parsed = C.parseChecklist('## Design\n- [x] home page\n- [x] contact page\n- [ ] gallery\n## Launch\n- [ ] domain\n- [ ] go live\n');
   const scope = { source: 'file', scopeFile: 'SCOPE.md', fileState: 'ok', parsed, candidates: [] };
@@ -83,7 +133,7 @@ test('update text is deterministic for a fixed now, and doneSince goes by hash',
     accounts: accounts([dep('alpha-site', 'preview', '2026-11-07T08:00:00Z')]), remote: 'github.com/alpha/site', now: NOW };
   const a = C.buildView(args), b = C.buildView(args);
   assert.deepEqual(a, b);
-  assert.equal(a.view.update, 'Alpha Site — update 7 Nov · Done so far: home page; contact page · Still to do (3 of 5): gallery; domain; go live · Preview: https://alpha-site-11-07-preview.vercel.app (ready, 2 h ago)');
+  assert.equal(a.view.update, 'Alpha Site — update 7 Nov · Done so far: home page; contact page · Still to do (3 of 5): gallery; domain; go live · Preview: https://alpha-site-11-07-preview-ready-main.vercel.app (ready, 2 h ago)');
   assert.equal(a.view.sourceNote, '');   // SCOPE.md is the quote
   assert.equal(C.buildView({ ...args, scope: { ...scope, scopeFile: 'docs/plan.md' } }).view.sourceNote, 'a plan checklist, not the quote');
   assert.deepEqual([a.view.done, a.view.total], [2, 5]);

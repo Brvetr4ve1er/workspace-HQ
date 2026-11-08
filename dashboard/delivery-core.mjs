@@ -94,32 +94,58 @@ export function matchVercelProjects(remote, vercel) {
 }
 
 // ---------- the newest link to send ----------
+// The link is the client's site, not the owner's work in progress: only READY deploys are ever offered, and only from
+// the DEPLOYED branch — the branch of the newest ready production deploy (production deploys come from the branch the
+// client's site is deployed from). Its newest ready deploy, preview or production, is the link. Only a project with no
+// production deploy at all falls back to the newest ready preview of any branch. A newer ready preview on another
+// branch is mentioned (`newer`) but never offered. When nothing qualifies there is no link and the reason says what
+// the newest deploy is doing.
 const goodUrl = (u) => { try { return typeof u === 'string' && u.length <= 2048 && new URL(u).protocol === 'https:'; } catch { return false; } };
 const newestFirst = (a, b) => (msOf(b.at) ?? -Infinity) - (msOf(a.at) ?? -Infinity);
-const asLink = (kind, d) => ({ kind, url: d.url, state: typeof d.state === 'string' && d.state ? d.state : 'unknown', at: msOf(d.at) === null ? null : d.at, project: d.project || null, branch: typeof d.branch === 'string' ? d.branch : null });
+const branchOf = (d) => (typeof d.branch === 'string' && d.branch.trim() ? oneLine(d.branch, 100) : null);
+const isReady = (d) => d.state === 'ready';
+const asLink = (d, extra = {}) => ({ kind: d.target === 'production' ? 'production' : 'preview', url: d.url, state: typeof d.state === 'string' && d.state ? d.state : 'unknown', at: msOf(d.at) === null ? null : d.at, project: d.project || null, branch: branchOf(d), basis: 'deployed-branch', newer: null, ...extra });
 // deploys[] sits in accounts.json under vercel (older notes say top-level) and carries a `project` per row, so it is
-// filtered to the matched project(s) BEFORE the pick: another project's deploy is never offered.
-export function pickLink(accounts, matched) {
+// filtered to the matched project(s) BEFORE the pick: another project's deploy is never offered. The projects' own
+// `latest` / `prod` snapshots join the pool (same url = one deploy).
+function deployPool(accounts, matched) {
   const names = new Set(arr(matched).map((p) => p && p.name).filter(Boolean));
-  if (!names.size) return null;
-  const rows = arr(isObj(accounts) && isObj(accounts.vercel) && Array.isArray(accounts.vercel.deploys) ? accounts.vercel.deploys : isObj(accounts) ? accounts.deploys : [])
-    .filter((d) => isObj(d) && names.has(d.project) && goodUrl(d.url)).sort(newestFirst);
-  const prev = rows.find((d) => d.target === 'preview');
-  if (prev) return asLink('preview', prev);
-  const own = (key) => arr(matched).map((p) => p && p[key]).filter((d) => isObj(d) && goodUrl(d.url)).sort(newestFirst);
-  const latestPrev = own('latest').find((d) => d.target === 'preview');
-  if (latestPrev) return asLink('preview', latestPrev);
-  const prod = rows.find((d) => d.target === 'production') || own('prod')[0];
-  return prod ? asLink('production', prod) : null;
+  if (!names.size) return [];
+  const listed = arr(isObj(accounts) && isObj(accounts.vercel) && Array.isArray(accounts.vercel.deploys) ? accounts.vercel.deploys : isObj(accounts) ? accounts.deploys : [])
+    .filter((d) => isObj(d) && names.has(d.project));
+  const own = arr(matched).flatMap((p) => (p ? [p.latest, p.prod].filter(isObj).map((d) => ({ ...d, project: d.project || p.name })) : []));
+  const seen = new Set();
+  return [...listed, ...own].filter((d) => goodUrl(d.url) && !seen.has(d.url) && seen.add(d.url)).sort(newestFirst);
 }
+// → { link, why }: `why` names the newest deploy when nothing is ready (null when there is a link or no deploy at all)
+export function chooseLink(accounts, matched, now = null) {
+  const rows = deployPool(accounts, matched);
+  if (!rows.length) return { link: null, why: null };
+  const prods = rows.filter((d) => d.target === 'production');
+  const prodReady = prods.find(isReady) || null;
+  const deployed = prodReady ? branchOf(prodReady) : prods.length ? branchOf(prods[0]) : null;
+  let candidates, scope;
+  if (prods.length) {
+    candidates = deployed ? rows.filter((d) => isReady(d) && branchOf(d) === deployed) : prodReady ? [prodReady] : [];
+    scope = deployed ? rows.filter((d) => branchOf(d) === deployed) : prods;
+  } else { candidates = rows.filter(isReady); scope = rows; }
+  const pick = candidates[0];
+  if (pick) {
+    const other = prods.length && deployed ? rows.find((d) => isReady(d) && branchOf(d) && branchOf(d) !== deployed && newestFirst(pick, d) > 0) : null;
+    return { link: asLink(pick, { basis: prods.length ? 'deployed-branch' : 'no-production', newer: other ? { branch: branchOf(other), at: msOf(other.at) === null ? null : other.at } : null }), why: null };
+  }
+  const n = scope[0] || rows[0], st = typeof n.state === 'string' && n.state ? n.state : 'unknown';
+  return { link: null, why: 'The newest deploy' + (prods.length ? (deployed ? ' of the deployed branch' : ' of production') : '') + ' is not ready (' + oneLine(st, 30) + (now == null ? '' : ', ' + agoText(n.at, now)) + ') — there is no link to send yet' };
+}
+export function pickLink(accounts, matched, now = null) { return chooseLink(accounts, matched, now).link; }
 // → { link, linkWhy }: exactly one is set
-export function linkFor(remote, accounts) {
+export function linkFor(remote, accounts, now = null) {
   if (!isObj(accounts) || !isObj(accounts.vercel) || !Array.isArray(accounts.vercel.projects)) return { link: null, linkWhy: 'No Vercel snapshot yet — refresh Projects › Accounts' };
   if (!repoKey(remote)) return { link: null, linkWhy: 'No GitHub remote on this project, so no Vercel project can be matched' };
   const matched = matchVercelProjects(remote, accounts.vercel);
   if (!matched.length) return { link: null, linkWhy: 'No Vercel project linked to this repo' };
-  const link = pickLink(accounts, matched);
-  return link ? { link, linkWhy: null } : { link: null, linkWhy: 'Vercel project ' + oneLine(matched[0].name, 60) + ' has no deploys in the snapshot' };
+  const { link, why } = chooseLink(accounts, matched, now);
+  return link ? { link, linkWhy: null } : { link: null, linkWhy: why || 'Vercel project ' + oneLine(matched[0].name, 60) + ' has no deploys in the snapshot' };
 }
 
 // ---------- reading files inside the project root only ----------
@@ -291,12 +317,12 @@ const list = (xs, n = 8) => xs.slice(0, n).join('; ') + (xs.length > n ? ' and '
 function sourceMilestones(scope, entry) {
   if (scope.source === 'file') return scope.parsed ? scope.parsed.milestones : [];
   if (scope.source !== 'app') return [];
-  const hash = hasher(), order = [], by = new Map();
+  const order = [], by = new Map();
   for (const it of entry.items) {
     const name = it.milestone || '';
     if (!by.has(name)) { by.set(name, { name, done: 0, total: 0, items: [] }); order.push(name); }
     const m = by.get(name);
-    m.items.push({ id: it.id, text: it.text, done: it.done, hash: hash(it.text) });
+    m.items.push({ id: it.id, text: it.text, done: it.done, hash: fnv1a('id:' + it.id) });
     m.total++; if (it.done) m.done++;
   }
   return order.map((n) => by.get(n));
@@ -313,7 +339,7 @@ export function buildView({ projectId, name, entry, scope, accounts, remote, now
   const doneItems = ms.flatMap((m) => m.items.filter((i) => i.done));
   const doneSince = doneItems.filter((i) => !seenHashes.has(i.hash)).map((i) => i.text);
   const doneHashes = doneItems.map((i) => i.hash).slice(0, MAX_DONE_HASHES);
-  const { link, linkWhy } = linkFor(remote, accounts);
+  const { link, linkWhy } = linkFor(remote, accounts, nowMs);
   const isScopeMd = scope.scopeFile && scope.scopeFile.toLowerCase() === 'scope.md';
   const sourceLabel = scope.source === 'file' ? scope.scopeFile : scope.source === 'app' ? 'a checklist kept in WorkspaceHQ' : '';
   const sourceNote = scope.source === 'file' && !isScopeMd ? 'a plan checklist, not the quote' : '';
@@ -335,7 +361,8 @@ export function buildView({ projectId, name, entry, scope, accounts, remote, now
     candidates: scope.candidates, walkTruncated: scope.walkTruncated, walkError: scope.walkError,
     milestones: ms.map((m) => ({ name: m.name, done: m.done, total: m.total, items: m.items.map((i) => (i.id ? { id: i.id, text: i.text, done: i.done } : { text: i.text, done: i.done })) })),
     done, total, summary: done + ' of ' + total + ' done', doneSince,
-    link: link ? { kind: link.kind, url: link.url, state: link.state, at: link.at, branch: link.branch } : null, linkWhy,
+    link: link ? { kind: link.kind, url: link.url, state: link.state, at: link.at, branch: link.branch, basis: link.basis, newer: link.newer } : null, linkWhy,
+    doneHashes,
     update, lastCopyAt: lc ? lc.at : null,
   };
   return { view, doneHashes };

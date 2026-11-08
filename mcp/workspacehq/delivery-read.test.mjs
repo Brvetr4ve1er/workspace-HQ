@@ -101,3 +101,45 @@ test('it never writes: every file under data/ and the repos is unchanged, and no
   readDelivery(args); readDelivery({ ...args, project: 'alpha-site' });
   assert.deepEqual([snap(args.dataDir), snap(alpha)], before);
 });
+
+test('a forgiving project lookup: exact first, then a unique prefix or part of the id or name; several matches say so and list only ids', () => {
+  const { args, dataDir } = setup({ state: { v: 1, projects: {
+    'alpha-site': { client: true, scopeFile: 'SCOPE.md', items: [], lastCopy: null },
+    'alpha-shop': { client: true, scopeFile: 'SCOPE.md', items: [], lastCopy: null },
+    'beta-app': { client: true, scopeFile: 'SCOPE.md', items: [], lastCopy: null },
+  } } });
+  const lat = JSON.parse(fs.readFileSync(path.join(dataDir, 'latest.json'), 'utf8'));
+  lat.projects.push({ id: 'alpha-shop', name: 'Alpha Shop Page', path: 'C:/work/alpha-shop', metrics: { git_safety: {} } });
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(lat));
+  const one = (q) => readDelivery({ ...args, project: q });
+  assert.equal(one('ALPHA-SITE').projects[0].id, 'alpha-site');               // exact id, any case
+  assert.equal(one('alpha shop page').projects[0].id, 'alpha-shop');           // exact name
+  assert.equal(one('bet').projects[0].id, 'beta-app');                         // unique prefix
+  assert.equal(one('app').projects[0].id, 'beta-app');                         // unique part of the id
+  assert.equal(one('shop pa').projects[0].id, 'alpha-shop');                   // unique part of the name
+  const amb = one('alpha');
+  assert.match(amb.error, /ambiguous/);
+  assert.match(amb.error, /alpha-shop/); assert.match(amb.error, /alpha-site/);
+  assert.doesNotMatch(amb.error, /beta-app|Alpha Site|gamma/, 'only the matching ids are listed');
+  assert.match(one('zzz').error, /no project "zzz"/);
+  assert.match(one('gam').error, /not marked as a client job/);               // found, but not a client job: the honest error stays
+});
+
+test('the link is the deployed branch\'s newest ready deploy; a failed or work-in-progress preview is never it (placeholder names)', () => {
+  const { args, dataDir } = setup();
+  const d = (target, at, state, branch) => ({ project: 'alpha-site', target, state, at, branch, url: `https://alpha-site-${at.slice(8, 10)}${state}${branch.replace(/\W/g, '')}.vercel.app` });
+  fs.writeFileSync(path.join(dataDir, 'accounts.json'), JSON.stringify({ vercel: { projects: [{ name: 'alpha-site', repo: 'alpha/site', prod: null }], deploys: [
+    d('preview', '2026-11-07T09:00:00Z', 'error', 'wip/experiment'),
+    d('preview', '2026-11-07T08:00:00Z', 'ready', 'wip/experiment'),
+    d('production', '2026-11-05T09:00:00Z', 'ready', 'feature/landing'),
+    d('preview', '2026-11-04T09:00:00Z', 'ready', 'feature/landing'),
+  ] } }));
+  const a = readDelivery({ ...args, project: 'alpha-site' }).projects[0];
+  assert.equal(a.link.branch, 'feature/landing'); assert.equal(a.link.state, 'ready'); assert.equal(a.link.kind, 'production');
+  assert.deepEqual(a.link.newer, { branch: 'wip/experiment', at: '2026-11-07T08:00:00Z' });
+  assert.doesNotMatch(a.update, /wip/);
+  // nothing ready: no link and the reason says what the newest deploy is doing
+  fs.writeFileSync(path.join(dataDir, 'accounts.json'), JSON.stringify({ vercel: { projects: [{ name: 'alpha-site', repo: 'alpha/site' }], deploys: [d('preview', '2026-11-07T08:00:00Z', 'error', 'wip/experiment')] } }));
+  const b = readDelivery({ ...args, project: 'alpha-site' }).projects[0];
+  assert.equal(b.link, null); assert.match(b.linkWhy, /newest deploy is not ready \(error, 2 h ago\)/);
+});

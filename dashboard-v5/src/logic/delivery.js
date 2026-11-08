@@ -64,7 +64,8 @@ export const deliveryLogic = {
       const done = this.copy(v.update, 'Update copied · nothing was sent');
       if (done && typeof done.then === 'function' && (await done) === false) return null;
       this.dlvUseMark('delivery-card', 'copy');
-      return this.dlvSend({ type: 'copied' }, 'Copied, but not recorded');
+      // the hashes of the card that was copied from: an item finished after the card loaded is not in the copied text, so it is not recorded as told
+      return this.dlvSend(Array.isArray(v.doneHashes) ? { type: 'copied', doneHashes: v.doneHashes } : { type: 'copied' }, 'Copied, but not recorded');
     });
   },
   dlvCopyLink(url) { if (url) this.copy(url, 'Link copied'); },

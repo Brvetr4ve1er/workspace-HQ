@@ -100,8 +100,10 @@ export function deliveryVals(ctx) {
     dlvHasLink: !!link,
     dlvLinkKind: link ? (link.kind === 'preview' ? 'Preview link' : 'Production link') : '',
     dlvLinkUrl: link ? link.url : '',
-    dlvLinkMeta: link ? [link.state, ago(link.at), link.branch].filter(Boolean).join(' · ') : '',
-    dlvLinkNote: link && link.kind === 'preview' ? 'May need a Vercel login' : '',
+    // the link is always a ready deploy of the deployed branch (main decides); the card says which branch it is from
+    dlvLinkMeta: link ? [link.state, ago(link.at), link.branch ? 'from ' + link.branch : ''].filter(Boolean).join(' · ') : '',
+    dlvLinkNote: link ? [link.kind === 'preview' ? 'May need a Vercel login' : '', link.basis === 'no-production' ? 'No production deploy yet, so this is the newest ready preview' : ''].filter(Boolean).join(' · ') : '',
+    dlvLinkNewer: link && link.newer && link.newer.branch ? 'A newer preview on ' + link.newer.branch + ' is not the deployed branch' : '',
     dlvLinkWarn: link && link.state !== 'ready' ? 'This deploy is ' + link.state + ' — check it before you send it' : '',
     dlvLinkCopy: () => this.dlvCopyLink(link && link.url),
     dlvLinkOpen: () => this.dlvOpenLink(link && link.url),

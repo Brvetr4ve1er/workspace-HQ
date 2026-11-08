@@ -90,8 +90,19 @@ function create({ dataDir, resolveProjectPath, now = () => new Date(), newId = (
         if (!c.ok) return { error: 'not picked — ' + c.detail + '.' };
         resolved = { type: intent.type, projectId: intent.projectId, rel: intent.rel };
       } else if (intent.type === 'copied') {
-        // the "done so far" mark comes from the live source, never from the renderer
-        resolved = { type: 'copied', projectId: intent.projectId, doneHashes: viewFor(L, state, project, false).doneHashes };
+        // what was copied is what the owner SAW: the renderer names the hashes of the card it copied from, and main keeps
+        // only those the live source still has as done (an unknown hash is never recorded, so the renderer cannot mark
+        // anything done). An item finished after the card loaded is not in the list, so the next update still reports it.
+        // No list sent (an older renderer) = the live source's own done set.
+        const live = viewFor(L, state, project, false).doneHashes;
+        let hashes = live;
+        if (intent.doneHashes !== undefined) {
+          const sent = intent.doneHashes;
+          if (!Array.isArray(sent) || sent.length > L.MAX_DONE_HASHES || sent.some((h) => typeof h !== 'string' || h.length > 20)) return { error: 'unknown action.' };
+          const have = new Set(live);
+          hashes = [...new Set(sent)].filter((h) => have.has(h));
+        }
+        resolved = { type: 'copied', projectId: intent.projectId, doneHashes: hashes };
       }
       let next;
       try { next = L.applyIntent(state, resolved, { now: now(), newId, known: (id) => projects.some((p) => p.id === id) }); }

@@ -25,6 +25,21 @@ function readJson(file) {
   try { return { value: JSON.parse(raw) }; } catch { return { value: null, bad: true }; }
 }
 
+const AMBIGUOUS_LISTED = 10;
+// An exact id or name (case-insensitive) first; then a prefix, then a substring of the id or name. A step that finds
+// several projects stops there: → { ambiguous:[projects] }; one → { hit }; none anywhere → {}.
+export function findProject(all, query) {
+  const q = String(query).trim().toLowerCase();
+  if (!q) return {};
+  const tiers = [(t) => t === q, (t) => t.startsWith(q), (t) => t.includes(q)];
+  for (const test of tiers) {
+    const m = all.filter((p) => test(p.id.toLowerCase()) || test(p.name.toLowerCase()));
+    if (m.length === 1) return { hit: m[0] };
+    if (m.length > 1) return { ambiguous: m };
+  }
+  return {};
+}
+
 export function defaultResolver(dataDir) {
   const pp = require(path.join(HERE, '..', '..', 'dashboard', 'project-paths.js'));
   return pp.createResolver({ readLatest: pp.readLatestFrom(dataDir) });
@@ -43,9 +58,10 @@ export function readDelivery({ dataDir, project, now = new Date(), resolveProjec
 
   let picks = all.filter((p) => state.projects[p.id] && state.projects[p.id].client);
   if (project != null && project !== '') {
-    const q = String(project).trim().toLowerCase();
-    const hit = all.find((p) => p.id.toLowerCase() === q) || all.find((p) => p.name.toLowerCase() === q);
-    if (!hit) return { error: 'no project "' + String(project).slice(0, 80) + '" in the current scan' };
+    const found = findProject(all, project);
+    if (found.ambiguous) return { error: '"' + String(project).trim().slice(0, 80) + '" is ambiguous — it matches: ' + found.ambiguous.map((p) => p.id).slice(0, AMBIGUOUS_LISTED).join(', ') + (found.ambiguous.length > AMBIGUOUS_LISTED ? ' and ' + (found.ambiguous.length - AMBIGUOUS_LISTED) + ' more' : '') };
+    const hit = found.hit;
+    if (!hit) return { error: 'no project "' + String(project).trim().slice(0, 80) + '" in the current scan' };
     if (!picks.some((p) => p.id === hit.id)) return { error: hit.name + ' is not marked as a client job in WorkspaceHQ (Projects › its page › Client delivery › Mark)' };
     picks = [hit];
   }

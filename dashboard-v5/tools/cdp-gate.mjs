@@ -1880,11 +1880,11 @@ Object.assign(SCENARIOS, {
       const at = new Date(Date.now() - 2 * 3600e3).toISOString();
       const view = { projectId: 'x', client: true, mode: 'client', source: 'app', scopeFile: null, sourceLabel: 'a checklist kept in WorkspaceHQ', sourceNote: '', fileState: null, fileDetail: null, candidates: [{ rel: 'docs/plan.md', items: 4, done: 1 }], walkTruncated: false, walkError: null,
         milestones: [{ name: 'Design', done: 1, total: 2, items: [{ id: 'i-1', text: 'Home page', done: true }, { id: 'i-2', text: 'Gallery', done: false }] }, { name: 'Build', done: 0, total: 1, items: [{ id: 'i-3', text: 'Contact form', done: false }] }],
-        done: 1, total: 3, summary: '1 of 3 done', doneSince: [], link: { kind: 'preview', url: 'https://example-site-git-feat.vercel.app', state: 'ready', at, branch: 'feat/gallery' }, linkWhy: null, update: 'Example — update · Still to do (2 of 3): Gallery, Contact form', lastCopyAt: null };
+        done: 1, total: 3, summary: '1 of 3 done', doneSince: [], link: { kind: 'preview', url: 'https://example-site-git-feat.vercel.app', state: 'ready', at, branch: 'feat/gallery', basis: 'deployed-branch', newer: { branch: 'wip/experiment', at } }, linkWhy: null, update: 'Example — update · Still to do (2 of 3): Gallery, Contact form', lastCopyAt: null };
       await t.evaluate(`hqFake.set('delivery.read', ${JSON.stringify(view)})`);
       if (!await dlvOpen(t)) return ['the project page never showed the Client delivery card'];
       const txt = await t.evaluate(DLV_TXT);
-      for (const w of ['1 of 3 done · 33%', 'Design', 'Build', 'Home page', 'Gallery', 'Contact form', 'Preview link', 'ready · 2 h ago · feat/gallery', 'https://example-site-git-feat.vercel.app', 'May need a Vercel login', 'update to paste', 'Example — update', 'Not copied yet']) {
+      for (const w of ['1 of 3 done · 33%', 'Design', 'Build', 'Home page', 'Gallery', 'Contact form', 'Preview link', 'ready · 2 h ago · from feat/gallery', 'https://example-site-git-feat.vercel.app', 'May need a Vercel login', 'A newer preview on wip/experiment is not the deployed branch', 'update to paste', 'Example — update', 'Not copied yet']) {
         if (!txt.includes(w)) out.push('the card lacks "' + w + '": ' + txt.slice(0, 200));
       }
       if (!await t.evaluate('!!' + DLV_BTN('Copy update')) || !await t.evaluate('!!' + DLV_BTN('Copy link'))) out.push('Copy update / Copy link missing');
