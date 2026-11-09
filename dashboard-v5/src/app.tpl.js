@@ -18,6 +18,7 @@ import history from './tpl/history.tpl.js';
 import system from './tpl/system.tpl.js';
 import life from './tpl/life.tpl.js';
 import money from './tpl/money.tpl.js';   // money space (space-port-money), 2026-11-03
+import cosmos from './tpl/cosmos.tpl.js';   // Cosmos Feed (key 0), 2026-11-09
 import prompt from './tpl/prompt.tpl.js';
 import ambient from './tpl/ambient.tpl.js';
 import navBottom from './tpl/nav-bottom.tpl.js';
@@ -32,11 +33,12 @@ import ovSheet from './tpl/ov-sheet.tpl.js';
 import ovSettings from './tpl/ov-settings.tpl.js';
 import ovMisc from './tpl/ov-misc.tpl.js';
 import ovOnboard from './tpl/ov-onboard.tpl.js';
+import cosmosOverlays from './tpl/cosmos-overlays.tpl.js';   // Cosmos lightbox, index overlay, import report, 2026-11-09
 import extras from './tpl/extras.tpl.js';   // v5 additions (no design slice); empty until Phase 3 P8
 import toasts from './tpl/toasts.tpl.js';
 
 export default [
-  shell, home, projects, projectPage, tasks, automations, claude, history, system, life, money,
+  shell, home, projects, projectPage, tasks, automations, claude, history, system, life, money, cosmos,
   prompt, ambient, navBottom, ovScrub, ovRuns, ovAsk, ovPalette, ovFocus,
-  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, extras, toasts,
+  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, cosmosOverlays, extras, toasts,
 ].join('');
