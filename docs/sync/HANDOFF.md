@@ -12,6 +12,20 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-09 · FROM frontend (batch 2 Cosmos: tasting fixed, gates re-run, PUSHED, live app restarted) · main @ 6e135f1
+DONE: four tasters (engine, main + search, renderer, gates) found 0 high, 2 med, 14 low; one combined fixer landed both meds (6e135f1):
+  the walk caps per root, so a full pictures folder no longer starves data/cosmos/imports; a damaged curation.json with no usable .prev
+  puts the session on hold (reads warn, writes refuse) instead of letting the next write start from an empty document. Lows judged
+  not code defects (ids follow paths, the native-path risks needing the owner's machine, the known UI gaps listed below) stay open.
+  Final gates, one after another on this tree: main 1786 (1785 pass, 1 pre-existing trailer skip), money 253/253, renderer 743/743,
+  Electron selftest 2764 combos 0/0/0, cdp-gate 59/59, cosmos native check PASS (16 passed, 0 failed, 2 not covered: AVIF has no
+  offline encoder, video first-frame colour is off so video thumbnails stay off). Privacy scan of everything batch 2 added: 0 names,
+  0 secrets, 0 owner picture paths. Three older entries' "tools\rollback.ps1" had been written with a raw carriage return; fixed.
+IN-FLIGHT: none. OWNER STEPS: export the Cosmos Local backup first (the only copy of the curation); press 0, Index a folder ->
+  C:/Users/ROG STRIX/Pictures exactly; then Import from Cosmos Local (the backup, then the old manifest) and read the report.
+ASKS (struct): none new. BREAKS: none (additive).
+
+---
 ## 2026-11-09 · FROM frontend (batch 2 DONE: the Cosmos space on key 0, on main; not pushed) · main @ f442b05 + the gates commit
 DONE: seven dishes, each its own commit: search grammar + MCP hq_cosmos_search (cc9710f), index engine (cbcc44c), native thumbnails + Electron check (18007f4),
   main-side engine + IPC (7e9f076), renderer brain (11dfaad), Feed/lightbox/index overlay/report templates (f442b05), and the gates (this entry's commit: the invented
@@ -29,7 +43,7 @@ RECORD (cosmos-native): the hidden-window VIDEO thumbnail capture is NOT proven 
 KNOWN UI GAPS (a later pass; each needs a vals key then a template edit): sort/group are chip rows not selects; the lightbox shows no file size, swatch or palette strip and no
   message when the original fails to load; a card thumbnail has no fallback to the original; Esc in the title input falls through to closeTop; no drag highlight (drop works);
   the index overlay shows one progress string, not four phase rows; the report lacks seeded/re-keyed/skipped lines; the Feed shows only file: and data: pictures (index.html CSP).
-IN-FLIGHT: none. ASKS (struct): none. BREAKS: none (additive; key 0 gains a destination, the MCP gains hq_cosmos_search). OWNER STEP: restart the app (toolsollback.ps1 v5), press 0,
+IN-FLIGHT: none. ASKS (struct): none. BREAKS: none (additive; key 0 gains a destination, the MCP gains hq_cosmos_search). OWNER STEP: restart the app (tools\rollback.ps1 v5), press 0,
   choose the pictures folder and Start; the real library has never been indexed on this machine by a gate (the gates run on the invented one).
 
 ---
@@ -75,7 +89,7 @@ DONE: fixes from the taster's pass over the two approved follow-ups (no new feat
   the tray line, the tooltip and the extension say "Nothing new" (with the standing count and date), never "Nothing needs you". The Home line says "Standing, oldest since 5 Nov:" when several stand ("Standing since" for one);
   each item's own date stays in its tooltip. Not done on purpose: no Dismiss for a standing item (it is one click from where it is cleared); the badge/high counts still count fresh items only.
   Tests: brief (2 new), tray-brief (1), assist-ext (1 line), renderer brief logic (2), grab-download (6 new, one old pin on an untyped video changed). CONTRACT unchanged.
-IN-FLIGHT: none. OWNER STEP: reload the extension at chrome://extensions and restart the app (toolsollback.ps1 v5).
+IN-FLIGHT: none. OWNER STEP: reload the extension at chrome://extensions and restart the app (tools\rollback.ps1 v5).
 ASKS: none. BREAKS: none.
 
 ---
@@ -486,7 +500,7 @@ DONE: e465b43 + follow-up fe: new dashboard/stdio-guard.js (4 tests): a closed c
   into no-ops once and writes ONE 'stdio-closed' line to the file log; main.js uncaught / unhandledRejection handlers skip pipe
   errors and never re-throw through the console. Cause: logs/app-2026-10-28.log had 10,461 uncaughtException EPIPE lines
   00:03–11:40 (pid 22572, launched detached) until its 5 MiB cap. Checked with a real closed-pipe child; dashboard + hub 743 pass.
-  App restarted via toolsollback.ps1 v5 (pid 33744); a console write after restart logged nothing bad.
+  App restarted via tools\rollback.ps1 v5 (pid 33744); a console write after restart logged nothing bad.
 IN-FLIGHT: feature cleanup from docs/audits (local, not committed: personal usage data) — tag cleanup-base-2026-10-28 first.
 ASKS: none. NOTE: the capped log was renamed logs/app-2026-10-28.epipe-loop.log (5 MB) — rotation won't prune that name; owner's to delete.
 BREAKS: main.js lines 26–29 (stdio guard + the two process handlers). No IPC change.
