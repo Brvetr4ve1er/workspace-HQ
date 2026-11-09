@@ -279,6 +279,7 @@
     system: ['M7 7h10v10H7zm2 2v6h6V9z', 'M9 2h2v4H9zM13 2h2v4h-2zM9 18h2v4H9zM13 18h2v4h-2zM2 9h4v2H2zM2 13h4v2H2zM18 9h4v2h-4zM18 13h4v2h-4z'],
     life: ['M12 21s-8.5-5.3-8.5-11.2A4.8 4.8 0 0 1 12 6.6a4.8 4.8 0 0 1 8.5 3.2C20.5 15.7 12 21 12 21z'],
     money: ['M12 1.5 22.5 12 12 22.5 1.5 12zm0 2.9L4.4 12l7.6 7.6 7.6-7.6z', 'M12 7.6 16.4 12 12 16.4 7.6 12z'],   // ◈ (money space)
+    cosmos: ['M12 1.8 21 6.9v10.2l-9 5.1-9-5.1V6.9zm0 2.3L5 8v8l7 4 7-4V8z', 'M12 9.2 14.6 10.7v2.6L12 14.8 9.4 13.3v-2.6z'],   // ⬡ (cosmos space)
     search: ['M10 3a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 10 3zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10z'],
     focus: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
     activity: ['M2 11h4l3-7 5 16 3-9h5v2h-3.6L14 21 9 5l-1.7 4H2z'],
@@ -298,6 +299,7 @@
     system: p => p[1] && p[1].animate([{ opacity: 1 }, { opacity: .25 }, { opacity: 1 }], { duration: 420, iterations: 2 }),
     life: p => p[0].animate([{ transform: 'scale(1)' }, { transform: 'scale(1.22)' }, { transform: 'scale(.95)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 620 }),
     money: p => p[1] && p[1].animate([{ transform: 'rotate(0)' }, { transform: 'rotate(90deg)' }], { duration: 380, easing: 'cubic-bezier(.3,1.5,.5,1)' }),
+    cosmos: p => p[1] && p[1].animate([{ transform: 'scale(1)' }, { transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 480, easing: 'cubic-bezier(.3,1.4,.5,1)' }),
     settings: p => p[0].animate([{ transform: 'rotate(0)' }, { transform: 'rotate(120deg)' }], { duration: 560, easing: 'cubic-bezier(.3,1.4,.5,1)' }),
     scan: p => p.forEach(e => e.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], { duration: 600, easing: 'ease-in-out' })),
     focus: p => p[1] && p[1].animate([{ transform: 'scale(1)' }, { transform: 'scale(1.6)' }, { transform: 'scale(1)' }], { duration: 420 }),

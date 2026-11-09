@@ -28,6 +28,7 @@ export const NAV = [
   { id: 'system', label: 'System', glyph: '▣' },
   { id: 'life', label: 'Life', glyph: '♥' },
   { id: 'money', label: 'Money', glyph: '◈' },
+  { id: 'cosmos', label: 'Cosmos', glyph: '⬡' },
 ];
 export const SUBS = {
   projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase']],
@@ -38,6 +39,7 @@ export const SUBS = {
   system: [['machine', 'Machine'], ['clutter', 'Workspace clutter']],
   life: [['screen', 'Screen time'], ['notes', 'Notes']],
   money: [['today', 'Today'], ['runway', 'Runway'], ['jars', 'Jars'], ['inbox', 'Inbox']],
+  cosmos: [['feed', 'Feed']],
 };
 export const ST = {
   risk: { label: 'At risk', color: 'var(--red)', tone: 'red', rank: 0 },
@@ -83,7 +85,7 @@ export const MILESTONES = [
 // main reports a registration failure (no channel for that yet). Studio's snip / record / open
 // hotkeys were released with Studio (2026-10-28 cleanup).
 export const HOTKEYS = [['Ctrl Alt X', 'Quick-run palette', 'ok']];
-export const KEYS = [['Ctrl K  or  /', 'Search & commands'], ['Tab (in search)', 'Switch Go / Ask'], ['1 – 9', 'Destinations'], ['F', 'Focus on the next action'], ['← →', 'Scrub snapshots'], ['Esc', 'Close the top overlay'], ['?', 'This sheet']];
+export const KEYS = [['Ctrl K  or  /', 'Search & commands'], ['Tab (in search)', 'Switch Go / Ask'], ['0 – 9', 'Destinations'], ['F', 'Focus on the next action'], ['← →', 'Scrub snapshots'], ['Esc', 'Close the top overlay'], ['?', 'This sheet']];
 
 // automation categories: spellbook "schools" in plain words (brief §6.4c)
 export const SCHOOL = { divination: 'Analyze', conjuration: 'Generate', transmutation: 'Build', abjuration: 'Secure', evocation: 'Execute', illusion: 'Design', enchantment: 'Notify', restoration: 'Fix' };

@@ -779,3 +779,23 @@ test('adoptClaudeTurn registers a turn main started and replays events that arri
   assert.equal(st.adoptClaudeTurn({ turnId: 'ct-1', prompt: 'again' }), false, 'a turn is adopted once');
   st.stop();
 });
+
+test('Cosmos: a store built with hq.cosmos absent reports loaded:false, resolves {error} and never throws (start and stop included)', async () => {
+  const { hq } = fakeHq({ liveState: null });
+  const st = createStore(DATA(), hq);
+  assert.equal(st.live.cosmos.loaded, false);
+  assert.equal(st.live.cosmos.works, null, 'not loaded is null, not []');
+  await st.start();
+  const r = await st.refreshCosmos(true);
+  assert.ok(r && typeof r.error === 'string' && r.error.length, 'refresh answers {error} without the desktop module');
+  for (const f of ['pickCosmosFolder', 'indexCosmos', 'cancelCosmosIndex', 'importCosmosLocal']) assert.ok((await st[f]()).error, f + ' resolves {error}');
+  assert.ok((await st.trashCosmos(['x'])).error);
+  assert.ok((await st.revealCosmos('x')).error);
+  assert.ok((await st.importCosmosFiles([])).error);
+  assert.equal(st.live.cosmos.loaded, false);
+  st.stop();
+  const bare = createStore(DATA(), null);   // no preload at all (dev harness)
+  assert.equal(bare.live.cosmos.loaded, false);
+  assert.ok((await bare.refreshCosmos()).error);
+  bare.stop();
+});

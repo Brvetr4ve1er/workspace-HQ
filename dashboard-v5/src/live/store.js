@@ -13,6 +13,7 @@
 // window.hq is feature-detected everywhere: the dev harness runs without the
 // preload, and then the screen is read-only with a stated reason.
 import * as A from './adapter.mjs';
+import { createCosmosSlice, emptyCosmos } from './cosmos-slice.mjs';
 import * as C from './catalog.mjs';
 
 const arr = (x) => (Array.isArray(x) ? x : []);
@@ -42,6 +43,7 @@ export function createStore(DATA, hq) {
     dev: {}, machine: null, browserNow: null,
     llm: null, casts: {},
     money: { view: null, error: '', loaded: false },
+    cosmos: emptyCosmos(),
     brief: { brief: null, error: '', loaded: false },   // Operator Brief: the last brief main computed (hq:brief:*)   // money space: last view from hq:money:* (main owns the data)
     board: { board: null, error: '', loaded: false },   // Sessions board: the last board main built (hq:sessions-board:*)
     delivery: { byProject: {}, error: '', loaded: false },   // Client delivery: the last card main built per project (hq:delivery:*)
@@ -365,6 +367,7 @@ export function createStore(DATA, hq) {
       reads.push(refreshBrief());
       if (hq.brief.onBrief) sub(() => hq.brief.onBrief((b) => { if (b && Array.isArray(b.items)) { live.brief = { brief: b, error: '', loaded: true }; emit(); } }));
     }
+    cosmosSlice.watchCosmos();
     return Promise.all(reads).then(() => {});
   }
   const lib = () => live.claudeLib;
@@ -498,13 +501,14 @@ export function createStore(DATA, hq) {
     lib().statsErr = null;
     return hubCall(() => hq.claudeHub.stats({ from: localDay(from), to: localDay(to), tzOffsetMin: -new Date().getTimezoneOffset() }), (r) => { lib().stats = r; }, null, (m) => { lib().statsErr = m; });
   }
-  function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); clearTimeout(chatTimer); chatTimer = null; }
+  const cosmosSlice = createCosmosSlice({ hq, live, emit, pull });
+  function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); clearTimeout(chatTimer); chatTimer = null; cosmosSlice.stopCosmos(); }
 
   return {
     model, live, bridge: !!hq, hq, readFailures,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshLlm, refreshMoney, applyMoney, previewMoneyLine, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshDelivery, applyDelivery, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
-    sendClaudeChat, cancelClaudeChat, adoptClaudeTurn,
+    sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, ...cosmosSlice,
   };
 }

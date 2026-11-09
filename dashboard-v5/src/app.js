@@ -40,6 +40,7 @@ import { moneyStartLogic } from './logic/money-start.js';   // Money in one minu
 import { sessionsBoardLogic } from './logic/sessions-board.js';   // Claude › Sessions board + Home strip: Resume, Copy command, Open folder
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
+import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
 import { renderVals } from './vals/index.js';
 
 export class Component extends DCLogic {
@@ -65,7 +66,7 @@ export class Component extends DCLogic {
     setReduceFlag(!!P.reduceMotion);
     return {
       tab: saved.tab || this.props.startTab || 'home',
-      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today' }, saved.sub || {})),
+      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
@@ -102,11 +103,13 @@ export class Component extends DCLogic {
       askChecking: false,
       // Ask (logic/ask.js, contract K-1): { askHistory, askInclude } from v3's localStorage keys; Ask saves them itself
       ...(this.askInitState ? this.askInitState() : {}),
+      ...cosInitState(P, saved),
     };
   }
 
   componentDidMount() {
     this._prev = Object.assign({}, this.state, { sub: Object.assign({}, this.state.sub) }); this._prevProps = Object.assign({}, this.props);
+    if (this.state.tab === 'cosmos') this.cosArrive();
     if (this.state.route && this.state.route.type === 'project' && this.state.route.id) this.dlvArrive(this.state.route.id);   // client delivery: a project page restored from the last session reads its card too
     // deep links (tray): subscribed first and synchronously, main may push right after load
     if (this.hq && this.hq.onNavigate) { try { this._offNav = this.hq.onNavigate((r) => this.navigateTo(r)); } catch (e) { console.warn('[nav] subscribe failed', e); } }
@@ -143,7 +146,7 @@ export class Component extends DCLogic {
     const ps = this._prev || S;
     this._prev = Object.assign({}, S, { sub: Object.assign({}, S.sub) }); this._prevProps = Object.assign({}, this.props);
     // the Ask chat isn't kept here any more: Ask saves it in v3's hq-oracle-chat (contract K-1)
-    try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus })); } catch (e) {}
+    try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus, ...cosPlaceOf(S) })); } catch (e) {}
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
@@ -168,6 +171,7 @@ export class Component extends DCLogic {
     if (moved) this.useArrive();   // a new screen starts a new arrival: a surface marked on Home is marked again after leaving and coming back
     if (moved && S.tab === 'home') this.sbdArrive('strip');   // sessions board: the Home strip reads the board on arrival (main pushes changes after that)
     if (moved && S.tab === 'claude' && S.sub.claude === 'sessions') this.sbdArrive('board');
+    if (moved && S.tab === 'cosmos') this.cosArrive();
     if (moved && S.tab === 'money') this.store.refreshMoney();   // money: "today" moves on its own (due dates, payday) — re-read on arrival
   }
 
@@ -277,7 +281,7 @@ export class Component extends DCLogic {
   xpRef = (el) => { this._xpEl = el; };
 
   go(tab, sub) {
-    this.setState((s) => ({ tab, route: null, sub: sub ? Object.assign({}, s.sub, { [tab]: sub }) : s.sub, moreOpen: false, ambientOverlay: false, paletteOpen: false }));
+    this.setState((s) => ({ tab, route: null, sub: sub ? Object.assign({}, s.sub, { [tab]: sub }) : s.sub, moreOpen: false, ambientOverlay: false, paletteOpen: false, cosLb: null, cosIdx: false, cosReportOpen: false }));
     FX().sfx('tab');
   }
   openProject(id) { if (!id) return; this.setState({ route: { type: 'project', id }, diagTab: 'git', pageMore: false, paletteOpen: false, ambientOverlay: false, journalDraft: '' }); FX().sfx('open'); }
@@ -361,8 +365,8 @@ export class Component extends DCLogic {
   closeTop() {
     const S = this.state;
     // What's new sits over Settings (it opens from there), so it closes first
-    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'whatsNewOpen', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
-    for (const k of order) if (S[k]) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault'].includes(k) ? null : false }); return; }
+    const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'whatsNewOpen', 'cosReportOpen', 'cosIdx', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'cosLb', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
+    for (const k of order) if (S[k]) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'cosLb'].includes(k) ? null : false }); return; }
     if (S.route) this.setState({ route: null });
   }
   onKey(e) {
@@ -383,6 +387,7 @@ export class Component extends DCLogic {
     if (S.confirm && e.key === 'Enter' && !typing && this.confirmKey(e)) return;
     if (typing) return;
     if (S.levelUp || S.sheet || S.commit || S.confirm || S.settingsOpen || S.cheatOpen || S.onboard || S.whatsNewOpen || S.vault) return;
+    if (S.cosLb && this.cosKey(e)) { e.preventDefault(); return; }
     if (e.key === '/') { e.preventDefault(); this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: '', paletteSel: 0 }); return; }
     if (e.key === '?') { this.setState({ cheatOpen: true }); return; }
     if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) { const n = this.M.NAV[e.key === '0' ? 9 : +e.key - 1]; if (n) this.go(n.id); return; }   // 0 = the 10th destination
@@ -396,5 +401,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, cosmosLogic);
 Component.prototype.renderVals = renderVals;

@@ -20,7 +20,7 @@ export function makeCtx() {
     home: ok && !onPage && S.tab === 'home', projects: ok && !onPage && S.tab === 'projects', project: ok && onPage, tasks: ok && !onPage && S.tab === 'tasks',
     automations: ok && !onPage && S.tab === 'automations', claude: ok && !onPage && S.tab === 'claude', history: ok && !onPage && S.tab === 'history',
     system: ok && !onPage && S.tab === 'system', life: ok && !onPage && S.tab === 'life',
-    money: ok && !onPage && S.tab === 'money',
+    money: ok && !onPage && S.tab === 'money', cosmos: ok && !onPage && S.tab === 'cosmos',
   });
   v.stdHeader = ok && !onPage && S.tab !== 'home';
   const sub = S.sub[S.tab];
