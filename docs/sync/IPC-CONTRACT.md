@@ -736,6 +736,7 @@ As-built (2026-11-08, main side; `dashboard/cosmos.js`, hooked in `main.js` afte
 - Preload-only helper, NOT a channel: `hq.cosmos.pathForFile(File) -> string` (`webUtils.getPathForFile`, one File per call, `''` on any failure
   or when called bare). The fake preload answers it synchronously (row kind `{ sync: fn }`), and `fake-preload.test.mjs` pins it as the one method that makes no IPC call.
 - Gate-only environment overrides (they replace a dialog, nothing else): `HQ_COSMOS_ROOT`, `HQ_COSMOS_IMPORT_BACKUP`, `HQ_COSMOS_IMPORT_MANIFEST`, `HQ_COSMOS_MANIFEST`.
+- As-built (2026-11-09, renderer core), consumers: `dashboard-v5/src/live/cosmos-slice.mjs` (`LIVE.cosmos`) is the only renderer caller of `window.hq.cosmos`, apart from the preload helper `pathForFile`, which `logic/cosmos.js` (`cosDrop`) calls one File at a time. The slice reads once per arrival on the tab (never at boot; `start()` only subscribes to `onProgress`, `stop()` calls the unsubscribe once), swaps in `apply`'s `view`, and with `hq.cosmos` absent every call resolves `{error: 'Cosmos needs the desktop app'}`. One more `hq:use` surface, `cosmos` (action `open`), is marked on arrival. No channel added.
 
 ## Rules
 
