@@ -120,6 +120,25 @@ describe('curation.json and curation.json.prev', () => {
     } finally { done(); }
   });
 
+  it('after a quarantine with no usable .prev the next write is refused, not started from an empty document', () => {
+    const { dir, store, done } = setup();
+    try {
+      fs.writeFileSync(path.join(dir, 'curation.json'), '###');
+      const first = store.readCuration();
+      assert.match(first.error, /curation.json.corrupt/);
+      const again = store.readCuration();
+      assert.match(again.error, /Nothing will be saved/, 'the warning persists');
+      assert.throws(() => store.writeCuration(curationWith('alpha-1')), /Nothing will be saved/);
+      assert.ok(!fs.existsSync(path.join(dir, 'curation.json')), 'no empty document was written');
+      assert.equal(fs.readFileSync(path.join(dir, 'curation.json.corrupt'), 'utf8'), '###');
+      // restoring the file by hand lifts the hold
+      fs.writeFileSync(path.join(dir, 'curation.json'), JSON.stringify(curationWith('alpha-2')));
+      assert.deepEqual(store.readCuration().curation.favorites, { 'alpha-2': true });
+      store.writeCuration(curationWith('alpha-3'));
+      assert.deepEqual(store.readCuration().curation.favorites, { 'alpha-3': true });
+    } finally { done(); }
+  });
+
   it('wrong-shape JSON ([] / a number / a cluster without a name) is quarantined too', () => {
     for (const text of ['[]', '42', '{"clusters":[{"id":"cl-1"}]}', '{"clusters":"nope"}', '{"favorites":[1]}']) {
       const { dir, store, done } = setup();

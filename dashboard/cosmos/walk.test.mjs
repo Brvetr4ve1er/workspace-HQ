@@ -232,6 +232,18 @@ describe('walk with a fake io', () => {
     assert.equal(r.truncated, true);
   });
 
+  it('a full pictures root still lets the imports root be walked (the cap is per root)', async () => {
+    const dirs = {
+      '/p': [{ name: 'a.png', isDir: false, isFile: true, isSymlink: false }, { name: 'b.png', isDir: false, isFile: true, isSymlink: false }, { name: 'c.png', isDir: false, isFile: true, isSymlink: false }],
+      '/imp': [{ name: 'dropped.png', isDir: false, isFile: true, isSymlink: false }],
+    };
+    const io = { readdir: async (d) => dirs[d], stat: async () => ({ size: 1, mtimeMs: 1, birthtimeMs: 1 }) };
+    const r = await walk({ roots: [{ prefix: '', dir: '/p' }, { prefix: 'imports:', dir: '/imp' }], io, limits: { maxFiles: 2 } });
+    assert.equal(r.truncated, true);
+    assert.ok(r.files.some((f) => f.rel === 'imports:dropped.png'), 'the dropped-in work is still in the library');
+    assert.equal(r.files.filter((f) => !f.rel.startsWith('imports:')).length, 2);
+  });
+
   it('yields every 200 directory entries', async () => {
     const tree = {};
     for (let i = 0; i < 450; i += 1) tree[`n${i}.txt`] = 1;

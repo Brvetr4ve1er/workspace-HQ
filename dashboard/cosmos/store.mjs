@@ -174,6 +174,10 @@ export function makeStore({ fs, dir, pid = process.pid }) {
     return { status: 'ok', value, text };
   }
 
+  // A curation.json that was quarantined with no usable .prev: until the owner restores the file (or the app
+  // restarts) an empty document must not be written over their work, so reads keep warning and writes refuse.
+  let curationHeld = null;
+
   const nameOf = (p) => path.basename(p);
   const unreadable = (what, r) => ({ error: `Could not read ${what}: ${r.error && r.error.message ? r.error.message : 'unknown problem'}.` });
 
@@ -230,7 +234,11 @@ export function makeStore({ fs, dir, pid = process.pid }) {
     /** { curation } | { error, curation, restored } | { error } (unreadable: no document is offered). */
     readCuration() {
       const r = readDoc(f.curation, normalizeCuration);
-      if (r.status === 'missing') return { curation: emptyCuration() };
+      if (r.status !== 'missing') curationHeld = null;
+      if (r.status === 'missing') {
+        if (curationHeld) return { error: curationHeld, curation: emptyCuration(), restored: false };
+        return { curation: emptyCuration() };
+      }
       if (r.status === 'ok') return { curation: r.value };
       if (r.status === 'unreadable') return unreadable('your curation', r);
       const a = aside(f.curation, r);
@@ -243,11 +251,13 @@ export function makeStore({ fs, dir, pid = process.pid }) {
         } catch { /* fall through: serve it from memory */ }
         return { error: `${a.message} Your previous save could not be restored.`, curation: p.value, restored: false };
       }
-      return { error: a.message, curation: emptyCuration(), restored: false };
+      curationHeld = `${a.message} Nothing will be saved until you rename ${nameOf(a.to)} back to curation.json or restart the app to begin with an empty curation.`;
+      return { error: curationHeld, curation: emptyCuration(), restored: false };
     },
     writeCuration(doc) {
       if (normalizeCuration(doc) === null) throw new Error('refusing to write a curation document with the wrong shape');
       const cur = readDoc(f.curation, normalizeCuration);
+      if (cur.status === 'missing' && curationHeld) throw new Error(curationHeld);
       if (cur.status === 'unreadable') throw cur.error;
       if (cur.status === 'ok') atomicWrite(f.prev, cur.text);
       else if (cur.status === 'corrupt') {

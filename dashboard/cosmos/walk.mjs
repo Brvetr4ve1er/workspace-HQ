@@ -8,7 +8,7 @@
      - symlinks and junctions are NEVER followed (an entry with isSymlink is skipped, file or directory), so
        the walk cannot leave its root. The caller builds readdir entries from Dirent (see entryFromDirent):
        libuv reports a Windows junction as a symbolic link too;
-     - depth cap 32 and file cap 200,000: past either the walk stops descending/collecting and says
+     - depth cap 32 and file cap 200,000 per root (a full root never starves the next): past either the walk stops descending/collecting and says
        `truncated: true`; it never crashes;
      - an unreadable directory or file is counted in `unreadable`, never thrown;
      - rel is always '/'-separated; each root has a prefix ('' for the pictures folder, 'imports:' for
@@ -70,10 +70,12 @@ export async function walk({ roots, io, isCancelled = () => false, yieldNow = as
   let truncated = false;
   let seen = 0;
 
-  outer:
   for (const root of roots) {
+    // the file cap is per root: a full pictures folder must never starve the imports root
+    let rootFiles = 0;
     const prefix = root.prefix || '';
     const stack = [{ dir: root.dir, relDir: '', depth: 0 }];
+    rootCap:
     while (stack.length) {
       if (isCancelled()) return { cancelled: true };
       const cur = stack.pop();
@@ -105,7 +107,7 @@ export async function walk({ roots, io, isCancelled = () => false, yieldNow = as
         const ext = extOf(name);
         const isImage = IMAGE_EXT.has(ext);
         if (!isImage && !VIDEO_EXT.has(ext)) continue;
-        if (files.length >= maxFiles) { truncated = true; break outer; }
+        if (rootFiles >= maxFiles) { truncated = true; break rootCap; }
         const abs = joinAbs(cur.dir, e.name);
         let st;
         try {
@@ -116,6 +118,7 @@ export async function walk({ roots, io, isCancelled = () => false, yieldNow = as
         }
         if (!st || !Number.isFinite(st.size) || !Number.isFinite(st.mtimeMs)) { unreadable += 1; continue; }
         const born = Number.isFinite(st.birthtimeMs) && st.birthtimeMs > 0 ? st.birthtimeMs : st.mtimeMs;
+        rootFiles += 1;
         files.push({
           rel: prefix + (cur.relDir ? `${cur.relDir}/${name}` : name),
           abs,
