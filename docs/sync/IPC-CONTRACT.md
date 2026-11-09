@@ -712,6 +712,31 @@ As-built (2026-11-08, search core): one more door, NOT an Electron channel. MCP 
 edits applied, `path` root-relative (`imports:<name>` for imports), no thumbnail / hash / colour record. The query grammar is
 ONE file, `dashboard-v5/src/logic/cosmos-search.mjs` (`runSearch`), imported by both the Feed and the MCP reader.
 
+As-built (2026-11-08, main side; `dashboard/cosmos.js`, hooked in `main.js` after Money, one line with `getWin` and `castSend`):
+- Nine invoke channels (`read`, `apply`, `pick-folder`, `index`, `cancel-index`, `trash`, `reveal`, `import-files`, `import-local`) plus the one
+  push `hq:cosmos:index-progress`; every handler resolves a value or `{error}` and none throws at the renderer.
+- `cosmos.read({force?})` answers `{state, config, works, dupes, curation, cleanup, rootOk, indexing, stale?, warnings?, error?}`. Each work is the
+  library row plus `url` and `thumbUrl` (`file:` URLs built in main, `thumbUrl` null without a thumbnail; never written back to disk).
+  `rootOk` is false when the root cannot be reached (the last library is still served); `indexing` is `null` or `{phase, done, total,
+  startedAt}` so a reloaded window sees a run in progress; `stale` appears after 14 days; `warnings[]` says a damaged `curation.json` was
+  quarantined and restored from `.prev`; `state:'error'` carries `error` (an unreadable library, moved aside, its id map kept).
+- `cosmos.apply` answers `{view:{curation, cleanup}, note}`. One more intent: `import-replace {token}` finalises the conflicts an earlier
+  `importFromLocal` held back (single use, 10 minutes). Ids and timestamps are minted in main; every element id must exist in the id map.
+- `cosmos.index` refusals: `{ok:false, reason: 'no-root' | 'running' | 'root-missing' | 'not-a-folder' | 'unavailable' | 'error', message}`
+  (`not-a-folder` also covers a root that equals or contains `data/cosmos`). The root is saved to `config.json` only once the walk has started.
+  The progress push is `{phase: 'walk' | 'thumbs' | 'hashes' | 'dupes' | 'done' | 'cancelled' | 'error', done, total, done_all?, summary?, error?}`
+  and the last one (`done_all: true`) carries `summary {elements, thumbs, thumbsFailed, unchanged, minted, seeded, cancelled}`.
+- `cosmos.trash(ids)` takes at most 20 ids and, in this batch, REFUSES every element that is not a dropped import (rel `imports:...`):
+  `failed: [{id, message: 'Only files you dropped into Cosmos can be moved to the Recycle Bin from here yet'}]`, `deps.trash` never called. The guard
+  lives in main and goes when Cleanup lands. It is also refused while an index runs. `cosmos.reveal` works for any indexed element.
+- `cosmos.importFromLocal` answers `{clusters, favorites, hidden, overrides, found, missingIds (<=200), missingCount, seeded, rekeyed, skipped (<=200),
+  skippedCount, notMatched, notMatchedCount, conflicts, dropped, manifest: 'used' | 'skipped' | 'unreadable', token | null, note}` or
+  `{ok:false, reason: 'canceled' | 'running' | 'bad-backup' | 'unreadable' | 'write-failed' | 'error', message}`. Counters are what was NEWLY applied
+  (a second import answers zeros); cleanup dismissals are not in the old backup.
+- Preload-only helper, NOT a channel: `hq.cosmos.pathForFile(File) -> string` (`webUtils.getPathForFile`, one File per call, `''` on any failure
+  or when called bare). The fake preload answers it synchronously (row kind `{ sync: fn }`), and `fake-preload.test.mjs` pins it as the one method that makes no IPC call.
+- Gate-only environment overrides (they replace a dialog, nothing else): `HQ_COSMOS_ROOT`, `HQ_COSMOS_IMPORT_BACKUP`, `HQ_COSMOS_IMPORT_MANIFEST`, `HQ_COSMOS_MANIFEST`.
+
 ## Rules
 
 1. **Additive-only** through the program: never rename a channel, change an arg

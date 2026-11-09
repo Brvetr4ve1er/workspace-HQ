@@ -467,6 +467,18 @@ the root and every path come from a native dialog or from main, never from the r
 
 As-built (2026-11-08, search core): the MCP server (`mcp/workspacehq/cosmos-read.mjs`, tool `hq_cosmos_search`) is a second, READ-ONLY reader of `library.json` (`works[]`, `generatedAt`) and `curation.json` (`hidden`, `overrides`); it writes nothing, skips hidden pictures, answers an error (never an empty list) when either file will not parse, and returns only id, title, type, tags and the root-relative path. The curation keys it reads (`favorites`, `hidden`, `overrides`) are unchanged.
 
+As-built (2026-11-08, main side; writers: `dashboard/cosmos.js`, `dashboard/cosmos/store.mjs`, `curation.mjs`, `importlocal.mjs`):
+- Work rows gain `size` (bytes) and `mtimeMs` (the incremental index compares both before reusing a thumbnail) and, only when true, `approx: true`
+  (the size is the thumbnail's own, good for the ratio only, or 1 x 1 with `thumb: null`). `dupes` is `{exact: [{key, ids, kinds, keeperId, reason}], near: [...same], junk: [{id, reason}]}`.
+- `curation.json` = `{version:1, clusters:[{id, name, description?, elementIds[], createdAt, updatedAt, rule?:{query?, tags?}}], favorites:{id:true}, hidden:{id:true}, overrides:{id:{title?, tags?}}}`
+  (a smart cluster has a `rule` and no hand-kept members); `cleanup.json` = `{version:1, dismissed:{clusters:{key: iso}, candidates:{id: iso}}}`.
+  Both are written atomically (`<file>.<pid>.tmp`, then rename); `curation.json.prev` is refreshed from the current copy only when that copy parses.
+- The id map may carry `retired:<id>` reservation entries (`{rel:'retired:<id>', id}`): an id minted before an import re-keyed that path to the old gallery's id
+  stays reserved forever and is never re-minted or resolved to a file. A work thumbnail is `thumbs/<id>.jpg`; an id that is not a safe file name is stored as `thumbs/x-<sha1 prefix>.jpg`.
+- Quarantine file names: a `curation.json`, `cleanup.json`, `config.json` or `library.json` that fails to parse or has the wrong shape is renamed `<name>.corrupt`, then
+  `.corrupt-2`, `.corrupt-3` (an earlier one is never replaced). A damaged curation is restored from `.prev` when that is good; a library that will not parse leaves a
+  stub `library.json` holding the id map salvaged from its text.
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
