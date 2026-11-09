@@ -12,6 +12,27 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-09 · FROM frontend (batch 2 DONE: the Cosmos space on key 0, on main; not pushed) · main @ f442b05 + the gates commit
+DONE: seven dishes, each its own commit: search grammar + MCP hq_cosmos_search (cc9710f), index engine (cbcc44c), native thumbnails + Electron check (18007f4),
+  main-side engine + IPC (7e9f076), renderer brain (11dfaad), Feed/lightbox/index overlay/report templates (f442b05), and the gates (this entry's commit: the invented
+  library pasted into fake-preload.js, the selftest states, eight cdp scenarios, FEED_PAGE = 250). Gates, sequential on the final tree: main 1765/1765, money 253/253,
+  renderer 743/743 (no skips), selftest 2764 combos 0/0/0, cdp-gate 59/59 (51 old + 8 cosmos). The goldens moved only in the earlier dishes (each attributed there).
+MEASURED (cosmos-render-budget, 1,000 works, 985 visible): UNPAGED failed (first render 1,604 ms vs 400; median of 9 unchanged re-renders 41 ms vs 40), so
+  FEED_PAGE = 250 was set and re-run: first render 155 ms, median unchanged re-render 19 ms, a narrowing keystroke 48 ms (budget 150), 0 builds while on Home.
+  The global button-sweep now walks 35 screens (558 buttons, 367 s, under its 900 s ceiling); the Feed takes the first 3 cards, cosmos-button-sweep takes the rest (184 buttons, 52 s).
+  The selftest takes ~165 s in the page (~12 s of it the 26 Cosmos states x 2 themes); dev-main.js SELFTEST_MS went 180000 -> 300000 so a busy machine does not time it out.
+FIXED IN THE GATES DISH: the Feed's ResizeObserver read the grid width synchronously and the re-layout fed the observer back (the browser's "ResizeObserver loop
+  completed" error, 4 per selftest): the read now happens on the next frame. The fixture's video originals carry no data: URL (the page CSP lets media load only from self and file:).
+RECORD (cosmos-native): the hidden-window VIDEO thumbnail capture is NOT proven (the check's webm came back #3ffa00 where #00ff00 was drawn), so planFor's chromium-video
+  strategy is OFF by default (makeDeps({videoFallback}), false); a video with no shell thumbnail has thumb: null and renders from its original. BMP goes shell then chromium (nativeImage cannot read it).
+  Still unverified: whether the shell returns a file-type icon for formats Windows has no thumbnail handler for; if rare formats show odd colours, reorder planFor in decode.mjs.
+KNOWN UI GAPS (a later pass; each needs a vals key then a template edit): sort/group are chip rows not selects; the lightbox shows no file size, swatch or palette strip and no
+  message when the original fails to load; a card thumbnail has no fallback to the original; Esc in the title input falls through to closeTop; no drag highlight (drop works);
+  the index overlay shows one progress string, not four phase rows; the report lacks seeded/re-keyed/skipped lines; the Feed shows only file: and data: pictures (index.html CSP).
+IN-FLIGHT: none. ASKS (struct): none. BREAKS: none (additive; key 0 gains a destination, the MCP gains hq_cosmos_search). OWNER STEP: restart the app (toolsollback.ps1 v5), press 0,
+  choose the pictures folder and Start; the real library has never been indexed on this machine by a gate (the gates run on the invented one).
+
+---
 ## 2026-11-08 · FROM frontend (batch 2 started: the Cosmos space on key 0) · main @ 0572b38
 DONE: the plan docs/superpowers/plans/2026-11-08-cosmos-batch2.md (7 dishes, three cook waves) from the Cosmos design and its
   port package; the owner asked "start batch 2 with the cosmos space".
