@@ -24,6 +24,10 @@
 // Client delivery dish (--preload=fake; the fake's delivery.read / apply are a small stateful stand-in for main and hqFake.reset(true) re-seeds it; the first project
 //   of the page's own data is an unmarked job there; each scenario ends with hqFake.reset(true) and a clean slice):
 //   delivery-render · delivery-scope-add · delivery-copy-update · delivery-empty · delivery-plan-mode
+// Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
+//   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
+//   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
+//   cosmos-index-progress · cosmos-drop-import
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -53,6 +57,7 @@
 //     KNOWN_CUTS; none left) and clicks that change nothing. Long (~6 min): has its own TIMEOUT below; not part of a quick run.
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { makeCosmosScenarios } from './cdp-cosmos.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -112,7 +117,7 @@ function driver(cdp) {
     // action, so Enter on a focused button clicks it). {repeat:true} sends one auto-repeat
     // keydown and no keyup, as when the key is held down.
     async press(key, o = {}) {
-      const K = { Enter: ['Enter', 13, '\r'], Escape: ['Escape', 27, ''], 9: ['Digit9', 57, '9'] }[key];   // 9: the money space's destination key
+      const K = { Enter: ['Enter', 13, '\r'], Escape: ['Escape', 27, ''], 9: ['Digit9', 57, '9'], 0: ['Digit0', 48, '0'] }[key];   // 9 and 0: the money and Cosmos spaces' destination keys
       if (!K) throw new Error('press: no key table entry for ' + key);
       const [code, vk, text] = K, base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk };
       await cdp.send('Input.dispatchKeyEvent', Object.assign({ type: text ? 'keyDown' : 'rawKeyDown', autoRepeat: !!o.repeat }, base, text ? { text, unmodifiedText: text } : null));
@@ -1259,7 +1264,8 @@ const SCENARIOS = {
         const mask = (s) => { let o = s; for (const n of names) o = o.split(n).join('‹project›'); return o; };
         const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null,
           askOpen: false, runsOpen: false, paletteOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, scrubOpen: false, whatsNewOpen: false, focus: null,
-          toasts: [], route: null, snapOffset: 0, clOpen: false, ccOpen: false, pageMore: false };
+          toasts: [], route: null, snapOffset: 0, clOpen: false, ccOpen: false, pageMore: false,
+          cosLb: null, cosIdx: false, cosReportOpen: false, cosReplaceAsk: false };
         const reset = async () => {
           hqFake.reset(true);
           localStorage.clear(); for (const [k, v] of Object.entries(JSON.parse(window.__sweep.ls))) localStorage.setItem(k, v);
@@ -1275,9 +1281,11 @@ const SCENARIOS = {
         // the tab / filter you are already on (the design's active style): a click there rightly changes nothing
         const selected = (b) => b.getAttribute('aria-pressed') === 'true' || b.getAttribute('aria-selected') === 'true' || !!b.getAttribute('aria-current') || /var\\(--gold\\) 14%|var\\(--accent-text\\)/.test(b.getAttribute('style') || '');
         await reset();
-        const keys = only ? only.slice() : [], seen = new Set(); let off = 0;
+        const keys = only ? only.slice() : [], seen = new Set(); let off = 0, cards = 0;
         if (!only) for (const b of document.querySelectorAll('#app button')) {
           if (!visible(b)) { if (b.disabled) off++; continue; }
+          // Cosmos Feed: every card is its own button (a label with the title): try the first 3; cosmos-button-sweep covers the rest
+          if (view.tab === 'cosmos' && b.hasAttribute('data-cos-card') && ++cards > 3) continue;
           const k = keyOf(b); if (seen.has(k) || (k.startsWith('global:') && seenGlobal.includes(k))) continue;
           if (view.overlay && k.startsWith('main:')) continue;   // the screen behind an overlay is swept on its own
           seen.add(k); keys.push(k);
@@ -2031,7 +2039,9 @@ Object.assign(SCENARIOS, {
 });
 
 // scenarios that need more than the default 90 s
-const TIMEOUT = { 'button-sweep': 900000 };
+Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
+
+const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000 };
 
 // ---- runner --------------------------------------------------------------------
 const port = Number(arg('port', '9342'));

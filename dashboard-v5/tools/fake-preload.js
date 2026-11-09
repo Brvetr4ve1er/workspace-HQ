@@ -52,8 +52,194 @@ const SESSIONS_BOARD = {"v":1,"generatedAt":"2026-11-07T12:00:00.000Z","state":"
 const MONEY = {"empty":{"today":"2026-11-03","hasAccounts":false,"accounts":[],"room":{"has":false,"amount":"0 DA","raw":0,"tight":true,"perDay":"0 DA a day","days":"27 days","payday":"30 Nov","holdings":"0 DA","jars":"0 DA","due":"0 DA","missingFx":false},"obligations":[],"dueBefore":"0 DA","dueMissing":0,"daysToPayday":27,"payday":"30 Nov","jars":[],"splitTotal":"0 DA","recent":[],"ledgerCount":0,"slips":[],"handled":0,"categories":["Food","Transport","Fun","Bills","Health","Other"],"settings":{"fx":"","payday":"","hasFx":false}},"full":{"today":"2026-11-03","hasAccounts":true,"accounts":[{"id":"fake-1","name":"Cash","currency":"DA","isUsd":false,"balance":"40,750 DA","balanceRaw":40750,"balanceDA":"","estimate":true,"tag":"estimated","confirmed":"confirmed today","stale":false},{"id":"fake-2","name":"Card","currency":"USD","isUsd":true,"balance":"$118.40","balanceRaw":118.4,"balanceDA":"≈ 29,008 DA","estimate":false,"tag":"as typed","confirmed":"confirmed today","stale":false}],"room":{"has":true,"amount":"12,098 DA","raw":12098,"tight":false,"perDay":"549 DA a day","days":"22 days","payday":"25 Nov","holdings":"69,758 DA","jars":"30,000 DA","due":"27,660 DA","missingFx":false},"obligations":[{"id":"fake-4","name":"Internet","kind":"bill","cadence":"monthly","status":"late","isLate":true,"isSoon":false,"isDone":false,"due":"1 Nov","dueLabel":"2 days late","amount":"2,600 DA","estimate":2600,"currency":"DA","installment":"","beforePayday":1,"nextStep":"","accountId":"fake-1","firstDue":"2026-11-01","rawAmount":2600,"total":"","paidBefore":"","undoId":""},{"id":"fake-5","name":"Video app","kind":"subscription","cadence":"monthly","status":"due_soon","isLate":false,"isSoon":true,"isDone":false,"due":"5 Nov","dueLabel":"due in 2 days","amount":"$12.49","estimate":12.49,"currency":"USD","installment":"","beforePayday":1,"nextStep":"","accountId":"fake-2","firstDue":"2026-11-05","rawAmount":12.49,"total":"","paidBefore":"","undoId":""},{"id":"fake-6","name":"Phone plan","kind":"installment","cadence":"monthly","status":"upcoming","isLate":false,"isSoon":false,"isDone":false,"due":"15 Nov","dueLabel":"due in 12 days","amount":"4,000 DA","estimate":4000,"currency":"DA","installment":"4 of 12","beforePayday":1,"nextStep":"","accountId":"fake-1","firstDue":"2026-11-15","rawAmount":4000,"total":12,"paidBefore":4,"undoId":""},{"id":"fake-3","name":"Rent","kind":"bill","cadence":"monthly","status":"upcoming","isLate":false,"isSoon":false,"isDone":false,"due":"20 Nov","dueLabel":"due in 17 days","amount":"18,000 DA","estimate":18000,"currency":"DA","installment":"","beforePayday":1,"nextStep":"","accountId":"fake-1","firstDue":"2026-11-20","rawAmount":18000,"total":"","paidBefore":"","undoId":""}],"dueBefore":"27,660 DA","dueMissing":0,"daysToPayday":22,"payday":"25 Nov","jars":[{"id":"fake-7","name":"Emergency","balance":"24,000 DA","raw":24000,"hasTarget":true,"target":"150,000 DA","targetRaw":150000,"targetDate":"","pct":16,"reached":false,"overspent":false,"pace":"","onTrack":false,"offTrack":false,"split":5000},{"id":"fake-8","name":"Holiday","balance":"6,000 DA","raw":6000,"hasTarget":true,"target":"30,000 DA","targetRaw":30000,"targetDate":"2027-03-20","pct":20,"reached":false,"overspent":false,"pace":"4,800 DA a month for 5 months","onTrack":false,"offTrack":true,"split":3000}],"splitTotal":"8,000 DA","recent":[{"id":"fake-11","amount":"350 DA","category":"Food","note":"coffee + bread","day":"3 Nov","account":"Cash","isBill":false,"kept":false},{"id":"fake-12","amount":"1,200 DA","category":"Transport","note":"","day":"3 Nov","account":"Cash","isBill":false,"kept":false}],"ledgerCount":2,"slips":[{"id":"fake-13","merchant":"Netflix","amount":"$12.49","approx":"≈ 3,060 DA","day":"2 Nov","sure":100,"notes":[],"warn":"","refund":false,"currency":"USD","category":"Fun","sources":[{"from":"Netflix","text":"Card: Your card was charged USD 12.49 at NETFLIX.COM on 2026-11-02."}],"merged":false},{"id":"fake-14","merchant":"Spotify","amount":"$0.00","approx":"≈ 0 DA","day":"20 Oct","sure":30,"notes":["a promotion, nothing was charged"],"warn":"a promotion rather than a charge","refund":false,"currency":"USD","category":"Fun","sources":[{"from":"Spotify","text":"Spotify: Get 3 months of Premium for $0. Offer ends 20 October."}],"merged":false}],"handled":0,"categories":["Food","Transport","Fun","Bills","Health","Other"],"settings":{"fx":"245","payday":"25","hasFx":true}}};
 
 
-// Cosmos placeholder (invented names, data: SVG pictures): 3 works, 3 clusters (one smart), one junk row. Answers hq.cosmos.read until the fixture generator replaces it.
-const COSMOS_STUB = {"state":"ready","config":{"version":1,"root":"C:/placeholder-library","indexedAt":"2026-11-05T09:00:00.000Z"},"works":[{"id":"imports-drop-1","rel":"imports:drop-1.png","title":"Dropped file 1","type":"3d","width":2941,"height":1499,"orientation":"landscape","color":{"hex":"#c2338f","r":194,"g":51,"b":143,"h":321,"s":0.58,"l":0.48},"palette":["#c2338f","#4b3fb5","#7a3fb0"],"thumb":"thumbs/imports-drop-1.jpg","video":false,"contentHash":null,"perceptualHash":"0c1870b843e1465f","tags":["harbor"],"createdAt":"2023-11-28T10:16:00.000Z","url":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 20' style='background:%23c2338f'/%3E","thumbUrl":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 20' style='background:%23c2338f'%3E%3Ctext y='4' font-size='3'%3Eimports-drop-1%3C/text%3E%3C/svg%3E"},{"id":"beta-shots-002","rel":"beta-shots/harbor-002.jpg","title":"Folded harbor","type":"ui","width":1,"height":1,"orientation":"square","color":null,"palette":[],"thumb":null,"video":false,"contentHash":null,"perceptualHash":null,"tags":["thistle","mosaic"],"createdAt":"2023-07-20T04:49:00.000Z","approx":true,"url":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3' style='background:%23888888'/%3E","thumbUrl":null},{"id":"alpha-site-003","rel":"alpha-site/garden-003.webp","title":"Winter garden","type":"illustration","width":50,"height":51,"orientation":"square","color":{"hex":"#f2f2f2","r":242,"g":242,"b":242,"h":0,"s":0,"l":0.95},"palette":["#f2f2f2"],"thumb":"thumbs/alpha-site-003.jpg","video":false,"contentHash":null,"perceptualHash":"1b4ef29d66bb3273","tags":["prism"],"createdAt":"2023-11-10T16:34:00.000Z","url":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 39 40' style='background:%23f2f2f2'/%3E","thumbUrl":"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 39 40' style='background:%23f2f2f2'%3E%3Ctext y='4' font-size='3'%3Ealpha-site-003%3C/text%3E%3C/svg%3E"}],"dupes":{"exact":[],"near":[],"junk":[{"id":"alpha-site-003","reason":"tiny"}]},"curation":{"version":1,"clusters":[{"id":"cl-harbor","name":"Harbor mornings","description":"A hand-made cluster","elementIds":["beta-shots-002"],"createdAt":"2026-03-02T10:00:00.000Z","updatedAt":"2026-03-02T10:00:00.000Z"},{"id":"cl-quiet","name":"Quiet corners","elementIds":["alpha-site-003"],"createdAt":"2026-04-11T18:30:00.000Z","updatedAt":"2026-05-01T09:00:00.000Z"},{"id":"cl-smart-kiln","name":"Everything kiln","elementIds":[],"rule":{"tags":["kiln"]},"createdAt":"2026-06-20T08:15:00.000Z","updatedAt":"2026-06-20T08:15:00.000Z"}],"favorites":{},"hidden":{},"overrides":{}},"cleanup":{"version":1,"dismissed":{"clusters":{"retired-group-1 retired-group-2":"2026-10-20T08:00:00.000Z"},"candidates":{"retired-candidate-1":"2026-10-20T08:00:00.000Z"}}},"rootOk":true,"indexing":null};
+// BEGIN cosmos-fixture (generated by tools/cosmos-fixture-paste.mjs; do not edit between the markers)
+// Placeholder library for the Cosmos space: 40 works by default, sessionStorage "hqFake:cosmosCount" asks for more (readable copy: tools/cosmos-fixture.mjs).
+const fakeCosmos = function fakeCosmos(opts) {
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const ROOT = 'C:/placeholder-library';
+  const AT = '2026-11-05T09:00:00.000Z';
+  const TYPES = ['3d', 'ui', 'illustration', 'photo', 'logo', 'motion', 'type', 'misc'];
+  // twenty invented tags; 'kiln' is the known tag (every 25th work carries it and no other work does)
+  const TAGS = ['kiln', 'harbor', 'lantern', 'meadow', 'copper', 'velvet', 'orbit', 'quartz', 'ember', 'fjord', 'mosaic', 'tundra', 'saffron', 'prism', 'cobalt', 'willow', 'granite', 'nebula', 'pewter', 'thistle'];
+  // sixteen hand-picked colours and the family each one falls in (the test checks them against the real taxonomy)
+  const COLORS = [['#c0392b', 'RED'], ['#d9541e', 'ORANGE'], ['#e08a1e', 'ORANGE'], ['#e3b505', 'AMBER'], ['#8fbf2a', 'LIME'], ['#2e8b3d', 'GREEN'],
+    ['#1a6b52', 'TEAL'], ['#17a398', 'TEAL'], ['#1f9bbf', 'CYAN'], ['#2f5fd0', 'BLUE'], ['#4b3fb5', 'INDIGO'], ['#7a3fb0', 'VIOLET'],
+    ['#c2338f', 'MAGENTA'], ['#808080', 'MONO'], ['#1c1c1c', 'MONO'], ['#f2f2f2', 'MONO']];
+  const TEAL = [6, 7];
+  const NOT_TEAL = [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15];
+  const ADJ = ['Quiet', 'Copper', 'Hollow', 'Amber', 'Distant', 'Folded', 'Paper', 'Salt', 'Midnight', 'Slow', 'Bright', 'Winter'];
+  const NOUN = ['harbor', 'lantern', 'study', 'garden', 'signal', 'tower', 'market', 'bridge', 'pane', 'orbit', 'field', 'relay'];
+  const KNOWN = { count: 1000, tag: 'kiln', hex: '#1a6b52', family: 'TEAL', type: 'photo' };
+  if (o.describe) {
+    return { root: ROOT, indexedAt: AT, types: TYPES.slice(), tags: TAGS.slice(), colors: COLORS.map((c) => ({ hex: c[0], family: c[1] })), known: KNOWN };
+  }
+  if (typeof o.error === 'string' && o.error) return { error: o.error };
+
+  const never = o.state === 'empty';
+  const n = never ? 0 : (o.count == null ? 1000 : Math.max(0, Math.floor(Number(o.count)) || 0));
+  const rootNull = never || o.rootNull === true;
+  const indexedAt = rootNull ? null : (typeof o.indexedAt === 'string' ? o.indexedAt : AT);
+
+  // ---- the generator ------------------------------------------------------------------------------------
+  let s = (0x9e3779b9 ^ (Math.floor(Number(o.seed)) || 0)) >>> 0 || 1;
+  const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+  const ri = (k) => Math.floor(rnd() * k);
+  const hex16 = () => { const a = Math.floor(rnd() * 4294967296).toString(16).padStart(8, '0'); const b = Math.floor(rnd() * 4294967296).toString(16).padStart(8, '0'); return a + b; };
+  const pad = (v, w) => String(v).padStart(w, '0');
+    const enc = (t) => t.replace(/[%<>#]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  // a coloured rectangle as a data: SVG (the root's own background, so the file stays tiny); `label` is drawn when given.
+  // vw x vh is the viewBox (the aspect ratio).
+  const art = (hex, vw, vh, label) => 'data:image/svg+xml,' + enc("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + vw + ' ' + vh + "' style='background:" + hex + "'"
+    + (label ? "><text y='4' font-size='3'>" + label + '</text></svg>' : '/>'));
+  const box = (w, h) => { const m = Math.max(w, h); return [Math.max(4, Math.round((w / m) * 40)), Math.max(4, Math.round((h / m) * 40))]; };
+  const colorOf = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const R = r / 255, G = g / 255, B = b / 255, mx = Math.max(R, G, B), mn = Math.min(R, G, B), d = mx - mn;
+    let h = 0;
+    if (d !== 0) {
+      if (mx === R) h = ((G - B) / d) % 6; else if (mx === G) h = (B - R) / d + 2; else h = (R - G) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    const l = (mx + mn) / 2, sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    return { hex, r, g, b, h: Math.round(h), s: Math.round(sat * 100) / 100, l: Math.round(l * 100) / 100 };
+  };
+
+  // roles: which work plays which part, spread across the library and never twice
+  const used = new Set();
+  const take = (k, shift, avoid) => {
+    const out = [];
+    for (let j = 0; j < k && used.size < n; j++) {
+      let p = Math.floor((j + shift) * n / k) % n, guard = 0;
+      while ((used.has(p) || (avoid && avoid(p))) && guard++ < n) p = (p + 1) % n;
+      if (used.has(p)) break;
+      used.add(p); out.push(p);
+    }
+    return out;
+  };
+  const per = (rate) => (n > 0 ? Math.max(1, Math.round(n * rate)) : 0);
+  const isKiln = (p) => p % 25 === 3;
+  const role = new Map();
+  const mark = (list, r) => list.forEach((p, i) => role.set(p, Object.assign({ i }, r)));
+  mark(take(per(0.004), 0.5), { k: 'approx' });
+  mark(take(per(0.006), 0.3), { k: 'drop' });
+  const junkAt = take(per(0.005), 0.7);
+  mark(junkAt, { k: 'junk' });
+  const specialTitle = take(3, 0.4);
+  mark(specialTitle, { k: 'title' });
+  const exactGroups = n > 0 ? per(0.003) : 0, nearGroups = n > 0 ? per(0.004) : 0;
+  const exactAt = [], nearAt = [];
+  for (let g = 0; g < exactGroups; g++) { const m = take(g === 0 ? 3 : 2, 0.15 + g * 0.31); if (m.length > 1) { exactAt.push(m); mark(m, { k: 'exact', g }); } }
+  for (let g = 0; g < nearGroups; g++) { const m = take(2, 0.55 + g * 0.17); if (m.length > 1) { nearAt.push(m); mark(m, { k: 'near', g }); } }
+  const overAt = take(per(0.004), 0.2, isKiln);
+  const hiddenAt = take(per(0.015), 0.6);
+  const favAt = take(per(0.025), 0.1);
+
+  const works = [];
+  let imp = 0;
+  for (let i = 0; i < n; i++) {
+    const rl = role.get(i) || null, kind = rl ? rl.k : '';
+    const video = i % 20 === 9 && !rl;
+    const num = pad(i + 1, 3);
+    const folder = i % 3 === 1 ? 'beta-shots' : 'alpha-site';
+    const noun = NOUN[ri(12)], adj = ADJ[ri(12)];
+    const type = video ? 'motion' : TYPES[i % 8];
+    let title = adj + ' ' + noun, id = folder + '-' + num, rel;
+    const ext = video ? 'mp4' : ['png', 'jpg', 'webp', 'jpg'][i % 4];
+    rel = folder + '/' + noun + '-' + num + '.' + ext;
+    if (kind === 'drop') { imp += 1; id = 'imports-drop-' + imp; rel = 'imports:drop-' + imp + '.png'; title = 'Dropped file ' + imp; }
+    if (kind === 'title') {
+      if (rl.i === 0) title = 'Very long title for layout testing '.repeat(7).slice(0, 200);
+      else if (rl.i === 1) title = 'Say "cheese" & \'smile\' \u{1F680}';
+      else { title = 'rough draft #3 100%'; rel = folder + '/rough draft #3 100%.png'; }
+    }
+    // tags: 1-3 from the non-kiln words, plus 'kiln' on every 25th work
+    const tags = [];
+    if (isKiln(i)) tags.push('kiln');
+    for (let k = 1 + (ri(3) === 0 ? 1 : 0); k > 0; k--) { const t = TAGS[1 + ri(19)]; if (!tags.includes(t)) tags.push(t); }
+
+    // size
+    let width, height, approx = false;
+    if (kind === 'approx') { width = 1; height = 1; approx = true; rnd(); rnd(); }
+    else if (video) { const v = i % 80 === 29; width = v ? 1080 : 1920; height = v ? 1920 : 1080; rnd(); rnd(); }
+    else if (kind === 'junk' && rl.i % 5 < 3) { width = 40 + ri(20); height = 40 + ri(16); rnd(); }
+    else { height = 600 + ri(1000); width = Math.round(height * (0.5 + rnd() * 1.5)); }
+    const orientation = width > height * 1.05 ? 'landscape' : height > width * 1.05 ? 'portrait' : 'square';
+
+    // colour
+    let color = null, palette = [];
+    if (!approx) {
+      let ci;
+      if (kind === 'junk' && rl.i % 5 >= 3) ci = 13;
+      else if (i % 20 === 5) ci = TEAL[(i / 20 | 0) % 2];
+      else ci = NOT_TEAL[ri(14)];
+      color = colorOf(COLORS[ci][0]);
+      palette = [COLORS[ci][0]];
+      if (!(kind === 'junk' && rl.i % 5 >= 3)) for (let k = ri(3); k > 0; k--) { const h2 = COLORS[ri(16)][0]; if (!palette.includes(h2)) palette.push(h2); }
+    }
+
+    // when it was made: spread over 40 months (2023-07 .. 2026-10)
+    const m = ri(40), yy = 2023 + Math.floor((6 + m) / 12), mm = (6 + m) % 12 + 1;
+    const createdAt = yy + '-' + pad(mm, 2) + '-' + pad(1 + ri(28), 2) + 'T' + pad(ri(24), 2) + ':' + pad(ri(60), 2) + ':00.000Z';
+
+    let contentHash = null;
+    let perceptualHash = approx ? null : hex16();
+    const w = { id, rel, title, type, width, height, orientation, color, palette, thumb: approx ? null : 'thumbs/' + id + '.jpg', video, contentHash, perceptualHash, tags, createdAt };
+    if (approx) w.approx = true;
+    const fill = color ? color.hex : '#888888';
+    const bx = box(width, height);
+    // a video's original is not a picture: the page's CSP only lets media load from 'self' and file:, so a data: URI there is a console error the
+    // gates count. A video with a thumbnail has no url here (it shows its poster); the real library carries a file: URL, which main makes.
+    w.url = video && !approx ? null : art(fill, approx ? 4 : bx[0], approx ? 3 : bx[1], '');
+    w.thumbUrl = approx ? null : art(fill, bx[0], bx[1], id);
+    works.push(w);
+  }
+
+  // duplicates: exact members share a content hash, near members a hash one nibble apart
+  const mk = (ids, kinds, reason) => ({ key: ids.slice().sort().join(' '), ids, kinds, keeperId: ids[0], reason });
+  const exact = exactAt.map((m) => {
+    const base = works[m[0]];
+    const hc = hex16(), hp = base.perceptualHash;
+    for (const p of m) { works[p].contentHash = hc; works[p].perceptualHash = hp; }
+    return mk(m.map((p) => works[p].id), m.map(() => 'exact'), 'Identical file contents');
+  });
+  const near = nearAt.map((m) => {
+    const hp = works[m[0]].perceptualHash;
+    works[m[1]].perceptualHash = hp.slice(0, 15) + ((parseInt(hp[15], 16) + 1) % 16).toString(16);
+    return mk(m.map((p) => works[p].id), m.map(() => 'near'), 'Visually similar (perceptual hash within 10 bits)');
+  });
+  const junk = junkAt.map((p, i) => ({ id: works[p].id, reason: i % 5 < 3 ? 'tiny' : 'blank' }));
+
+  // curation: the owner's side (favourites, hidden, four overrides, three clusters - one of them smart)
+  const favorites = {}, hidden = {}, overrides = {};
+  for (const p of favAt) favorites[works[p].id] = true;
+  for (const p of hiddenAt) hidden[works[p].id] = true;
+  const edits = [{ title: 'Renamed by the owner' }, { tags: ['ember', 'velvet'] }, { title: 'Second rename', tags: ['quartz'] }, { tags: [] }];
+  overAt.forEach((p, i) => { overrides[works[p].id] = edits[i % 4]; });
+  const ids = works.map((w) => w.id);
+  const stride = (k, off) => { const out = []; for (let j = 0; j < k && j * 7 + off < n; j++) out.push(ids[j * 7 + off]); return out; };
+  const clusters = n === 0 ? [] : [
+    { id: 'cl-harbor', name: 'Harbor mornings', description: 'A hand-made cluster', elementIds: stride(Math.min(12, Math.ceil(n / 7)), 1), createdAt: '2026-03-02T10:00:00.000Z', updatedAt: '2026-03-02T10:00:00.000Z' },
+    { id: 'cl-quiet', name: 'Quiet corners', elementIds: stride(Math.min(7, Math.ceil(n / 9)), 2), createdAt: '2026-04-11T18:30:00.000Z', updatedAt: '2026-05-01T09:00:00.000Z' },
+    { id: 'cl-smart-kiln', name: 'Everything kiln', elementIds: [], rule: { tags: ['kiln'] }, createdAt: '2026-06-20T08:15:00.000Z', updatedAt: '2026-06-20T08:15:00.000Z' },
+  ];
+  const curation = { version: 1, clusters, favorites, hidden, overrides };
+  const cleanup = n === 0 ? { version: 1, dismissed: { clusters: {}, candidates: {} } } : { version: 1, dismissed: {
+    clusters: { [near.length > 1 ? near[near.length - 1].key : 'retired-group-1 retired-group-2']: '2026-10-20T08:00:00.000Z' },
+    candidates: { [junk.length > 1 ? junk[junk.length - 1].id : 'retired-candidate-1']: '2026-10-20T08:00:00.000Z' },
+  } };
+
+  return {
+    state: never ? 'empty' : 'ready',
+    config: { version: 1, root: rootNull ? null : ROOT, indexedAt },
+    works,
+    dupes: { exact, near, junk },
+    curation,
+    cleanup,
+    rootOk: o.rootOk !== false,
+    indexing: o.indexing && typeof o.indexing === 'object' ? { phase: String(o.indexing.phase || 'walk'), done: Number(o.indexing.done) || 0, total: Number(o.indexing.total) || 0, startedAt: AT } : null,
+  };
+};
+// END cosmos-fixture
 
 // storage (optional): a Web Storage for set(…, {persist:true}); the Electron branch passes sessionStorage
 function createFake(opts) {
@@ -227,6 +413,67 @@ function createFake(opts) {
     };
   })();
 
+  // BEGIN cosmos-rows (generated by tools/cosmos-fixture-paste.mjs; do not edit between the markers)
+  // Cosmos space: answers fakeCosmos({count}); count = sessionStorage 'hqFake:cosmosCount' if set, else 40 (the global button sweep walks every screen, so the default is small).
+  const COSMOS = (() => {
+    const LIBS = new Map();   // count -> the generated answer (made once)
+    let cur = null, curCount = -1;   // the curation cosmos.apply edits; hqFake.reset() puts it back
+    const countNow = () => {
+      try {
+        const raw = storage && storage.getItem('hqFake:cosmosCount');
+        const v = raw == null || raw === '' ? NaN : Number(raw);
+        return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 40;
+      } catch (e) { return 40; }
+    };
+    const lib = (n) => { let l = LIBS.get(n); if (!l) { l = fakeCosmos({ count: n }); LIBS.set(n, l); } return l; };
+    const curation = (n) => { if (!cur || curCount !== n) { cur = JSON.parse(JSON.stringify(lib(n).curation)); curCount = n; } return cur; };
+    const copy = (n) => JSON.parse(JSON.stringify(curation(n)));
+    const read = () => { const n = countNow(); return Object.assign({}, lib(n), { curation: copy(n) }); };
+    const norm = (t) => String(t).toLowerCase().trim().replace(/\s+/g, ' ');
+    const apply = (intent) => {
+      const i = intent && typeof intent === 'object' ? intent : {};
+      const n = countNow(), c = curation(n), w = lib(n).works.find((x) => x.id === i.id);
+      if (['favorite', 'hide', 'tags', 'title'].includes(i.type)) {
+        if (!w) return { error: 'No such element' };
+        if (i.type === 'favorite' || i.type === 'hide') {
+          const m = i.type === 'favorite' ? c.favorites : c.hidden;
+          if (i.on) m[i.id] = true; else delete m[i.id];
+        } else {
+          const o = c.overrides[i.id] || (c.overrides[i.id] = {});
+          if (i.type === 'title') { if (i.title == null || String(i.title).trim() === '') delete o.title; else o.title = String(i.title); }
+          else {
+            let tags = (Array.isArray(o.tags) ? o.tags : w.tags).slice();
+            for (const t of Array.isArray(i.add) ? i.add : []) { const x = norm(t); if (x && !tags.includes(x)) tags.push(x); }
+            const gone = (Array.isArray(i.remove) ? i.remove : []).map(norm);
+            tags = tags.filter((t) => !gone.includes(t));
+            o.tags = tags;
+          }
+          if (Object.keys(o).length === 0) delete c.overrides[i.id];
+        }
+      } else if (i.type !== 'import-replace') return { error: 'The fake preload does not do ' + String(i.type) };
+      return { view: { curation: copy(n) }, note: 'saved' };
+    };
+    const trash = (ids) => {
+      const works = lib(countNow()).works, trashed = [], failed = [];
+      for (const id of Array.isArray(ids) ? ids : []) {
+        const w = works.find((x) => x.id === id);
+        if (w && String(w.rel).startsWith('imports:')) trashed.push(id); else failed.push({ id, message: 'Only a file dropped into Cosmos can be moved to the Recycle Bin from here' });
+      }
+      return { trashed, failed };
+    };
+    const report = () => ({ clusters: 3, favorites: 25, hidden: 15, overrides: 4, found: 40, missingIds: ['alpha-site-9999'], missingCount: 1, conflicts: 0, token: null, seeded: 0, skipped: [], note: 'Imported the placeholder backup' });
+    const pathForFile = (f) => (f && typeof f === 'object' && typeof f.fakePath === 'string' ? f.fakePath : '');
+    return {
+      reset: () => { cur = null; curCount = -1; },
+      rows: [
+        ['cosmos.read', read], ['cosmos.apply', apply], ['cosmos.pickFolder', () => null], ['cosmos.index', () => true], ['cosmos.cancelIndex', () => true],
+        ['cosmos.trash', trash], ['cosmos.reveal', () => true], ['cosmos.importFiles', (paths) => ({ imported: Array.isArray(paths) ? paths.length : 0, skipped: [] })],
+        ['cosmos.importFromLocal', report], ['cosmos.pathForFile', { sync: pathForFile }], ['cosmos.onProgress', 'on:hq:cosmos:index-progress'],
+      ],
+    };
+  })();
+  // END cosmos-rows
+
   // [method path, kind]: WRITE resolves true · SEND returns undefined · 'on:<channel>'
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
@@ -292,14 +539,8 @@ function createFake(opts) {
       return { view: MONEY.full, note: 'saved' };
     }],
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
-    // Cosmos space (hq:cosmos:*): the 3-work placeholder; apply answers main's shape without editing anything; trash refuses like main does for a pictures-folder element; pathForFile is SYNCHRONOUS ('' bare, like the real preload)
-    ['cosmos.read', () => COSMOS_STUB],
-    ['cosmos.apply', () => ({ view: { curation: COSMOS_STUB.curation, cleanup: COSMOS_STUB.cleanup }, note: 'saved' })],
-    ['cosmos.pickFolder', () => null], ['cosmos.index', () => true], ['cosmos.cancelIndex', () => true],
-    ['cosmos.trash', (ids) => ({ trashed: [], failed: (Array.isArray(ids) ? ids : []).map((id) => ({ id, message: 'Only files you dropped into Cosmos can be moved to the Recycle Bin from here yet' })) })],
-    ['cosmos.reveal', () => true], ['cosmos.importFiles', () => ({ imported: 0, skipped: [] })],
-    ['cosmos.importFromLocal', () => ({ ok: false, reason: 'canceled', message: 'canceled' })],
-    ['cosmos.pathForFile', { sync: () => '' }], ['cosmos.onProgress', 'on:hq:cosmos:index-progress'],
+    // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
+    ...COSMOS.rows,
   ];
 
   const answer = (method, kind, args) => {
@@ -342,7 +583,7 @@ function createFake(opts) {
   const control = {
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; DLV.reset();   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; DLV.reset(); COSMOS.reset();   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }

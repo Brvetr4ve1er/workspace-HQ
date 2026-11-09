@@ -22,8 +22,8 @@ const library = (n) => Array.from({ length: n }, (_, i) => {
 const deepFreeze = (o) => { if (o && typeof o === 'object' && !Object.isFrozen(o)) { Object.freeze(o); for (const k of Object.keys(o)) deepFreeze(o[k]); } return o; };
 const cur = (o = {}) => ({ clusters: [], favorites: {}, hidden: {}, overrides: {}, ...o });
 
-test('FEED_PAGE is Infinity by default and FEED_WIDTH is the golden width', () => {
-  assert.equal(FEED_PAGE, Infinity);
+test('FEED_PAGE is 250 (the 1,000-card render budget needed paging, 2026-11-09) and FEED_WIDTH is the golden width', () => {
+  assert.equal(FEED_PAGE, 250);
   assert.equal(FEED_WIDTH, 1040);
 });
 
@@ -69,7 +69,7 @@ test('a colour query keeps nearest-first order whatever the sort is; other queri
 
 test('paging: shown=240 gives 240 cards, remaining is the rest, and ids still lists everything', () => {
   const works = library(1000);
-  const all = buildFeed({ works, curation: cur() });
+  const all = buildFeed({ works, curation: cur(), shown: Infinity });   // every card, whatever FEED_PAGE is
   assert.equal(all.total, 1000);
   assert.equal(all.cards.length, 1000);
   assert.equal(all.remaining, 0);

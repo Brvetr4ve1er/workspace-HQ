@@ -139,7 +139,10 @@ export const cosmosLogic = {
       if (w > 0 && w !== this.state.cosWidth) this.setState({ cosWidth: w });
     };
     read();
-    if (typeof ResizeObserver !== 'undefined') { try { this._cosObs = new ResizeObserver(read); this._cosObs.observe(el); } catch { this._cosObs = null; } }
+    // the observer fires on the grid's height too, and the re-layout it causes changes that height again: read on the next frame, so the browser
+    // never reports "ResizeObserver loop completed with undelivered notifications" (the selftest counts it as an error)
+    const later = () => { if (typeof requestAnimationFrame === 'function') requestAnimationFrame(read); else read(); };
+    if (typeof ResizeObserver !== 'undefined') { try { this._cosObs = new ResizeObserver(later); this._cosObs.observe(el); } catch { this._cosObs = null; } }
   },
 
   // ---- the lightbox --------------------------------------------------------------------------------------

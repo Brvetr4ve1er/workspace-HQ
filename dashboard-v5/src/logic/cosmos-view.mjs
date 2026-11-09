@@ -21,7 +21,7 @@ import { layoutGroups } from './cosmos-layout.mjs';
  * The paging switch. Infinity = every card is emitted (design section 8: lazy images, no paging). The Pass flips this to
  * 250 ONLY if the Electron render-budget scenario fails, and keeps it only if the paged variant then passes.
  */
-export const FEED_PAGE = Infinity;
+export const FEED_PAGE = 250;
 
 /** The width the goldens and tests use when they don't care. */
 export const FEED_WIDTH = 1040;

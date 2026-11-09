@@ -16,7 +16,7 @@ const argv = process.argv;
 const opt = (k) => { const a = argv.find((x) => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : null; };
 const SELFTEST = argv.includes('--selftest'), HIDDEN = argv.includes('--hidden');
 const PRELOADS = { v2: path.join(__dirname, '..', 'dashboard', 'preload.js'), fake: path.join(__dirname, 'tools', 'fake-preload.js') };
-const SELFTEST_MS = 180000;
+const SELFTEST_MS = 300000;   // was 180000: the sweep alone took ~150 s on a busy machine before the Cosmos states (~12 s) joined it
 
 app.setPath('userData', path.join(os.tmpdir(), process.env.HQ_V5_PROFILE || 'hq-v5-dev-profile'));
 // Chromium reads this switch from argv too; appending makes it independent of argument order

@@ -13,6 +13,7 @@
 import { NAV, SUBS } from './live/catalog.mjs';
 import { TRAILERS } from './logic/whats-new.js';
 import { gapsOf } from './live/adapter.mjs';
+import { cosInitState } from './logic/cosmos.js';
 
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
@@ -115,6 +116,9 @@ export async function run(W = window.WHQ) {
     const offsets = M.maxOff > 0 ? [0, M.maxOff] : [0];
     // the money fixture (tools/money.fake-views.json): a JSON module — fetch() can't read file:// in Electron
     const MONEY = (await import('../tools/money.fake-views.json', { with: { type: 'json' } })).default;
+    // the Cosmos states (src/selftest-cosmos.mjs) run on the invented library generator (tools/cosmos-fixture.mjs): the readable copy, no JSON file
+    const { cosmosStates, COSMOS_OFFLINE_ROWS, COSMOS_SCRUBBED_ROWS } = await import('./selftest-cosmos.mjs');
+    const { fakeCosmos } = await import('../tools/cosmos-fixture.mjs');
     const base = { askHistory: initial.askHistory };
 
     for (const theme of ['dark', 'light']) {
@@ -133,7 +137,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery, cosmos: LV.cosmos };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -295,6 +299,22 @@ export async function run(W = window.WHQ) {
             LV.money = money;
             L.go('money', sub); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, mny }, extra || {}));
           });
+        }
+        // Cosmos (key 0): every state of the Feed, its dialogs and the honest blocks (src/selftest-cosmos.mjs; the invented library, never the owner's).
+        // The slice is put straight into the store and the arrival read is held (the fake's own answer would replace it); cosmos-offline hides
+        // hq.cosmos for one combo (the store's hq, never window.hq). CLEAR does not cover the cos* keys, so cosInitState() is spread first.
+        for (const [name, sub, cosLive, cs, extra] of cosmosStates(fakeCosmos())) {
+          if (COSMOS_SCRUBBED_ROWS.includes(name) && !(M.maxOff > 0)) continue;
+          const hq3 = W.store.hq, rc0 = W.store.refreshCosmos;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (COSMOS_OFFLINE_ROWS.includes(name) && hq3) W.store.hq = Object.assign({}, hq3, { cosmos: undefined });
+              W.store.refreshCosmos = () => Promise.resolve({});
+              LV.cosmos = cosLive;
+              L.go('cosmos', sub);
+              L.setState(Object.assign({}, CLEAR, base, cosInitState(), { themePref: theme, snapOffset: 0 }, cs, extra || {}));
+            });
+          } finally { W.store.hq = hq3; W.store.refreshCosmos = rc0; }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

@@ -366,15 +366,16 @@ test('a drop forwards the dropped files to cosDrop and stops the browser from op
 test('a 1,000-work library builds in ONE buildFeed call; an unchanged render is a memo hit with the same cards', () => {
   const big = Array.from({ length: 1000 }, (_, i) => W(i + 10, { createdAt: '2026-01-' + String(i % 28 + 1).padStart(2, '0') + 'T00:00:00.000Z' }));
   const r = rig({ cosmos: slice({ works: big }) });
-  const a = r.vals();
+  const a = r.vals({ cosShown: 0 });   // 0 = every card (the default pages at FEED_PAGE)
   const memo = r.live.cosmos._memo;
   assert.equal(a.cosCards.length, 1000);
   assert.deepEqual({ ...memo.stats }, { hits: 0, misses: 1, reuses: 0 });
-  const b = r.vals();
+  const b = r.vals({ cosShown: 0 });
   assert.deepEqual({ ...memo.stats }, { hits: 1, misses: 1, reuses: 0 });
   assert.equal(b.cosCards, a.cosCards);
   assert.equal(b.cosHeaders, a.cosHeaders);
   // the same feed is what the lightbox steps through
+  r.self.state.cosShown = 0;   // the component's state pages at FEED_PAGE by default; the feed key includes it
   assert.equal(r.self.cosOrder().length, 1000);
   assert.equal(memo.stats.misses, 1);
 });

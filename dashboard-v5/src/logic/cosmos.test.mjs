@@ -13,6 +13,7 @@ import { createStore } from '../live/store.js';
 import { proj, scan } from '../live/__fixtures__/synthetic.mjs';
 import { createCosmosSlice, emptyCosmos } from '../live/cosmos-slice.mjs';
 import { useLogLogic } from './use-log.js';
+import { FEED_PAGE } from './cosmos-view.mjs';
 import { cosmosLogic, cosInitState, cosPrefsOf, cosPlaceOf, COS_STATE_KEYS, COS_PAGE_STEP, cosFeed, cosCanTrash, cosWork } from './cosmos.js';
 
 process.env.TZ = 'UTC';
@@ -91,7 +92,7 @@ test('COS_STATE_KEYS lists exactly the keys cosInitState sets, with the contract
   assert.equal(s.cosGroup, 'none');
   assert.equal(s.cosDensity, 'cozy');
   assert.equal(s.cosWidth, 1040);
-  assert.equal(s.cosShown, 0);
+  assert.equal(s.cosShown, FEED_PAGE);   // the Feed starts paged at FEED_PAGE cards
   assert.equal(s.cosLb, null);
   assert.equal(s.cosIdx, false);
   assert.equal(s.cosReportOpen, false);
@@ -176,13 +177,14 @@ test('cosSearch / cosClear set the query and reset paging; the Feed follows', as
 
 test('cosMore adds one page only while paging is on', async () => {
   const { self } = await loaded();
+  self.setState({ cosShown: 0 });
   self.cosMore();
   assert.equal(self.state.cosShown, 0);   // 0 = everything is already shown
-  self.setState({ cosShown: 250 });
+  self.setState({ cosShown: FEED_PAGE });
   self.cosMore();
-  assert.equal(self.state.cosShown, 250 + COS_PAGE_STEP);
+  assert.equal(self.state.cosShown, FEED_PAGE + COS_PAGE_STEP);
   self.cosSearch('x');
-  assert.equal(self.state.cosShown, 0);
+  assert.equal(self.state.cosShown, FEED_PAGE);   // a new query starts at the first page again
 });
 
 test('cosToggleFav / cosToggleHidden flip the filters and the Feed respects them', async () => {
