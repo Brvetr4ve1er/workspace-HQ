@@ -69,6 +69,10 @@ test('invoke methods return promises and send methods return nothing, like the r
     if (method === 'llm.chat') continue;   // streams on timers; covered below
     const ret = pick(hq, method)('x');
     if (r.kind === 'send') assert.equal(ret, undefined, method + ' is a send');
+    else if (r.kind === undefined) {   // a preload helper that makes no IPC call: only hq.cosmos.pathForFile, which answers at once ('' for a bare call)
+      assert.equal(method, 'cosmos.pathForFile', method + ' made no IPC call');
+      assert.equal(ret, '', method + ' answers synchronously');
+    }
     else { assert.ok(ret && typeof ret.then === 'function', method + ' is an invoke'); await ret; }
   }
   assert.ok(control.calls().length > 50, 'every call is recorded');

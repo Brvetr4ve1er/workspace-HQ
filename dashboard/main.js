@@ -1255,6 +1255,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./github-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });
     require('./accounts-view').init({ ipcMain, shell, dataDir: DATA, collectorDir: COLLECTOR, runNode: runNodeAsync, rebuild: rebuildData });   // Projects › Accounts: Vercel + Supabase through the owner's CLI logins (hq:accounts-refresh, hq:accounts-open)   // Projects › GitHub: refresh through the owner's gh login + open a listed github.com link (hq:github-refresh, hq:github-open)   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)
     const moneyApi = require('./money').init({ ipcMain, dataDir: DATA, getWin: () => win });   // money space: data/money/state.json (IPC-CONTRACT hq:money:*)
+    require('./cosmos').init({ ipcMain, dataDir: DATA, getWin: () => win, castSend });   // Cosmos space: data/cosmos/ (IPC-CONTRACT hq:cosmos:*)
     require('./use-log').init({ ipcMain, appLog });   // usage counter: hq:use → one 'use' line in the day log (IPC-CONTRACT hq:use)
     require('./reach').init({ ipcMain, dataDir: DATA, exePath: process.execPath });   // Settings › Reach: whether each door is open (IPC-CONTRACT hq:reach:read)
     require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, onBrief: (b, fs) => { trayBrief.set(b, fs); updateTray(); }, getWins: () => BrowserWindow.getAllWindows() });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)

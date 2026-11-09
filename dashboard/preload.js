@@ -1,6 +1,6 @@
 // Secure bridge: exposes a minimal, allow-listed API to the dashboard renderer.
 // contextIsolation is on and nodeIntegration off, so the UI can only call these.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('hq', {
   runScan: () => ipcRenderer.invoke('hq:scan'),
@@ -192,5 +192,25 @@ contextBridge.exposeInMainWorld('hq', {
     apply: (intent) => ipcRenderer.invoke('hq:money:apply', intent),
     importFile: () => ipcRenderer.invoke('hq:money:import'),
     exportFile: () => ipcRenderer.invoke('hq:money:export'),
+  },
+
+  // Cosmos space (IPC-CONTRACT hq:cosmos:*). Intents and element ids only; paths come from main or from pathForFile (a dropped File).
+  cosmos: {
+    read: (opts) => ipcRenderer.invoke('hq:cosmos:read', opts),
+    apply: (intent) => ipcRenderer.invoke('hq:cosmos:apply', intent),
+    pickFolder: () => ipcRenderer.invoke('hq:cosmos:pick-folder'),
+    index: () => ipcRenderer.invoke('hq:cosmos:index'),
+    cancelIndex: () => ipcRenderer.invoke('hq:cosmos:cancel-index'),
+    trash: (ids) => ipcRenderer.invoke('hq:cosmos:trash', ids),
+    reveal: (id) => ipcRenderer.invoke('hq:cosmos:reveal', id),
+    importFiles: (paths) => ipcRenderer.invoke('hq:cosmos:import-files', paths),
+    importFromLocal: () => ipcRenderer.invoke('hq:cosmos:import-local'),
+    onProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('hq:cosmos:index-progress', handler);
+      return () => ipcRenderer.removeListener('hq:cosmos:index-progress', handler);
+    },
+    // Not an IPC channel: Electron 32 has no File.path, so the preload reads a dropped File's path (one File per call, never a FileList). '' on any failure.
+    pathForFile: (file) => { try { const p = webUtils.getPathForFile(file); return typeof p === 'string' ? p : ''; } catch { return ''; } },
   },
 });
