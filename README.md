@@ -90,10 +90,14 @@ and that 20 large pictures never block the main loop for more than 750 ms. Exit 
 decode. `--dry-run=<folder>` runs INSTEAD of the cases: it walks that folder read-only and prints only `ext ok failed` counts, never a name:
 
 ```powershell
-dashboard
-ode_moduleselectrondistelectron.exe dashboardcosmos-native.check.js
-dashboard
-ode_moduleselectrondistelectron.exe dashboardcosmos-native.check.js --dry-run=<folder>
+dashboard\node_modules\electron\dist\electron.exe dashboard\cosmos-native.check.js
+dashboard\node_modules\electron\dist\electron.exe dashboard\cosmos-native.check.js --dry-run=<folder>
+```
+
+The client site check (project page, under the delivery card) has the same kind of real-Electron check. It serves a placeholder site (en / fr / ar pages with deliberate faults: a wide table, a missing viewport tag, tiny text, a small button, a page with no direction, a number run inside Arabic, a French page copied from English, requests to outside hosts, a WebRTC attempt) on 127.0.0.1 and runs the real check window against it, with a loopback listener standing in for the black-hole proxy. It asserts every seeded fault is found, the blocked count equals the fixture's outside references, and no outside request succeeded, and it prints how many connections the canary saw from traffic the request hook cannot see. Exit 0 = clean, 1 = a case failed, 2 = timed out. `HQ_DCK_CHECK_BREAK=hook` points the run at a port nothing listens on and must exit 1 (it proves the check can fail):
+
+```powershell
+dashboard\node_modules\electron\dist\electron.exe dashboard\delivery-check.native.check.js
 ```
 
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):

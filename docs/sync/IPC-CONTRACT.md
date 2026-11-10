@@ -689,9 +689,9 @@ New file `dashboard/delivery-check.js` (one init line in `main.js`); data under 
 
 | `window.hq` method | Channel | Args | Returns | Primary surface |
 |---|---|---|---|---|
-| `deliveryCheck.detect(projectId)` | `hq:delivery-check:detect` | project id | `{state:'ready'|'nothing-answering', startedHere, candidates:[{origin, title}], hasCommand}` | `{error}` | project page › Check phone and languages |
-| `deliveryCheck.run(projectId, url)` | `hq:delivery-check:run` | project id, a loopback address (`http://127.0.0.1|localhost|[::1]:port`) | the report (CONTRACT.md) | `{error}` | same |
-| `deliveryCheck.read(projectId)` | `hq:delivery-check:read` | project id | the last report | `null` | same |
+| `deliveryCheck.detect(projectId)` | `hq:delivery-check:detect` | project id | `{state:'ready'\|'nothing-answering', startedHere, candidates:[{origin, title}], hasCommand}` \| `{error}` | project page › Check phone and languages |
+| `deliveryCheck.run(projectId, url)` | `hq:delivery-check:run` | project id, a loopback address (`http://127.0.0.1\|localhost\|[::1]:port`) | the report (CONTRACT.md) \| `{error}` | same |
+| `deliveryCheck.read(projectId)` | `hq:delivery-check:read` | project id | the last report \| `null` | same |
 | `deliveryCheck.forget(projectId)` | `hq:delivery-check:forget` | project id | `{ok}` | same |
 
 The renderer feature-detects `window.hq.deliveryCheck` and never calls it at boot (only when a client job's project page opens). The use log gets one `use` mark (surface `delivery-check`, action `act`) per Check.
