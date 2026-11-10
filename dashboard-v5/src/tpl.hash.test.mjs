@@ -62,9 +62,10 @@ import tpl from './app.tpl.js';
 // 2026-11-08 Brief standing line: one block in the brief fragment (tpl/brief.tpl.js) under the items - "Standing since 5 Nov: <text> · <text>" with each item a button, bound to brfHasStanding / brfStandingLead / brfStanding, with its <!-- v5: --> marker; nothing else moved (+957 chars / +959 bytes)
 // 2026-11-09 Cosmos space (key 0): the Feed fragment (tpl/cosmos.tpl.js, joined after money) and the overlays fragment (tpl/cosmos-overlays.tpl.js: lightbox, index overlay, import report; joined before extras), each element with its <!-- v5: --> marker; nothing else moved (+47504 chars / +47544 bytes — the measured delta, the fragments' style constants expanded in place)
 // 2026-11-10 client delivery check: the phone-and-language fragment (tpl/delivery-check.tpl.js, +8148 chars - exactly the fragment's own length) interpolated into project-page right after the delivery card, one <!-- v5: --> marker; nothing else moved (+8148 chars / +8165 bytes)
-const SHA256 = 'ee00f3d84480f0c505a8422d4286f80c545e702ff31b8eabdf73eb3d4e709a86';
-const LENGTH = 396475;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 397099;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-10 Projects › Clients: the list fragment (tpl/clients-list.tpl.js, +4800 chars - exactly the fragment's own length) interpolated into projects.tpl.js after the Vercel & Supabase block, one <!-- v5: --> marker; nothing else moved (+4800 chars / +4809 bytes: the fragment's own non-ASCII characters - ellipsis, curly apostrophe, middle dots - count 2 or 3 bytes)
+const SHA256 = 'e3a32ca8687618003f677079725e1aad5ae9950e5c188a8deb8d11bbacec5c73';
+const LENGTH = 401275;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 401908;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

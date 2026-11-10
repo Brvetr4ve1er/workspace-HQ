@@ -31,7 +31,7 @@ export const NAV = [
   { id: 'cosmos', label: 'Cosmos', glyph: '⬡' },
 ];
 export const SUBS = {
-  projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase']],
+  projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase'], ['clients', 'Clients']],
   tasks: [['ranked', 'Ranked'], ['byproject', 'By project'], ['ideas', 'Ideas & risks']],
   automations: [['runnable', 'Runnable'], ['library', 'Library'], ['scheduled', 'Scheduled']],
   claude: [['chats', 'Chats'], ['projects', 'Projects'], ['sessions', 'Sessions']],

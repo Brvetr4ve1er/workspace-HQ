@@ -184,6 +184,7 @@ contextBridge.exposeInMainWorld('hq', {
   delivery: {
     read: (projectId) => ipcRenderer.invoke('hq:delivery:read', projectId),
     apply: (intent) => ipcRenderer.invoke('hq:delivery:apply', intent),
+    clients: () => ipcRenderer.invoke('hq:delivery:clients'),
   },
 
   // Client delivery check (IPC-CONTRACT hq:delivery-check:*): phone size and ar/fr/en against a dev server on THIS PC. Main re-validates the address.

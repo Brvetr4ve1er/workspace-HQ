@@ -34,13 +34,14 @@ import { briefVals } from './brief.js';
 import { reachVals } from './reach.js';
 import { sessionsBoardVals } from './sessions-board.js';
 import { deliveryCheckVals } from './delivery-check.js';   // batch 2: the phone-and-language check under the delivery card (dck*)
+import { clientsVals } from './clients-list.js';   // batch 2: Projects › Clients (cls*)
 import { deliveryVals } from './delivery.js';   // Client delivery card on the project page (dlv*)
 import { cosmosVals } from './cosmos.js';   // Cosmos space (key 0): the Feed, lightbox, index overlay and import report (cos*)
 import { moneyStartVals } from './money-start.js';   // Money in one minute: the start card + the quick line (mst*)
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, reachVals, sessionsBoardVals, moneyStartVals, deliveryVals, deliveryCheckVals, cosmosVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, reachVals, sessionsBoardVals, moneyStartVals, deliveryVals, deliveryCheckVals, clientsVals, cosmosVals,
 ];
 
 export function renderVals() {

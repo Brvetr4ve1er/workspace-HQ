@@ -1,6 +1,7 @@
 // Projects screen (v.projects): grid, map, archived, GitHub, Vercel & Supabase.
 // Cut verbatim from lines 265-332 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import clientsList from './clients-list.tpl.js';   // 2026-11-10 Projects › Clients sub-view
 export default String.raw`        <sc-if value="{{ v.projects }}" hint-placeholder-val="{{ false }}">
           <div>
             <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
@@ -164,7 +165,7 @@ export default String.raw`        <sc-if value="{{ v.projects }}" hint-placehold
                 </section>
               </div>
             </sc-if>
-          </div>
+${clientsList}          </div>
         </sc-if>
 
 `;

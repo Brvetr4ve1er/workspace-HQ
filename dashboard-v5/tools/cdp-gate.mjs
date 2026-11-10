@@ -26,6 +26,8 @@
 //   delivery-render · delivery-scope-add · delivery-copy-update · delivery-empty · delivery-plan-mode
 // Client delivery check (batch 2; --preload=fake; tools/cdp-delivery-check.mjs; the fake's hq.deliveryCheck answers one project READY and the rest nothing, and keeps one fixed report per project):
 //   delivery-check-nothing-answering · delivery-check-run · delivery-check-forget · delivery-check-button-sweep
+// Clients list (batch 2; --preload=fake; tools/cdp-clients-list.mjs; the fake's hq.delivery.clients answers three invented client jobs and one gone from the scan; each scenario ends with hqFake.reset(true)):
+//   clients-list-open · clients-list-open-card · clients-list-empty
 // Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
 //   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
 //   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
@@ -61,6 +63,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { makeCosmosScenarios } from './cdp-cosmos.mjs';
 import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
+import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2044,6 +2047,7 @@ Object.assign(SCENARIOS, {
 // scenarios that need more than the default 90 s
 Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
 Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

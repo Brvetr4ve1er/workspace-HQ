@@ -409,6 +409,13 @@ function createFake(opts) {
         else return { error: 'unknown intent' };
         return view(id);
       },
+      // Projects > Clients (hq.delivery.clients): one summary row per client job, counts and words only; the extra 'ghost-job' row is a marked client the latest scan no longer lists.
+      clients: () => {
+        const NAMES = { 'alpha-site': 'Alpha Site', 'beta-app': 'Beta App', 'delta-lib': 'Delta Lib' };
+        const rows = Object.keys(S).filter((id) => S[id].client).map((id) => { const v = view(id), l = S[id].link; return { id, name: NAMES[id] || id, mode: v.mode, done: v.done, total: v.total, linkState: !l ? 'none' : l.state !== 'ready' ? 'not-ready' : l.kind === 'production' ? 'ready-production' : l.kind === 'preview' ? 'ready-preview' : 'not-ready', lastCopyAt: v.lastCopyAt, fileState: v.fileState, inScan: true }; });
+        rows.push({ id: 'ghost-job', name: 'ghost-job', mode: 'client', done: 0, total: 0, linkState: 'none', lastCopyAt: null, fileState: null, inScan: false });
+        return { clients: rows, generatedAt: new Date().toISOString(), omitted: 0 };
+      },
       reset: () => { S = SEED(); seq = 0; },
     };
   })();
@@ -552,7 +559,7 @@ function createFake(opts) {
     ['brief.onBrief', 'on:hq:brief'],
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
     ['sessionsBoard.onBoard', 'on:hq:sessions-board'],
-    ['delivery.read', (id) => DLV.read(id)], ['delivery.apply', (intent) => DLV.apply(intent)],
+    ['delivery.read', (id) => DLV.read(id)], ['delivery.apply', (intent) => DLV.apply(intent)], ['delivery.clients', () => DLV.clients()],
     ['deliveryCheck.detect', (id) => DCK.detect(id)], ['deliveryCheck.run', (id, url) => DCK.run(id, url)], ['deliveryCheck.read', (id) => DCK.read(id)], ['deliveryCheck.forget', (id) => DCK.forget(id)],
     ['money.read', () => ({ view: MONEY.full })],
     // money in one minute + one line per spend: start / log-line / dry answer with placeholder values; a line main would refuse ('hello') answers its own words

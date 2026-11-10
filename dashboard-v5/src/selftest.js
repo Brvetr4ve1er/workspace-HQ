@@ -21,7 +21,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false,
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null,
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
@@ -493,6 +493,40 @@ export async function run(W = window.WHQ) {
                 L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
               });
             } finally { W.store.hq = hq2; W.store.refreshDelivery = rd0; delete L.dckArrive; }
+          }
+        }
+        // Projects > Clients (batch 2: the list of client jobs): every state of the list. The rows are put straight into the cls state and the arrival read is
+        // held (the fake's own answer would replace them); cls-offline hides hq.delivery for one combo. Invented names only.
+        {
+          const hq3 = W.store.hq, cIso2 = (min) => new Date(Date.now() - min * 60e3).toISOString();
+          const cRow = (o) => Object.assign({ id: 'c-x', name: 'Selftest Client', mode: 'client', done: 0, total: 0, linkState: 'none', lastCopyAt: null, fileState: null, inScan: true }, o);
+          const cMix = [
+            cRow({ id: 'c-1', name: 'Selftest Studio', done: 1, total: 4, linkState: 'ready-production', lastCopyAt: cIso2(3 * 24 * 60) }),
+            cRow({ id: 'c-2', name: 'Selftest Shop', done: 2, total: 2, linkState: 'ready-preview', lastCopyAt: cIso2(90) }),
+            cRow({ id: 'c-3', name: 'Selftest Blog', linkState: 'not-ready' }),
+            cRow({ id: 'c-4', name: 'Selftest Docs', fileState: 'missing', linkState: 'none' }),
+            cRow({ id: 'c-gone', name: 'c-gone', inScan: false, lastCopyAt: cIso2(9 * 24 * 60) }),
+          ];
+          const cMany = Array.from({ length: 30 }, (_, i) => cRow({ id: 'c-m' + i, name: 'Selftest Client ' + i, done: i % 5, total: 5, linkState: i % 2 ? 'ready-production' : 'none' }));
+          const cls = (o) => ({ cls: Object.assign({ rows: null, omitted: 0, error: '', loaded: true, busy: false, at: '' }, o) });
+          for (const [name, offline, patch] of [
+            ['cls-offline', true, cls({})],
+            ['cls-loading', false, cls({ loaded: false, busy: true })],
+            ['cls-error', false, cls({ error: 'the delivery service did not answer' })],
+            ['cls-empty', false, cls({ rows: [] })],
+            ['cls-ready', false, cls({ rows: cMix })],
+            ['cls-ready-refreshing', false, cls({ rows: cMix, busy: true })],
+            ['cls-ready-error', false, cls({ rows: cMix, error: 'the delivery service did not answer' })],
+            ['cls-many-omitted', false, cls({ rows: cMany, omitted: 3 })],
+          ]) {
+            try {
+              await combo([theme, 'p3:' + name].join(' '), () => {
+                if (offline && hq3) W.store.hq = Object.assign({}, hq3, { delivery: undefined });
+                L.clsArrive = () => Promise.resolve(null);
+                L.go('projects', 'clients');
+                L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
+              });
+            } finally { W.store.hq = hq3; delete L.clsArrive; }
           }
         }
       }
