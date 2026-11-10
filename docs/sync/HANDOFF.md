@@ -12,6 +12,24 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-10 · FROM frontend (batch 2 rest PLANNED: delivery check, Clients list, Brief actions, launch tools, quick jump, Money words; no code yet) · main @ 36d1344
+DONE: the plan docs/superpowers/plans/2026-11-10-batch2-rest.md (six dishes, ordered by what the use log shows is opened: delivery card 3, Brief 3, sessions strip 2).
+IN-FLIGHT (announced BEFORE code; new files first, shared edits only in the Pass). The dishes by plain name:
+  1 check the client site on a phone and in three languages (local dev server only), 2 a Clients list, 3 act on a Brief row + the Brief notices a Claude session waiting on a tool,
+  4 sessions the app opens carry the workspacehq tools in an explicit permission mode, 5 Ctrl+Alt+X: what needs you, then jump anywhere, 6 Money reaches Claude as words only (off until turned on).
+  SHARED FILES THE BATCH WILL TOUCH: dashboard/main.js (one init line per dish; sessions-board and brief init order), dashboard/preload.js (hq.deliveryCheck, hq.delivery.clients,
+  hq.brief.act, hq.quick, hq.moneyAccess), dashboard/use-log.js (surfaces delivery-check, clients-list, brief-act, quick-jump), dashboard/delivery.js (summaries()), dashboard/brief-core.mjs
+  (rule session-waiting, an exported KEYS table, ctx.sessionBoard), dashboard/brief-project.mjs (one wording row), dashboard/brief.js, dashboard/sessions-board.js (optional onBoard callback),
+  dashboard/claude-launch.js (+ test), dashboard/cast.html + cast.js, mcp/workspacehq/{guard,server}.mjs (+ tests, README: tool hq_money_today), dashboard-v5 (catalog.mjs Clients sub-view,
+  projects/project-page/brief/ov-settings templates, vals/index.js, app.js, fake-preload.js, selftest states, cdp-gate scenarios), README.md, docs/sync/{CONTRACT,IPC-CONTRACT}.md, .gitignore.
+  NEW GITIGNORE PATTERN: data/delivery/ (check reports and phone-size shots; with an OWNER_DATA test pin for one temp name). NEW IPC: hq:delivery-check:detect|run|read|forget, hq:delivery:clients,
+  hq:brief:act, hq:quick:read|open-brief|open-go, hq:money-access:read|set. NEW DATA: data/delivery/ and data/money/access.json {v:1,on,at} (Money data becomes readable from MCP, only while that
+  switch is on; CONTRACT.md's money section says the server never reads it today, so this is the announcement). BRIEF: new rule id session-waiting, additive item.acted {verb,at}, new brief input sessionBoard;
+  no golden is expected to move (a moved golden is a bug, not a re-baseline).
+  No network beyond 127.0.0.1 in any dish; no edit to ~/.claude, collector/, schema/, spellbook/ or the vault.
+ASKS (struct): none. BREAKS: none yet (additive).
+
+---
 ## 2026-11-09 · FROM frontend (batch 2 Cosmos: tasting fixed, gates re-run, PUSHED, live app restarted) · main @ 6e135f1
 DONE: four tasters (engine, main + search, renderer, gates) found 0 high, 2 med, 14 low; one combined fixer landed both meds (6e135f1):
   the walk caps per root, so a full pictures folder no longer starves data/cosmos/imports; a damaged curation.json with no usable .prev
