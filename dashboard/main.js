@@ -19,6 +19,7 @@ const claudeSessions = require('./claude-sessions');   // MA: the Familiar's lea
 const llmLocal = require('./llm-local');               // PC-Brain L3: local model adapter (Ollama/LM Studio)
 const trayMenu = require('./tray-menu');               // v5 M4: tray menu as data (trayTemplate) + scanCounts (tray + mini HUD)
 const { launchClaudeTerminal } = require('./claude-launch');   // v5 M4: hq:claude-quest; HQ_DRY_LAUNCH=1 only logs
+const launchTools = require('./launch-tools').create({ repoRoot: path.join(__dirname, '..'), log: (l) => console.log(l) });   // a quest launch carries the workspacehq tools + an explicit permission mode (per-launch temp mcp.json, swept after 24 h)
 const gitActions = require('./git-actions');     // async push/snapshot for the tray quick actions — the sync versions froze all of main on one hung push/copy
 const dataRefreshMod = require('./data-refresh');   // assemble→bake→reload runner + the latest.json self-write marker
 const bakeFreshness = require('./bake-freshness');  // launch-bake mtime short-circuit
@@ -432,7 +433,7 @@ function studioProjects() {
 ipcMain.handle('hq:claude-quest', (_e, projPath, prompt) => {
   const cwd = resolveProjectPath(projPath);
   if (!cwd) return false;
-  return launchClaudeTerminal(cwd, prompt);
+  return launchClaudeTerminal(cwd, prompt, { tools: launchTools });
 });
 
 // ---- PC-Brain L3: local model runtime probe -----------------------------------
@@ -1237,6 +1238,7 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   app.whenReady().then(() => {
+    try { launchTools.sweepStale(); } catch {}   // crashed runs' per-launch MCP configs older than 24 h
     appLog.watchPower(powerMonitor); appLog.heartbeat();   // suspend / resume / shutdown + a 15-min 'alive' line (app-log.js)
     // Persist as the main dashboard: launch at login, hidden to tray — packaged or not; test instances never register
     require('./login-item').init({ app });
@@ -1307,5 +1309,6 @@ if (!app.requestSingleInstanceLock()) {
     for (const [, proc] of activeDevServers) { if (proc?.pid) try { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS); } catch {} }
     activeDevServers.clear();
     try { claudeSessions.killAll(); } catch {}
+    try { launchTools.cleanup(); } catch {}   // only per-launch MCP configs older than 24 h; a session still open keeps its tools
   });
 }

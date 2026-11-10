@@ -11,7 +11,11 @@
 //   HQ_DRY_LAUNCH=1 (read on every call) → logs "[dry-launch] <cwd> :: <prompt>"
 //     to stdout, spawns NOTHING, returns true. Gates and tests use it so checking
 //     "send to Claude" never opens a terminal or starts a Claude session.
-//   opts = { env, spawnSync, log, isDir, helper } — injection seams for claude-launch.test.mjs.
+//   opts = { env, spawnSync, log, isDir, helper, tools, toolsHelper } — injection seams for claude-launch.test.mjs.
+//   opts.tools = launch-tools.js create() → { prepare, buildArgs, dryLine } (main.js passes one). With it, the session opens
+//     through claude-launch-tools.cmd: an explicit `--permission-mode default` (never the global auto) and, outside this repo,
+//     a per-launch `--mcp-config` temp file carrying the workspacehq server. Without it, or with its helper missing, the old
+//     claude-launch.cmd path runs unchanged (the one-step rollback). A prompt launch-tools refuses → false, no fallback.
 //
 // How it launches (R-P4 fix). Neither the folder nor the prompt is ever written
 // on a cmd command line:
@@ -32,6 +36,7 @@ const childProcess = require('node:child_process');
 
 const PROMPT_MAX = 500;
 const HELPER = path.join(__dirname, 'claude-launch.cmd');
+const TOOLS_HELPER = path.join(__dirname, 'claude-launch-tools.cmd');
 // Characters that would let the helper's own path change the meaning of the outer
 // command line. The real path (…\workspace hq\dashboard\…) has none; refuse rather
 // than guess if the app ever lives somewhere that does.
@@ -62,6 +67,8 @@ function launchClaudeTerminal(cwd, prompt, opts) {
   const log = typeof o.log === 'function' ? o.log : (line) => console.log(line);
   const isDir = typeof o.isDir === 'function' ? o.isDir : defaultIsDir;
   const helper = typeof o.helper === 'string' ? o.helper : HELPER;
+  const tools = o.tools && typeof o.tools.prepare === 'function' && typeof o.tools.buildArgs === 'function' ? o.tools : null;
+  const toolsHelper = typeof o.toolsHelper === 'string' ? o.toolsHelper : TOOLS_HELPER;
 
   if (typeof cwd !== 'string' || !cwd || !path.isAbsolute(cwd) || cwd.includes('"')) return false;
   if (!isDir(cwd)) return false;
@@ -70,16 +77,45 @@ function launchClaudeTerminal(cwd, prompt, opts) {
     return false;
   }
   const p = sanitizePrompt(prompt);
+  const dry = env.HQ_DRY_LAUNCH === '1';
 
-  if (env.HQ_DRY_LAUNCH === '1') {
+  // the tools helper is used only when it is there and at a safe path; otherwise the old helper runs as before
+  let useTools = false;
+  if (tools) {
+    if (UNSAFE_HELPER_PATH.test(toolsHelper)) {
+      console.error('[claude-launch] tools helper at an unsafe path — not launching');
+      return false;
+    }
+    useTools = fs.existsSync(toolsHelper);
+  }
+  let mcpConfig = null;
+  if (useTools) {
+    let args;
+    try {
+      mcpConfig = tools.prepare(cwd, { dry }).mcpConfig || null;
+      args = tools.buildArgs({ prompt: p, mcpConfig });   // mode stays the helper's fixed `default`
+    } catch (e) {
+      console.error('[claude-launch] launch tools refused —', String((e && e.message) || e).slice(0, 160));
+      return false;
+    }
+    if (dry) {
+      log(typeof tools.dryLine === 'function' ? tools.dryLine(cwd, p, args) : `[dry-launch] ${cwd} :: ${p} :: ${args.slice(1).join(' ')}`);
+      return true;
+    }
+  } else if (dry) {
     log(`[dry-launch] ${cwd} :: ${p}`);
     return true;
   }
   try {
-    const line = `/d /v:off /c start "" cmd /d /v:off /k "${helper}"`;
+    const line = `/d /v:off /c start "" cmd /d /v:off /k "${useTools ? toolsHelper : helper}"`;
+    const childEnv = { ...env, HQ_LAUNCH_PROMPT: promptEnvValue(p) };
+    if (useTools) {
+      // an inherited stale HQ_MCP_CONFIG would add a config this launch did not ask for
+      if (mcpConfig) childEnv.HQ_MCP_CONFIG = mcpConfig; else delete childEnv.HQ_MCP_CONFIG;
+    }
     const r = run('cmd.exe', [line], {
       cwd,
-      env: { ...env, HQ_LAUNCH_PROMPT: promptEnvValue(p) },
+      env: childEnv,
       windowsHide: false,
       windowsVerbatimArguments: true,   // the line above is already a cmd command line; no \" re-quoting
     });
@@ -90,4 +126,4 @@ function launchClaudeTerminal(cwd, prompt, opts) {
   }
 }
 
-module.exports = { launchClaudeTerminal, sanitizePrompt, promptEnvValue, PROMPT_MAX, HELPER };
+module.exports = { launchClaudeTerminal, sanitizePrompt, promptEnvValue, PROMPT_MAX, HELPER, TOOLS_HELPER };

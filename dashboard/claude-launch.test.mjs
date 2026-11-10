@@ -192,3 +192,138 @@ test('end to end: claude receives exactly the sanitized prompt, in the project f
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------- with launch tools (opts.tools)
+// main.js hands launchClaudeTerminal a launch-tools instance; the session then opens through
+// claude-launch-tools.cmd (explicit permission mode, a per-launch --mcp-config outside this repo).
+const { create: createTools } = require('./launch-tools.js');
+const { TOOLS_HELPER } = require('./claude-launch.js');
+
+function toolsRig(env = {}) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-claude-tools-'));
+  const repo = path.join(base, 'repo');
+  fs.mkdirSync(path.join(repo, 'mcp', 'workspacehq'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'mcp', 'workspacehq', 'server.mjs'), '// placeholder server');
+  const outside = path.join(base, 'work', 'alpha-site');
+  fs.mkdirSync(outside, { recursive: true });
+  const tmp = path.join(base, 'tmp');
+  fs.mkdirSync(tmp);
+  const tools = createTools({ repoRoot: repo, tmpdir: tmp, env });
+  const f = fakes(env);
+  return { base, repo, outside, tmp, tools, f, opts: { ...f.opts, tools }, done: () => fs.rmSync(base, { recursive: true, force: true }) };
+}
+
+test('with tools, outside the repo: the tools helper runs and HQ_MCP_CONFIG names a fresh per-launch config', () => {
+  const r = toolsRig({ KEEP: 'me' });
+  try {
+    assert.equal(launchClaudeTerminal(r.outside, 'Put Project A under version control', r.opts), true);
+    const [file, args, o] = r.f.spawns[0];
+    assert.equal(file, 'cmd.exe');
+    assert.deepEqual(args, [`/d /v:off /c start "" cmd /d /v:off /k "${TOOLS_HELPER}"`]);
+    assert.equal(o.cwd, r.outside);
+    assert.equal(o.env.HQ_LAUNCH_PROMPT, 'Put Project A under version control');
+    assert.equal(o.env.KEEP, 'me');
+    assert.ok(o.env.HQ_MCP_CONFIG && fs.existsSync(o.env.HQ_MCP_CONFIG), 'the config exists when claude starts');
+    assert.equal(path.dirname(path.dirname(o.env.HQ_MCP_CONFIG)), r.tmp);
+    launchClaudeTerminal(r.outside, 'again', r.opts);
+    assert.notEqual(r.f.spawns[1][2].env.HQ_MCP_CONFIG, o.env.HQ_MCP_CONFIG, 'one config per launch');
+  } finally { r.done(); }
+});
+
+test('with tools, inside this repo: no config is added and a stale inherited HQ_MCP_CONFIG is removed from the child env', () => {
+  const r = toolsRig({ HQ_MCP_CONFIG: 'C:\\stale\\mcp.json' });
+  try {
+    assert.equal(launchClaudeTerminal(path.join(r.repo, 'mcp'), 'x', r.opts), true);
+    const [, args, o] = r.f.spawns[0];
+    assert.deepEqual(args, [`/d /v:off /c start "" cmd /d /v:off /k "${TOOLS_HELPER}"`], 'still the tools helper: the mode flag is always there');
+    assert.equal('HQ_MCP_CONFIG' in o.env, false);
+    assert.deepEqual(fs.readdirSync(r.tmp), []);
+  } finally { r.done(); }
+});
+
+test('with tools, a dry launch logs the explicit mode and the would-be config, spawns nothing and writes no folder', () => {
+  const r = toolsRig({ HQ_DRY_LAUNCH: '1' });
+  try {
+    assert.equal(launchClaudeTerminal(r.outside, 'a & b | c ) %PATH% q', r.opts), true);
+    assert.deepEqual(r.f.spawns, []);
+    assert.equal(r.f.logs.length, 1);
+    assert.ok(r.f.logs[0].startsWith(`[dry-launch] ${r.outside} :: a & b | c ) %PATH% q :: --permission-mode default --mcp-config `), r.f.logs[0]);
+    assert.deepEqual(fs.readdirSync(r.tmp), [], 'a dry launch must not litter');
+    r.f.logs.length = 0;
+    assert.equal(launchClaudeTerminal(path.join(r.repo, 'mcp'), 'x', r.opts), true);
+    assert.deepEqual(r.f.logs, [`[dry-launch] ${path.join(r.repo, 'mcp')} :: x :: --permission-mode default`]);
+  } finally { r.done(); }
+});
+
+test('with tools but the tools helper missing: the old helper path runs unchanged (rollback), dry log in the old shape', () => {
+  const r = toolsRig();
+  try {
+    const opts = { ...r.opts, toolsHelper: path.join(r.base, 'nope.cmd') };
+    assert.equal(launchClaudeTerminal(r.outside, 'hi', opts), true);
+    const [, args, o] = r.f.spawns[0];
+    assert.deepEqual(args, [`/d /v:off /c start "" cmd /d /v:off /k "${HELPER}"`]);
+    assert.equal('HQ_MCP_CONFIG' in o.env, false);
+    assert.deepEqual(fs.readdirSync(r.tmp), []);
+    const d = fakes({ HQ_DRY_LAUNCH: '1' });
+    assert.equal(launchClaudeTerminal(r.outside, 'hi', { ...d.opts, tools: r.tools, toolsHelper: path.join(r.base, 'nope.cmd') }), true);
+    assert.deepEqual(d.logs, [`[dry-launch] ${r.outside} :: hi`]);
+  } finally { r.done(); }
+});
+
+test('with tools: a tools helper at an unsafe path refuses; a prompt carrying a forbidden flag refuses (no fallback, nothing spawned)', () => {
+  const r = toolsRig();
+  try {
+    assert.equal(launchClaudeTerminal(r.outside, 'x', { ...r.opts, toolsHelper: 'C:\\a&b\\claude-launch-tools.cmd' }), false);
+    assert.equal(launchClaudeTerminal(r.outside, 'please run --dangerously-skip-permissions now', r.opts), false);
+    assert.deepEqual(r.f.spawns, []);
+  } finally { r.done(); }
+});
+
+test('without opts.tools nothing changes: the old helper, no HQ_MCP_CONFIG', () => {
+  const f = fakes({});
+  assert.equal(launchClaudeTerminal(DIR, 'hi', f.opts), true);
+  const [, args, o] = f.spawns[0];
+  assert.deepEqual(args, [`/d /v:off /c start "" cmd /d /v:off /k "${HELPER}"`]);
+  assert.equal('HQ_MCP_CONFIG' in o.env, false);
+});
+
+// The real cmd parse through claude-launch-tools.cmd (same seam as the end-to-end test above): a hostile prompt
+// reaches a fake claude as ONE inert argument followed by the explicit mode and, last, the config.
+test('end to end with tools: claude gets [prompt, --permission-mode, default, --mcp-config, file] and nothing runs', { skip: process.platform !== 'win32' && 'cmd.exe only' }, () => {
+  const r = toolsRig();
+  try {
+    const bin = path.join(r.base, 'fakebin');
+    fs.mkdirSync(bin);
+    const out = path.join(r.base, 'argv.jsonl');
+    fs.writeFileSync(path.join(bin, 'printer.js'),
+      `require('fs').appendFileSync(${JSON.stringify(out)}, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }) + '\\n');`);
+    fs.writeFileSync(path.join(bin, 'claude.cmd'), ['@ECHO off', 'GOTO start', ':find_dp0', 'SET dp0=%~dp0', 'EXIT /b', ':start',
+      'SETLOCAL', 'CALL :find_dp0', `"${process.execPath}" "%dp0%printer.js"   %*`, ''].join('\r\n'));
+    const root = process.env.SystemRoot || 'C:\\Windows';
+    const env = { SystemRoot: root, PATH: `${bin};${path.join(root, 'System32')}`, PATHEXT: '.COM;.EXE;.BAT;.CMD',
+      NoDefaultCurrentDirectoryInExePath: '1', TEMP: os.tmpdir(), TMP: os.tmpdir(), OS: 'Windows_NT' };
+    const marker = path.join(r.base, 'INJECTED.txt');
+    const seam = (file, args, o) => {
+      const a = [args[0].replace('start ""', 'start "" /b /wait').replace(' /k ', ' /c ')];
+      return childProcess.spawnSync(file, a, { ...o, env: { ...env, ...(o && o.env) }, encoding: 'utf8', input: '', timeout: 30000 });
+    };
+    const tools = createTools({ repoRoot: r.repo, tmpdir: r.tmp, env });
+    for (const prompt of ['a & b | c ) %PATH% q', `a & type nul > ${marker} & rem`, 'bang !OS! lone ! end', 'x < y > z ^ ( )']) {
+      for (const [cwd, withConfig] of [[r.outside, true], [r.repo, false]]) {
+        fs.rmSync(out, { force: true });
+        assert.equal(launchClaudeTerminal(cwd, prompt, { env, spawnSync: seam, tools }), true, prompt);
+        const lines = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').trim().split('\n') : [];
+        assert.equal(lines.length, 1, `claude ran exactly once for ${JSON.stringify(prompt)}`);
+        const got = JSON.parse(lines[0]);
+        assert.equal(got.cwd, cwd);
+        assert.deepEqual(got.argv.slice(0, 3), [sanitizePrompt(prompt), '--permission-mode', 'default']);
+        if (withConfig) {
+          assert.equal(got.argv.length, 5);
+          assert.equal(got.argv[3], '--mcp-config');
+          assert.ok(got.argv[4].startsWith(r.tmp) && got.argv[4].endsWith('mcp.json') && fs.existsSync(got.argv[4]));
+        } else assert.equal(got.argv.length, 3);
+      }
+    }
+    assert.equal(fs.existsSync(marker), false, 'no prompt text ever ran as a command');
+  } finally { r.done(); }
+});
