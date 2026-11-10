@@ -2,6 +2,7 @@
 // <!-- v5: Operator Brief --> new fragment, interpolated into tpl/home.tpl.js under the greeting. dc-lite dialect only:
 // dotted paths, !, ===; everything arrives finished from vals/brief.js (computed main-side by dashboard/brief-core.mjs).
 // Button strings match the other fragments' (money.tpl.js BTN / GOLD).
+import batFragment, { batButton } from './brief-act.tpl.js';   // <!-- v5: Brief act --> the row's one local verb (dish brief-act-waiting)
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
 const GOLD = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
@@ -26,9 +27,10 @@ export default String.raw`            <!-- v5: Operator Brief — the 1–3 thin
                           <div style="font-size:14px;color:var(--text)">{{ i.text }}</div>
                           <div style="font-size:12px;color:var(--muted)">{{ i.why }}</div>
                           <div style="font-size:11px;color:var(--faint)">{{ i.meta }}</div>
-                        </div>
+${batFragment}                        </div>
                         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                           <button type="button" onClick="{{ i.act }}" style="${GOLD}" ${GOLD_HOVER}>{{ i.actLabel }}</button>
+                          ${batButton}
                           <button type="button" onClick="{{ i.dismiss }}" disabled="{{ brfBusy }}" aria-label="Dismiss until it changes" title="Hidden until the fact behind it changes" style="${BTN}" ${BTN_HOVER}>Dismiss</button>
                         </div>
                       </div>

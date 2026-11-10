@@ -557,6 +557,19 @@ function createFake(opts) {
     ['brief.read', () => ({ brief: BRIEF })],
     ['brief.dismiss', (key) => ({ brief: Object.assign({}, BRIEF, { items: BRIEF.items.filter((i) => i.key !== key) }) })],
     ['brief.onBrief', 'on:hq:brief'],
+    // act in place on a Brief row (hq.brief.act): a placeholder that answers like main's table does. The rule comes from the key's first segment; a key no rule
+    // owns (a forged one), a verb of another rule and a bad balance are refused with main's own words. quest-done and confirm-balance answer an acted marker,
+    // commit answers { open:'commit', projectId: 'p1' }, open-folder answers { ok }.
+    ['brief.act', (key, verb, value) => {
+      const VERBS = { 'quest-red': ['quest-done'], 'money-stale': ['confirm-balance'], dirty: ['commit'], 'session-left-dirty': ['commit'], 'session-waiting': ['open-folder'] };
+      const rule = typeof key === 'string' ? key.split(':')[0] : '';
+      if (!Object.prototype.hasOwnProperty.call(VERBS, rule)) return { error: 'that item is not on the brief any more.' };
+      if (!VERBS[rule].includes(verb)) return { error: 'that action is not offered for this item.' };
+      if (verb === 'confirm-balance' && !(typeof value === 'string' && /^[0-9\s.,]+$/.test(value.trim()) && /[0-9]/.test(value))) return { error: 'type a balance as a number.' };
+      if (verb === 'commit') return { ok: true, open: 'commit', projectId: 'p1' };
+      if (verb === 'open-folder') return { ok: true };
+      return { ok: true, acted: { verb, at: new Date().toISOString() } };
+    }],
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
     ['sessionsBoard.onBoard', 'on:hq:sessions-board'],
     ['delivery.read', (id) => DLV.read(id)], ['delivery.apply', (intent) => DLV.apply(intent)], ['delivery.clients', () => DLV.clients()],

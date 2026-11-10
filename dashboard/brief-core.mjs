@@ -14,8 +14,12 @@
 // shouldToast(brief, state, now) → { toast: item | null, state } — P2's change-only toast decision.
 
 import { SENSE_FNS, sessionDirtyProjectIds, sessionNamedProjectId } from './brief-senses.mjs';
+import { KEYS } from './brief-act-core.mjs';
+import { SESSION_WAITING_FN } from './brief-session-waiting.mjs';
 
-export const RULES = ['scan-failed', 'secrets', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'claude-sync'];
+export { KEYS };   // the one place a key is built: the rules below and brief-act.js (which rebuilds keys, never parses them) share it
+
+export const RULES = ['scan-failed', 'secrets', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'session-waiting', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'claude-sync'];
 export const SEV_RANK = { high: 0, med: 1, low: 2 };
 const CAP = 3, OVERFLOW_MAX = 12;   // items 4 to 12 ride along as brief.overflow
 const H = 3600e3, D = 24 * H;
@@ -73,7 +77,7 @@ const RULE_FNS = {
   'quest-red': ({ quests, scanAge }) => {
     const red = quests.filter((q) => isObj(q) && q.tier === 'red' && q.status !== 'done');
     if (!red.length) return null;
-    return { key: 'quest-red:' + red[0].id, severity: 'high', text: name(red[0].title, 'A critical quest') + andMore(red.length - 1, 'critical quest'),
+    return { key: KEYS.questRed(red[0].id), severity: 'high', text: name(red[0].title, 'A critical quest') + andMore(red.length - 1, 'critical quest'),
       why: 'The scan marks it critical.', source: 'scan', age: scanAge, action: { kind: 'go', tab: 'tasks' }, others: red.length - 1 };
   },
 
@@ -95,7 +99,7 @@ const RULE_FNS = {
     const stale = arr(isObj(money) && money.accounts).filter((a) => isObj(a) && a.stale === true);
     if (!stale.length) return null;
     const a = stale[0];
-    return { key: 'money-stale:' + a.id + ':' + (a.anchorAt || ''), severity: 'med', text: 'Confirm ' + name(a.name, 'an account') + ' — last confirmed ' + (a.confirmed || 'a while ago') + andMore(stale.length - 1, 'account'),
+    return { key: KEYS.moneyStale(a.id, a.anchorAt), severity: 'med', text: 'Confirm ' + name(a.name, 'an account') + ' — last confirmed ' + (a.confirmed || 'a while ago') + andMore(stale.length - 1, 'account'),
       why: 'Breathing room uses an estimate until you do.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'today' }, others: stale.length - 1 };
   },
 
@@ -138,7 +142,7 @@ function organRule(organs, status, severity, pcAge, why) {
     why, source: 'pc-health', age: pcAge, action: { kind: 'go', tab: 'system', sub: 'machine' }, others: hit.length - 1 };
 }
 
-Object.assign(RULE_FNS, SENSE_FNS);   // the six senses (brief-senses.mjs) run through the same loop, in RULES order
+Object.assign(RULE_FNS, SENSE_FNS, SESSION_WAITING_FN);   // the six senses (brief-senses.mjs) run through the same loop, in RULES order
 
 export function computeBrief(inputs, opts) {
   const i = isObj(inputs) ? inputs : {};
@@ -155,7 +159,7 @@ export function computeBrief(inputs, opts) {
     organs: arr(isObj(i.pc) && i.pc.organs), scanMs, scanDay: scanMs === null ? '' : new Date(scanMs).toISOString().slice(0, 10),
     scanAge: scanMs === null ? 'scan age unknown' : 'scan ' + ago(new Date(scanMs).toISOString(), now),
     pcAge: isObj(i.pc) ? 'pc-health ' + ago(i.pc.scanned_at, now) : 'pc-health age unknown',
-    github: i.github, vercel: i.vercel, pcDetail: i.pcDetail, sessions: i.sessions, sessionTurns: i.sessionTurns, hubProjects: i.hubProjects, docsRoot: i.docsRoot,
+    github: i.github, vercel: i.vercel, pcDetail: i.pcDetail, sessions: i.sessions, sessionTurns: i.sessionTurns, hubProjects: i.hubProjects, docsRoot: i.docsRoot, sessionBoard: i.sessionBoard,
   };
   try {
     ctx.sessionDirtyIds = sessionDirtyProjectIds(ctx);

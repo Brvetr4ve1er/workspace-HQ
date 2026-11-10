@@ -32,6 +32,7 @@ export const WORDING = {
   unpushed: { one: 'A project has work not pushed', many: '{n} projects have work not pushed', short: 'work not pushed', shortMany: 'work not pushed in {n} projects' },
   'ci-red': { one: 'CI is failing on a repo', many: 'CI is failing on {n} repos', short: 'CI failing on a repo', shortMany: 'CI failing on {n} repos' },
   'session-left-dirty': { one: 'A Claude session left uncommitted work', many: '{n} Claude sessions left uncommitted work', short: 'a session left uncommitted work', shortMany: '{n} sessions left uncommitted work' },
+  'session-waiting': { one: 'A Claude session has waited on a tool for a while', many: '{n} Claude sessions have waited on a tool for a while', short: 'a session has waited on a tool', shortMany: '{n} sessions have waited on a tool' },
   'money-stale': { one: 'An account needs confirming', many: '{n} accounts need confirming', short: 'an account needs confirming', shortMany: '{n} accounts need confirming' },
   'pc-ember': { one: 'The PC flags something', many: 'The PC flags {n} things', short: 'the PC flags something', shortMany: 'the PC flags {n} things' },
   dirty: { one: 'A project has many uncommitted files', many: '{n} projects have many uncommitted files', short: 'many uncommitted files', shortMany: 'many uncommitted files in {n} projects' },

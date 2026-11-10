@@ -337,3 +337,75 @@ test('standing: a closed app is not a gap - the item was live at both ends, so i
   assert.deepEqual(b.standing.map((i) => [i.key, i.since]), [['dirty:a:12', NOW.toISOString()]]);
   api.stop();
 });
+
+// ---- act-in-place and the waiting-session sense (dish brief-act-waiting): the board in, the marker out, the records behind the keys ----
+const waitingBoard = (lastAt) => ({ state: 'ok', sessions: [{ id: 's-1', project: { name: 'Alpha Site' }, state: 'waiting-tool', lastAt }] });
+
+test('a sessions board that holds a session waiting 40 min puts the session-waiting row on the brief; no board, none', async () => {
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 0)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const board = waitingBoard(new Date(NOW.getTime() - 40 * 60e3).toISOString());
+  const withBoard = brief.create({ dataDir, ...fakes(), getSessionBoard: () => board, now: () => NOW });
+  const r = await withBoard.compute();
+  const it = r.brief.items.find((i) => i.rule === 'session-waiting');
+  assert.ok(it, 'the row is there');
+  assert.equal(it.text, 'Alpha Site: a Claude session has waited on a tool for 40 min');
+  const without = brief.create({ dataDir, ...fakes(), now: () => NOW });
+  assert.ok(!(await without.compute()).brief.items.some((i) => i.rule === 'session-waiting'));
+  const broken = brief.create({ dataDir, ...fakes(), getSessionBoard: () => { throw new Error('nope'); }, now: () => NOW });
+  assert.ok(!(await broken.compute()).brief.items.some((i) => i.rule === 'session-waiting'), 'a throwing board getter is no board');
+});
+
+test('decorate runs before the write and the push; a throwing decorate leaves the brief as the engine made it', async () => {
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const stamp = (b) => ({ ...b, items: b.items.map((i) => ({ ...i, acted: { verb: 'quest-done', at: NOW.toISOString() } })) });
+  const b1 = brief.create({ dataDir, ...fakes(), decorate: async (b) => stamp(b), now: () => NOW });
+  const r1 = await b1.compute();
+  assert.equal(r1.brief.items[0].acted.verb, 'quest-done');
+  assert.equal(JSON.parse(fs.readFileSync(b1.files.briefFile, 'utf8')).items[0].acted.verb, 'quest-done', 'the file carries it');
+  assert.equal(b1.current().items[0].acted.verb, 'quest-done');
+  const b2 = brief.create({ dataDir, ...fakes(), decorate: async () => { throw new Error('boom'); }, now: () => NOW });
+  const r2 = await b2.compute();
+  assert.ok(r2.brief.items.length && !('acted' in r2.brief.items[0]), 'no marker, and the brief still came out');
+});
+
+test('sources() hands brief-act the records behind the keys, from the same inputs the last compute used', async () => {
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify({ scan: { date: '2026-11-05T08:00:00Z' }, projects: [], quests: [
+    { id: 'wq:abc', title: 'Rotate the key', tier: 'red', status: 'open' }, { id: 'q2', title: 'Old', tier: 'red', status: 'done' }, { id: 'q3', title: 'Plain', tier: 'blue', status: 'open' }] }));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const money = { read: async () => ({ view: { hasAccounts: true, obligations: [], accounts: [{ id: 'c1', name: 'Cash', stale: true, anchorAt: '2026-10-01T10:00:00.000Z' }, { id: 'c2', name: 'Fresh', stale: false }] } }) };
+  const board = { state: 'ok', sessions: [{ id: 'w-late', state: 'waiting-tool', lastAt: new Date(NOW.getTime() - 30 * 60e3).toISOString() }, { id: 'w-new', state: 'waiting-tool', lastAt: new Date(NOW.getTime() - 5 * 60e3).toISOString() }, { id: 'x', state: 'working', lastAt: NOW.toISOString() }] };
+  const b = brief.create({ dataDir, ...fakes({ money }), getSessionBoard: () => board, now: () => NOW });
+  assert.equal(await b.sources(), null, 'nothing before the first compute');
+  await b.compute();
+  const s = await b.sources();
+  assert.deepEqual(s.redQuests, [{ id: 'wq:abc' }]);
+  assert.deepEqual(s.staleAccounts, [{ id: 'c1', anchorAt: '2026-10-01T10:00:00.000Z' }]);
+  assert.deepEqual(s.waitingSessions, [{ id: 'w-late', lastAt: new Date(NOW.getTime() - 30 * 60e3).toISOString() }], 'only the card that has waited 15 min or more');
+});
+
+test('onBoard re-runs the brief only when the waiting sessions it could name changed', async () => {
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 0)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  let wrote = 0;
+  const hub = { request: async (op) => { if (op === 'health') wrote++; return { webCount: 4, lastSyncAt: '2026-11-05T09:00:00Z' }; } };
+  const api = brief.init({ ipcMain: { handle() {} }, dataDir, ...fakes({ hub }), notify: () => {}, getWins: () => [], intervalMs: 0, watch: false, now: () => NOW });
+  await new Promise((r) => setTimeout(r, 1800));   // the startup compute (debounce 1.5 s)
+  const base0 = wrote;
+  await api.onBoard({ state: 'ok', sessions: [] });
+  await new Promise((r) => setTimeout(r, 1800));
+  assert.equal(wrote, base0, 'an empty board changes nothing');
+  const board = waitingBoard(new Date(NOW.getTime() - 20 * 60e3).toISOString());
+  await api.onBoard(board);
+  await new Promise((r) => setTimeout(r, 1800));
+  assert.equal(wrote, base0 + 1, 'a card waiting 20 min is news');
+  await api.onBoard(board);
+  await new Promise((r) => setTimeout(r, 1800));
+  assert.equal(wrote, base0 + 1, 'the same board again is not');
+  api.stop();
+});

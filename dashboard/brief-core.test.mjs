@@ -51,9 +51,10 @@ test('each rule fires on its condition, with its severity and action', () => {
   cases.splice(8, 0, ['ci-red', 'med', { kind: 'go', tab: 'projects', sub: 'github' }, withSenses({}, { github: githubWith({ repos: [repoOf()] }) })]);
   cases.splice(9, 0, ['session-left-dirty', 'med', { kind: 'go', tab: 'projects', projectId: 'a' }, withSenses({ scan: { projects: [proj('a', { dirty: 12 })] } }, {
     sessions: [{ id: 's1', projectId: 'hp1', hqProjectId: 'a', cwd: 'C:/placeholder/a', lastAt: iso(5 * H) }], hubProjects: [{ id: 'hp1', hqProjectId: 'a', linkState: 'confirmed' }], docsRoot: 'C:/placeholder' })]);
-  cases.splice(14, 0, ['review-waiting', 'low', { kind: 'go', tab: 'projects', sub: 'github' }, withSenses({}, { github: githubWith({ waiting: [{ repo: 'owner/alpha-site', number: 1, updatedAt: iso(D), draft: false }] }) })]);
-  cases.splice(15, 0, ['reboot-pending', 'low', { kind: 'go', tab: 'system', sub: 'machine' }, withSenses({}, { pcDetail: { scannedAt: fresh(), rebootPending: true } })]);
-  cases.splice(16, 0, ['money-empty', 'low', { kind: 'go', tab: 'money', sub: 'today' }, base({ money: { hasAccounts: false, accounts: [], obligations: [] } })]);
+  cases.splice(10, 0, ['session-waiting', 'med', { kind: 'go', tab: 'claude', sub: 'sessions' }, withSenses({}, { sessionBoard: { state: 'ok', sessions: [{ id: 's1', project: { name: 'Alpha Site' }, state: 'waiting-tool', lastAt: iso(40 * 60e3) }] } })]);
+  cases.splice(15, 0, ['review-waiting', 'low', { kind: 'go', tab: 'projects', sub: 'github' }, withSenses({}, { github: githubWith({ waiting: [{ repo: 'owner/alpha-site', number: 1, updatedAt: iso(D), draft: false }] }) })]);
+  cases.splice(16, 0, ['reboot-pending', 'low', { kind: 'go', tab: 'system', sub: 'machine' }, withSenses({}, { pcDetail: { scannedAt: fresh(), rebootPending: true } })]);
+  cases.splice(17, 0, ['money-empty', 'low', { kind: 'go', tab: 'money', sub: 'today' }, base({ money: { hasAccounts: false, accounts: [], obligations: [] } })]);
   assert.deepEqual(cases.map((c) => c[0]), RULES, 'one case per rule, in rule order');
   for (const [rule, severity, action, inputs] of cases) {
     const b = run(inputs);

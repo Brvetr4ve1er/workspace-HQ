@@ -21,7 +21,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null,
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
@@ -326,6 +326,13 @@ export async function run(W = window.WHQ) {
         // standing: items unchanged for 3 days that stepped aside (brief-core.mjs); the Home line names each one and keeps it clickable
         const STD = [Object.assign(bItem('ci-red:o/r:d1', 'med', { kind: 'go', tab: 'projects', sub: 'github' }), { text: 'CI is failing on placeholder-repo', since: '2026-11-05T09:00:00.000Z' }), Object.assign(bItem('dirty:p:12', 'low', { kind: 'go', tab: 'projects', projectId: (M.P0[0] || {}).id || 'p' }), { text: 'Placeholder project has 12 uncommitted files', since: '2026-11-06T09:00:00.000Z' })];
         const BSTD = (items, standing, more = 0) => { const v = BV(items, more); v.brief.standing = standing; return v; };
+        // act in place (batch 2): the rows that carry a verb (quest-red, money-stale, dirty, session-waiting), the inline confirm, the balance field, the done line, busy
+        const aText = (it, text, extra) => Object.assign({}, it, { text }, extra || {});
+        const AQ = aText(bItem('quest-red:wq:selftest', 'high', { kind: 'go', tab: 'tasks' }), 'Selftest critical quest');
+        const AM = aText(bItem('money-stale:c1:2026-10-01T10:00:00.000Z', 'med', { kind: 'go', tab: 'money', sub: 'today' }), 'Confirm Selftest Cash — last confirmed 9 days ago');
+        const AD = aText(bItem('dirty:p:12', 'low', { kind: 'go', tab: 'projects', projectId: (M.P0[0] || {}).id || 'p' }), 'Selftest Project has 12 uncommitted files');
+        const AW = aText(bItem('session-waiting:s1:2026-11-05T08:00:00.000Z', 'med', { kind: 'go', tab: 'claude', sub: 'sessions' }), 'Selftest Studio: a Claude session has waited on a tool for 40 min', { source: 'claude-code', age: 'sessions board' });
+        const aDone = new Date(Date.now() - 2 * 60e3).toISOString();
         for (const [name, brief, extra] of [
           ['brief-empty', BV([])],
           ['brief-standing-1', BSTD(BI, STD.slice(0, 1))],
@@ -339,6 +346,12 @@ export async function run(W = window.WHQ) {
           ['brief-source-errors', BV([], 0, [{ source: 'pc-health', error: 'unreadable (selftest)' }])],
           ['brief-busy', BV(BI), { brfBusy: true }],
           ['brief-senses', BV(SI)],
+          ['brief-act-verbs', BV([AQ, AD, AW])],
+          ['brief-act-money', BV([AM, AD])],
+          ['brief-act-quest-confirm', BV([AQ, AD, AW]), { batOpen: AQ.key }],
+          ['brief-act-balance-confirm', BV([AM, AD]), { batOpen: AM.key, batBal: '2 500' }],
+          ['brief-act-acted', BV([Object.assign({}, AQ, { acted: { verb: 'quest-done', at: aDone } }), AD])],
+          ['brief-act-busy', BV([AQ, AW]), { batOpen: AQ.key, batBusy: true }],
           ['brief-overflow', BV(BI, 4, [], SI.slice(1))],
           ['brief-overflow-one', BV(BI, 1, [], SI.slice(2))],
           ['brief-overflow-source-errors', BV(BI, 2, [{ source: 'github', error: 'data/github.json is partial — its checks were skipped' }], SI.slice(0, 2))],

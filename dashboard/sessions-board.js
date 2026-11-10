@@ -154,7 +154,7 @@ function create({ hub, now = () => Date.now(), env = process.env, fsApi = fs, cl
   return { poll, read, openTarget, stats, _board: () => lastBoard, stop() { turnCache.clear(); } };
 }
 
-function init({ ipcMain, app, hub, getWins, shell, appLog, repoRoot, intervalMs = POLL_MS, now, env = process.env, spawn } = {}) {
+function init({ ipcMain, app, hub, getWins, shell, appLog, repoRoot, intervalMs = POLL_MS, now, env = process.env, spawn, onBoard } = {}) {
   const board = create({ hub, now, env });
   const log = (line) => { try { if (typeof appLog === 'function') appLog(line); } catch { /* logging never fails a handler */ } };
   const resumer = require('./claude-resume').init({ hub, app, repoRoot, env, ...(spawn ? { spawn } : {}), ...(now ? { now } : {}), log });
@@ -165,6 +165,7 @@ function init({ ipcMain, app, hub, getWins, shell, appLog, repoRoot, intervalMs 
       const L = await core();
       const b = await board.poll();
       const s = L.boardSignature(b);
+      if (typeof onBoard === 'function') { try { onBoard(b); } catch { /* a listener never fails the board */ } }   // additive: lets the Brief re-run when a session starts waiting
       // The renderer measures every age, the 2 h Home window and the 24 h window from board.generatedAt, which the signature ignores:
       // a sentence that never changes (no reply, a limit, a connection error) would otherwise leave "last active 4 min ago" on screen for
       // hours. So an unchanged board is still pushed once a minute, with a fresh generatedAt.
@@ -180,16 +181,17 @@ function init({ ipcMain, app, hub, getWins, shell, appLog, repoRoot, intervalMs 
     try { return await resumer.resume(id, { say: opts && typeof opts === 'object' ? opts.say : undefined }); }
     catch (e) { return { error: msg(e) }; }
   });
-  ipcMain.handle('hq:sessions-board:open-folder', async (_e, id) => {
+  const openFolder = async (id) => {
     const t = board.openTarget(id);
     if (t.error) return t;
     try { const r = await shell.openPath(t.cwd); return r ? { error: String(r) } : { ok: true }; }   // shell.openPath never runs anything
     catch (e) { return { error: msg(e) }; }
-  });
+  };
+  ipcMain.handle('hq:sessions-board:open-folder', (_e, id) => openFolder(id));
   const timer = intervalMs > 0 ? setInterval(tick, intervalMs) : null;
   if (timer && timer.unref) timer.unref();
   tick();
-  return { ...board, resumer, tick, stop() { if (timer) clearInterval(timer); board.stop(); } };
+  return { ...board, resumer, tick, openFolder, stop() { if (timer) clearInterval(timer); board.stop(); } };
 }
 
 module.exports = { create, init, POLL_MS };

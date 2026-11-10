@@ -161,6 +161,7 @@ contextBridge.exposeInMainWorld('hq', {
   brief: {
     read: () => ipcRenderer.invoke('hq:brief:read'),
     dismiss: (key) => ipcRenderer.invoke('hq:brief:dismiss', key),
+    act: (key, verb, value) => ipcRenderer.invoke('hq:brief:act', value === undefined ? { key, verb } : { key, verb, value }),   // act in place on a row (IPC-CONTRACT hq:brief:act)
     onBrief: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('hq:brief', handler);

@@ -4,8 +4,12 @@
 // serves hq:brief:read / hq:brief:dismiss, and pushes hq:brief to the windows when the facts moved.
 // Never throws at a caller: a source that can't be read becomes an `errors` entry and the brief goes on without it.
 //
-// create({ dataDir, money, hub, liveState, now }) → { compute(), dismiss(key), buildInputs() }   (pure-ish, for tests)
-// init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief?, intervalMs?, watch?, now? }) → { recompute(), stop() }
+// create({ dataDir, money, hub, liveState, getSessionBoard?, decorate?, now }) → { compute(), dismiss(key), buildInputs(), current(), sources() }   (pure-ish, for tests)
+//   getSessionBoard() → the sessions board main already builds (the session-waiting rule's input; absent = that rule is silent)
+//   decorate(brief) → brief  (async ok) — brief-act.js adds the additive acted:{verb,at} marker to rows the owner acted on, before the write and push
+//   current() → the last computed brief | null;  sources() → the live records the act-in-place rules were built from (brief-act.js rebuilds keys from them)
+// init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief?, getSessionBoard?, decorate?, intervalMs?, watch?, now? }) → { recompute(), recomputeNow(), onBoard(board), current(), sources(), stop() }
+//   onBoard(board): the sessions board pushed; the brief re-runs only when the set of waiting sessions it could name has changed
 //   onBrief(brief, firstSeen) is called after each change (and every 10 min otherwise, so the tray's age stays true);
 //   firstSeen = brief-state.json's { key: {first, last} } — it survives the toast bookkeeping (settle merges it back in).
 const fs = require('fs');
@@ -49,9 +53,9 @@ function writeAtomic(file, value) {
   fs.renameSync(tmp, file);
 }
 
-function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
+function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, now = () => new Date() }) {
   const briefFile = path.join(dataDir, 'brief.json'), stateFile = path.join(dataDir, 'brief-state.json');
-  let last = null, lastSig = null;
+  let last = null, lastSig = null, lastInputs = null;
 
   function loadState() {
     const r = readJson(stateFile).value;
@@ -90,7 +94,9 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     let s = {};
     try { s = await require('./brief-sources').gather({ dataDir, hub, now: now(), scan: scanR.value }); }
     catch (e) { s = { errors: [{ source: 'brief-senses', error: msg(e) }] }; }
-    return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH,
+    let sessionBoard = null;
+    try { sessionBoard = typeof getSessionBoard === 'function' ? getSessionBoard() || null : null; } catch { sessionBoard = null; }
+    return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH, sessionBoard,
       github: s.github, vercel: s.vercel, pcDetail: s.pcDetail, sessions: s.sessions, hubProjects: s.hubProjects, sessionTurns: s.sessionTurns, docsRoot: s.docsRoot,
       errors: errors.concat(Array.isArray(s.errors) ? s.errors : []) };
   }
@@ -110,13 +116,16 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     }
     const seen = Object.assign({}, firstSeen);
     // standing items (unchanged for 72 h) step aside inside the engine, from firstSeen's first time for the exact key
-    const brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed, firstSeen });
+    let brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed, firstSeen });
+    lastInputs = { inputs, at: t.getTime() };
     // then stamp `first` on a key seen for the first time and `last` on every live key (standing ones too, or their clock would be pruned)
     const liveKeys = new Set();
     for (const it of brief.items.concat(brief.overflow || [], brief.standing || [])) { liveKeys.add(it.key); firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso }; }
     // a remembered key that is not on this brief: mark when it was first found missing (cleared the moment it is live again)
     for (const [k, v] of Object.entries(seen)) if (!liveKeys.has(k)) firstSeen[k] = { first: v.first, last: v.last, gone: v.gone || iso };
     st.firstSeen = cleanFirstSeen(firstSeen);
+    // acted:{verb,at} on rows the owner acted on (brief-act.js, in memory) — added outside the engine, so the engine's output is unchanged
+    if (typeof decorate === 'function') { try { const d = await decorate(brief); if (d && typeof d === 'object') brief = d; } catch { /* a marker is a courtesy: the brief goes on without it */ } }
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
     const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.errors]);   // generatedAt alone is not a change
     const changed = sig !== lastSig;
@@ -134,11 +143,25 @@ function create({ dataDir, money, hub, liveState, now = () => new Date() }) {
     return compute();
   }
 
-  return { compute, dismiss, buildInputs, loadState, saveState, files: { briefFile, stateFile } };
+  // the live records the three record-backed rules were built from, taken from the SAME inputs the last compute used, so an act and the rule can
+  // never disagree: red quests (the quest-red rule's list), accounts flagged stale, the board's cards that have waited 15 min to 2 h
+  async function sources() {
+    if (!lastInputs) return null;
+    const i = lastInputs.inputs, isO = (x) => !!x && typeof x === 'object' && !Array.isArray(x), a = (x) => (Array.isArray(x) ? x : []);
+    let waitingSessions = [];
+    try { const W = await import(pathToFileURL(path.join(__dirname, 'brief-session-waiting.mjs')).href); waitingSessions = W.waitingCards(i.sessionBoard, lastInputs.at).map((c) => ({ id: c.id, lastAt: c.lastAt })); } catch { waitingSessions = []; }
+    return {
+      redQuests: a(isO(i.scan) && i.scan.quests).filter((q) => isO(q) && q.tier === 'red' && q.status !== 'done').map((q) => ({ id: q.id })),
+      staleAccounts: a(isO(i.money) && i.money.accounts).filter((x) => isO(x) && x.stale === true).map((x) => ({ id: x.id, anchorAt: x.anchorAt })),
+      waitingSessions,
+    };
+  }
+
+  return { compute, dismiss, buildInputs, loadState, saveState, current: () => last, sources, files: { briefFile, stateFile } };
 }
 
-function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief, intervalMs = RECOMPUTE_MS, watch = true, now }) {
-  const b = create({ dataDir, money, hub, liveState, now });
+function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief, getSessionBoard, decorate, intervalMs = RECOMPUTE_MS, watch = true, now }) {
+  const b = create({ dataDir, money, hub, liveState, getSessionBoard, decorate, now });
   const push = (brief) => {
     for (const w of (getWins ? getWins() : [])) { try { if (w && !w.isDestroyed()) w.webContents.send('hq:brief', brief); } catch { /* a window mid-teardown */ } }
   };
@@ -183,8 +206,19 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrie
   if (tick && tick.unref) tick.unref();
   schedule();   // one compute at startup, so data/brief.json (and MCP hq_brief) is fresh before any window asks
 
+  // the sessions board pushed: re-run only when the waiting sessions the rule could name are not the ones the last run saw (a card crossing 15 min, or leaving)
+  let waitSig = '';
+  async function onBoard(board) {
+    try {
+      const W = await import(pathToFileURL(path.join(__dirname, 'brief-session-waiting.mjs')).href);
+      const sig = W.waitingCards(board, (now ? now() : new Date()).getTime()).map((c) => c.id + '@' + c.lastAt).join('|');
+      if (sig !== waitSig) { waitSig = sig; schedule(); }
+    } catch { /* the board is a courtesy input */ }
+  }
+  const recomputeNow = () => b.compute().then(settle).catch(() => null);   // after an act: the row's done line should not wait out the debounce
+
   return {
-    recompute: schedule,
+    recompute: schedule, recomputeNow, onBoard, current: b.current, sources: b.sources,
     stop() { clearTimeout(timer); if (tick) clearInterval(tick); for (const w of watchers) { try { w.close(); } catch { /* closed */ } } for (const off of offs) { try { off(); } catch { /* gone */ } } },
     _brief: b, _notify: notify,
   };

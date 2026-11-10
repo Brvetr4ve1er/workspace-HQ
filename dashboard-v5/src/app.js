@@ -35,6 +35,7 @@ import { accountsLogic } from './logic/accounts.js';
 import { lifeLogic } from './logic/life.js';
 import { moneyLogic } from './logic/money.js';
 import { briefLogic } from './logic/brief.js';
+import { briefActLogic } from './logic/brief-act.js';
 import { deliveryCheckLogic } from './logic/delivery-check.js';   // batch 2: phone-and-language check of the local dev server, under the delivery card (dck*)
 import { clientsListLogic } from './logic/clients-list.js';   // batch 2: Projects › Clients list, reads on arrival (cls*)
 import { deliveryLogic } from './logic/delivery.js';   // Client delivery card on each project page: Mark, pick a scope file, checklist items, Copy update
@@ -405,5 +406,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, cosmosLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, cosmosLogic);
 Component.prototype.renderVals = renderVals;

@@ -28,6 +28,8 @@
 //   delivery-check-nothing-answering · delivery-check-run · delivery-check-forget · delivery-check-button-sweep
 // Clients list (batch 2; --preload=fake; tools/cdp-clients-list.mjs; the fake's hq.delivery.clients answers three invented client jobs and one gone from the scan; each scenario ends with hqFake.reset(true)):
 //   clients-list-open · clients-list-open-card · clients-list-empty
+// Brief act in place + waiting session (batch 2; --preload=fake; tools/cdp-brief-act.mjs; the fake's hq.brief.act answers like main's table; each scenario serves its own placeholder brief and ends with hqFake.reset(true)):
+//   brief-act-done · brief-act-commit · brief-act-balance · brief-act-forged · brief-waiting-render
 // Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
 //   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
 //   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
@@ -64,6 +66,7 @@ import vm from 'node:vm';
 import { makeCosmosScenarios } from './cdp-cosmos.mjs';
 import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
 import { makeClientsListScenarios } from './cdp-clients-list.mjs';
+import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2048,6 +2051,7 @@ Object.assign(SCENARIOS, {
 Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
 Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

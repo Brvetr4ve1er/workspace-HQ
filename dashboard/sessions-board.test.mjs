@@ -256,3 +256,32 @@ test('init: an unchanged board is still pushed once a minute, so the renderer\u2
   assert.equal(sent.length, 2);
   api.stop();
 });
+
+test('init: onBoard fires after each poll with the board, a throwing listener is harmless, and its absence changes nothing', async () => {
+  const mk = (onBoard) => {
+    const sent = [];
+    const win = { isDestroyed: () => false, webContents: { send: (ch, b) => sent.push(b) } };
+    const state = { rows: [row('2', { last_at: iso(NOW0 - 10 * MIN) })] };
+    const hub = { request: async (op) => (op === 'listConversations' ? state.rows : op === 'listProjects' ? [] : { conversation: state.rows[0], messages: [t('user', 10 * MIN)] }) };
+    const api = SB.init({ ipcMain: { handle() {} }, app: { on() {} }, hub, getWins: () => [win], shell: {}, repoRoot: ROOT, intervalMs: 0, now: () => NOW0, ...(onBoard ? { onBoard } : {}),
+      env: { HQ_CLAUDE_HOME: home, HQ_CODEX_HOME: path.join(ROOT, 'none') }, appLog() {} });
+    return { api, sent };
+  };
+  const got = [];
+  const a = mk((b) => got.push(b));
+  await a.api.tick();   // (init also ticks once at startup)
+  const n = got.length;
+  assert.ok(n >= 1);
+  await a.api.tick();
+  assert.equal(got.length, n + 1, 'once per refresh');
+  assert.equal(got[0].state, 'ok');
+  assert.equal(got[0].sessions.length, 1);
+  const b = mk(() => { throw new Error('listener bug'); });
+  await b.api.tick();
+  assert.equal(b.sent.length, 1, 'the board is still pushed');
+  const c = mk(null);
+  await c.api.tick();
+  assert.equal(c.sent.length, 1);
+  assert.equal(typeof c.api.openFolder, 'function', 'the open-folder rule is also exported for the Brief');
+  a.api.stop(); b.api.stop(); c.api.stop();
+});

@@ -1,3 +1,4 @@
+import { briefActRow } from './brief-act.js';   // the row's one local verb (bat* keys, dish brief-act-waiting)
 // Brief panel render values (Home). Keys are brf-prefixed — one shared namespace with every other surface.
 // The brief arrives finished from main (dashboard/brief.js → hq:brief:*); this module only shapes it.
 // Honest states: no bridge · read failed · still loading · nothing needs you · items. Empty is never claimed when a
@@ -43,7 +44,8 @@ export function briefVals(ctx) {
       // the whole badge style: dc-lite binds a style object OR a string, it can't merge the two
       const sevStyle = { color, border: '1px solid ' + color, borderRadius: 6, padding: '1px 7px', fontSize: 11, fontFamily: 'var(--term)', whiteSpace: 'nowrap', lineHeight: '18px' };
       return { key: i.key, sevLabel, sevStyle, text: i.text, why: i.why, meta: 'from ' + i.age,
-        actLabel: actLabel(i.action), act: () => this.brfAct(i.action), dismiss: () => this.brfDismiss(i.key) };
+        actLabel: actLabel(i.action), act: () => this.brfAct(i.action), dismiss: () => this.brfDismiss(i.key),
+        ...briefActRow.call(this, i, ctx) };
     }),
     brfHasStanding: standing.length > 0,
     brfStandingLead: !standing.length ? '' : standing.length === 1 ? 'Standing since ' + sinceDay + ':' : 'Standing, oldest since ' + sinceDay + ':',   // only the oldest has stood since that date; each item's own date is in its tooltip
