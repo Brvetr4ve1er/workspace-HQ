@@ -65,6 +65,7 @@ Ranked by severity, high before med before low, then in the rule order below. Pr
 | prod-deploy-error | `accounts.json` `vercel.projects[].prod.state` is `error` (never `deploys[]`; a blank state is skipped) — 2026-11-07 | high | Projects › Vercel & Supabase |
 | ci-red | `github.json` `repos[].ci` is `failure` on a repo pushed in the last 14 days, not archived, not a fork (ci null is silent) | med | Projects › GitHub |
 | session-left-dirty | a Claude Code session ended before the latest scan and that scan saw uncommitted files in its project: 10 or more, or 1 or more when the session's last 8 turns include an edit call | med | open that project |
+| session-waiting | a sessions-board card in state `waiting-tool` that has waited 15 min to 2 h (2026-11-10; the board's own words: a permission prompt, or a long tool - so the copy says "may be") | med | Claude › Sessions |
 | review-waiting | non-draft pull requests in `github.json` `waiting[]` (no titles) | low | Projects › GitHub |
 | reboot-pending | `pc-health.json` `detail.rebootPending` is true | low | System › Machine |
 | money-empty | the Money view loaded and has no accounts | low | Money › Today |

@@ -697,6 +697,16 @@ New file `dashboard/delivery-check.js` (one init line in `main.js`); data under 
 
 The renderer feature-detects `window.hq.deliveryCheck` and never calls it at boot (only when a client job's project page opens). The use log gets one `use` mark (surface `delivery-check`, action `act`) per Check.
 
+### Brief — act in place on a row (2026-11-10, additive; rows written before the handler lands)
+
+New files `dashboard/brief-act.js` + `dashboard/brief-act-core.mjs` (one init line in `main.js`, which also hands the Brief a lazy getter for the sessions board and the board an `onBoard` callback); no new data file. One new channel; `hq:brief:read|dismiss` and the push `hq:brief` are unchanged except that an item may carry an additive `acted:{verb, at}` (CONTRACT.md).
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `brief.act(key, verb, value?)` | `hq:brief:act` | `{key, verb, value?}` — `key` a string ≤ 200 on the CURRENT brief (items or overflow); `verb` ∈ `quest-done` (rule `quest-red`), `confirm-balance` (`money-stale`, takes `value`: the balance the owner typed), `commit` (`dirty`, `session-left-dirty`), `open-folder` (`session-waiting`) | `{ok:true, acted:{verb, at}}` (quest-done, confirm-balance) \| `{ok:true, open:'commit', projectId}` (commit: nothing is performed, the renderer opens the existing commit overlay) \| `{ok:true}` (open-folder) \| `{error}` | HOME › Brief |
+
+Rules of the channel: main never parses a key. It REBUILDS keys from the live source records (the red quests, the stale Money accounts, the waiting sessions the last compute used) and acts only on the record whose rebuilt key equals the one sent, so an id comes from the record, never from the string. A forged or expired key, a verb of another rule, a `value` on a verb that takes none, a balance that is not a plain number (digits and separators, under 1e9) and a second click on a key while one is in flight each return `{error}` and write nothing. `quest-done` runs main's own `applyDone` (the DONE button's path: overrides + assemble, never render); `confirm-balance` runs the money engine's existing `account-save` intent through `hq:money:apply`'s own function, which re-anchors the account at now with the typed balance; `open-folder` is the sessions board's own open-folder rule (`shell.openPath` only). There is no push verb and no outbound verb. The use log gets one `use` mark per performed or handed-over verb (surface `brief-act`, action `act`), and the app log one line per outcome carrying the rule id and verb only, never a name, id, path or amount. The renderer feature-detects `window.hq.brief.act`; without it a row shows no verb.
+
 ## 2026-11-07 — Cosmos space (rows written before the handler lands)
 
 Additive only. New file `dashboard/cosmos.js` + `dashboard/cosmos/*.mjs` (one hook line in `main.js`, taking `getWin` and
