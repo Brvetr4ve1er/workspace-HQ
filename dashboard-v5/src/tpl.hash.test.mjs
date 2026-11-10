@@ -61,9 +61,10 @@ import tpl from './app.tpl.js';
 // 2026-11-08 client delivery tasting fixes: one line in the card fragment (tpl/delivery.tpl.js) — the "a newer preview on <branch> is not the deployed branch" note under the link, +179 chars / +179 bytes, nothing else moved
 // 2026-11-08 Brief standing line: one block in the brief fragment (tpl/brief.tpl.js) under the items - "Standing since 5 Nov: <text> · <text>" with each item a button, bound to brfHasStanding / brfStandingLead / brfStanding, with its <!-- v5: --> marker; nothing else moved (+957 chars / +959 bytes)
 // 2026-11-09 Cosmos space (key 0): the Feed fragment (tpl/cosmos.tpl.js, joined after money) and the overlays fragment (tpl/cosmos-overlays.tpl.js: lightbox, index overlay, import report; joined before extras), each element with its <!-- v5: --> marker; nothing else moved (+47504 chars / +47544 bytes — the measured delta, the fragments' style constants expanded in place)
-const SHA256 = '20f998a62940cc045ffba68d2c19b9d82b6f10b949e78841490868c52068e47d';
-const LENGTH = 388327;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 388934;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-10 client delivery check: the phone-and-language fragment (tpl/delivery-check.tpl.js, +8148 chars - exactly the fragment's own length) interpolated into project-page right after the delivery card, one <!-- v5: --> marker; nothing else moved (+8148 chars / +8165 bytes)
+const SHA256 = 'ee00f3d84480f0c505a8422d4286f80c545e702ff31b8eabdf73eb3d4e709a86';
+const LENGTH = 396475;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 397099;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

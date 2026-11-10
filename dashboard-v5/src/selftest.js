@@ -446,6 +446,54 @@ export async function run(W = window.WHQ) {
               });
             } finally { W.store.hq = hq2; W.store.refreshDelivery = rd0; }
           }
+          // Client delivery check (batch 2: the block under the card): every state of the phone-and-language check. The delivery slice says client, the arrival
+          // (dckArrive) is held so its own read/probe never replaces the state put straight into dck, and dck-offline hides hq.deliveryCheck for one combo.
+          const cIso = (min) => new Date(Date.now() - min * 60e3).toISOString();
+          const dReady = { state: 'ready', startedHere: false, candidates: [{ origin: 'http://127.0.0.1:5173', title: 'Selftest Studio' }], hasCommand: true };
+          const dNothing = { state: 'nothing-answering', startedHere: false, candidates: [], hasCommand: true };
+          const dRep = (o) => Object.assign({ v: 1, at: cIso(120), origin: '127.0.0.1:5173', phone: { width: 390, height: 844, scale: 3 },
+            routes: [{ path: '/', locale: 'en', title: 'Selftest Studio', loaded: true, shot: 's-0.png' }, { path: '/fr', locale: 'fr', title: 'Selftest Studio (fr)', loaded: true, shot: 's-1.png' }],
+            findings: [
+              { id: 'overflow', level: 'problem', route: '/', text: 'Sideways scroll at 390 px: the page is 900 px wide · widest: table.wide', offenders: ['table.wide'] },
+              { id: 'small-text', level: 'heads-up', route: '/', text: '1 piece of visible text under 12 px' },
+              { id: 'identical', level: 'heuristic', route: '/fr', text: 'Heuristic: 3 strings on /fr are word for word the same as on /', samples: ['Welcome to Selftest', 'Contact us'] },
+            ],
+            counts: { problem: 1, headsUp: 1, heuristic: 1 }, languageSwitch: 'found', blocked: { count: 4, hosts: [{ host: 'fonts.example.test', count: 4 }] }, requestsSeen: 12,
+            truncated: { routes: false, requests: false, time: false }, summary: '1 to fix · 1 to look at · 1 heuristic (may be wrong) · 2 pages at 390 px',
+            blockedLine: '4 outside requests blocked (fonts.example.test)', notes: [], shots: ['s-0.png', 's-1.png'] }, o || {});
+          const dClean = dRep({ findings: [], counts: { problem: 0, headsUp: 0, heuristic: 0 }, blocked: { count: 0, hosts: [] }, blockedLine: '', summary: 'Nothing found · 2 pages at 390 px' });
+          const dNoSwitch = dRep({ routes: [{ path: '/', locale: 'en', title: 'Selftest Studio', loaded: true, shot: 's-0.png' }], findings: [], counts: { problem: 0, headsUp: 0, heuristic: 0 }, languageSwitch: 'none',
+            summary: 'Nothing found · 1 page at 390 px', notes: ['No language switch found, so nothing was checked per language'], shots: ['s-0.png'] });
+          const dMany = dRep({ findings: Array.from({ length: 45 }, (_, i) => ({ id: 'small-text', level: 'heads-up', route: '/p' + i, text: 'Selftest finding ' + i })), counts: { problem: 0, headsUp: 45, heuristic: 0 }, summary: '45 to look at · 2 pages at 390 px' });
+          const dck = (o) => ({ dck: Object.assign({ pid: proj, url: '', detect: null, report: null, phase: 'idle', err: '' }, o) });
+          for (const [name, offline, patch] of [
+            ['dck-offline', true, dck({})],
+            ['dck-not-looked', false, dck({})],
+            ['dck-looking', false, dck({ phase: 'detecting' })],
+            ['dck-nothing', false, dck({ detect: dNothing })],
+            ['dck-nothing-typed', false, dck({ detect: dNothing, url: 'http://localhost:4000' })],
+            ['dck-no-command', false, dck({ detect: Object.assign({}, dNothing, { hasCommand: false }) })],
+            ['dck-ready', false, dck({ detect: dReady, url: 'http://127.0.0.1:5173' })],
+            ['dck-ready-here', false, dck({ detect: Object.assign({}, dReady, { startedHere: true }), url: 'http://127.0.0.1:5173' })],
+            ['dck-running', false, dck({ detect: dReady, url: 'http://127.0.0.1:5173', phase: 'running' })],
+            ['dck-error', false, dck({ detect: dReady, url: 'https://selftest.example.test', err: 'Only a dev server on this PC can be checked' })],
+            ['dck-report', false, dck({ detect: dReady, url: 'http://127.0.0.1:5173', report: dRep() })],
+            ['dck-report-clean', false, dck({ detect: dReady, url: 'http://127.0.0.1:5173', report: dClean })],
+            ['dck-report-no-switch', false, dck({ detect: dNothing, report: dNoSwitch })],
+            ['dck-report-many', false, dck({ detect: dReady, url: 'http://127.0.0.1:5173', report: dMany })],
+            ['dck-report-running-again', false, dck({ detect: dReady, url: 'http://127.0.0.1:5173', report: dRep(), phase: 'running' })],
+          ]) {
+            try {
+              await combo([theme, 'p3:' + name].join(' '), () => {
+                if (offline && hq2) W.store.hq = Object.assign({}, hq2, { deliveryCheck: undefined });
+                W.store.refreshDelivery = () => Promise.resolve();
+                L.dckArrive = () => Promise.resolve(null);
+                LV.delivery = DS(dView());
+                L.go('projects', 'grid'); L.openProject(proj);
+                L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
+              });
+            } finally { W.store.hq = hq2; W.store.refreshDelivery = rd0; delete L.dckArrive; }
+          }
         }
       }
     } finally {

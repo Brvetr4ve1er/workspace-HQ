@@ -186,6 +186,14 @@ contextBridge.exposeInMainWorld('hq', {
     apply: (intent) => ipcRenderer.invoke('hq:delivery:apply', intent),
   },
 
+  // Client delivery check (IPC-CONTRACT hq:delivery-check:*): phone size and ar/fr/en against a dev server on THIS PC. Main re-validates the address.
+  deliveryCheck: {
+    detect: (projectId) => ipcRenderer.invoke('hq:delivery-check:detect', projectId),
+    run: (projectId, url) => ipcRenderer.invoke('hq:delivery-check:run', projectId, url),
+    read: (projectId) => ipcRenderer.invoke('hq:delivery-check:read', projectId),
+    forget: (projectId) => ipcRenderer.invoke('hq:delivery-check:forget', projectId),
+  },
+
   // money space (IPC-CONTRACT hq:money:*). Intents only — main validates every field.
   money: {
     read: () => ipcRenderer.invoke('hq:money:read'),

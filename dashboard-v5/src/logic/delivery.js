@@ -18,8 +18,9 @@ export const deliveryLogic = {
 
   // arriving on a project page: read its card, and count the open (useMark(surface, action): the allowlisted surface 'delivery-card', action 'open' on arrival and 'copy' on Copy update)
   dlvArrive(id) {
-    if (this.store && this.store.refreshDelivery) this.store.refreshDelivery(id);
+    const refreshed = this.store && this.store.refreshDelivery ? this.store.refreshDelivery(id) : null;
     this.dlvUseMark('delivery-card', 'open');
+    return refreshed;   // (batch 2) the phone-and-language check waits for the card's answer before it looks for a dev server
   },
   dlvUseMark(surface, action) { try { if (typeof this.useMark === 'function') this.useMark(surface, action); } catch { /* a mark never blocks the card */ } },
 
