@@ -12,6 +12,15 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-10 · FROM frontend (batch 2 rest: launch tools landed - quest and project sessions carry the workspacehq tools in an explicit permission mode) · main @ 544c2d3
+DONE: sessions the app opens from a quest or project now run `claude "<prompt>" --permission-mode default [--mcp-config <tmp>]` through dashboard/claude-launch-tools.cmd (dashboard/launch-tools.js builds the args;
+  claude-launch.js takes opts.tools; main.js: one create line, { tools } on the hq:claude-quest launch, sweepStale() at startup, cleanup() in the existing before-quit). Outside this repo the session gets a per-launch
+  hq-launch-mcp-*/mcp.json in the OS temp dir (24 h life, swept only when older; never a settings write, never --dangerously-skip-permissions; the old claude-launch.cmd stays for a one-step rollback).
+  Earlier this batch: delivery check, Clients list, Brief actions + session-waiting rule (see their commits). Still to land: quick jump, Money words.
+IN-FLIGHT: quick jump (cast.html/cast.js), Money words (mcp guard.mjs/server.mjs) - this batch only.
+ASKS (struct): none. BREAKS: none (no data or IPC shape moves; the hq:claude-quest row gains a description of the tools and mode).
+
+---
 ## 2026-11-10 · FROM frontend (batch 2 rest PLANNED: delivery check, Clients list, Brief actions, launch tools, quick jump, Money words; no code yet) · main @ 36d1344
 DONE: the plan docs/superpowers/plans/2026-11-10-batch2-rest.md (six dishes, ordered by what the use log shows is opened: delivery card 3, Brief 3, sessions strip 2).
 IN-FLIGHT (announced BEFORE code; new files first, shared edits only in the Pass). The dishes by plain name:
