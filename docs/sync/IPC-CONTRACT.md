@@ -683,6 +683,19 @@ As built (2026-11-07, additive): intents carry their kind in a `type` key (the M
 
 As built (2026-11-08, additive; tasting fixes): the view's `link` is only ever a READY deploy of the deployed branch — the branch of the newest ready production deploy; its newest ready deploy (preview or production) is the link. Only a project with no production deploy at all falls back to the newest ready preview of any branch (`link.basis:'no-production'`, else `'deployed-branch'`). `link.branch` is the branch it came from; `link.newer` is `{branch, at}` when a newer ready preview exists on another branch (named on the card, never offered), else `null`. When nothing is ready there is no link and `linkWhy` says what the newest deploy is doing ("is not ready (error, 2 h ago)"). The view gains `doneHashes:[string]` (the hashes of the items done in the text shown); `copied` may carry `doneHashes` from the card that was copied — main records only those the live source still has as done (none sent = the live set; a non-array or over-500 list is refused), so an item finished after the card loaded is still reported by the next update. MCP `hq_delivery` `project` is an exact id or name (any case), else a unique prefix or part of the id or name; several matches answer which ids.
 
+### Client delivery check (2026-11-10, additive; rows written before the handlers land)
+
+New file `dashboard/delivery-check.js` (one init line in `main.js`); data under `data/delivery/` (see CONTRACT.md). Loopback only. The renderer sends a project id and, for run, the address the owner confirmed; main validates the address again.
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `deliveryCheck.detect(projectId)` | `hq:delivery-check:detect` | project id | `{state:'ready'|'nothing-answering', startedHere, candidates:[{origin, title}], hasCommand}` | `{error}` | project page › Check phone and languages |
+| `deliveryCheck.run(projectId, url)` | `hq:delivery-check:run` | project id, a loopback address (`http://127.0.0.1|localhost|[::1]:port`) | the report (CONTRACT.md) | `{error}` | same |
+| `deliveryCheck.read(projectId)` | `hq:delivery-check:read` | project id | the last report | `null` | same |
+| `deliveryCheck.forget(projectId)` | `hq:delivery-check:forget` | project id | `{ok}` | same |
+
+The renderer feature-detects `window.hq.deliveryCheck` and never calls it at boot (only when a client job's project page opens). The use log gets one `use` mark (surface `delivery-check`, action `act`) per Check.
+
 ## 2026-11-07 — Cosmos space (rows written before the handler lands)
 
 Additive only. New file `dashboard/cosmos.js` + `dashboard/cosmos/*.mjs` (one hook line in `main.js`, taking `getWin` and

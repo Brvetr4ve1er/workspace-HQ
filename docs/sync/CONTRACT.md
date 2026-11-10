@@ -25,6 +25,7 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 | `data/.refresh.lock` | taken and released by the MCP `hq_scan_trigger` and by the app's Scan now (`dashboard/refresh-lock.js`) | runtime state, **don't validate** · gitignored · frontend lane |
 | `data/.bridge-pairing.json` | written by the bridge pair route (`dashboard/assist-bridge-routes.js`) after the owner's Allow | `{v:1, origin, pairedAt}` · gitignored · frontend lane |
 | `data/delivery.json` | `dashboard/delivery.js` only (renderer and MCP get a derived view) | client delivery checklists · gitignored · frontend lane |
+| `data/delivery/` (checks/<16 hex>.json, shots/<16 hex>-<n>.png) | `dashboard/delivery-check.js` only (renderer gets the last report over `hq:delivery-check:*`) | client site check reports + phone-size shots · gitignored (pattern `data/delivery/`) · frontend lane |
 | `data/cosmos/` (config, library, curation, cleanup, thumbs, imports, clips) | `dashboard/cosmos.js` only (renderer gets it over `hq:cosmos:*`); the collector and `build-data` never read it | owner image library and curation · gitignored · frontend lane · section below |
 
 ## Load-bearing fields in `latest.json` (renderer will crash/blank without these)
@@ -410,7 +411,7 @@ Names only: it never stores arguments, text, titles or paths. Writers: the MCP s
 
 **`data/.refresh.lock`** — `{ "pid": n, "by": "<holder>", "startedAt": ISO }`. Two holders: the MCP `hq_scan_trigger` (`by: "mcp"`) and the app (`by: "app"`: Scan now and the post-commit rescan, `dashboard/refresh-lock.js`: taken when the scan begins, released when it ends). The nightly `run-pipeline.ps1` run does not take the lock yet (structure-lane ask in HANDOFF). A stale lock is replaced under a short-lived `data/.refresh.lock.reclaim` file so two takers cannot both win it. Each side refuses with a reason while the other holds a fresh lock. The lock is stale when its pid is gone or after 15 minutes (Windows reuses pids, so 15 minutes is the ceiling). Both patterns are in `.gitignore` (`data/assistant-audit.jsonl*`, `data/.refresh.lock*`).
 
-**`use` event in the day log** — written by `dashboard/use-log.js` (channel `hq:use`) through `appLog.event('use', {surface, action})`. `surface` ∈ `brief-panel` `sessions-board` `sessions-strip` `delivery-card` `money-start` `money-quick` `palette-money-line` `reach`; `action` ∈ `open` `act` `resume` `copy` `log`. No names, ids or text. The main-side tray also writes `appLog.event('use', {surface: 'tray-brief', rule})` directly (the rule id only, no `action`).
+**`use` event in the day log** — written by `dashboard/use-log.js` (channel `hq:use`) through `appLog.event('use', {surface, action})`. `surface` ∈ `brief-panel` `sessions-board` `sessions-strip` `delivery-card` `money-start` `money-quick` `palette-money-line` `reach` `delivery-check`; `action` ∈ `open` `act` `resume` `copy` `log`. No names, ids or text. The main-side tray also writes `appLog.event('use', {surface: 'tray-brief', rule})` directly (the rule id only, no `action`).
 
 ### `data/.bridge-pairing.json` and the local bridge routes — pairing and the Brief (frontend lane, 2026-11-07, additive; `dashboard/assist-bridge-routes.js`)
 
@@ -443,6 +444,15 @@ Written only by `dashboard/delivery.js` (validated intents of at most 16 KB; ato
 ```
 
 Checklist files in a client repo (SCOPE.md or a file the owner picked) are **read, never written**: main resolves the project path, takes the real path of the root and of the file, requires the file to sit inside the root, be `.md` and be at most 64 KB. The candidate list comes from a bounded walk (3 folders deep, skipping `node_modules`, dot folders, `dist`, `build`; at most 500 files looked at). No amounts, prices or payments are stored. Readers of this file: the renderer over `hq:delivery:*` and the MCP `hq_delivery` (which also reads `latest.json` and `accounts.json`).
+
+### `data/delivery/` — client delivery check (frontend lane, 2026-11-10, additive; local only, gitignored)
+
+Written only by `dashboard/delivery-check.js`; never read by `collector/` or `build-data`. Pattern in `.gitignore`: `data/delivery/` (also covers temp files), pinned in `tools/gitignore-owner-data.test.mjs`.
+Spec: `docs/superpowers/plans/2026-11-10-batch2-rest.md`. **Loopback only**: the check window loads a dev server on 127.0.0.1 / localhost / [::1] and nothing else; every non-loopback request is cancelled and counted by host, and a black-hole proxy covers what the app cannot see. The wording is "blocked and counted", never "nothing left your PC". Deployed-site checks are not built.
+
+- `checks/<sha1(projectId) first 16 hex>.json` — the last report for a project, atomic tmp → rename, `{v:1, at, origin, phone:{width:390,height:844,scale:3}, routes:[{path, locale, title, loaded, width?, shot}], findings:[{id, level:'problem'|'heads-up'|'heuristic', route, text, ...}], counts:{problem, headsUp, heuristic}, languageSwitch, blocked:{count, hosts:[{host, count}]}, requestsSeen, truncated:{routes, requests, time}, summary, blockedLine, notes[]}`. Names-only: findings, counts, route paths and at most five 40-character samples per heuristic; no page text beyond that. Hosts only, at most 8.
+- `shots/<16 hex>-<n>.png` — one phone-size PNG per checked route, at most 12 files in all (oldest deleted). Nothing serves them over IPC yet; the card shows only their count.
+- Limits: 45 s per run, 6 language routes, 200 requests, one run at a time. A stored report that does not validate (v !== 1, wrong shape) reads as no report.
 
 ### `data/cosmos/` — Cosmos space (frontend lane, local only, gitignored) — 2026-11-07, additive
 

@@ -22,6 +22,7 @@ const OWNER_DATA = [
   'data/assistant-audit.jsonl', 'data/assistant-audit.jsonl.1', 'data/assistant-audit.jsonl.1234.tmp',
   'data/.refresh.lock', 'data/.refresh.lock.1', 'data/.refresh.lock.1234.tmp',
   'data/delivery.json', 'data/delivery.json.corrupt', 'data/delivery.json.corrupt-2', 'data/delivery.json.1234.tmp',
+  'data/delivery/checks/x.json', 'data/delivery/checks/x.json.1234.tmp', 'data/delivery/shots/x-1.png',
   'data/cosmos/library.json', 'data/cosmos/curation.json', 'data/cosmos/curation.json.prev', 'data/cosmos/cleanup.json',
   'data/cosmos/config.json', 'data/cosmos/thumbs/x.jpg', 'data/cosmos/imports/x.png', 'data/cosmos/clips/x.png',
 ];

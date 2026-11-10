@@ -102,5 +102,7 @@ data/brief-state.json*
 data/assistant-audit.jsonl*
 data/.refresh.lock*
 data/delivery.json*
+# client delivery check (batch 2, 2026-11-10): the last report per project and phone-size screenshots of a local dev server - owner data, never committed
+data/delivery/
 # Cosmos space (key 0): library, curation, thumbnails, imports and clips — the owner's own files, never committed
 data/cosmos/
