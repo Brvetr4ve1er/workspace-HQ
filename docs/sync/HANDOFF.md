@@ -12,6 +12,15 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 dish 2 DONE: ask the picture library and the grabs from any session) · main @ e3e4473 (not pushed)
+DONE: contract rows (meta), then the dish (fe): MCP tool hq_library_find (tier read), read-only over data/cosmos/library.json + curation.json + clips.json, the SAME search grammar as the Feed and hq_cosmos_search (imports runSearch/effectiveWorks;
+  nothing re-implemented). Adds clips (a grab the index has not reached yet = indexed:false), site (host or registrable tail) and since (24h/7d/30d) filters that narrow to clips, where clip|library, one importsFolder per answer, root-relative paths only,
+  never bytes/thumb/hash/library root/page URL, hidden never returned; a corrupt clips.json degrades to library rows plus a note. guard TOOL_TIERS, server registration, README and the server + guard tests moved in the same commit.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2271 pass / 0 fail (7 skips are later dishes' tests waiting for their shared edits), money 261/261, renderer 946/946, Electron selftest 2912 combos 0/0/0, cdp-gate 73/73. No IPC, renderer, vals or golden moved.
+IN-FLIGHT: none in code (the five remaining dishes are new files only, integrated one at a time in order). ASKS (struct): unchanged. BREAKS: none (additive; the app needs no restart for this tool, the MCP server is a separate process a session starts).
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 dish 1 DONE: a grabbed file also lands in Cosmos as a clip) · main @ 223e6da (not pushed)
 DONE: owner-data ignores + pins and the CONTRACT rows for POST /library/grab and clips.json (f4415ac, meta), then the dish (223e6da, fe). After a save the owner pressed finishes, Bridge 0.8.0 posts the saved path to the
   loopback bridge (POST /library/grab, paired token and origin, 4 KB body, 120 an hour, names-only audit as library.grab); the app copies the file into data/cosmos/imports as clip-<hash12>.<ext> (a clip is an import: paths.mjs, ids.mjs and the
