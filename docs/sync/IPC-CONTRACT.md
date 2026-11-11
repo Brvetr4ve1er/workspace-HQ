@@ -820,3 +820,13 @@ Main: `dashboard/money-access.js` (the ONLY writer of `data/money/access.json`).
 | `moneyAccess.set(on)` | `hq:money-access:set` | `on`: a strict boolean (anything else is refused before any IO) | `{ on }` or `{ error }` | Writes `{v:1,on,at}` (tmp then rename); setting the value it already has rewrites nothing. |
 
 Money data never changes through the `hq_money_today` tool: it only lets a session READ words (CONTRACT.md "`data/money/access.json` and `hq_money_today`").
+
+### Today ribbon — where today went on Home (batch 3, 2026-11-11; additive)
+
+Main: `dashboard/day-ribbon.js` (new file; one init line in `main.js`). Preload group `hq.today`. Usage mark surface `today-ribbon` (action `open`). Nothing is read at boot: the renderer asks once when Home mounts.
+
+| Preload | Channel | Args | Answer | Notes |
+|---|---|---|---|---|
+| `today.read(o)` | `hq:today:read` | `{ dayOffset: integer 0..6 }` (anything else, including 7, -1, a string or a missing arg, is refused before any IO) | `{ ok:true, dayOffset, day, isToday, nowMin\|null, tzOffsetMin, generatedAt, lanes, spans, ticks, caption, counts, notes }` or `{ error }` | Lane `{ id, kind:'claude'\|'browser'\|'power'\|'commits', ref (Hub project id or null), state:'ok'\|'empty'\|'unavailable'\|'not-kept', note?, blocks?, more? }`; span `{ lane, kind:'block'\|'focus'\|'awake'\|'asleep'\|'unknown', startMin, endMin }`; tick `{ lane:'commits', min, count }`. Claude blocks are 5-minute blocks with at least one turn (never hours worked); browser events lose domain, host, url and title inside the reader; git runs with `%ct` only. A source that is missing says so in its lane (`note`), never an empty lane or a zero. Reading today also refreshes `data/today.json` (CONTRACT.md "Today ribbon"). No push channel. |
+
+The same answer as counts for a Claude session is the MCP tool `hq_today` (tier `read`, CONTRACT.md "Today ribbon"); the Hub op `activityBuckets` is additive.

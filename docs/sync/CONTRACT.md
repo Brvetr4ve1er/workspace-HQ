@@ -513,6 +513,22 @@ As-built (2026-11-08, main side; writers: `dashboard/cosmos.js`, `dashboard/cosm
   `.corrupt-2`, `.corrupt-3` (an earlier one is never replaced). A damaged curation is restored from `.prev` when that is good; a library that will not parse leaves a
   stub `library.json` holding the id map salvaged from its text.
 
+### `data/today.json`, the Hub op `activityBuckets` and `hq_today` — Today ribbon (frontend lane, 2026-11-11, batch 3, additive; local only, gitignored)
+
+Rows written before the code lands. `dashboard/day-ribbon.js` (new, CommonJS) is the ONLY writer of `data/today.json`; nothing here enters `window.DATA`, `latest.json` or any scan bundle.
+
+| Thing | Shape |
+|---|---|
+| `data/today.json` | `{ v:1, day:'YYYY-MM-DD', generatedAt:ISO, counts:{ claudeBlocks, claudeProjects, commits, asleepMinutes, browserMinutes } }`. Each count is a whole number >= 0, or `null` when that source could not be read (never a 0 that means "unknown"). Today's counts only, rewritten atomically (`today.json.<pid>.tmp`, then rename) every 10 minutes while the app runs and on each read of today. Numbers only: no project name, domain, commit message, path or Hub project id. |
+| Hub op `activityBuckets({fromMs,toMs,bucketMin})` | -> `{ fromMs, toMs, bucketMin, buckets:[{ project_id\|null, start_ms, messages }] }`. Additive op next to `stats` (`dashboard/claude-hub/buckets.mjs`, a pure query over the store's handle; `store.mjs` and `hub.mjs` gain one line each). User and assistant rows only; subagent (sidechain) turns COUNT as Claude activity; forgotten chats and the instagram/facebook sources are left out; `[fromMs, toMs)`; window at most 8 days; counts and ids only, never text. `INDEX_VERSION` and the schema do not move; readers may answer it (read-only). An older Hub answers its unknown-op error and the ribbon's Claude lane says "update the Hub". |
+| MCP `hq_today({daysAgo?: 0})` | tier `read`. Answer `{ day, isToday, asOf:'as of HH:MM', ageMinutes, appLikelyOpen, counts, summary, note }` or `{ error }`. Reads `data/today.json` read-only; with the app closed it answers the last file with its age and says so; a day other than today answers an error naming the app. Never a project name, domain, commit message or path. |
+
+Ribbon sources (read in the main process, nothing leaves it): the Hub op above; the day log `logs/app-YYYY-MM-DD.log` (suspend / resume / start / alive / quit lines: "asleep" only between a suspend line and the next resume or start, "awake" only where the app's own lines are within 20 minutes of each other, anything else is "unknown"); `data/browser-activity.json` (`ts` and `focus_ms` only, the 3-day window; older days say "not kept"); a bounded local `git log --format=%ct` over the scan's tracked project paths (at most 40 repos, 3 s, no shell). No network.
+
+### `data/today.json` — 2026-11-11 note on the lane `ref`
+
+A ribbon lane's `ref` is a Hub project id (it can encode a folder). It goes to the main window only (the `hq:today:read` answer) and never into `data/today.json` or `hq_today`.
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
