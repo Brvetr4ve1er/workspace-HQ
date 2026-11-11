@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Invented fixture: every value is a placeholder, nothing here is a real account. -->
+<KeePassFile>
+	<Meta>
+		<Generator>KeePassXC</Generator>
+		<DatabaseName>Fixture Vault</DatabaseName>
+		<RecycleBinEnabled>True</RecycleBinEnabled>
+		<RecycleBinUUID>Rml4dHVyZS1iaW4tdXVpZA==</RecycleBinUUID>
+		<Binaries>
+			<Binary ID="0" Compressed="True">RklYVFVSRS1CSU5BUlktUEFZTE9BRA==</Binary>
+		</Binaries>
+	</Meta>
+	<Root>
+		<Group>
+			<UUID>Rml4dHVyZS1ncm91cC1yb290</UUID>
+			<Name>Root</Name>
+			<Entry>
+				<UUID>Rml4dHVyZS1lbnRyeS0wMQ==</UUID>
+				<String><Key>Title</Key><Value>Mail Example</Value></String>
+				<String><Key>UserName</Key><Value>owner@example.test</Value></String>
+				<String><Key>Password</Key><Value>Tr0ub&amp;dor&lt;Fix&gt;9x</Value></String>
+				<String><Key>URL</Key><Value>https://mail.example.test/inbox?folder=1</Value></String>
+				<String><Key>Notes</Key><Value>Recovery hint: pet name &amp; street (fixture)</Value></String>
+				<String><Key>otp</Key><Value>otpauth://totp/Example:owner?secret=FIXTURESECRET0000&amp;issuer=Example</Value></String>
+				<Times>
+					<CreationTime>2021-03-04T10:00:00Z</CreationTime>
+					<LastModificationTime>2026-06-01T09:30:00Z</LastModificationTime>
+				</Times>
+			</Entry>
+			<Group>
+				<UUID>Rml4dHVyZS1ncm91cC13ZWI=</UUID>
+				<Name>Web</Name>
+				<Group>
+					<UUID>Rml4dHVyZS1ncm91cC1zaG9wcw==</UUID>
+					<Name>Shops</Name>
+					<Entry>
+						<UUID>Rml4dHVyZS1lbnRyeS0wMg==</UUID>
+						<String><Key>Title</Key><Value>Shop One</Value></String>
+						<String><Key>UserName</Key><Value>+1 (555) 010-0199</Value></String>
+						<String><Key>Password</Key><Value>sample-shared-pw-7Qz</Value></String>
+						<String><Key>URL</Key><Value>https://Shop.Example.TEST/login</Value></String>
+						<String><Key>Notes</Key><Value></Value></String>
+						<Times>
+							<CreationTime>2022-01-10T08:00:00Z</CreationTime>
+							<LastModificationTime>2026-02-01T08:00:00Z</LastModificationTime>
+						</Times>
+					</Entry>
+					<Entry>
+						<UUID>Rml4dHVyZS1lbnRyeS0wMw==</UUID>
+						<String><Key>Title</Key><Value>Shop Two</Value></String>
+						<String><Key>UserName</Key><Value>owner@example.test</Value></String>
+						<String><Key>Password</Key><Value>sample-shared-pw-7Qz</Value></String>
+						<String><Key>URL</Key><Value>https://shop2.example.test</Value></String>
+						<String><Key>Notes</Key><Value>old account, kept for orders</Value></String>
+						<Times>
+							<CreationTime>2019-05-05T08:00:00Z</CreationTime>
+							<LastModificationTime>2023-01-05T00:00:00Z</LastModificationTime>
+						</Times>
+					</Entry>
+				</Group>
+				<Entry>
+					<UUID>Rml4dHVyZS1lbnRyeS0wNA==</UUID>
+					<String><Key>Title</Key><Value>Forum</Value></String>
+					<String><Key>UserName</Key><Value>plainname</Value></String>
+					<String><Key>Password</Key><Value>password1</Value></String>
+					<String><Key>URL</Key><Value>forum.example.test/boards?id=4</Value></String>
+					<String><Key>Notes</Key><Value></Value></String>
+					<Times>
+						<CreationTime>2024-04-04T04:00:00Z</CreationTime>
+						<LastModificationTime>2026-05-05T04:00:00Z</LastModificationTime>
+					</Times>
+				</Entry>
+			</Group>
+			<Group>
+				<UUID>Rml4dHVyZS1ncm91cC1taXNj</UUID>
+				<Name>Misc</Name>
+				<Entry>
+					<UUID>Rml4dHVyZS1lbnRyeS0wNQ==</UUID>
+					<String><Key>Title</Key><Value>Passkey Site</Value></String>
+					<String><Key>UserName</Key><Value></Value></String>
+					<String><Key>Password</Key><Value></Value></String>
+					<String><Key>URL</Key><Value>https://passkey.example.test</Value></String>
+					<String><Key>Notes</Key><Value></Value></String>
+					<String><Key>KPEX_PASSKEY_PrivateKeyPEM</Key><Value>-----BEGIN PRIVATE KEY-----FIXTUREPEMBODY-----END PRIVATE KEY-----</Value></String>
+					<Times>
+						<CreationTime>2025-07-07T07:00:00Z</CreationTime>
+						<LastModificationTime>2025-07-07T07:00:00Z</LastModificationTime>
+					</Times>
+				</Entry>
+				<Entry>
+					<UUID>Rml4dHVyZS1lbnRyeS0wNg==</UUID>
+					<String><Key>Title</Key><Value>Strong One</Value></String>
+					<String><Key>UserName</Key><Value>strong-user-fixture</Value></String>
+					<String><Key>Password</Key><Value>k7#Qv9!zT2@mX5$wL8&amp;e</Value></String>
+					<String><Key>Notes</Key><Value></Value></String>
+					<Times>
+						<CreationTime>2026-01-01T00:00:00Z</CreationTime>
+						<LastModificationTime>2026-09-09T09:00:00Z</LastModificationTime>
+					</Times>
+					<History>
+						<Entry>
+							<UUID>Rml4dHVyZS1lbnRyeS0wNg==</UUID>
+							<String><Key>Title</Key><Value>Strong One</Value></String>
+							<String><Key>UserName</Key><Value>strong-user-fixture</Value></String>
+							<String><Key>Password</Key><Value>HistoryOldPw-0001</Value></String>
+							<Times>
+								<CreationTime>2026-01-01T00:00:00Z</CreationTime>
+								<LastModificationTime>2026-03-03T00:00:00Z</LastModificationTime>
+							</Times>
+						</Entry>
+					</History>
+				</Entry>
+			</Group>
+			<Group>
+				<UUID>Rml4dHVyZS1iaW4tdXVpZA==</UUID>
+				<Name>Recycle Bin</Name>
+				<Entry>
+					<UUID>Rml4dHVyZS1lbnRyeS1iaW4=</UUID>
+					<String><Key>Title</Key><Value>Trashed Entry</Value></String>
+					<String><Key>UserName</Key><Value>trashed-user-fixture</Value></String>
+					<String><Key>Password</Key><Value>TrashedPw-0002</Value></String>
+					<Times>
+						<CreationTime>2020-01-01T00:00:00Z</CreationTime>
+						<LastModificationTime>2020-01-02T00:00:00Z</LastModificationTime>
+					</Times>
+				</Entry>
+			</Group>
+		</Group>
+	</Root>
+</KeePassFile>
