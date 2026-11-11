@@ -119,7 +119,7 @@ popup marks them seen. The popup opens on up to three rows with **Open in app**
 item says to start scans in the app (it uses Claude); the extension never starts one.
 Calls are capped per hour and logged by name in `data/assistant-audit.jsonl`.
 
-## On this page: find the best version, and save it on click (0.7.0)
+## On this page: find the best version, and save it on click (0.7.0; Cosmos copy 0.8.0)
 
 Right-click an image or video → **Find the best version** (or open the popup). The popup
 lists every image and video the active page offers (`<img>` and `srcset`, `<picture>`,
@@ -158,6 +158,15 @@ no Save As dialog, a sanitized file name). The row then says, in order: *queued*
 - **Every site, one file per click** — Instagram, Facebook and TikTok included. The owner's yes of 2026-11-08 rules out
   only "grab all on this page", and there is no grab-all anywhere in the Bridge. To switch a site off, add its domain to
   `BLOCKED_SITES` in `grab-rules.js` (empty today); its rows then say *saving is off on Instagram, Facebook and TikTok*.
+
+- **Also lands in Cosmos (0.8.0).** After a save you pressed has finished, the Bridge tells the app where the file landed
+  (`POST /library/grab` on 127.0.0.1:47821, through the same impostor check and paired token as every other call), and
+  the app keeps a **copy** in Cosmos as a clip: tagged `clipped` and the site's host, titled by the page, searchable on
+  key 0. The original in `Downloads/WorkspaceHQ/grabs/` stays. The app only accepts a file inside that folder, only
+  PNG, JPEG, GIF, WEBP, MP4/MOV or WEBM by its real first bytes, and at most 64 MB; it never fetches a URL. The row says
+  *saved, and added to Cosmos*, *already in Cosmos*, *Cosmos has not answered yet* (retried later), or *Cosmos says: ...*
+  (for example *set it up first* until a Cosmos folder is chosen). A refusal never fails the save, and nothing is
+  sent while the Bridge is not paired. No new permission.
 
 ## Social posts: approve or skip
 

@@ -7,7 +7,7 @@
 //   and, from the index engine, indexer.mjs (the walk/thumbnail/hash pipeline, run through runIndex).
 //
 // create({ dataDir, deps, now, newId, castSend, env }) -> { read, apply, pickFolder, index, cancelIndex,
-//   trash, reveal, importFiles, importFromLocal, whenIdle, dispose }
+//   trash, reveal, importFiles, importFromLocal, addClip, sweepClipTmp, whenIdle, dispose }
 // init({ ipcMain, dataDir, getWin, castSend }) registers the nine invoke channels (the tenth row of the
 // contract, hq:cosmos:index-progress, is a push through castSend).
 //
@@ -39,13 +39,13 @@ const STALE_DAYS = 14;
 const ONLY_IMPORTS = 'Only files you dropped into Cosmos can be moved to the Recycle Bin from here yet';
 const NO_HELPERS = 'Cosmos could not start its file helpers, so this is not available right now.';
 
-let libs = null;   // { store, curation, paths, importlocal, ids, infer } once loaded
+let libs = null;   // { store, curation, paths, importlocal, ids, infer, clips } once loaded
 async function lib() {
   if (!libs) {
     const load = (f) => import(pathToFileURL(path.join(__dirname, 'cosmos', f)).href);
-    const [store, curation, paths, importlocal, ids, infer] = await Promise.all(
-      ['store.mjs', 'curation.mjs', 'paths.mjs', 'importlocal.mjs', 'ids.mjs', 'infer.mjs'].map(load));
-    libs = { store, curation, paths, importlocal, ids, infer };
+    const [store, curation, paths, importlocal, ids, infer, clips] = await Promise.all(
+      ['store.mjs', 'curation.mjs', 'paths.mjs', 'importlocal.mjs', 'ids.mjs', 'infer.mjs', 'clips.mjs'].map(load));
+    libs = { store, curation, paths, importlocal, ids, infer, clips };
   }
   return libs;
 }
@@ -403,6 +403,8 @@ function create({
     }
     const total = run.total;
     indexing = null;
+    // batch 3: a grabbed clip waits for its work to exist, then gets its tags and title (the next run retries what is not there yet)
+    if (!failure && !summary.cancelled) { try { await (await clipService()).afterIndex(); } catch { /* the next run retries */ } }
     const finalPush = failure
       ? { phase: 'error', done: run.done, total, done_all: true, error: failure, summary }
       : { phase, done: summary.cancelled ? run.done : (summary.elements || total), total: summary.cancelled ? total : (summary.elements || total), done_all: true, summary };
@@ -544,6 +546,27 @@ function create({
     } catch (e) { return { imported: 0, skipped: [{ path: '', reason: 'That did not work: ' + errText(e) }] }; }
   }
 
+  // ---- grabbed clips (batch 3): a clip is an import with a stricter front door (cosmos/clips.mjs holds the rules) ----
+  let clipSvc = null;
+  async function clipService() {
+    if (!clipSvc) {
+      const { L, S } = await ctx();
+      clipSvc = L.clips.makeClipService({
+        fs: fsImpl, cosmosDir, importsDir, now, newId: () => crypto.randomBytes(6).toString('hex'),
+        hasFolder: () => { const c = S.readConfig(); return !c.error && !!c.config.root; },
+        readWorks: () => { const c = S.readConfig(); if (c.error) return []; const lr = freshLibrary(L, S, c.config); return lr.error ? [] : lr.library.works; },
+        apply,
+        reindex: async () => { if (indexing) pendingReindex = true; else await startIndex({ fromConfig: true }); },
+      });
+    }
+    return clipSvc;
+  }
+  async function addClip(a) {
+    try { return await (await clipService()).addClip(a); }
+    catch (e) { return { ok: false, status: 500, error: 'Cosmos could not add that file.' }; }
+  }
+  const sweepClipTmp = async () => { try { return await (await clipService()).sweepTmp(); } catch { return 0; } };
+
   // ---- import from the old gallery ---------------------------------------------------------------------
   async function pickJson(envName, title) {
     const fromEnv = typeof env[envName] === 'string' && env[envName] !== '' ? env[envName] : null;   // gates only
@@ -658,7 +681,7 @@ function create({
   }
 
   return {
-    read, apply, pickFolder, index, cancelIndex, trash, reveal, importFiles, importFromLocal, dispose,
+    read, apply, pickFolder, index, cancelIndex, trash, reveal, importFiles, importFromLocal, dispose, addClip, sweepClipTmp,
     whenIdle: async () => { while (activeRun) { const p = activeRun; await p; } },
     dir: cosmosDir,
   };
@@ -671,6 +694,7 @@ function init({ ipcMain, dataDir, getWin, castSend, deps }) {
     catch (e) { console.error('[cosmos] file helpers unavailable:', e && e.message); d = null; }
   }
   const c = create({ dataDir, deps: d, castSend });
+  c.sweepClipTmp();   // batch 3: orphans in data/cosmos/.grab-tmp older than an hour
   ipcMain.handle('hq:cosmos:read', (_e, opts) => c.read(opts));
   ipcMain.handle('hq:cosmos:apply', (_e, intent) => c.apply(intent));
   ipcMain.handle('hq:cosmos:pick-folder', () => c.pickFolder());

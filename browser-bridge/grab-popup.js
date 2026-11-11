@@ -1,4 +1,4 @@
-// WorkspaceHQ Bridge 0.7.0 — "On this page", popup half of "Find the best version" + save on click. Classic script (<script> in
+// WorkspaceHQ Bridge 0.8.0 — "On this page", popup half of "Find the best version" + save on click. Classic script (<script> in
 // popup.html, after grab-rules.js and grab-scan.js). It scans the active tab with chrome.scripting (activeTab) and lists what the
 // page offers, best first. It requests nothing itself — no fetch, no XMLHttpRequest, no <img>, so no remote thumbnails — and
 // every page-supplied string is shown through textContent, never as HTML. The only thing that leaves this file is ONE

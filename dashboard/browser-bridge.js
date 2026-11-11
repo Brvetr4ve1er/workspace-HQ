@@ -37,6 +37,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const social = require('./social-bridge');   // SOCIAL BINDING: ingest tendril + outbox routes
 const claudeRoutes = require('./claude-bridge-routes');   // Claude Hub H4 live sync: /claude/sync-state, /claude/sync
+const grabRoutes = require('./grab-routes');   // Bridge 0.8.0: POST /library/grab (a grabbed file also lands in Cosmos)
 const assistRoutes = require('./assist-bridge-routes');   // Bridge 0.7.0: POST /pair, GET /assist/brief, POST /assist/open
 const pairing = require('./bridge-pair');   // the live token getter, allowCors, the /health proof
 
@@ -208,7 +209,7 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
       let nonce = null;
       try { nonce = new URL(req.url, 'http://x').searchParams.get('nonce'); } catch { /* no query */ }
       const proof = nonce ? tokens.proof(nonce) : null;
-      return send(200, { ok: true, app: 'workspacehq', bridge: '0.7.0', needsToken: !!token, ...(proof ? { proof } : {}) });
+      return send(200, { ok: true, app: 'workspacehq', bridge: '0.8.0', needsToken: !!token, ...(proof ? { proof } : {}) });
     }
 
     // SOCIAL BINDING outbox/accounts routes (ingest still flows through /ingest/social
@@ -217,6 +218,7 @@ function startBridge({ dataDir, onLive, port = PORT } = {}) {
     if (url.startsWith('/claude/') && claudeRoutes.handleRoute(req, res, { url, send, token })) return;
     // Bridge 0.7.0: /pair and /assist/* (their own token store; main.js hands them {dataDir, dialog, openAt} via setDeps)
     if ((url === '/pair' || url.startsWith('/assist/')) && assistRoutes.handleRoute(req, res, { url, send })) return;
+    if (url.startsWith('/library/') && grabRoutes.handleRoute(req, res, { url, send })) return;   // Bridge 0.8.0
 
     if (req.method === 'POST' && (routes.has(url) || url.startsWith('/ingest/'))) {
       const rt = routes.get(url);

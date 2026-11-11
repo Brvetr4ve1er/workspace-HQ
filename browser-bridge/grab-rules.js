@@ -1,4 +1,4 @@
-// WorkspaceHQ Bridge 0.7.0 — "Find the best version": the pure half. Classic script (importScripts / <script>); no DOM,
+// WorkspaceHQ Bridge 0.8.0 — "Find the best version": the pure half. Classic script (importScripts / <script>); no DOM,
 // no chrome.*, no network. It never requests anything: every upgrade here is a GUESS built from the URL's own shape and
 // is labelled as one by the popup. The page's own srcset variants are the only candidates that are known to exist.
 // Download on click (grab.js) uses the pure helpers at the end: saveCheck, saveCandidates, grabPath, stateText.
@@ -244,11 +244,19 @@
   function grabPath(host, url, kind) { return SAVE_ROOT + '/' + safeHost(host) + '/' + fileNameFor(url, kind); }
 
   function plural(n) { return n + (n === 1 ? ' size' : ' sizes'); }
+  // 0.8.0: the honest words for what Cosmos did with a saved file ('' while nothing was asked of it)
+  function cosmosWords(r) {
+    if (r === 'added') return ', and added to Cosmos';
+    if (r === 'duplicate') return ', already in Cosmos';
+    if (r === 'pending') return ', Cosmos has not answered yet';
+    if (typeof r === 'string' && r.indexOf('refused: ') === 0) return '; Cosmos says: ' + r.slice(9);
+    return '';
+  }
   function stateText(job) {
     if (!job) return '';
     if (job.state === 'queued') return 'queued';
     if (job.state === 'saving') return 'saving';
-    if (job.state === 'saved') return 'saved to Downloads/' + SAVE_ROOT + '/' + safeHost(job.host) + '/';
+    if (job.state === 'saved') return 'saved to Downloads/' + SAVE_ROOT + '/' + safeHost(job.host) + '/' + cosmosWords(job.cosmos);
     if (job.state === 'failed') return job.message || ('could not save (tried ' + plural(job.tried || 0) + ')');
     return '';
   }

@@ -1,4 +1,4 @@
-// WorkspaceHQ Bridge 0.7.0 — "Find the best version" + download on click, service-worker half. Classic script (importScripts).
+// WorkspaceHQ Bridge 0.8.0 — "Find the best version" + download on click, service-worker half. Classic script (importScripts).
 // It remembers which image or video was right-clicked and asks the popup to open on it, and — only when the owner presses
 // Save on ONE row — saves that file with chrome.downloads into Downloads/WorkspaceHQ/grabs/<host>/. Nothing is requested
 // before that click: no scan, no HEAD, no download. There is no "save all" message anywhere; one message = one job.
@@ -80,7 +80,7 @@
     }
     function patch(id, fields) { return update(function (q) { var j = q.jobs.filter(function (x) { return x.id === id; })[0]; if (j) Object.assign(j, fields); }); }
     function isPending(j) { return j.state === 'queued' || j.state === 'saving'; }
-    function viewOf(j) { return { id: j.id, key: j.key, host: j.host, kind: j.kind, state: j.state, tried: j.tried, message: j.message || '' }; }
+    function viewOf(j) { var v = { id: j.id, key: j.key, host: j.host, kind: j.kind, state: j.state, tried: j.tried, message: j.message || '' }; if (j.cosmos && j.cosmos !== 'none') v.cosmos = j.cosmos; return v; }
 
     function fromPopup(sender) {
       var rt = C().runtime;
@@ -105,12 +105,12 @@
       if (!check.ok) return { ok: false, message: check.message };
       var cands = rules.saveCandidates(entry);
       if (!cands.length) return { ok: false, message: "Can't save this one" };
-      var key = rules.normalizeUrl(entry.url), host = rules.hostOf(entry.url), job = null, full = false;
+      var key = rules.normalizeUrl(entry.url), host = rules.hostOf(entry.url), job = null, full = false, pageUrl = String(msg.pageUrl || '').slice(0, 2048), pageTitle = String(msg.pageTitle || '').slice(0, 200);
       await update(function (q) {
         var dup = q.jobs.filter(function (j) { return j.key === key && isPending(j); })[0];
         if (dup) { job = dup; return; }
         if (q.jobs.filter(isPending).length >= MAX_PENDING) { full = true; return; }
-        job = { id: 'g' + (++q.seq), key: key, host: host, kind: entry.kind, candidates: cands, idx: 0, tried: 0, state: 'queued', downloadId: null, attemptAt: 0, attemptIdx: -1, message: '', at: now() };
+        job = { id: 'g' + (++q.seq), key: key, host: host, kind: entry.kind, candidates: cands, idx: 0, tried: 0, state: 'queued', downloadId: null, attemptAt: 0, attemptIdx: -1, message: '', pageUrl: pageUrl, pageTitle: pageTitle, at: now() };
         q.jobs.push(job);
         while (q.jobs.length > KEEP_JOBS) { var i = q.jobs.findIndex(function (j) { return !isPending(j); }); if (i < 0) break; q.jobs.splice(i, 1); }
       });
@@ -185,6 +185,50 @@
       } catch (e) { return false; }
     }
 
+    // ---- 0.8.0: a saved file also lands in Cosmos (only after a save the owner's click made has finished) ----------------------------
+    var COSMOS_ROUTE = '/library/grab', COSMOS_TIMEOUT_MS = 30000, COSMOS_RETRY_MS = 20000, COSMOS_GIVE_UP_MS = 24 * 60 * 60 * 1000;
+    var COSMOS_DEFAULTS = { endpoint: 'http://127.0.0.1:47821', token: '' };
+    var COSMOS_WORDS = { 400: 'it could not read the request', 401: 'pair the Bridge first', 403: 'pair the Bridge first', 404: 'it could not find the file', 409: 'set it up first', 413: 'too large for a clip', 415: 'not a picture or video it keeps', 422: 'the file changed while it was copied', 429: 'too many grabs this hour' };
+    function needsPost(j) { return j.state === 'saved' && j.cosmos === 'pending' && !!j.savedPath; }
+    // the file's name must be read BEFORE the patch that clears downloadId: after that the id is gone
+    async function savedFileOf(downloadId) {
+      try { var items = await C().downloads.search({ id: downloadId }); var f = items && items[0] && items[0].filename; return typeof f === 'string' ? f : ''; }
+      catch (e) { return ''; }
+    }
+    async function cosmosCfg() { var r = await C().storage.local.get('hq_cfg'); return Object.assign({}, COSMOS_DEFAULTS, (r && r.hq_cfg) || {}); }
+    // one POST per saved job, through the endpoint guard (loopback only, and the app must prove it holds the token before the path leaves).
+    // A failure never fails the save: it only sets the Cosmos words on the job. 'pending' (the app closed, a 5xx) is tried again later; a
+    // re-post is harmless because the app names a clip by its hash.
+    async function postCosmos(id, force) {
+      var q = await readQueue(), job = q.jobs.filter(function (j) { return j.id === id; })[0];
+      if (!job || !needsPost(job)) return;
+      if (!force && now() - (job.cosmosAt || 0) < COSMOS_RETRY_MS) return;
+      if (now() - (job.at || 0) > COSMOS_GIVE_UP_MS) { await patch(id, { cosmos: 'refused: Cosmos was not reachable' }); return; }
+      await patch(id, { cosmosAt: now() });
+      var result = 'pending';
+      try {
+        var c = await cosmosCfg();
+        if (!c.token) result = 'refused: pair the Bridge first';
+        else {
+          var init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: job.savedPath, pageUrl: job.pageUrl || '', pageTitle: job.pageTitle || '' }) };
+          try { if (root.AbortSignal && root.AbortSignal.timeout) init.signal = root.AbortSignal.timeout(COSMOS_TIMEOUT_MS); } catch (e) { /* no timeout */ }
+          var guard = deps.guard || root.HQGuard;
+          var res = await guard.guardedFetch(c, COSMOS_ROUTE, init, deps.appFetch ? { fetch: deps.appFetch } : undefined);
+          var body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (res.status === 200 && body && body.ok === true) result = body.duplicate === true ? 'duplicate' : 'added';
+          else if (COSMOS_WORDS[res.status]) result = 'refused: ' + COSMOS_WORDS[res.status];
+        }
+      } catch (e) {
+        if (e && e.code === 'not-on-pc') result = 'refused: the endpoint is not on this PC';
+      }
+      if (result !== 'pending') await patch(id, { cosmos: result });
+    }
+    async function retryCosmos() {
+      var q = await readQueue(), due = q.jobs.filter(needsPost);
+      for (var n = 0; n < due.length; n++) await postCosmos(due[n].id, false);
+    }
+
     async function runJob(id) {
       var rules = R();
       for (var guard = 0; guard < 40; guard++) {
@@ -195,7 +239,9 @@
           var r = await settle(job.downloadId);
           if (r.state === 'complete') {
             if (await guessIsPage(job.downloadId, cands[i])) { await patch(id, { downloadId: null, idx: i + 1, tried: Math.min(i + 1, cands.length) }); continue; }
-            await patch(id, { state: 'saved', tried: i + 1, downloadId: null, message: '' });
+            var savedPath = await savedFileOf(job.downloadId);
+            await patch(id, { state: 'saved', tried: i + 1, downloadId: null, message: '', savedPath: savedPath, cosmos: savedPath ? 'pending' : 'none' });
+            await postCosmos(id, true);
             return;
           }
           if (r.canceled) { await patch(id, { state: 'failed', tried: i + 1, downloadId: null, message: 'saving was canceled' }); return; }
@@ -244,6 +290,7 @@
             if (!job) break;
             await runJob(job.id);
           }
+          await retryCosmos();
         } finally { running = null; await syncAlarm(); }
       })();
       return running;

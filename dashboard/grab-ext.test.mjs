@@ -603,7 +603,7 @@ test('the scanner, the rules and the popup half make no request and use no downl
 
 test('the manifest asks for downloads (Chrome: "Manage your downloads") and nothing else new for it', () => {
   const m = JSON.parse(read('manifest.json'));
-  assert.equal(m.version, '0.7.0', 'not bumped again: 0.7.0 has not reached the owner yet');
+  assert.equal(m.version, '0.8.0', 'Bridge 0.8.0 (batch 3): a saved grab also lands in Cosmos');
   assert.ok(m.permissions.includes('downloads'));
   assert.ok(!(m.optional_permissions || []).includes('downloads'));
   assert.deepEqual(m.permissions.slice().sort(), ['activeTab', 'alarms', 'contextMenus', 'downloads', 'idle', 'scripting', 'storage', 'tabs']);

@@ -129,7 +129,7 @@ test('/health answers proof = HMAC-SHA256(token, nonce) for a 32-hex nonce, and 
   const nonce = 'a1b2c3d4'.repeat(4);
   const h = await call({ path: '/health?nonce=' + nonce });
   assert.equal(h.obj.proof, createHmac('sha256', TOKEN).update(nonce).digest('hex'));
-  assert.equal(h.obj.app, 'workspacehq'); assert.equal(h.obj.bridge, '0.7.0');
+  assert.equal(h.obj.app, 'workspacehq'); assert.equal(h.obj.bridge, '0.8.0');
   for (const bad of ['', 'zz', 'a1b2', nonce + 'ff', nonce.toUpperCase().replace(/[A-F]/g, 'G')]) {
     assert.equal((await call({ path: '/health?nonce=' + bad })).obj.proof, undefined, bad);
   }
