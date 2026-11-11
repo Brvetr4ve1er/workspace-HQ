@@ -126,6 +126,7 @@ export async function run(W = window.WHQ) {
     const { cosmosStates, COSMOS_OFFLINE_ROWS, COSMOS_SCRUBBED_ROWS } = await import('./selftest-cosmos.mjs');
     const { fakeCosmos } = await import('../tools/cosmos-fixture.mjs');
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
+    const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const base = { askHistory: initial.askHistory };
 
@@ -338,6 +339,20 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, todayInitState(), { themePref: theme, snapOffset: 0 }, ts, extra || {}));
             });
           } finally { W.store.hq = hq4; W.store.refreshToday = rt0; LV.today = savedLive.today; L._tdyAsked = false; }
+        }
+        // System › Machine › How the PC changed (src/selftest-drift.mjs): every state of the panel on invented checks. row[3] IS the whole `dft` state; the
+        // arrival read is held (_dftAsked) and the Re-examine watcher stays still (_dftExam), so the fake's own answer never replaces the preset state;
+        // drift-offline hides hq.machineHistory for one combo (the store's hq, never window.hq).
+        for (const [name, sub, , dft, extra] of driftStates()) {
+          const hq6 = W.store.hq;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (DRIFT_OFFLINE_ROWS.includes(name) && hq6) W.store.hq = Object.assign({}, hq6, { machineHistory: undefined });
+              L._dftAsked = true; L._dftExam = false;
+              L.go('system', sub);
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, dft }, extra || {}));
+            });
+          } finally { W.store.hq = hq6; L._dftAsked = false; L._dftExam = false; }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

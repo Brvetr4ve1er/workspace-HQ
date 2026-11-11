@@ -68,9 +68,10 @@ import tpl from './app.tpl.js';
 // 2026-11-11 Today ribbon (batch 3): the ribbon fragment (tpl/today.tpl.js, +6451 chars / +6459 bytes - exactly the fragment's own length) interpolated into home.tpl.js after the Brief and the sessions strip, its <!-- v5: --> markers; nothing else moved
 // 2026-11-11 Brief history (batch 3): three fragments (tpl/brief-history.tpl.js: the Operator section 2341 chars, the footer 270, the all-clear card 1576 = +4187 chars / +4193 bytes, exactly the fragments' own length) interpolated into history.tpl.js (first child of the timeline column), brief.tpl.js (the card under the empty line, the footer at the end of the section); each carries <!-- v5: reason --> markers; no existing line removed.
 // 2026-11-11 Save to vault with no local model (batch 3, vault-template): one fragment (tpl/extras.tpl.js, the Save to vault dialog), +813 chars / +813 bytes: the badge reads {{ vtp.badge }} (Template or Local model), the drafting line no longer claims a local model, and the template banner + the "Draft again with the model" button follow the basis line; each marked <!-- v5: --> ; nothing else moved
-const SHA256 = '58798338f60117167cd5295ed6cd64d3667628e3cbc631e161ea0b8bc671001c';
-const LENGTH = 417885;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 418539;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-11 Machine drift (batch 3): the panel fragment (tpl/drift.tpl.js, +6570 chars / +6575 bytes - exactly the fragment's own length) interpolated into system.tpl.js between the Trends and Starts-with-Windows sections of System > Machine, its <!-- v5: Machine drift --> marker; it wraps itself in {{ dftv.dftShow }} (ONE top-level vals key); nothing else moved
+const SHA256 = '0b5c64e714a23631dd23390373d8b4e2134a3c2921a4267e676801831a930fe0';
+const LENGTH = 424455;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 425114;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

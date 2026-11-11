@@ -1,6 +1,8 @@
 // System screen (v.system): machine, clutter.
 // Cut verbatim from lines 660-701 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import drift from './drift.tpl.js';   // batch 3: System › Machine › How the PC changed (dft*; wraps itself in dftv.dftShow)
+
 export default String.raw`        <sc-if value="{{ v.system }}" hint-placeholder-val="{{ false }}">
           <div>
             <sc-if value="{{ isMachine }}" hint-placeholder-val="{{ true }}">
@@ -101,7 +103,7 @@ export default String.raw`        <sc-if value="{{ v.system }}" hint-placeholder
                     <div style="display:flex;flex-direction:column;gap:6px"><sc-for list="{{ mdTrends }}" as="t" hint-placeholder-count="3"><div style="display:flex;gap:8px;font-size:13px;color:{{ t.color }}"><span style="font-family:var(--term)">{{ t.arrow }}</span><span>{{ t.text }}</span></div></sc-for></div>
                   </section>
                 </sc-if>
-                <sc-if value="{{ mdHasStartup }}" hint-placeholder-val="{{ true }}">
+${drift}                <sc-if value="{{ mdHasStartup }}" hint-placeholder-val="{{ true }}">
                   <section data-md="startup">
                     <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted);margin-bottom:6px">Starts with Windows</div>
                     <div style="font-size:13px;color:var(--muted);line-height:1.6">{{ mdStartup }}</div>

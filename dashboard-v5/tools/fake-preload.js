@@ -510,6 +510,27 @@ function createFake(opts) {
   })();
   // END cosmos-rows
 
+  // System › Machine › How the PC changed (hq.machineHistory.read): 40 INVENTED checks, 6 h apart (under 10 days, so the disk Estimate refuses), CPU/RAM missing
+  // on checks 17-19 (a gap), a ping of 0 every 9th check (unknown), one partial disk reading and no folder lines. Same data as inventedAnswer() in
+  // src/selftest-drift.mjs (a classic script cannot import it; src/logic/drift.test.mjs pins what it must contain). Read-only: reset(true) needs no state.
+  const machineHistoryRead = () => {
+    const p2 = (n) => String(n).padStart(2, '0');
+    const rows = Array.from({ length: 40 }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 10, 1, 6 + i * 6, 0, 0));
+      return {
+        at: d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':00',
+        cpu: i >= 17 && i <= 19 ? null : 18 + ((i * 7) % 25),
+        ram: i >= 17 && i <= 19 ? null : 55 + ((i * 3) % 15),
+        diskFreeGB: Math.round((120 - i * 0.9 + (i >= 28 ? 8 : 0)) * 10) / 10,
+        startup: i < 20 ? 10 : 9,
+        temp: Math.round((3 + i * 0.05) * 100) / 100,
+        pingMs: i % 9 === 4 ? 0 : 8 + ((i * 5) % 11),
+        updateDays: i < 3 ? 0 : 2 + Math.floor(i / 8),
+      };
+    });
+    return { ok: true, rows, disk: { lines: [], note: 'the readings so far are partial (some folders could not be measured), so nothing is compared yet · needs two days of readings' }, counts: { rows: rows.length, dropped: 0, diskDays: 1 } };
+  };
+
   // Home › Where today went (hq.today.read): an INVENTED day in the shape dashboard/day-core.mjs builds. dayOffset 0..3 = a full day (three
   // invented projects, a browser lane, a sleep, commit ticks); 4..6 = the partial day (no Claude source, browser not kept, no app log); anything
   // else is refused as main refuses it. Same data as placeholderDay in src/selftest-today.mjs (a classic script cannot import it).
@@ -627,6 +648,7 @@ function createFake(opts) {
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
     ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
+    ['machineHistory.read', machineHistoryRead],   // System › Machine › How the PC changed: invented checks, read-only
     ['today.read', todayRead],   // Home › Where today went: invented days, offsets 0..3 full, 4..6 partial, others refused
     // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
     ...COSMOS.rows,

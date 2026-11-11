@@ -215,6 +215,11 @@ contextBridge.exposeInMainWorld('hq', {
     set: (on) => ipcRenderer.invoke('hq:money-access:set', on),
   },
 
+  // System › Machine › How the PC changed (IPC-CONTRACT hq:machine-history:read; read-only: eight history fields and the folders that grew, never a path)
+  machineHistory: {
+    read: () => ipcRenderer.invoke('hq:machine-history:read'),
+  },
+
   // Brief history (IPC-CONTRACT hq:brief-history:read / :ack): what the Brief noticed and how it ended; ack only records that the all-clear card was shown
   briefHistory: {
     read: () => ipcRenderer.invoke('hq:brief-history:read'),

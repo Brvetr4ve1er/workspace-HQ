@@ -37,6 +37,8 @@
 // Save to vault with no local model (batch 3; --preload=fake; tools/cdp-vault-template.mjs): vault-template-preview (the fake preview answers the template fallback; banner, no redraft button, one plain-id call, exactly one save of exactly the draft)
 // Brief history (batch 3; --preload=fake; tools/cdp-brief-history.mjs; the fake's hq.briefHistory answers nothing remembered and no card due; each scenario serves its own placeholder answers with hqFake.set and ends with hqFake.reset(true) and Home shown):
 //   brief-history-render · brief-history-all-clear
+// Machine drift (batch 3; --preload=fake; tools/cdp-drift.mjs; the fake's hq.machineHistory.read answers 40 invented checks under 10 days, so the disk Estimate refuses; each scenario ends with hqFake.reset(true) and the page reset)
+//   machine-drift-render · machine-drift-estimate-refuses
 // Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
 //   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
 //   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
@@ -78,6 +80,7 @@ import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
 import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
 import { makeVaultTemplateScenarios } from './cdp-vault-template.mjs';
+import { makeMachineDriftScenarios } from './cdp-drift.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2067,6 +2070,7 @@ Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefHistoryScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultTemplateScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeMachineDriftScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 
