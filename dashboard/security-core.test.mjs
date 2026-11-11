@@ -414,3 +414,31 @@ test('reduceEntries tolerates junk input and duplicate uuids', () => {
   const noId = reduceEntries([{ title: 'No id', group: 'G', password: 'x' }]);
   assert.match(noId.accounts[0].id, /^k-[0-9a-f]{12}$/);
 });
+
+// ---- batch 4 taster fix: the owner's "not recorded" word, and manual accounts, in the engine's flags (parity with the renderer and hq_footprint) ----
+test('buildGraph: twofa "unknown" (the "not recorded" chip) is the same as nothing said; a vault otp seed or passkey still counts', () => {
+  const { accounts } = accountsOf();
+  const a = { ...byTitle(accounts, 'Strong One'), totp: false, passkey: false };
+  const flag = (acct, edit) => buildGraph({ accounts: [acct], identities: [], owner: { accounts: edit ? { [acct.id]: edit } : {} } }).nodes.find((n) => n.id === acct.id).flags.includes('no2fa');
+  assert.equal(flag(a, { twofa: 'unknown' }), true);
+  assert.equal(flag(a, null), true);
+  assert.equal(flag({ ...a, totp: true }, { twofa: 'unknown' }), false);
+  assert.equal(flag({ ...a, passkey: true }, { twofa: 'unknown' }), false);
+  assert.equal(flag(a, { twofa: 'sms' }), false);
+  assert.equal(flag({ ...a, totp: true }, { twofa: 'none' }), true, 'the owner says none');
+});
+
+test('buildGraph: a manual account takes its twofa from owner.accounts[id] (where the store writes it); an archived one leaves the graph; no duplicate ghost', () => {
+  const owner = (acc) => ({ accounts: acc, manual: [{ id: 'm-000000000001', title: 'Paper club' }] });
+  const node = (acc) => buildGraph({ accounts: [], identities: [], owner: owner(acc) }).nodes;
+  assert.ok(node({}).find((n) => n.id === 'm-000000000001').flags.includes('no2fa'), 'nothing said');
+  assert.ok(node({ 'm-000000000001': { twofa: 'unknown' } }).find((n) => n.id === 'm-000000000001').flags.includes('no2fa'));
+  assert.ok(node({ 'm-000000000001': { twofa: 'none' } }).find((n) => n.id === 'm-000000000001').flags.includes('no2fa'));
+  const sms = node({ 'm-000000000001': { twofa: 'sms' } });
+  assert.ok(!sms.find((n) => n.id === 'm-000000000001').flags.includes('no2fa'));
+  assert.equal(sms.filter((n) => n.id === 'm-000000000001').length, 1);
+  assert.ok(sms.find((n) => n.id === 'm-000000000001').flags.includes('not-in-vault'), 'still one not-in-vault node');
+  assert.equal(node({ 'm-000000000001': { archived: true } }).some((n) => n.id === 'm-000000000001'), false);
+  const snap = snapshotOf({ accounts: [], identities: [] }, owner({ 'm-000000000001': { twofa: 'sms' } }), '2026-11-11T00:00:00Z');
+  assert.deepEqual([snap.accounts, snap.flags.no2fa, snap.flags.notInVault], [1, 0, 1]);
+});

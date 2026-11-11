@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { NAV } from '../live/catalog.mjs';
 
 const SRC = readFileSync(new URL('./hq-v3.js', import.meta.url), 'utf8');
 const plain = (o) => JSON.parse(JSON.stringify(o));   // sandbox objects have another realm's prototypes
@@ -68,7 +69,7 @@ function load({ reduced = false } = {}) {
     addEventListener() {}, removeEventListener() {},
     document: { documentElement: { dataset: {} }, body: null, createElement: (tag) => new FakeNode(tag), querySelector: () => null },
     setInterval: clock.setInterval, clearInterval: clock.clear, setTimeout: clock.setTimeout, clearTimeout: clock.clear,
-    __HQ_TEST_HOOK__: (h) => { hook = h; },
+    __HQ_TEST_HOOK__: (h) => { hook = Object.assign(hook || {}, h); },   // called once for the planners, once more for the icon table
   };
   sb.window = sb;
   vm.createContext(sb);
@@ -449,4 +450,13 @@ test('hq-ascii-bg frame labels are neutral: no numbers, nothing that reads like 
     assert.doesNotMatch(l, /stable|nominal|repos?|pod|mem|scan|git|node|ok|online|healthy|%/i, l);
   }
   assert.doesNotMatch(SRC, /node\.a · stable|git\.mon · 8 repos|mem · nominal|pod\.042/);
+});
+
+// ---------------------------------------------------------------- icons
+test('every destination in NAV has its own icon (an unknown name silently draws the Home glyph) and a hover', () => {
+  for (const n of NAV) {
+    assert.ok(Array.isArray(H.ICONS[n.id]) && H.ICONS[n.id].length, 'icon for ' + n.id);
+    if (n.id !== 'home') assert.notDeepEqual(H.ICONS[n.id], H.ICONS.home, n.id + ' must not be the Home glyph');
+    assert.equal(typeof H.ICON_HOVER[n.id], 'function', 'hover for ' + n.id);
+  }
 });

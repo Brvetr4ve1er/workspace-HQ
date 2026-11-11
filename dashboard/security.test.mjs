@@ -43,7 +43,7 @@ function make(o = {}) {
     ipcMain: ipc, getWin: () => fakeWin(main), dataDir, safeStorage: fakeSafeStorage(o.available !== false),
     shell: { trashItem: async (p) => { trashed.push(p); } }, clipboard: clip, appLog,
     deps: {
-      core: coreUnderTest, timers, now: () => NOW, scanDirs: [scanRoot], fetchRange: o.fetchRange || (async () => 'FFFF:0'),
+      allowScriptCli: true, core: coreUnderTest, timers, now: () => NOW, scanDirs: [scanRoot], fetchRange: o.fetchRange || (async () => 'FFFF:0'),
       env: { ...process.env, HQ_KEEPASSXC_CLI: FAKE_CLI, HQ_FAKE_KP_XML: xmlPath, HQ_FAKE_KP_MODE: o.mode || 'ok' },
       spawn: (...a) => { spawnCalls.push(a); return cp.spawn(...a); },
     },

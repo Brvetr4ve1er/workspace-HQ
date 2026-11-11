@@ -182,7 +182,7 @@ function create({ dataDir, crypto, core = null, now = () => new Date(), randomBy
       if (typeof v !== 'string' || v.length > 1024 || /[\0\r\n]/.test(v)) return { error: `${k} is not a valid path` };
       if (!path.isAbsolute(v)) return { error: `${k} must be an absolute path` };
       if (k === 'vaultPath' && !/\.kdbx$/i.test(v)) return { error: 'vaultPath must end in .kdbx' };
-      if (k === 'cliPath' && /\.(cmd|bat)$/i.test(v)) return { error: 'cliPath must be keepassxc-cli.exe (a .cmd or .bat cannot be run)' };
+      if (k === 'cliPath' && !/^keepassxc-cli\.exe$/i.test(path.basename(v))) return { error: 'cliPath must be keepassxc-cli.exe (a script, .cmd or .bat cannot be run)' };
       next[k] = v;
     }
     try { writeJson('settings.json', { ...s, ...next }); writeStatus(); } catch { return { error: 'could not save' }; }

@@ -59,7 +59,7 @@ function init({ ipcMain, getWin, dataDir, safeStorage, shell, clipboard, appLog,
   };
   const vault = createVault({
     store, getCore, spawn: deps.spawn, fetchRange: deps.fetchRange, now: deps.now, randomBytes: deps.randomBytes,
-    existsSync: deps.existsSync, fs: deps.fs, env, timeoutMs: deps.timeoutMs, maxBytes: deps.maxBytes, execPath: deps.execPath,
+    existsSync: deps.existsSync, fs: deps.fs, env, timeoutMs: deps.timeoutMs, maxBytes: deps.maxBytes, execPath: deps.execPath, allowScriptCli: deps.allowScriptCli === true,
     trash: shell && typeof shell.trashItem === 'function' ? (p) => shell.trashItem(p) : null,
     log: (note) => { try { appLog && appLog.event('security', { note }); } catch { /* never blocks */ } },
   });

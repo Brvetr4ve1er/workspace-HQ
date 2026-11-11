@@ -35,7 +35,7 @@ function make(o = {}) {
   const v = vaultMod.create({
     store: st, core: o.core || coreUnderTest, spawn, now: () => NOW, env, fetchRange: o.fetchRange,
     findCli: o.findCli === undefined ? () => FAKE_CLI : o.findCli, timeoutMs: o.timeoutMs, maxBytes: o.maxBytes,
-    trash: o.trash, log: o.log, fs: o.fs, randomBytes: o.randomBytes,
+    trash: o.trash, log: o.log, fs: o.fs, randomBytes: o.randomBytes, allowScriptCli: true,
   });
   return { v, st, dataDir, dir: path.join(dataDir, 'security'), calls, children, vaultPath, work };
 }
@@ -173,7 +173,7 @@ test('a cli that exits before reading stdin: an error listener is on stdin befor
     c.stdin.write = (...x) => { sawListener = c.stdin.listenerCount('error') > 0; return w(...x); };
     return c;
   };
-  const v2 = vaultMod.create({ store: t.st, core: coreUnderTest, spawn, now: () => NOW, env: { ...process.env, HQ_FAKE_KP_MODE: 'early-exit' }, findCli: () => FAKE_CLI });
+  const v2 = vaultMod.create({ store: t.st, core: coreUnderTest, spawn, now: () => NOW, env: { ...process.env, HQ_FAKE_KP_MODE: 'early-exit' }, findCli: () => FAKE_CLI, allowScriptCli: true });
   let unhandled = null; const h = (e) => { unhandled = e; }; process.once('uncaughtException', h);
   const r = await v2.refresh({ passphrase: PASSPHRASE });
   await new Promise((res) => setTimeout(res, 100));
@@ -191,7 +191,7 @@ test('an export with a Protected="True" Value -> "unreadable export", nothing wr
   assert.deepEqual(await p.v.refresh({ passphrase: PASSPHRASE }), { error: 'unreadable export' });
   assert.equal(fs.existsSync(path.join(p.dir, 'map.json')), false);
   // the same store, a second vault reading the protected export
-  const v2 = vaultMod.create({ store: t.st, core: coreUnderTest, now: () => NOW, env: { ...process.env, HQ_FAKE_KP_MODE: 'protected', HQ_FAKE_KP_XML: path.join(t.work, 'export.xml') }, findCli: () => FAKE_CLI });
+  const v2 = vaultMod.create({ store: t.st, core: coreUnderTest, now: () => NOW, env: { ...process.env, HQ_FAKE_KP_MODE: 'protected', HQ_FAKE_KP_XML: path.join(t.work, 'export.xml') }, findCli: () => FAKE_CLI, allowScriptCli: true });
   assert.deepEqual(await v2.refresh({ passphrase: PASSPHRASE }), { error: 'unreadable export' });
   assert.ok(fs.readFileSync(path.join(t.dir, 'map.json')).equals(before));
 });
@@ -271,7 +271,7 @@ test('breach check: one prefix rejecting -> those accounts null, the note "breac
   assert.equal(t.st.readStatus().breachCheckedAt, null);
   assert.equal(t.st.readStatus().refreshedAt, NOW.toISOString());
   // a later complete run on the same store sets it
-  const v2 = vaultMod.create({ store: t.st, core: coreUnderTest, now: () => NOW, env: { ...process.env, HQ_FAKE_KP_MODE: 'ok', HQ_FAKE_KP_XML: path.join(t.work, 'export.xml') }, findCli: () => FAKE_CLI, fetchRange: async () => 'FFFF:0' });
+  const v2 = vaultMod.create({ store: t.st, core: coreUnderTest, now: () => NOW, env: { ...process.env, HQ_FAKE_KP_MODE: 'ok', HQ_FAKE_KP_XML: path.join(t.work, 'export.xml') }, findCli: () => FAKE_CLI, allowScriptCli: true, fetchRange: async () => 'FFFF:0' });
   assert.equal((await v2.refresh({ passphrase: PASSPHRASE, checkBreaches: true })).breachChecked, true);
   assert.equal(t.st.readStatus().breachCheckedAt, NOW.toISOString());
 });
@@ -362,7 +362,7 @@ test('findCli: env (tests) -> cliPath setting -> PATH -> Program Files -> null',
   const dir = tmp();
   const onPath = path.join(dir, 'keepassxc-cli.exe'); fs.writeFileSync(onPath, '');
   const pf = tmp(); fs.mkdirSync(path.join(pf, 'KeePassXC')); const pfCli = path.join(pf, 'KeePassXC', 'keepassxc-cli.exe'); fs.writeFileSync(pfCli, '');
-  const setting = path.join(tmp(), 'custom-cli.exe'); fs.writeFileSync(setting, '');
+  const setting = path.join(tmp(), 'keepassxc-cli.exe'); fs.writeFileSync(setting, '');
   const envCli = path.join(tmp(), 'env-cli.mjs'); fs.writeFileSync(envCli, '');
   const mk = (env) => vaultMod.makeFindCli({ store: t.st, env })();
   assert.equal(mk({ HQ_KEEPASSXC_CLI: envCli, PATH: dir, ProgramFiles: pf }), envCli);
@@ -450,4 +450,28 @@ test('refresh against the real security-core on the same invented export: ok, an
   const r = await t.v.refresh({ passphrase: PASSPHRASE, checkBreaches: false });
   assert.equal(r.ok, true, JSON.stringify(r));
   for (const f of allFiles(t.dir)) real.assertNoSecrets(fs.readFileSync(f, 'utf8'), secretsOf());
+});
+
+// ---------------------------------------------------------------- batch 4 taster fix: the script seam is a test seam only
+test('a script cli (.mjs/.js) is refused in the app: only keepassxc-cli.exe runs unless a test injects allowScriptCli; nothing is spawned', async () => {
+  const t = make();
+  const calls = [];
+  const spawn = (...a) => { calls.push(a); throw new Error('must not spawn'); };
+  const prod = (findCli) => vaultMod.create({ store: t.st, core: coreUnderTest, spawn, now: () => NOW, env: { ...process.env }, findCli });
+  for (const cli of [FAKE_CLI, path.join(t.work, 'evil.js'), path.join(t.work, 'other.exe'), path.join(t.work, 'keepassxc-cli.exe.js')]) {
+    const r = await prod(() => cli).refresh({ passphrase: PASSPHRASE });
+    assert.match(r.error, /keepassxc-cli\.exe/, cli);
+  }
+  assert.equal(calls.length, 0, 'the passphrase never reached a spawn');
+  // the real name is accepted (the fake spawn is reached, which then fails as "could not be started")
+  const real = await prod(() => path.join(t.work, 'KeePassXC-CLI.EXE')).refresh({ passphrase: PASSPHRASE });
+  assert.equal(calls.length, 1);
+  assert.match(real.error, /could not be started/);
+});
+
+test('the test seam pins ELECTRON_RUN_AS_NODE so a script never starts a second Electron app', async () => {
+  const t = make();
+  const r = await t.v.refresh({ passphrase: PASSPHRASE });
+  assert.equal(r.ok, true);
+  assert.equal(t.calls[0][2].env.ELECTRON_RUN_AS_NODE, '1');
 });

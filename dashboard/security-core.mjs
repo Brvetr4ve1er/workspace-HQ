@@ -519,7 +519,8 @@ export function buildGraph({ accounts, identities, owner, breached } = {}) {
     if (a.reuseGroup != null) flags.push('reused');
     if (a.breached === true || breachedSet.has(a.id)) flags.push('breached');
     const twofa = edit && typeof edit.twofa === 'string' ? edit.twofa : null;
-    if (twofa === 'none' || (twofa == null && !a.totp && !a.passkey)) flags.push('no2fa');
+    // 'unknown' (the owner's "not recorded" chip) is the same as nothing said: parity with the renderer's flagsOf and footprint-read's twofaOf
+    if (twofa === 'none' || ((twofa == null || twofa === 'unknown') && !a.totp && !a.passkey)) flags.push('no2fa');
     if (a.old === true) flags.push('old');
     addNode({ id: a.id, kind: 'account', label: typeof a.title === 'string' ? a.title : '', degree: 0, flags });
     if (typeof a.identityRef === 'string') pending.push([a.id, { uses: a.identityRef }]);
@@ -527,8 +528,10 @@ export function buildGraph({ accounts, identities, owner, breached } = {}) {
   }
 
   // owner edits whose account is not in the latest refresh are kept, never dropped
+  // (a manual account's own edits live in owner.accounts too: the manual loop below owns those ids)
+  const manualIds = new Set(manual.filter((m) => m && typeof m === 'object' && typeof m.id === 'string').map((m) => m.id));
   for (const id of Object.keys(ownerAccounts)) {
-    if (accountIds.has(id)) continue;
+    if (accountIds.has(id) || manualIds.has(id)) continue;
     const edit = ownerAccounts[id];
     if (!edit || typeof edit !== 'object' || edit.archived === true) continue;
     const flags = ['not-in-vault'];
@@ -539,10 +542,15 @@ export function buildGraph({ accounts, identities, owner, breached } = {}) {
 
   for (const m of manual) {
     if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !m.id) continue;
+    // the owner's twofa for a manual account lives in owner.accounts[id] (the store's editAccount); the record's own field is the older shape
+    const mEdit = own(ownerAccounts, m.id) && ownerAccounts[m.id] && typeof ownerAccounts[m.id] === 'object' ? ownerAccounts[m.id] : null;
+    if (mEdit && mEdit.archived === true) continue;   // archived accounts leave the graph and every count, manual ones too
     const flags = ['not-in-vault'];
-    if (m.twofa == null || m.twofa === 'none') flags.push('no2fa');
+    const mTwofa = mEdit && typeof mEdit.twofa === 'string' ? mEdit.twofa : (typeof m.twofa === 'string' ? m.twofa : null);
+    if (mTwofa == null || mTwofa === 'none' || mTwofa === 'unknown') flags.push('no2fa');
     addNode({ id: m.id, kind: 'manual', label: typeof m.label === 'string' ? m.label : '', degree: 0, flags });
     pending.push([m.id, m]);
+    if (mEdit) pending.push([m.id, mEdit]);
   }
 
   for (const [id, edit] of pending) {

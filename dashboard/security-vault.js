@@ -28,6 +28,7 @@ const HIBP_HOST = 'api.pwnedpasswords.com';
 // name only, anchored: word boundaries and known export names, never a bare "pass" substring. A hit is a GUESS - the file is never opened.
 const EXPORT_NAME_RE = /(^|[^a-z])passwords?([^a-z]|$)|chrome passwords|bitwarden_export|1password|keepass.*\.(csv|xml)|ente.?auth|authenticator.*export/i;
 const EXPORT_EXT = new Set(['csv', 'json', 'txt', 'html', 'xml', '1pux']);
+const CLI_NAME_RE = /^keepassxc-cli\.exe$/i;
 const noop = () => {};
 
 // ---- the cli: env (tests) -> setting -> PATH -> Program Files ----
@@ -97,7 +98,7 @@ function create(opts = {}) {
   const {
     store, spawn = cp.spawn, now = () => new Date(), randomBytes = nodeCrypto.randomBytes,
     existsSync = nodeFs.existsSync, fs: fsApi = nodeFs, env = process.env, trash = null, log = noop,
-    timeoutMs = TIMEOUT_MS, maxBytes = MAX_BYTES, execPath = process.execPath,
+    timeoutMs = TIMEOUT_MS, maxBytes = MAX_BYTES, execPath = process.execPath, allowScriptCli = false,
   } = opts;
   const fetchRange = opts.fetchRange || ((p) => hibpRange(p));
   const findCli = opts.findCli || makeFindCli({ store, env, existsSync });
@@ -108,11 +109,14 @@ function create(opts = {}) {
   // run the cli once; resolves with the raw outcome, never rejects. The passphrase is written to stdin and nowhere else.
   function runCli(cli, args, passphrase) {
     return new Promise((resolve) => {
-      const isScript = /\.(mjs|js)$/i.test(cli);   // a script runs under Node (tests' fake cli); a .cmd/.bat is refused earlier
+      // a script runs under Node only as the TEST SEAM (allowScriptCli, injected by tests; run() refuses it otherwise), and under
+      // Electron's execPath it must be Node, never a second Electron app (ELECTRON_RUN_AS_NODE pinned)
+      const isScript = allowScriptCli && /\.(mjs|js)$/i.test(cli);
       const cmd = isScript ? execPath : cli;
       const argv = isScript ? [cli, ...args] : args;
+      const childEnv = isScript ? { ...env, ELECTRON_RUN_AS_NODE: '1' } : { ...env };
       let child;
-      try { child = spawn(cmd, argv, { shell: false, windowsHide: true, env: { ...env }, stdio: ['pipe', 'pipe', 'pipe'] }); }
+      try { child = spawn(cmd, argv, { shell: false, windowsHide: true, env: childEnv, stdio: ['pipe', 'pipe', 'pipe'] }); }
       catch { resolve({ spawnError: true }); return; }
       const chunks = []; let bytes = 0; let overflow = false; let timedOut = false; let errText = ''; let settled = false;
       const finish = (r) => { if (settled) return; settled = true; clearTimeout(timer); resolve(r); };
@@ -162,6 +166,8 @@ function create(opts = {}) {
     if (settings.keyFilePath && !existsSync(settings.keyFilePath)) return { error: 'key file not found' };
     const cli = findCli();
     if (!cli) return { error: 'KeePassXC is not installed' };
+    // only the real cli runs in the app, whatever the source (setting, env or PATH); a script is a test seam behind allowScriptCli
+    if (!allowScriptCli && !CLI_NAME_RE.test(path.basename(String(cli)))) return { error: 'the KeePassXC cli must be keepassxc-cli.exe' };
     if (/\.(cmd|bat)$/i.test(cli)) return { error: 'the KeePassXC cli must be keepassxc-cli.exe (a .cmd or .bat cannot be run)' };
     const core = await resolveCore();
     if (!core) return { error: 'the security engine is not available' };

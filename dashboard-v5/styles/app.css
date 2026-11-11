@@ -15,3 +15,13 @@ input::placeholder,textarea::placeholder{color:var(--faint)}
 ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:var(--frame)} ::-webkit-scrollbar-track{background:transparent}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* Printing: the app is a fixed-height window, so only the Security emergency sheet (blank lines, never data) has a print layout.
+   Everything else is hidden, the sheet is black on white at the top of the page, its buttons are not printed. */
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  body *{visibility:hidden!important}
+  [data-sec="sheet"],[data-sec="sheet"] *{visibility:visible!important}
+  [data-sec="sheet"]{position:absolute!important;left:0!important;top:0!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;color:#000!important}
+  [data-sec="sheet-close"],[data-sec="sheet-print"]{display:none!important}
+}

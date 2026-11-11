@@ -28,6 +28,8 @@ test('settings: absolute paths only, vault must end .kdbx, unknown keys refused,
   assert.match(store.setSettings({ vaultPath: 'relative/v.kdbx' }).error, /absolute/);
   assert.match(store.setSettings({ vaultPath: path.resolve(tmp(), 'v.txt') }).error, /\.kdbx/);
   assert.match(store.setSettings({ cliPath: path.resolve(tmp(), 'x.cmd') }).error, /cmd/);
+  for (const bad of ['x.js', 'x.mjs', 'evil.exe', 'keepassxc-cli.exe.js']) assert.match(store.setSettings({ cliPath: path.resolve(tmp(), bad) }).error, /keepassxc-cli.exe/, bad);
+  assert.deepEqual(store.setSettings({ cliPath: path.resolve(tmp(), 'KeePassXC-CLI.exe') }), { ok: true });
   assert.ok(store.setSettings({ refKey: 'enc:AAAA' }).error, 'refKey is not settable from outside');
   assert.ok(store.setSettings({}).error);
   assert.deepEqual(store.setSettings({ vaultPath: null }), { ok: true });
