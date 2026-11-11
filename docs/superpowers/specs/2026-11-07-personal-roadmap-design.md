@@ -17,6 +17,14 @@
 
 **Batch 1's cook specs:** [`docs/superpowers/plans/2026-11-07-kitchen-batch1.md`](../plans/2026-11-07-kitchen-batch1.md).
 
+## Progress (2026-11-11)
+
+| Batch | What | State |
+|---|---|---|
+| 1 | rulebook + use counter, chat recall, Brief senses + tray + standing, sessions board, Bridge 0.7.0 (pair, badge, find + save), Money start + quick line, client delivery card, Cosmos pure modules | shipped 2026-11-08 |
+| 2, track 1 | the Cosmos space on key 0 (engine, native thumbnails, Feed, lightbox, index, import, hq_cosmos_search) | shipped 2026-11-09 |
+| 2, track 2 | delivery check, Clients list, act from the Brief, sessions launched with tools, jump anywhere, Money in words | 4 of 6 integrated; see docs/superpowers/plans/2026-11-10-batch2-rest.md |
+
 ## North star
 
 Wherever the owner already is (the tray, Home, any Claude session including on the phone, the browser toolbar), WorkspaceHQ answers from measured local data: what needs me, where did each Claude session stop, have I solved this before, how far along is each client job, what did I spend. Every assistant action passes one rulebook and lands in one log, and every surface counts its own use. Nothing needs an LLM to be true, nothing leaves this PC without the owner's click, and nothing needs a VPS.
