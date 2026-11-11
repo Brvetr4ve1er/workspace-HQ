@@ -326,3 +326,18 @@ test('nothing is ever written: the data folder is byte-identical, and an fs spy 
   assert.ok(seen.length > 0);
   assert.ok(seen.every((k) => k === 'statSync' || k === 'readFileSync'), `only reads: ${[...new Set(seen)].join(',')}`);
 });
+
+test('a clip that was indexed and then removed from the library (Recycle Bin) is not a waiting grab: no row, no pending, no note', () => {
+  const GONE = 'clip-eeeeeeeeeeee.png';
+  const manifest = { v: 1, clips: [{ file: GONE, host: 'gone-site.test', pageHost: 'gone-site.test', title: 'Gone banner', tags: ['clipped'], type: 'photo', at: at(1 / 6), applied: true }] };
+  seed({ manifest });
+  const r = find({ site: 'gone-site.test' });
+  assert.equal(r.total, 0, 'the removed grab does not come back');
+  assert.equal(r.pending, 0);
+  assert.equal(r.newestClipAt, null, 'a removed grab does not make the library look stale');
+  assert.doesNotMatch(r.note, /waiting for the next index run|indexed:false|not in the library yet/);
+  assert.equal(find({ q: 'banner' }).rows.some((x) => x.id === `clip:${GONE}`), false);
+  // a not-yet-applied grab still shows up, so the fix does not hide real waiting clips
+  seed({ manifest: { v: 1, clips: [{ ...manifest.clips[0], applied: false }] } });
+  assert.equal(find({ site: 'gone-site.test' }).pending, 1);
+});

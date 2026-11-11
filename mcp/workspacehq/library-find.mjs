@@ -128,6 +128,7 @@ function readManifest(file, fsMod) {
       type: typeof e.type === 'string' && /^[a-z0-9 _-]{1,30}$/i.test(e.type.trim()) ? e.type.trim() : '',
       atMs: Number.isFinite(t) ? t : null,
       pageHost: hostOf(e.pageHost),
+      applied: e.applied === true,
     });
   }
   if (m.value.clips.length > MAX_CLIPS) skipped += m.value.clips.length - MAX_CLIPS;
@@ -214,6 +215,9 @@ export function findLibrary({ dataDir, q, site, since, where, limit, now, fsMod 
   const pendingCands = [];
   for (const entry of manifest.values()) {
     if (everyRel.has(`imports:${entry.file}`)) continue;
+    // applied:true means an index run already took this file in. If it is gone from the library now, the owner moved it to the Recycle Bin: it is
+    // not waiting for anything, and a session must never point at it.
+    if (entry.applied) continue;
     pendingCands.push({
       rec: { id: `clip:${entry.file}`, rel: `imports:${entry.file}`, title: entry.title || (entry.host ? `Grab from ${entry.host}` : 'Grab'), type: entry.type || 'misc', tags: entry.tags.map((t) => normalizeTag(t)).filter(Boolean) },
       isClip: true, entry, indexed: false,
@@ -260,7 +264,7 @@ export function findLibrary({ dataDir, q, site, since, where, limit, now, fsMod 
   const indexedAt = typeof lib.value.generatedAt === 'string' ? lib.value.generatedAt : null;
   const indexedMs = indexedAt ? Date.parse(indexedAt) : NaN;
   let newest = null;
-  for (const e of manifest.values()) if (e.atMs != null && (newest == null || e.atMs > newest)) newest = e.atMs;
+  for (const e of manifest.values()) if (e.atMs != null && (newest == null || e.atMs > newest) && !(e.applied && !everyRel.has(`imports:${e.file}`))) newest = e.atMs;
   const pending = pendingCands.length;
   if (!indexedAt) notes.push('The library file does not say when it was indexed.');
   else notes.push(`The library was indexed at ${indexedAt}.`);
