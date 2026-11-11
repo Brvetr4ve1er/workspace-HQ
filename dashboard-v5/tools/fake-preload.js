@@ -43,6 +43,7 @@ const REACH_ROWS = [
   { id: 'user-scope', ok: true, detail: 'workspacehq is registered for every session', who: 'owner' },
   { id: 'bridge', ok: null, detail: 'could not tell (selftest placeholder)', who: 'owner' },
   { id: 'calls', ok: true, detail: '12 calls this week (mcp 12)', who: 'app' },
+  { id: 'breach-check', ok: null, detail: 'Have I Been Pwned range check: only when you press Refresh; 5 hash characters leave the PC', who: 'owner' },
 ];
 // Sessions board fixture (placeholder projects, invented titles): 8 sessions, one per state, 1 nightly run folded, 2 Codex threads, 1 limit stop.
 // Built with dashboard/sessions-core.mjs buildBoard at 2026-11-07T12:00Z, so every card is what the real engine would send; the renderer measures ages from generatedAt.

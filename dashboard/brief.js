@@ -99,7 +99,7 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
     let sessionBoard = null;
     try { sessionBoard = typeof getSessionBoard === 'function' ? getSessionBoard() || null : null; } catch { sessionBoard = null; }
     return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH, sessionBoard,
-      github: s.github, vercel: s.vercel, pcDetail: s.pcDetail, sessions: s.sessions, hubProjects: s.hubProjects, sessionTurns: s.sessionTurns, docsRoot: s.docsRoot,
+      github: s.github, vercel: s.vercel, pcDetail: s.pcDetail, security: s.security, sessions: s.sessions, hubProjects: s.hubProjects, sessionTurns: s.sessionTurns, docsRoot: s.docsRoot,
       errors: errors.concat(Array.isArray(s.errors) ? s.errors : []) };
   }
 
@@ -207,7 +207,7 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrie
   if (watch) {
     // the facts the brief reads change on disk (scan, PC health, money); its own brief.json writes are ignored, or it would loop
     const watchDir = (dir, names) => { try { const w = fs.watch(dir, (_ev, f) => { if (!f || names.includes(String(f))) schedule(); }); watchers.push(w); return true; } catch { return false; } };
-    watchDir(dataDir, ['latest.json', 'pc-health.json', 'github.json', 'accounts.json', 'money']);
+    watchDir(dataDir, ['latest.json', 'pc-health.json', 'github.json', 'accounts.json', 'money', 'security']);
     const moneyDir = path.join(dataDir, 'money');
     if (!watchDir(moneyDir, ['state.json', 'meta.json'])) {
       // data/money/ appears on the first money write: attach then

@@ -4,7 +4,7 @@
 // and dropped; ~/.claude.json is parsed in memory for key presence only).
 //
 //   create({ dataDir, home?, exePath?, serverPath?, stateFile?, probes?, now?, probeTimeoutMs? }) → { read() }
-//   read() → { at, rows: [{ id: 'phone-door'|'user-scope'|'bridge'|'tray-icon'|'calls', ok: true|false|null, detail, step?, who: 'owner'|'app', copy? }] }
+//   read() → { at, rows: [{ id: 'phone-door'|'user-scope'|'bridge'|'tray-icon'|'calls'|'breach-check', ok: true|false|null, detail, step?, who: 'owner'|'app', copy? }] }
 //   init({ ipcMain, dataDir, exePath, ... }) → the same object; registers ipcMain.handle('hq:reach:read')
 //   parseNotifyIcons(regText, exePath) → true | false | null   (the tray row's registry parser, exported for tests)
 //
@@ -205,6 +205,18 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
     } catch { return { ...base, ok: null, detail: 'unknown — the audit log could not be read' }; }
   }
 
+  // The Security space's breach check: ok null until a refresh that ran the check to the end has stamped status.json (breachCheckedAt),
+  // true after. Never false: there is nothing for the owner to fix, the check only ever runs when they press Refresh.
+  async function breachCheck() {
+    const base = { id: 'breach-check', who: 'owner' };
+    const detail = 'Have I Been Pwned range check: only when you press Refresh; 5 hash characters leave the PC';
+    if (!dataDir) return { ...base, ok: null, detail };
+    let doc = null;
+    try { doc = JSON.parse(fs.readFileSync(path.join(dataDir, 'security', 'status.json'), 'utf8')); } catch { doc = null; }
+    const at = doc && typeof doc === 'object' && typeof doc.breachCheckedAt === 'string' ? Date.parse(doc.breachCheckedAt) : NaN;
+    return Number.isFinite(at) ? { ...base, ok: true, detail } : { ...base, ok: null, detail };
+  }
+
   async function read() {
     const t = now();
     const settle = async (id, fn) => { try { return await fn(); } catch { return { id, ok: null, detail: 'unknown — the check failed', who: 'owner' }; } };
@@ -214,6 +226,7 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
       settle('bridge', bridge),
       settle('tray-icon', trayIcon),
       settle('calls', () => calls(t)),
+      settle('breach-check', breachCheck),
     ]);
     return { at: new Date(t).toISOString(), rows };
   }

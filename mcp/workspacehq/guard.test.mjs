@@ -112,8 +112,9 @@ const until = async (fn, ms = 8000) => { const t0 = Date.now(); while (Date.now(
 
 test('the tier table: five read tools today plus the Pass reads, note, run, stage; no act; drift helper', () => {
   assert.equal(tierOf('hq_brief'), 'read');
-  for (const t of ['hq_brief', 'hq_status', 'hq_quests_list', 'hq_social_outbox', 'hq_activity', 'hq_recall', 'hq_chat_read', 'hq_sessions', 'hq_delivery', 'hq_cosmos_search', 'hq_library_find', 'hq_today', 'hq_money_today']) assert.equal(TOOL_TIERS[t], 'read', t);
+  for (const t of ['hq_brief', 'hq_status', 'hq_quests_list', 'hq_social_outbox', 'hq_activity', 'hq_recall', 'hq_chat_read', 'hq_sessions', 'hq_delivery', 'hq_cosmos_search', 'hq_library_find', 'hq_today', 'hq_money_today', 'hq_footprint']) assert.equal(TOOL_TIERS[t], 'read', t);
   assert.equal(tierOf('hq_cosmos_search'), 'read');
+  assert.equal(tierOf('hq_footprint'), 'read');
   for (const t of ['hq_capture', 'hq_quest_done', 'hq_social_cancel', 'hq_brief_dismiss']) assert.equal(TOOL_TIERS[t], 'note', t);
   assert.equal(TOOL_TIERS.hq_scan_trigger, 'run');
   for (const t of ['hq_social_post', 'hq_social_reply']) assert.equal(TOOL_TIERS[t], 'stage', t);
@@ -311,7 +312,7 @@ test('hq_activity: counts, recent, last scan trigger, skipped lines and the door
     assert.equal(a.skippedLines, 1);
     assert.equal(a.lastScanTrigger.ok, true);
     assert.ok(Array.isArray(a.recent) && a.recent.length === 3);
-    assert.deepEqual(a.doors.map((d) => d.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls']);
+    assert.deepEqual(a.doors.map((d) => d.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check']);
     assert.ok(a.doors.every((d) => !('copy' in d)), 'no install command or absolute path in an MCP answer');
     assert.ok(!JSON.stringify(a.doors).includes('server.mjs'));
     const calls = a.doors.find((d) => d.id === 'calls');

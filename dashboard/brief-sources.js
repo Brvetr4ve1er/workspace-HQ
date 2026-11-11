@@ -5,8 +5,9 @@
 // `errors` entry (a bad sidecar names its own source; a Hub failure is source 'claude-code') and the sense stays silent.
 //
 // gather({ dataDir, hub, now, scan?, docsRoot?, timeoutMs? }) → Promise<{
-//   github, vercel, pcDetail, sessions, hubProjects, sessionTurns, docsRoot, errors }>
+//   github, vercel, pcDetail, security, sessions, hubProjects, sessionTurns, docsRoot, errors }>
 //   now: Date | ms | () => Date | ms.   scan: the parsed latest.json (read from dataDir when omitted).
+//   security: numbers, booleans and timestamps from data/security/status.json (read directly, NOT through the 72 h sidecar gate), or null
 //   github / vercel are the sidecar documents when usable, else null; pcDetail is { scannedAt, rebootPending } | null.
 //   sessions: [{ id, projectId, hqProjectId, cwd, lastAt }]   (never a title)    hubProjects: [{ id, path, hqProjectId, linkState }]
 //   sessionTurns: { [sessionId]: [{ toolName }] }
@@ -16,6 +17,8 @@ const { pathToFileURL } = require('url');
 
 let senses = null;
 const lib = () => senses || (senses = import(pathToFileURL(path.join(__dirname, 'brief-senses.mjs')).href));
+let secLib = null;
+const securityLib = () => secLib || (secLib = import(pathToFileURL(path.join(__dirname, 'brief-security.mjs')).href));
 
 const HUB_MS = 5000, DAY_MS = 24 * 3600e3, SESSION_LIMIT = 30;
 const msg = (e) => String((e && e.message) || e).slice(0, 160);
@@ -45,7 +48,7 @@ function ask(hub, op, args, timeoutMs) {
 }
 
 async function gather({ dataDir, hub, now, scan, docsRoot, timeoutMs = HUB_MS } = {}) {
-  const out = { github: null, vercel: null, pcDetail: null, sessions: [], hubProjects: [], sessionTurns: {}, docsRoot: docsRoot || require('./project-paths').DOCS_ROOT, errors: [] };
+  const out = { github: null, vercel: null, pcDetail: null, security: null, sessions: [], hubProjects: [], sessionTurns: {}, docsRoot: docsRoot || require('./project-paths').DOCS_ROOT, errors: [] };
   try {
     const S = await lib();
     const nowMs = toMs(now);
@@ -71,6 +74,12 @@ async function gather({ dataDir, hub, now, scan, docsRoot, timeoutMs = HUB_MS } 
       const e = S.sidecarError('pc-health', 'data/pc-health.json', { at: detail.scannedAt }, nowMs);
       if (e) note(e.source, e.error); else out.pcDetail = detail;
     }
+
+    // 1b. data/security/status.json, read DIRECTLY: sidecar()'s 72 h gate would make 'footprint-stale' (30 d) unreachable and its
+    // 'at' check would push a named error for a status a scan wrote. 'at' is used only for the age text. Absent = silent.
+    const st = readJson(path.join(dataDir, 'security', 'status.json'));
+    if (st.error) note('security', 'data/security/status.json ' + st.error + ' — its checks were skipped');
+    else if (isObj(st.value)) out.security = (await securityLib()).securityInput(st.value);
 
     // 2. the Claude Code sessions of the last day and the Hub's code projects (one call each)
     if (hub && typeof hub.request === 'function') {

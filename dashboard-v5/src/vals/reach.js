@@ -7,6 +7,7 @@ const LABEL = {
   bridge: 'Browser extension paired',
   'tray-icon': 'Tray icon visible',
   calls: 'Assistant calls this week',
+  'breach-check': 'Breach check',
 };
 const STATE = {
   open: { text: 'open', color: 'var(--green)' },

@@ -244,6 +244,69 @@ test('watch: the senses sidecars are watched files', () => {
   assert.match(src, /watchDir\(dataDir, \[[^\]]*'github\.json'[^\]]*'accounts\.json'/);
 });
 
+// ---- Security doors: data/security/status.json -> buildInputs.security -> the six rules (brief-security.mjs) ----
+const putSecurity = (dataDir, v) => { fs.mkdirSync(path.join(dataDir, 'security'), { recursive: true }); fs.writeFileSync(path.join(dataDir, 'security', 'status.json'), typeof v === 'string' ? v : JSON.stringify(v)); };
+const secStatus = (o = {}) => ({ v: 1, at: '2026-11-05T09:00:00.000Z', refreshedAt: '2026-11-05T08:00:00.000Z', breachCheckedAt: null, counts: { accounts: 4, identities: 1, weak: 0, reused: 0, breached: 0, no2fa: 0, old: 0, notInVault: 0 }, exportsFound: 0, conflicts: 0, email2faDone: false, walkthroughStarted: false, ...o });
+
+test('security: a status.json with an export found reaches buildInputs (numbers only) and the Brief puts plain-export-found first, without a file name', async () => {
+  const { b, dataDir } = make({ latest: latest([proj('a', 0)]) });
+  putSecurity(dataDir, secStatus({ exportsFound: 1, planted: 'C:/Users/owner/Downloads/passwords-export.csv' }));
+  const inputs = await b.buildInputs();
+  assert.deepEqual(Object.keys(inputs.security).sort(), ['at', 'breachCheckedAt', 'conflicts', 'counts', 'email2faDone', 'exportsFound', 'refreshedAt', 'walkthroughStarted']);
+  assert.equal(inputs.security.exportsFound, 1);
+  const { brief: out } = await b.compute();
+  assert.equal(out.items[0].rule, 'plain-export-found');
+  assert.equal(out.items[0].severity, 'high');
+  assert.ok(!JSON.stringify(out).includes('passwords-export'), 'no file name anywhere in the brief');
+  assert.ok(!out.errors.some((e) => e.source === 'security'));
+});
+
+test('security: a status.json a scan wrote (at only) raises no item and no error; a corrupt one is one named security error and no item; absent is silent', async () => {
+  const { b, dataDir } = make({ latest: latest([proj('a', 0)]) });
+  assert.ok(!(await b.compute()).brief.items.some((i) => i.source === 'security'), 'absent: silent');
+  putSecurity(dataDir, { v: 1, at: '2026-11-05T09:30:00.000Z' });
+  let r = (await b.compute()).brief;
+  assert.ok(!r.items.some((i) => i.source === 'security'));
+  assert.ok(!r.errors.some((e) => e.source === 'security'), 'a scan write is not "has no timestamp"');
+  putSecurity(dataDir, { v: 1, exportsFound: 1 });
+  r = (await b.compute()).brief;
+  assert.equal(r.items[0].rule, 'plain-export-found', 'a missing at is an unknown age, never an error');
+  assert.ok(!r.errors.some((e) => e.source === 'security'));
+  putSecurity(dataDir, '{ not json');
+  r = (await b.compute()).brief;
+  assert.equal(r.errors.filter((e) => e.source === 'security').length, 1);
+  assert.ok(!r.items.some((i) => i.source === 'security'));
+});
+
+test('security: a 40-day-old footprint speaks (not gated by the 72 h sidecar rule); a plain export and a vault conflict stay on the Brief past 72 h, a reused password steps aside', async () => {
+  const handlers = new Map();
+  let t = new Date(NOW.getTime());
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 0)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  putSecurity(dataDir, secStatus({ refreshedAt: '2026-09-25T08:00:00.000Z' }));
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [], intervalMs: 0, watch: false, now: () => t });
+  const read = async () => (await handlers.get('hq:brief:read')()).brief;
+  let b = await read();
+  assert.ok(b.items.some((i) => i.rule === 'footprint-stale'), 'refreshed 41 days ago');
+  putSecurity(dataDir, secStatus({ exportsFound: 1, conflicts: 1, counts: { reused: 2 } }));
+  b = await read();
+  const rulesOf = (list) => list.map((i) => i.rule);
+  assert.deepEqual(rulesOf(b.items.concat(b.overflow || [])).filter((r) => ['plain-export-found', 'vault-conflict', 'passwords-reused'].includes(r)), ['plain-export-found', 'vault-conflict', 'passwords-reused']);
+  t = new Date(NOW.getTime() + 80 * 3600e3);
+  b = await read();
+  const live = rulesOf(b.items.concat(b.overflow || []));
+  assert.ok(live.includes('plain-export-found') && live.includes('vault-conflict'), 'STANDING_EXEMPT: still on the Brief at 80 h');
+  assert.ok(!b.standing.some((i) => i.rule === 'plain-export-found' || i.rule === 'vault-conflict'));
+  assert.ok(b.standing.some((i) => i.rule === 'passwords-reused'), 'a low row steps aside after 72 h');
+  api.stop();
+});
+
+test('security: the Brief watches the security folder', () => {
+  const src = fs.readFileSync(new URL('./brief.js', import.meta.url), 'utf8');
+  assert.match(src, /watchDir\(dataDir, \[[^\]]*'money'[^\]]*'security'\]/);
+});
+
 test('standing: an item stays at 71 h and steps aside at 72 h (the exact key\'s first time), brief.json carries it, and the clock survives', async () => {
   const handlers = new Map();
   let t = new Date(NOW.getTime());

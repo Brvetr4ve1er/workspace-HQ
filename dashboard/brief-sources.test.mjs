@@ -137,6 +137,26 @@ test('a failing turns fetch is one error; the other sense inputs survive', async
   assert.equal(r.errors.filter((e) => e.source === 'claude-code').length, 1);
 });
 
+test('security: status.json is read directly, so a 40-day-old footprint still arrives; absent is null without an error; corrupt is one named error', async () => {
+  const dir = tmp();
+  assert.equal((await gather(opts(dir, fakeHub([])))).security, null, 'absent');
+  assert.deepEqual((await gather(opts(dir, fakeHub([])))).errors.filter((e) => e.source === 'security'), []);
+  fs.mkdirSync(path.join(dir, 'security'));
+  put(path.join(dir, 'security'), 'status.json', { v: 1, at: iso(NOW.getTime() - 40 * 24 * H), refreshedAt: iso(NOW.getTime() - 40 * 24 * H), exportsFound: 2, counts: { breached: 1, reused: 3, planted: 9 }, planted: 'x' });
+  let r = await gather(opts(dir, fakeHub([])));
+  assert.equal(r.security.exportsFound, 2);
+  assert.deepEqual(r.security.counts, { breached: 1, reused: 3 }, 'only the numbers the rules read');
+  assert.ok(!('planted' in r.security));
+  assert.deepEqual(r.errors.filter((e) => e.source === 'security'), [], 'the 72 h sidecar rule does not apply to it');
+  put(path.join(dir, 'security'), 'status.json', { v: 1 });
+  r = await gather(opts(dir, fakeHub([])));
+  assert.ok(r.security && r.security.at === null, 'a scan write without at: usable, age unknown');
+  put(path.join(dir, 'security'), 'status.json', '{ nope');
+  r = await gather(opts(dir, fakeHub([])));
+  assert.equal(r.security, null);
+  assert.equal(r.errors.filter((e) => e.source === 'security').length, 1);
+});
+
 test('no hub, a garbage hub, or no arguments: an empty result, never a throw', async () => {
   const dir = tmp();
   for (const a of [{ dataDir: dir, now: NOW }, { dataDir: dir, hub: {}, now: NOW }, { dataDir: dir, hub: { request: 'x' }, now: NOW }, undefined]) {

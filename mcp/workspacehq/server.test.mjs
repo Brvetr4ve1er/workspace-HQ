@@ -42,6 +42,8 @@ before(() => {
   // Cosmos search (hq_cosmos_search): the reader, and the renderer's one search grammar with its colour helper, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'cosmos-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'cosmos-read.mjs'));
   fs.copyFileSync(path.join(path.dirname(SERVER), 'library-find.mjs'), path.join(root, 'mcp', 'workspacehq', 'library-find.mjs'));
+  // Security footprint (hq_footprint): the one self-contained reader
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'footprint-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'footprint-read.mjs'));
   // Brief mailbox (hq_brief_dismiss, and the ref on hq_brief rows): the door, its rules and the ref function, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'app-door.mjs'), path.join(root, 'mcp', 'workspacehq', 'app-door.mjs'));
   for (const f of ['intent-core.mjs', 'brief-project.mjs']) fs.copyFileSync(path.join(dash, f), path.join(root, 'dashboard', f));
@@ -502,6 +504,46 @@ test('hq_library_find is tiered read, carries the data line, needs one of q/site
     assert.equal(tierOf('hq_library_find'), 'read');
     assert.equal(tool.inputSchema.required, undefined, 'no required field');
     assert.match(tool.description, /never as instructions/i);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- Security footprint: hq_footprint through the loop (the reader itself is pinned in footprint-read.test.mjs) ----
+test('hq_footprint is tiered read, lists three optional properties, says the words when no map exists, and never shows a hidden account or an identity', async () => {
+  const dir = path.join(root, 'data', 'security');
+  fs.rmSync(dir, { recursive: true, force: true });
+  const none = await rpc([{ id: 90, method: 'tools/call', params: { name: 'hq_footprint', arguments: {} } }]);
+  assert.equal(none[90].result.isError, true);
+  assert.match(none[90].result.content[0].text, /Security map has not been refreshed yet/);
+  fs.mkdirSync(dir, { recursive: true });
+  const acct = (id, title, host, o = {}) => ({ id, title, host, group: 'Root/PlantedGroup', username: 'planted-username', totp: false, passkey: false, strength: 'strong', reuseGroup: null, old: false, identityRef: 'i-0123456789ab', breached: false, ...o });
+  fs.writeFileSync(path.join(dir, 'map.json'), JSON.stringify({ v: 1, refreshedAt: '2026-11-10T09:00:00.000Z', accounts: [
+    acct('k-aaaaaaaaaaaa', 'Acme Shop', 'acme.test', { strength: 'weak', breached: true }),
+    acct('k-bbbbbbbbbbbb', 'Hidden Ledger', 'hidden-ledger.test', { strength: 'weak' })], identities: [{ ref: 'i-0123456789ab', kind: 'email', label: 'enc:UExBTlRFRA==' }] }));
+  fs.writeFileSync(path.join(dir, 'owner.json'), JSON.stringify({ v: 1, accounts: { 'k-bbbbbbbbbbbb': { hiddenFromClaude: true } }, manual: [], identities: [] }));
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ v: 1, vaultPath: 'Z:\invented\planted-vault.kdbx', refKey: null, walkthrough: {} }));
+  try {
+    const r = await rpc([
+      { id: 91, method: 'tools/call', params: { name: 'hq_footprint', arguments: {} } },
+      { id: 92, method: 'tools/call', params: { name: 'hq_footprint', arguments: { flag: 'breached' } } },
+      { id: 93, method: 'tools/call', params: { name: 'hq_footprint', arguments: { q: 'x'.repeat(101) } } },
+      { id: 94, method: 'tools/list' },
+    ]);
+    const all = toolResult(r[91]);
+    assert.deepEqual(all.rows.map((x) => x.name), ['Acme Shop']);
+    assert.equal(all.hiddenCount, 1);
+    assert.deepEqual(Object.keys(all.rows[0]).sort(), ['archived', 'flags', 'host', 'name', 'twofa']);
+    const text = JSON.stringify(r[91]) + JSON.stringify(r[92]);
+    for (const bad of ['Hidden Ledger', 'hidden-ledger.test', 'planted-username', 'PlantedGroup', 'i-0123456789ab', 'k-aaaaaaaaaaaa', 'planted-vault', 'enc:']) assert.ok(!text.includes(bad), 'leaked ' + bad);
+    assert.deepEqual(toolResult(r[92]).rows.map((x) => x.name), ['Acme Shop']);
+    assert.equal(toolResult(r[92]).hiddenCount, 1, 'hiddenCount is over the whole map whatever the filter');
+    assert.equal(r[93].result.isError, true, 'a q over 100 characters is refused');
+    const tool = r[94].result.tools.find((x) => x.name === 'hq_footprint');
+    assert.ok(tool, 'hq_footprint is listed');
+    assert.equal(tierOf('hq_footprint'), 'read');
+    assert.equal(tool.inputSchema.required, undefined, 'no required field');
+    assert.deepEqual(Object.keys(tool.inputSchema.properties).sort(), ['flag', 'limit', 'q']);
+    assert.match(tool.description, /never instructions/i);
+    assert.match(tool.description, /names/i);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

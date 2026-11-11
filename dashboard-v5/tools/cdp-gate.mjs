@@ -1637,11 +1637,11 @@ const SCENARIOS = {
     await t.evaluate(`(() => { window.__copied = []; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (x) => { window.__copied.push(String(x)); }, readText: async () => '' }, configurable: true });
       const L = WHQ.app.logic; hqFake.reset(); L._rchAsked = false; L.setState({ rchRows: null, rchAt: null, rchError: '', rchBusy: false, settingsOpen: true }); return true; })()`);
     const SEC = `document.querySelector('section[aria-label="Reach: which doors to the assistant are open"]')`;
-    if (!await t.waitFor(`!!${SEC} && ${SEC}.querySelectorAll('[role="listitem"]').length === 4`, 5000)) return ['Settings never showed the 4 Reach rows (got ' + await t.evaluate(`${SEC} ? ${SEC}.querySelectorAll('[role="listitem"]').length : -1`) + ')'];
+    if (!await t.waitFor(`!!${SEC} && ${SEC}.querySelectorAll('[role="listitem"]').length === 5`, 5000)) return ['Settings never showed the 5 Reach rows (got ' + await t.evaluate(`${SEC} ? ${SEC}.querySelectorAll('[role="listitem"]').length : -1`) + ')'];
     const rows = await t.evaluate(`[...${SEC}.querySelectorAll('[role="listitem"]')].map((r) => r.textContent.replace(/\\s+/g, ' ').trim())`);
-    const want = [['closed', 'Phone door', 'Next: start remote control in a terminal', 'Copy command'], ['open', 'Tools in every Claude session'], ['unknown', 'Browser extension paired'], ['open', 'Assistant calls this week']];
+    const want = [['closed', 'Phone door', 'Next: start remote control in a terminal', 'Copy command'], ['open', 'Tools in every Claude session'], ['unknown', 'Browser extension paired'], ['open', 'Assistant calls this week'], ['unknown', 'Breach check']];
     want.forEach((w, i) => { for (const part of w) if (!(rows[i] || '').includes(part)) out.push('row ' + (i + 1) + ' lacks "' + part + '": ' + rows[i]); });
-    if (!await t.evaluate(`${SEC}.textContent.includes('2 of 4 open')`)) out.push('no "2 of 4 open" summary');
+    if (!await t.evaluate(`${SEC}.textContent.includes('2 of 5 open')`)) out.push('no "2 of 5 open" summary');
     if ((await t.evaluate(`hqFake.calls('reach.read').length`)) !== 1) out.push('Settings read the rows ' + await t.evaluate(`hqFake.calls('reach.read').length`) + ' times, want exactly 1');
     if (await t.evaluate(`[...${SEC}.querySelectorAll('[role="listitem"]')].filter((r) => [...r.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Copy command')).length`) !== 1) out.push('only the closed phone-door row should have a Copy button');
     await t.evaluate(`[...${SEC}.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Copy command').click()`);

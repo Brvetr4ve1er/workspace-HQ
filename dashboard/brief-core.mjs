@@ -5,7 +5,7 @@
 //   standing (2026-11-08): an item whose exact key has been on the brief for 72 h or more (firstSeen[key].first, brief-state.json) and
 //   was never dismissed steps aside so fresh items take the 3 slots. It keeps its rank among the standing, carries `since` (that first
 //   time, ISO) and is NOT counted in `more` (more = what is hidden from the top 3 among the fresh). Security items (STANDING_EXEMPT:
-//   secrets) never step aside. A worse value is a new key, so its clock starts fresh. Without `firstSeen` nothing is standing.
+//   secrets, plain-export-found, vault-conflict) never step aside. A worse value is a new key, so its clock starts fresh. Without `firstSeen` nothing is standing.
 //   inputs = { scan: latest.json, liveScan: {state, endedAt, code}, pc: pc-health.json, money: the money view,
 //              moneyMeta: {lastExportAt}, hub: {webCount, lastSyncAt}, errors: [{source, error}],
 //              + the senses' sources (brief-sources.js): github, vercel, pcDetail, sessions, sessionTurns, hubProjects, docsRoot } — any may be null
@@ -16,14 +16,15 @@
 import { SENSE_FNS, sessionDirtyProjectIds, sessionNamedProjectId } from './brief-senses.mjs';
 import { KEYS } from './brief-act-core.mjs';
 import { SESSION_WAITING_FN } from './brief-session-waiting.mjs';
+import { BRIEF_SECURITY_FNS } from './brief-security.mjs';
 
 export { KEYS };   // the one place a key is built: the rules below and brief-act.js (which rebuilds keys, never parses them) share it
 
-export const RULES = ['scan-failed', 'secrets', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'session-waiting', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'claude-sync'];
+export const RULES = ['scan-failed', 'secrets', 'plain-export-found', 'vault-conflict', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'accounts-breached', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'session-waiting', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'passwords-reused', 'footprint-stale', 'email-2fa-first', 'claude-sync'];
 export const SEV_RANK = { high: 0, med: 1, low: 2 };
 const CAP = 3, OVERFLOW_MAX = 12;   // items 4 to 12 ride along as brief.overflow
 const H = 3600e3, D = 24 * H;
-export const STANDING_MS = 72 * H, STANDING_EXEMPT = ['secrets'];   // items unchanged this long step aside; the secrets rule never does
+export const STANDING_MS = 72 * H, STANDING_EXEMPT = ['secrets', 'plain-export-found', 'vault-conflict'];   // items unchanged this long step aside; the secrets rule, a plain password export and a vault conflict never do
 const SCAN_STALE_MS = 36 * H, DIRTY_MIN = 10, BACKUP_MS = 30 * D, SYNC_STALE_MS = 3 * D;
 const QUIET_FROM = 23, QUIET_TO = 8, TOAST_EVERY_MS = 24 * H;
 
@@ -142,7 +143,7 @@ function organRule(organs, status, severity, pcAge, why) {
     why, source: 'pc-health', age: pcAge, action: { kind: 'go', tab: 'system', sub: 'machine' }, others: hit.length - 1 };
 }
 
-Object.assign(RULE_FNS, SENSE_FNS, SESSION_WAITING_FN);   // the six senses (brief-senses.mjs) run through the same loop, in RULES order
+Object.assign(RULE_FNS, SENSE_FNS, SESSION_WAITING_FN, BRIEF_SECURITY_FNS);   // the six senses (brief-senses.mjs) run through the same loop, in RULES order
 
 export function computeBrief(inputs, opts) {
   const i = isObj(inputs) ? inputs : {};
@@ -159,7 +160,7 @@ export function computeBrief(inputs, opts) {
     organs: arr(isObj(i.pc) && i.pc.organs), scanMs, scanDay: scanMs === null ? '' : new Date(scanMs).toISOString().slice(0, 10),
     scanAge: scanMs === null ? 'scan age unknown' : 'scan ' + ago(new Date(scanMs).toISOString(), now),
     pcAge: isObj(i.pc) ? 'pc-health ' + ago(i.pc.scanned_at, now) : 'pc-health age unknown',
-    github: i.github, vercel: i.vercel, pcDetail: i.pcDetail, sessions: i.sessions, sessionTurns: i.sessionTurns, hubProjects: i.hubProjects, docsRoot: i.docsRoot, sessionBoard: i.sessionBoard,
+    github: i.github, vercel: i.vercel, pcDetail: i.pcDetail, sessions: i.sessions, sessionTurns: i.sessionTurns, hubProjects: i.hubProjects, docsRoot: i.docsRoot, sessionBoard: i.sessionBoard, security: i.security,
   };
   try {
     ctx.sessionDirtyIds = sessionDirtyProjectIds(ctx);

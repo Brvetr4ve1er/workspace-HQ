@@ -417,8 +417,8 @@ export async function run(W = window.WHQ) {
         // Reach (Settings): every state of the doors block. The rows are put straight into state and the loader is held (_rchAsked), so the
         // fake's own rows don't replace them; rch-offline hides hq.reach for one combo (the store's hq, never window.hq) and puts it back.
         const RR = (id, ok, extra) => Object.assign({ id, ok, detail: 'Selftest detail for ' + id, who: 'owner' }, extra || {});
-        const RCH_OPEN = ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls'].map((id) => RR(id, true));
-        const RCH_MIXED = [RR('phone-door', false, { step: 'start remote control', copy: 'claude remote-control' }), RR('user-scope', true), RR('bridge', null), RR('tray-icon', false, { step: 'pin the icon in the tray overflow', who: 'owner' }), RR('calls', true)];
+        const RCH_OPEN = ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check'].map((id) => RR(id, true));
+        const RCH_MIXED = [RR('phone-door', false, { step: 'start remote control', copy: 'claude remote-control' }), RR('user-scope', true), RR('bridge', null), RR('tray-icon', false, { step: 'pin the icon in the tray overflow', who: 'owner' }), RR('calls', true), RR('breach-check', null)];
         const hq0 = W.store.hq;
         for (const [name, patch, offline] of [
           ['rch-offline', {}, true],

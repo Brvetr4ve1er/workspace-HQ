@@ -41,6 +41,13 @@ export const WORDING = {
   'reboot-pending': { one: 'This PC is waiting for a restart', short: 'a restart is pending' },
   'money-empty': { one: "Money isn't set up yet", short: 'Money is not set up yet' },
   'claude-sync': { one: "claude.ai chats aren't syncing", short: "claude.ai chats aren't syncing" },
+  // the Security rules (brief-security.mjs): counts only, never a site, a title or a file name
+  'plain-export-found': { one: 'A file that may be a plain password export is sitting in a folder', many: '{n} files that may be plain password exports are sitting in folders', short: 'a possible plain password export', shortMany: '{n} possible plain password exports' },
+  'vault-conflict': { one: 'The password vault has a sync conflict copy', many: 'The password vault has {n} sync conflict copies', short: 'a vault sync conflict', shortMany: '{n} vault sync conflicts' },
+  'accounts-breached': { one: 'A saved password appears in a public breach list', many: '{n} saved passwords appear in public breach lists', short: 'a password in a breach list', shortMany: '{n} passwords in breach lists' },
+  'passwords-reused': { one: 'An account shares its password with another', many: '{n} accounts share a password with another account', short: 'a reused password', shortMany: '{n} accounts with a reused password' },
+  'footprint-stale': { one: 'The Security map is out of date', short: 'the Security map is out of date' },
+  'email-2fa-first': { one: 'Your main email still needs two-step sign-in', short: 'main email needs two-step sign-in' },
 };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);

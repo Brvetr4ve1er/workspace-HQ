@@ -28,12 +28,12 @@ const mk = (e, o = {}) => reach.create({
 });
 const row = (r, id) => r.rows.find((x) => x.id === id);
 
-test('read() returns the five rows in order with the documented shape', async () => {
+test('read() returns the six rows in order with the documented shape', async () => {
   const e = env();
   try {
     const r = await mk(e).read();
     assert.equal(r.at, new Date(NOW).toISOString());
-    assert.deepEqual(r.rows.map((x) => x.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls']);
+    assert.deepEqual(r.rows.map((x) => x.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check']);
     for (const x of r.rows) {
       assert.ok(x.ok === true || x.ok === false || x.ok === null, x.id);
       assert.equal(typeof x.detail, 'string');
@@ -206,17 +206,40 @@ test('calls: this week by door from data/assistant-audit.jsonl, torn lines count
   } finally { rm(e.root); }
 });
 
+test('breach-check: unknown until a refresh has stamped breachCheckedAt, open after; never closed; a corrupt status.json is only unknown', async () => {
+  const e = env();
+  try {
+    const DETAIL = 'Have I Been Pwned range check: only when you press Refresh; 5 hash characters leave the PC';
+    const sec = path.join(e.dataDir, 'security');
+    const status = async () => row(await mk(e).read(), 'breach-check');
+    const absent = await status();
+    assert.deepEqual(absent, { id: 'breach-check', who: 'owner', ok: null, detail: DETAIL }, 'no status.json yet');
+    fs.mkdirSync(sec, { recursive: true });
+    fs.writeFileSync(path.join(sec, 'status.json'), JSON.stringify({ v: 1, at: '2026-11-07T09:00:00.000Z', refreshedAt: null, breachCheckedAt: null }));
+    assert.equal((await status()).ok, null, 'a scan write or a refresh without the check');
+    fs.writeFileSync(path.join(sec, 'status.json'), JSON.stringify({ v: 1, at: '2026-11-07T09:00:00.000Z', breachCheckedAt: 'not a time' }));
+    assert.equal((await status()).ok, null, 'an unreadable time is unknown, not open');
+    fs.writeFileSync(path.join(sec, 'status.json'), JSON.stringify({ v: 1, at: '2026-11-07T09:00:00.000Z', refreshedAt: '2026-11-07T09:00:00.000Z', breachCheckedAt: '2026-11-07T09:00:00.000Z' }));
+    const open = await status();
+    assert.equal(open.ok, true);
+    assert.equal(open.detail, DETAIL);
+    assert.equal(open.step, undefined);
+    fs.writeFileSync(path.join(sec, 'status.json'), '{ not json');
+    assert.equal((await status()).ok, null, 'a corrupt file does not throw and is never "closed"');
+  } finally { rm(e.root); }
+});
+
 test('it never throws: a missing data folder, a throwing probe and junk options all give rows', async () => {
   const e = env();
   try {
     const r = await reach.create({ dataDir: path.join(e.root, 'nope'), home: path.join(e.root, 'nohome'), now: () => NOW,
       probes: { processes: () => { throw new Error('x'); }, tray: () => { throw new Error('y'); } } }).read();
-    assert.equal(r.rows.length, 5);
+    assert.equal(r.rows.length, 6);
     const bare = await reach.create({ probes: { processes: async () => null, tray: async () => null } }).read();
-    assert.equal(bare.rows.length, 5);
+    assert.equal(bare.rows.length, 6);
     const handlers = {};
     reach.init({ ipcMain: { handle: (ch, fn) => { handlers[ch] = fn; } }, dataDir: e.dataDir, home: e.home, exePath: EXE, probes: { processes: async () => [], tray: async () => true } });
     const viaIpc = await handlers['hq:reach:read']();
-    assert.equal(viaIpc.rows.length, 5);
+    assert.equal(viaIpc.rows.length, 6);
   } finally { rm(e.root); }
 });

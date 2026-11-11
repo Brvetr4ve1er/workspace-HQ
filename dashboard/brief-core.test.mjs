@@ -55,6 +55,15 @@ test('each rule fires on its condition, with its severity and action', () => {
   cases.splice(15, 0, ['review-waiting', 'low', { kind: 'go', tab: 'projects', sub: 'github' }, withSenses({}, { github: githubWith({ waiting: [{ repo: 'owner/alpha-site', number: 1, updatedAt: iso(D), draft: false }] }) })]);
   cases.splice(16, 0, ['reboot-pending', 'low', { kind: 'go', tab: 'system', sub: 'machine' }, withSenses({}, { pcDetail: { scannedAt: fresh(), rebootPending: true } })]);
   cases.splice(17, 0, ['money-empty', 'low', { kind: 'go', tab: 'money', sub: 'today' }, base({ money: { hasAccounts: false, accounts: [], obligations: [] } })]);
+  // the six Security rules (brief-security.mjs) slot in by their RULES neighbours
+  const put = (after, c) => cases.splice(cases.findIndex((x) => x[0] === after) + 1, 0, c);
+  const sec = (o) => withSenses({}, { security: { v: 1, at: iso(2 * H), counts: {}, exportsFound: 0, conflicts: 0, ...o } });
+  put('secrets', ['plain-export-found', 'high', { kind: 'go', tab: 'security', sub: 'health' }, sec({ exportsFound: 1 })]);
+  put('plain-export-found', ['vault-conflict', 'high', { kind: 'go', tab: 'security', sub: 'health' }, sec({ conflicts: 1 })]);
+  put('quest-red', ['accounts-breached', 'med', { kind: 'go', tab: 'security', sub: 'health' }, sec({ counts: { breached: 1 } })]);
+  put('money-empty', ['passwords-reused', 'low', { kind: 'go', tab: 'security', sub: 'health' }, sec({ counts: { reused: 2 } })]);
+  put('passwords-reused', ['footprint-stale', 'low', { kind: 'go', tab: 'security' }, sec({ refreshedAt: iso(40 * D) })]);
+  put('footprint-stale', ['email-2fa-first', 'low', { kind: 'go', tab: 'security', sub: 'setup' }, sec({ walkthroughStarted: true, email2faDone: false })]);
   assert.deepEqual(cases.map((c) => c[0]), RULES, 'one case per rule, in rule order');
   for (const [rule, severity, action, inputs] of cases) {
     const b = run(inputs);
