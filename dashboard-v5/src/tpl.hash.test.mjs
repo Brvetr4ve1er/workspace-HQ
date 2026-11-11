@@ -67,9 +67,10 @@ import tpl from './app.tpl.js';
 // 2026-11-11 Money for Claude sessions: the Settings card (tpl/money-access.tpl.js, +1966 chars - exactly the fragment's own length) interpolated into ov-settings.tpl.js right after the Reach block, one <!-- v5: --> marker; 18 new mac* vals keys (golden re-recorded, every moved value attributed with tools/golden-diff.mjs)
 // 2026-11-11 Today ribbon (batch 3): the ribbon fragment (tpl/today.tpl.js, +6451 chars / +6459 bytes - exactly the fragment's own length) interpolated into home.tpl.js after the Brief and the sessions strip, its <!-- v5: --> markers; nothing else moved
 // 2026-11-11 Brief history (batch 3): three fragments (tpl/brief-history.tpl.js: the Operator section 2341 chars, the footer 270, the all-clear card 1576 = +4187 chars / +4193 bytes, exactly the fragments' own length) interpolated into history.tpl.js (first child of the timeline column), brief.tpl.js (the card under the empty line, the footer at the end of the section); each carries <!-- v5: reason --> markers; no existing line removed.
-const SHA256 = '4e353bf740e52a00e4e2507a5026e1b2e55ea61ecca5562c4de997445a3e606e';
-const LENGTH = 417072;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 417726;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-11 Save to vault with no local model (batch 3, vault-template): one fragment (tpl/extras.tpl.js, the Save to vault dialog), +813 chars / +813 bytes: the badge reads {{ vtp.badge }} (Template or Local model), the drafting line no longer claims a local model, and the template banner + the "Draft again with the model" button follow the basis line; each marked <!-- v5: --> ; nothing else moved
+const SHA256 = '58798338f60117167cd5295ed6cd64d3667628e3cbc631e161ea0b8bc671001c';
+const LENGTH = 417885;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 418539;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

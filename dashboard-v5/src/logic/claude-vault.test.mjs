@@ -177,3 +177,27 @@ test('basisNote and the dialog markup say what the model did and that nothing is
   assert.match(extrasTpl, /data-vault="save"/);
   assert.match(extrasTpl, /data-vault="replace"/);
 });
+
+test('a template draft (no model answered) is carried into state, worded as a template, and the redraft asks the plain id again', async () => {
+  const t = make();
+  assert.equal(t.c.renderVals().vtp.tplShow, false);
+  t.c.openVaultPreview('code:s-1');
+  await t.answerPreview({ ...DRAFT, model: null, drafted: 'template', modelUnavailable: true });
+  let v = t.c.renderVals();
+  assert.equal(t.c.state.vault.drafted, 'template');
+  assert.equal(v.vtp.tplShow, true); assert.equal(v.vtp.badge, 'Template');
+  assert.equal(v.vtp.tplNote, 'Drafted from a template: no local model was running. Edit it, then Save.');
+  assert.equal(v.vtp.redraftShow, false, 'no model reachable: no redraft button');
+  assert.equal(v.vaultBasis, 'Drafted from a template (no model) from 12 chat messages. Check and edit it — nothing is written until you press Save.');
+  assert.doesNotMatch(v.vaultBasis, /Drafted by the local model/);
+  // a model that is reachable (a forced template): the button shows, and pressing it asks the plain chat id again
+  t.c.openVaultPreview('code:s-1');
+  await t.answerPreview({ ...DRAFT, model: null, drafted: 'template', modelUnavailable: false });
+  v = t.c.renderVals();
+  assert.equal(v.vtp.redraftShow, true);
+  t.calls.length = 0;
+  v.vtp.redraft();
+  assert.deepEqual(t.calls, [['preview', 'code:s-1']]);
+  await t.answerPreview({ ...DRAFT });
+  assert.equal(t.c.state.vault.drafted, 'model'); assert.equal(t.c.renderVals().vtp.tplShow, false);
+});

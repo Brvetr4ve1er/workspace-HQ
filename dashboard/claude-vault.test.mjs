@@ -322,7 +322,11 @@ test('preview errors say why and write nothing: Hub down, chat gone, Hub error, 
     assert.match((await mk(hubFor({}, { fail: { getConversation: 'hub not running' } })).preview('code:s-1')).error, /Claude Hub is not running/);
     assert.match((await mk(hubFor({})).preview('code:s-1')).error, /not in the Claude Hub index/);
     assert.match((await mk(hubFor({ 'code:s-1': conv() }, { fail: { listProjects: 'no such table: project' } })).preview('code:s-1')).error, /no such table: project/);
-    assert.match((await mk(hubFor({ 'code:s-1': conv() }), llmFake({ status: 'unavailable', reason: 'no local LLM runtime up on :11434 or :1234' })).preview('code:s-1')).error, /local model isn’t running.*11434/);
+    // no model answering is no longer an error: the preview falls back to the deterministic template (vault-template dish)
+    const offline = await mk(hubFor({ 'code:s-1': conv() }), llmFake({ status: 'unavailable', reason: 'no local LLM runtime up on :11434 or :1234' })).preview('code:s-1');
+    assert.equal(offline.error, undefined);
+    assert.equal(offline.drafted, 'template');
+    assert.equal(offline.modelUnavailable, true);
     assert.match((await mk(hubFor({ 'code:s-1': conv() }), llmFake({ status: 'error', reason: 'empty response from model' })).preview('code:s-1')).error, /local model failed: empty response/);
     assert.match((await mk(hubFor({ 'code:s-1': conv() })).preview('')).error, /no chat/);
     const gone = V.createVault({ hub: hubFor({ 'code:s-1': conv() }), llm: llmFake(), vaultDir: path.join(vault, 'missing'), dataDir: vault, now: NOW });

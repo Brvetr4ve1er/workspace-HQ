@@ -297,6 +297,9 @@ const VAULT_HQ = { claudeVault: { preview() {}, save() {} } };
 const VAULT_DRAFT = { id: 'code:s-1', path: 'C:\\placeholder-vault\\30_Areas\\Claude\\project-a\\2026-10-01 Release planning.md', rel: '30_Areas/Claude/project-a/2026-10-01 Release planning.md', draft: '---\nconversation: "code:s-1"\n---\n# Release planning\n\n## Summary\nPlaceholder.\n', model: 'placeholder-model', basis: 12 };
 add('overlay.vault-drafting', { hq: VAULT_HQ, state: { vault: { id: 'code:s-1', phase: 'drafting' } } });
 add('overlay.vault-ready', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, phase: 'ready', exists: false, askReplace: false, saveError: null } } });
+// Save to vault with no local model (batch 3, vault-template): the template banner, and the redraft button when a model is reachable
+add('overlay.vault-template', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, model: null, drafted: 'template', modelUnavailable: true, phase: 'ready', exists: false, askReplace: false, saveError: null } } });
+add('overlay.vault-template-redraft', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, model: null, drafted: 'template', modelUnavailable: false, phase: 'ready', exists: false, askReplace: false, saveError: null } } });
 add('overlay.vault-replace', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, phase: 'ready', exists: true, askReplace: true, saveError: 'A note with this name appeared after the draft was made.' } } });
 add('overlay.vault-error', { hq: VAULT_HQ, state: { vault: { id: 'code:s-1', phase: 'error', error: 'the local model isn’t running — start Ollama or LM Studio and try again (no runtime)' } } });
 add('overlay.vault-saved', { hq: VAULT_HQ, state: { vault: { ...VAULT_DRAFT, phase: 'saved', exists: false } } });

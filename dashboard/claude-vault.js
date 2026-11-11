@@ -149,7 +149,7 @@ function draftPrompt(c, messages, { maxChars = 12000 } = {}) {
   return { system: DRAFT_SYSTEM, prompt: 'Chat title: ' + oneLine((c && c.title) || 'Untitled chat', 200) + '\n\n' + kept.join('\n'), basis: head.length + tail.length };
 }
 
-function noteText({ conversation: c, plan, draft, model, basis, created }) {
+function noteText({ conversation: c, plan, draft, model, basis, created, drafted = 'model' }) {
   const body = String(draft || '').replace(/^\uFEFF/, '').replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/, '').trim();
   return [
     '---',
@@ -159,7 +159,7 @@ function noteText({ conversation: c, plan, draft, model, basis, created }) {
     'created: ' + created,
     'chat_date: ' + plan.day,
     'title: ' + JSON.stringify(String(c.title || 'Untitled chat')),
-    'drafted_by: ' + JSON.stringify('local model ' + (model || 'unknown') + ', from ' + basis + ' chat messages'),
+    'drafted_by: ' + JSON.stringify(drafted === 'template' ? 'a template, no model, from ' + basis + ' chat messages' : 'local model ' + (model || 'unknown') + ', from ' + basis + ' chat messages'),
     'tags: [claude]',
     '---', '',
     '# ' + plan.title, '',
@@ -181,7 +181,10 @@ const HUB_DOWN = { 'hub not running': 'Claude Hub is not running', 'hub stopped'
 const hubError = (r) => (r && typeof r.error === 'string' ? 'Claude Hub: ' + (HUB_DOWN[r.error] || r.error) : null);
 
 function createVault({ hub, llm, vaultDir, dataDir, now = () => new Date() }) {
-  async function preview(conversationId) {
+  async function preview(arg) {
+    const asObj = !!arg && typeof arg === 'object';
+    const conversationId = asObj ? arg.id : arg;
+    const forceTemplate = asObj && arg.template === true;
     if (typeof conversationId !== 'string' || !conversationId || conversationId.length > 300) return { error: 'no chat to save' };
     if (!hub || typeof hub.request !== 'function') return { error: 'Claude Hub is not running — Save to vault reads the chat from it' };
     if (!fs.existsSync(vaultDir)) return { error: 'the vault folder was not found: ' + vaultDir };
@@ -193,22 +196,18 @@ function createVault({ hub, llm, vaultDir, dataDir, now = () => new Date() }) {
     const c = got.conversation;
     const proj = (Array.isArray(projects) ? projects : []).find((p) => p && p.id === c.project_id);
     const d = draftPrompt(c, got.messages);
-    if (!d.basis) return { error: 'that chat has no messages from you or Claude to summarise' };
-    const r = await llm.run({ system: d.system, prompt: d.prompt, timeoutMs: 120000 });
-    if (!r || r.status !== 'done') {
-      return { error: r && r.status === 'unavailable'
-        ? 'the local model isn’t running — start Ollama or LM Studio and try again (' + (r.reason || 'no runtime') + ')'
-        : 'the local model failed: ' + ((r && r.reason) || 'no answer') };
-    }
     const at = now();
     // getConversation's row is `SELECT * FROM conversation` (no hq_project_id column); the link lives on the project row
     // (listProjects p.*). c.hq_project_id is read too, in case a later phase adds it to the conversation row.
     const hqId = c.hq_project_id || (proj && proj.hq_project_id) || null;
     const plan = planNote({ conversation: c, projectName: proj ? proj.name : null, hqProjectName: hqProjectName(dataDir, hqId), now: at });
+    const { chooseDraft } = await import(require('node:url').pathToFileURL(path.join(__dirname, 'vault-draft.mjs')).href);
+    const r = await chooseDraft({ llm, modelPrompt: d, conversation: c, messages: got.messages, template: forceTemplate, day: plan.day });
+    if (r.error) return { error: r.error };
     let chosen;
     try { chosen = await choosePath(vaultDir, plan.rel, c.id); } catch (e) { return { error: String(e.message || e) }; }
-    const markdown = noteText({ conversation: c, plan, draft: r.output, model: r.model, basis: d.basis, created: at.toLocaleDateString('en-CA') });
-    return { path: path.join(vaultDir, ...chosen.rel.split('/')), rel: chosen.rel, markdown, exists: chosen.exists, model: r.model || null, basis: d.basis };
+    const markdown = noteText({ conversation: c, plan, draft: r.output, model: r.model, basis: r.basis, drafted: r.drafted, created: at.toLocaleDateString('en-CA') });
+    return { path: path.join(vaultDir, ...chosen.rel.split('/')), rel: chosen.rel, markdown, exists: chosen.exists, model: r.model || null, basis: r.basis, drafted: r.drafted, modelUnavailable: !!r.modelUnavailable };
   }
 
   async function save(req) {
@@ -238,7 +237,7 @@ function createVault({ hub, llm, vaultDir, dataDir, now = () => new Date() }) {
 function init({ ipcMain, hub, dataDir, vaultDir, llm = require('./llm-local') }) {
   const vault = createVault({ hub, llm, dataDir, vaultDir: process.env.HQ_VAULT_DIR || vaultDir });
   const safe = (fn) => async (_e, arg) => { try { return await fn(arg); } catch (e) { return { error: String((e && e.message) || e).slice(0, 300) }; } };
-  ipcMain.handle('hq:claude-vault:preview', safe((id) => vault.preview(id)));
+  ipcMain.handle('hq:claude-vault:preview', safe((arg) => vault.preview(arg)));
   ipcMain.handle('hq:claude-vault:save', safe((req) => vault.save(req)));
   return vault;
 }

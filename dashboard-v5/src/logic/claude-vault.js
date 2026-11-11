@@ -20,7 +20,8 @@ export const claudeVaultLogic = {
       this.setState({ vault: { id, phase: 'error', error: (r && r.error) || 'no draft came back' } });
       return;
     }
-    this.setState({ vault: { id, phase: 'ready', path: r.path, rel: r.rel, draft: r.markdown, exists: !!r.exists, model: r.model || null, basis: Number(r.basis) || 0, askReplace: false, saveError: null } });
+    // drafted: who wrote the draft ('template' when no local model answered: main falls back to a deterministic template); modelUnavailable: no model was reachable
+    this.setState({ vault: { id, phase: 'ready', path: r.path, rel: r.rel, draft: r.markdown, exists: !!r.exists, model: r.model || null, basis: Number(r.basis) || 0, drafted: r.drafted === 'template' ? 'template' : 'model', modelUnavailable: !!r.modelUnavailable, askReplace: false, saveError: null } });
   },
   onVaultEdit(e) {
     const v = this.state.vault;
@@ -43,6 +44,8 @@ export const claudeVaultLogic = {
     this.setState({ vault: Object.assign({}, v, { phase: 'ready', saveError: (r && r.error) || 'the note was not saved' }) });
   },
   keepVault() { const v = this.state.vault; if (v) this.setState({ vault: Object.assign({}, v, { askReplace: false }) }); },
+  // "Draft again with the model": asks the plain chat id again (the model is always tried first); the edited draft is replaced, so the button says so
+  redraftVault() { const v = this.state.vault; return v && v.phase === 'ready' && v.drafted === 'template' ? this.openVaultPreview(v.id) : Promise.resolve(); },
   retryVault() { const v = this.state.vault; return v ? this.openVaultPreview(v.id) : Promise.resolve(); },
   closeVault() { this._vaultTicket = (this._vaultTicket || 0) + 1; this.setState({ vault: null }); },
 };

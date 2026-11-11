@@ -58,9 +58,9 @@ export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P
       <!-- v5: the card, Settings' frame -->
       <div ref="{{ popIn }}" role="dialog" aria-label="Save to vault" style="width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--card);border:1px solid var(--frame-hi);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.5);padding:20px 22px;display:flex;flex-direction:column;gap:10px">
         <!-- v5: title row (Ask's "Local model" badge: the draft is the local model's) -->
-        <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;padding:2px 7px;border:1px solid var(--purple);color:var(--purple)">✦ Local model</span><span style="font-size:20px;flex:1">Save to vault</span><button type="button" onClick="{{ vaultClose }}" aria-label="Close" style="width:34px;height:34px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer">×</button></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;padding:2px 7px;border:1px solid var(--purple);color:var(--purple)">✦ {{ vtp.badge }}</span><span style="font-size:20px;flex:1">Save to vault</span><button type="button" onClick="{{ vaultClose }}" aria-label="Close" style="width:34px;height:34px;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer">×</button></div>
         <!-- v5: drafting -->
-        <sc-if value="{{ vaultDrafting }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:13px;color:var(--muted)">The local model is drafting a summary, decisions, to-dos and links from this chat… Nothing is written yet.</div></sc-if>
+        <sc-if value="{{ vaultDrafting }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:13px;color:var(--muted)">Drafting a summary, decisions, to-dos and links from this chat… Nothing is written yet.</div></sc-if>
         <!-- v5: the draft could not be made: why, and try again -->
         <sc-if value="{{ vaultFailed }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:13px;color:var(--orange)">{{ vaultError }}</div><div><button type="button" onClick="{{ vaultRetry }}" style="height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--text);cursor:pointer">Try again</button></div></sc-if>
         <!-- v5: the editable draft, where it will go, who drafted it -->
@@ -69,6 +69,9 @@ export default String.raw`  <!-- v5: "What's new · trailers" overlay (Phase 3 P
           <div style="font-family:var(--term);font-size:12px;color:var(--text);word-break:break-all">VEEMO CORTEX / {{ vaultRel }}</div>
           <!-- v5: who drafted it, and that nothing is written before Save -->
           <div style="font-size:12px;color:var(--muted)">{{ vaultBasis }}</div>
+          <!-- v5: Save to vault with no local model: one banner line says the draft is a deterministic template, and "Draft again with the model" shows only when a model is reachable (nothing is written until Save) -->
+          <sc-if value="{{ vtp.tplShow }}" hint-placeholder-val="{{ false }}"><div data-vault="template-banner" role="status" style="font-size:12px;color:var(--text);padding:6px 10px;border:1px solid var(--frame);border-radius:8px">{{ vtp.tplNote }}</div></sc-if>
+          <sc-if value="{{ vtp.redraftShow }}" hint-placeholder-val="{{ false }}"><div><button type="button" data-vault="redraft" onClick="{{ vtp.redraft }}" style="height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--frame);background:transparent;color:var(--muted);cursor:pointer">{{ vtp.redraftLabel }}</button></div></sc-if>
           <sc-if value="{{ vaultHasExists }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--orange)">{{ vaultExistsNote }}</div></sc-if>
           <!-- v5: the editable draft -->
           <textarea aria-label="Note text" value="{{ vaultDraft }}" onChange="{{ onVaultEdit }}" disabled="{{ vaultSaving }}" spellcheck="false" style="min-height:320px;resize:vertical;background:var(--ink);border:1px solid var(--frame);border-radius:8px;color:var(--text);font-family:var(--term);font-size:12px;line-height:1.5;padding:10px 12px"></textarea>
