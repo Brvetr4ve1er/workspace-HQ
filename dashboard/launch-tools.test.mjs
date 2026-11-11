@@ -165,6 +165,8 @@ test('buildArgs: the prompt first, the mode always present, --mcp-config last', 
   assert.ok(withMcp.indexOf('fix the thing') < withMcp.indexOf('--mcp-config'));
   for (const a of withMcp) assert.ok(!(a.includes('fix the thing') && a.includes(cfg)), 'prompt and config path are never one argument');
   assert.deepEqual(f.t.buildArgs({}), ['', '--permission-mode', 'default']);
+  assert.deepEqual(f.t.buildArgs({ prompt: '--mcp-config=x' }), ['Context: --mcp-config=x', '--permission-mode', 'default']);
+  assert.deepEqual(f.t.buildArgs({ prompt: '- fix bug' }), ['Context: - fix bug', '--permission-mode', 'default']);
   assert.deepEqual(f.t.buildArgs({ prompt: null, mcpConfig: null }), ['', '--permission-mode', 'default']);
 });
 

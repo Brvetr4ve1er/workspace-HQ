@@ -83,7 +83,8 @@ function create({ repoRoot, tmpdir = os.tmpdir(), fsApi = fs, env = process.env,
     if (BAD_MODES.includes(mode)) throw new Error('refused: permission mode ' + mode);
     if (!ALLOWED_MODES.includes(mode)) throw new Error('refused: permission mode ' + String(mode));
     if (mcpConfig && (typeof mcpConfig !== 'string' || UNSAFE_PATH.test(mcpConfig))) throw new Error('refused: bad MCP config path');
-    const args = [String(prompt == null ? '' : prompt), '--permission-mode', mode];
+    const seed = String(prompt == null ? '' : prompt);
+    const args = [/^\s*-/.test(seed) ? 'Context: ' + seed.trimStart() : seed, '--permission-mode', mode];   // a leading dash would be an option to claude
     if (mcpConfig) args.push('--mcp-config', mcpConfig);
     for (const a of args) for (const f of FORBIDDEN_ARGS) if (a.includes(f)) throw new Error('refused: ' + f);
     return args;

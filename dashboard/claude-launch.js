@@ -46,6 +46,7 @@ function sanitizePrompt(prompt) {
   return String(prompt == null ? '' : prompt)
     .replace(/[\x00-\x1f\x7f]+/g, ' ')   // newlines/tabs/control chars: one line (a newline would end the batch line)
     .replace(/"/g, "'")                  // never close the helper's quoted argument
+    .replace(/^\s*-/, (m) => 'Context: ' + m.trimStart())   // a leading dash would be read by claude as an option, not as the seed text
     .slice(0, PROMPT_MAX);
 }
 

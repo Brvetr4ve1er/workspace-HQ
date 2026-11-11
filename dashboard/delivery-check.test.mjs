@@ -231,12 +231,29 @@ test('detect: probes candidates even when the id is absent from devServers; devS
   assert.equal((await b.c.detect('acme-site')).startedHere, true);
 });
 
+test('detect: a dev server that listens on [::1] only is found, and run on a typed localhost follows it there', async () => {
+  const probed = [];
+  const probeUrl = async (origin) => { probed.push(origin); return origin === 'http://[::1]:5173' ? { ok: true, title: 'Acme Studio' } : null; };
+  const a = setup({ create: { probeUrl } });
+  const ra = await a.c.detect('acme-site');
+  assert.equal(ra.state, 'ready');
+  assert.deepEqual(ra.candidates, [{ origin: 'http://[::1]:5173', title: 'Acme Studio' }]);
+  assert.deepEqual(probed, ['http://127.0.0.1:5173', 'http://[::1]:5173']);
+  const b = setup({ create: { probeUrl } });
+  const rb = await b.c.run('acme-site', 'http://localhost:5173');
+  assert.ok(!rb.error, rb.error);
+  assert.equal(b.fw.loads[0], 'http://[::1]:5173/', 'typed localhost goes where the server answers');
+  const c = setup({ create: { probeUrl } });
+  await c.c.run('acme-site', 'http://127.0.0.1:5173');
+  assert.equal(c.fw.loads[0], 'http://127.0.0.1:5173/', 'an explicit 127.0.0.1 is never rewritten');
+});
+
 test('detect: nothing answering and no saved command are honest states; an unknown project is an error', async () => {
   const probed = [];
   const { c } = setup({ create: { probeUrl: async (o) => { probed.push(o); return null; } } });
   const r = await c.detect('beta-site');      // no dev_cmd: framework defaults only
   assert.deepEqual([r.state, r.hasCommand, r.candidates], ['nothing-answering', false, []]);
-  assert.equal(probed.length, 6); assert.equal(probed[0], 'http://127.0.0.1:5173');
+  assert.equal(probed.length, 12, 'six ports, each on 127.0.0.1 and on [::1]'); assert.equal(probed[0], 'http://127.0.0.1:5173'); assert.equal(probed[1], 'http://[::1]:5173');
   assert.ok((await c.detect('nope')).error);
   assert.ok((await c.detect('')).error);
   const thrower = setup({ create: { probeUrl: async () => { throw new Error('boom'); } } });

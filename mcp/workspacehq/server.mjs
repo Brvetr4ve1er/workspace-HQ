@@ -43,6 +43,13 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
 }
 
+// The Money switch (data/money/access.json, same strict reading as money-read.mjs readAccess: only the boolean true opens it).
+// Inlined so the Brief never has to load the money engine.
+function moneyAccessOn() {
+  const v = readJson(path.join(DATA, 'money', 'access.json'), null);
+  return !!v && typeof v === 'object' && !Array.isArray(v) && v.on === true;
+}
+
 function writeAtomic(file, text) {
   // the confinement jail is a prefix check — a pre-planted symlink at the
   // target would redirect the rename outside data/, so refuse links outright
@@ -143,7 +150,7 @@ async function hubTool(fn, args) {
 const TOOLS = [
   {
     name: 'hq_brief',
-    description: 'The Operator Brief: what needs the owner right now, ranked by the WorkspaceHQ app (deterministic, no LLM) from the scan, quests, money, PC health, CI, deploys, pull requests, the Claude session they left, a Claude session that has waited on a tool for 15 minutes or more, the scan run and claude.ai sync. Each item has severity (high/med/low), text, why, source, age, count (how many more of the same kind it stands for) and the one action that clears it in the app. Default the top 3; limit (1–12) asks for more — items holds up to that many, overflow the ranked rest (at most 12 in all), more counts everything fresh past the top 3. standing lists, ranked as before and each with a since date, the items that stayed unchanged for 3 days and stepped aside so fresh ones take the slots (security items like secrets never do); they are not in more, and limit does not touch them. Read-only — start a session with it to know what matters before anything else. ageMinutes says how old the brief is; the app rewrites it on every scan, money write and every 15 min while it runs.',
+    description: 'The Operator Brief: what needs the owner right now, ranked by the WorkspaceHQ app (deterministic, no LLM) from the scan, quests, money, PC health, CI, deploys, pull requests, the Claude session they left, a Claude session that has waited on a tool for 15 minutes or more, the scan run and claude.ai sync. Each item has severity (high/med/low), text, why, source, age, count (how many more of the same kind it stands for) and the one action that clears it in the app. Default the top 3; limit (1–12) asks for more — items holds up to that many, overflow the ranked rest (at most 12 in all), more counts everything fresh past the top 3. standing lists, ranked as before and each with a since date, the items that stayed unchanged for 3 days and stepped aside so fresh ones take the slots (security items like secrets never do); they are not in more, and limit does not touch them. Read-only — start a session with it to know what matters before anything else. Money rows (they name bills and accounts) are left out while the owner has not turned on Money access in Settings. ageMinutes says how old the brief is; the app rewrites it on every scan, money write and every 15 min while it runs.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12, description: 'how many ranked items to return in items (1–12, default 3); the rest of the ranked list comes back in overflow' } }, additionalProperties: false },
     run(args) {
       let limit = 3;
@@ -155,8 +162,19 @@ const TOOLS = [
       const b = readJson(file, null);
       if (!b || !Array.isArray(b.items)) return { error: 'no brief yet — the WorkspaceHQ app writes data/brief.json when it runs' };
       const t = Date.parse(b.generatedAt);
-      const ranked = b.items.concat(Array.isArray(b.overflow) ? b.overflow : []);
-      return { ...b, items: ranked.slice(0, limit), overflow: ranked.slice(limit), standing: Array.isArray(b.standing) ? b.standing : [], ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
+      let ranked = b.items.concat(Array.isArray(b.overflow) ? b.overflow : []);
+      let standing = Array.isArray(b.standing) ? b.standing : [];
+      let more = b.more, errors = b.errors;
+      // Money rows carry bill and account names: while the owner's Money switch is off they never leave the app through here
+      if (!moneyAccessOn()) {
+        const keep = (it) => !(it && typeof it === 'object' && it.source === 'money');
+        const before = ranked.length;
+        ranked = ranked.filter(keep);
+        standing = standing.filter(keep);
+        if (typeof more === 'number') more = Math.max(0, more - (before - ranked.length));
+        if (Array.isArray(errors)) errors = errors.filter((e) => !(e && typeof e === 'object' && e.source === 'money'));
+      }
+      return { ...b, ...(more !== undefined ? { more } : {}), ...(errors !== undefined ? { errors } : {}), items: ranked.slice(0, limit), overflow: ranked.slice(limit), standing, ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
     },
   },
   {

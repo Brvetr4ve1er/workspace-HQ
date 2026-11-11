@@ -4,7 +4,8 @@
 // (delivery-check-probe.js) measures the DOM, and everything it reports passes through here first.
 //
 //   loopbackOrigin(url)            http://127.0.0.1|localhost|[::1][:port] with no credentials / path / query → 'http://127.0.0.1:5173', else null
-//   candidateUrls({devCmd})        up to 6 origins to probe, the first being adapter.devPort(cmd) when the command names a port
+//   loopbackTwin(origin)           the same port on the other loopback family (127.0.0.1 <-> [::1]), else null
+//   candidateUrls({devCmd})      up to 6 origins to probe, the first being adapter.devPort(cmd) when the command names a port
 //   blockDecision(url)             the per-request verdict of the network defence: { allow, host }
 //   sanitizeSnapshot(raw)          untrusted probe output → a fresh, clamped snapshot (never copies a key it does not know)
 //   discoverLocales(snap)          same-origin language routes from the entry page: [{ locale, path }] (≤ 6), or []
@@ -42,6 +43,15 @@ export function loopbackOrigin(url) {
   if (u.pathname !== '/' || u.search || u.hash) return null;
   const host = u.hostname === 'localhost' ? '127.0.0.1' : u.hostname;
   return 'http://' + host + (u.port ? ':' + u.port : '');
+}
+
+// The same port on the other loopback family. A dev server may listen on 127.0.0.1 only or on [::1] only (a Node 17+ server
+// started as "localhost" often takes ::1 on Windows), so a probe asks both. Anything that is not a loopback origin gets null.
+export function loopbackTwin(origin) {
+  const o = loopbackOrigin(origin);
+  if (!o) return null;
+  const u = new URL(o);
+  return 'http://' + (u.hostname === '[::1]' ? '127.0.0.1' : '[::1]') + (u.port ? ':' + u.port : '');
 }
 
 // ---- where is the dev server? ---------------------------------------------------------------------------------------------

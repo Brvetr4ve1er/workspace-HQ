@@ -97,10 +97,14 @@ function create({ dataDir, resolveProjectPath, devServers = new Map(), latest, m
       const startedHere = devServers && typeof devServers.has === 'function' ? devServers.has(projectId) : false;
       const probeMs = limits.PROBE_MS || L.LIMITS.PROBE_MS;
       // regardless of devServers: a server started in the owner's own terminal answers the same way
-      for (const origin of L.candidateUrls({ devCmd })) {
-        let r = null;
-        try { r = await probeUrl(origin, probeMs); } catch { r = null; }
-        if (r && r.ok) return { state: 'ready', startedHere, candidates: [{ origin, title: String(r.title || '').slice(0, L.LIMITS.MAX_STR) }], hasCommand: !!devCmd };
+      // each port is asked on 127.0.0.1 and on [::1]: a server may listen on either family only
+      for (const base of L.candidateUrls({ devCmd })) {
+        for (const origin of [base, L.loopbackTwin(base)]) {
+          if (!origin) continue;
+          let r = null;
+          try { r = await probeUrl(origin, probeMs); } catch { r = null; }
+          if (r && r.ok) return { state: 'ready', startedHere, candidates: [{ origin, title: String(r.title || '').slice(0, L.LIMITS.MAX_STR) }], hasCommand: !!devCmd };
+        }
       }
       return { state: 'nothing-answering', startedHere, candidates: [], hasCommand: !!devCmd };
     } catch (e) { return { error: 'could not look for the dev server — ' + msg(e) }; }
@@ -111,8 +115,17 @@ function create({ dataDir, resolveProjectPath, devServers = new Map(), latest, m
     const L = await lib();
     const { PROBE_SOURCE } = require('./delivery-check-probe.js');
     const LIM = Object.assign({}, L.LIMITS, limits);
-    const origin = L.loopbackOrigin(url);       // the renderer's value is never trusted: checked again here
+    let origin = L.loopbackOrigin(url);         // the renderer's value is never trusted: checked again here
     if (!origin) return { error: L.OFF_ORIGIN_TEXT + '.' };
+    // a typed "localhost" became 127.0.0.1: when only [::1] answers on that port, use [::1] (nothing answering keeps 127.0.0.1)
+    let typedHost = ''; try { typedHost = new URL(String(url).trim()).hostname; } catch { typedHost = ''; }
+    if (typedHost === 'localhost') {
+      const twin = L.loopbackTwin(origin), ms = limits.PROBE_MS || L.LIMITS.PROBE_MS;
+      let a = null, b = null;
+      try { a = await probeUrl(origin, ms); } catch { a = null; }
+      if (!(a && a.ok) && twin) { try { b = await probeUrl(twin, ms); } catch { b = null; } }
+      if (b && b.ok) origin = twin;
+    }
     const project = projectOf(projectId);
     if (!project) return { error: 'that project is not in the current scan.' };
     if (running) return { error: 'a check is already running.' };

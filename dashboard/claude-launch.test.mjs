@@ -141,6 +141,13 @@ test('sanitizePrompt: one line, no double quotes, capped', () => {
   assert.equal(sanitizePrompt(null), '');
   assert.equal(sanitizePrompt(undefined), '');
   assert.equal(sanitizePrompt(7), '7');
+  // a leading dash would reach claude as an option (--mcp-config=x, -p), so such a prompt gets a neutral prefix
+  assert.equal(sanitizePrompt('--mcp-config=x'), 'Context: --mcp-config=x');
+  assert.equal(sanitizePrompt('- fix bug'), 'Context: - fix bug');
+  assert.equal(sanitizePrompt('\n-p'), 'Context: -p');
+  assert.equal(sanitizePrompt('fix - bug'), 'fix - bug');
+  assert.ok(!sanitizePrompt('-'.repeat(PROMPT_MAX + 50)).startsWith('-'));
+  assert.equal(sanitizePrompt('-'.repeat(PROMPT_MAX + 50)).length, PROMPT_MAX);
   assert.equal(sanitizePrompt('y'.repeat(PROMPT_MAX + 50)).length, PROMPT_MAX);
   assert.equal(PROMPT_MAX, 500);
 });

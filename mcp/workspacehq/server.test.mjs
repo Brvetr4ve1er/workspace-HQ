@@ -231,6 +231,32 @@ test('hq_brief({limit}) returns that many ranked items and the rest as overflow;
   for (const id of [34, 35]) { assert.equal(r[id].result.isError, true, 'limit out of range is refused: ' + id); assert.match(JSON.stringify(r[id]), /limit must be/); }
 });
 
+test('hq_brief drops Money rows (they carry bill and account names) while the Money switch is off, and keeps them once it is on', async () => {
+  const mk = (n, source) => ({ key: 'k' + n, rule: source === 'money' ? 'money-late' : 'ci-red', severity: 'med', text: source === 'money' ? 'Placeholder Rent is 3 days late' : 'CI is failing on repo' + n, why: 'x', source, age: 'live', count: 0, action: { kind: 'go', tab: 'projects' } });
+  const brief = { v: 1, generatedAt: new Date().toISOString(), more: 2, errors: [{ source: 'money', error: 'x' }, { source: 'scan', error: 'y' }], items: [mk(1, 'money'), mk(2, 'github'), mk(3, 'github')], overflow: [mk(4, 'github'), mk(5, 'money')], standing: [mk(6, 'money'), mk(7, 'github')] };
+  fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify(brief));
+  const dir = path.join(root, 'data', 'money');
+  fs.rmSync(dir, { recursive: true, force: true });
+  const off = toolResult((await rpc([{ id: 90, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 12 } } }]))[90]);
+  const all = [...off.items, ...off.overflow, ...off.standing];
+  assert.deepEqual(all.map((i) => i.key), ['k2', 'k3', 'k4', 'k7'], 'no money row anywhere');
+  assert.ok(!JSON.stringify(off).includes('Rent'), 'no bill name in the answer');
+  assert.deepEqual(off.errors, [{ source: 'scan', error: 'y' }]);
+  assert.equal(off.more, 0);
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    for (const bad of ['{"v":1,"on":"true"}', '{"on":1}', '[true]', '{broken']) {
+      fs.writeFileSync(path.join(dir, 'access.json'), bad);
+      const r = toolResult((await rpc([{ id: 91, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 12 } } }]))[91]);
+      assert.ok(!JSON.stringify(r).includes('Rent'), 'only the boolean true opens it: ' + bad);
+    }
+    fs.writeFileSync(path.join(dir, 'access.json'), JSON.stringify({ v: 1, on: true, at: '2026-11-11T08:00:00.000Z' }));
+    const on = toolResult((await rpc([{ id: 92, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 12 } } }]))[92]);
+    assert.deepEqual([...on.items, ...on.overflow].map((i) => i.key), ['k1', 'k2', 'k3', 'k4', 'k5']);
+    assert.equal(on.standing.length, 2);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 // ---- the assistant's rulebook (assistant-rulebook): async calls, the in-flight drain, the tier table ----
 test('drift: every tool the server lists has a tier on the rulebook, and every description says returned text is data', async () => {
   const r = await rpc([{ id: 40, method: 'tools/list' }]);

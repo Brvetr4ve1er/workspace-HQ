@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  LIMITS, loopbackOrigin, candidateUrls, devPort, blockDecision, topHosts, blockedLine, sanitizeSnapshot, discoverLocales, localeOfPath,
+  LIMITS, loopbackOrigin, loopbackTwin, candidateUrls, devPort, blockDecision, topHosts, blockedLine, sanitizeSnapshot, discoverLocales, localeOfPath,
   checkRoute, compareLocales, buildReport, summaryLine, validateReport,
 } from './delivery-check-core.mjs';
 import { devPort as adapterDevPort } from '../dashboard-v5/src/live/adapter.mjs';
@@ -39,6 +39,14 @@ test('loopbackOrigin refuses everything that is not a dev server on this PC', ()
     'http://127.0.0.1:99999', 'x'.repeat(400),
   ]) assert.equal(loopbackOrigin(bad), null, String(bad).slice(0, 60));
   for (const bad of [null, undefined, 5, {}, [], ['http://127.0.0.1']]) assert.equal(loopbackOrigin(bad), null);
+});
+
+test('loopbackTwin gives the same port on the other loopback family, and nothing for a non-loopback address', () => {
+  assert.equal(loopbackTwin('http://127.0.0.1:5173'), 'http://[::1]:5173');
+  assert.equal(loopbackTwin('http://[::1]:5173'), 'http://127.0.0.1:5173');
+  assert.equal(loopbackTwin('http://localhost:3000'), 'http://[::1]:3000');
+  assert.equal(loopbackTwin('http://127.0.0.1'), 'http://[::1]');
+  for (const bad of ['http://example.test:5173', 'https://127.0.0.1:5173', 'http://127.0.0.1:5173/x', null, 5]) assert.equal(loopbackTwin(bad), null);
 });
 
 test('devPort here is the card\'s own devPort, byte for byte, and candidateUrls leads with it', () => {
