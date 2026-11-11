@@ -814,7 +814,7 @@ Main: `dashboard/money-access.js` (the ONLY writer of `data/money/access.json`).
 
 | Preload | Channel | Args | Answer | Notes |
 |---|---|---|---|---|
-| `moneyAccess.read()` | `hq:money-access:read` | — | `{ on:boolean, lastAskedAt:ISO|null }` | `{ error }` | `on` is false on a fresh install or when the file is absent or corrupt (a corrupt file is quarantined by this writer). `lastAskedAt` is the newest audit line of tool `hq_money_today`, read by tool name and time only. |
-| `moneyAccess.set(on)` | `hq:money-access:set` | `on`: a strict boolean (anything else is refused before any IO) | `{ on }` | `{ error }` | Writes `{v:1,on,at}` (tmp then rename); setting the value it already has rewrites nothing. |
+| `moneyAccess.read()` | `hq:money-access:read` | — | `{ on:boolean, lastAskedAt:ISO or null }` or `{ error }` | `on` is false on a fresh install or when the file is absent or corrupt (a corrupt file is quarantined by this writer). `lastAskedAt` is the newest audit line of tool `hq_money_today`, read by tool name and time only. |
+| `moneyAccess.set(on)` | `hq:money-access:set` | `on`: a strict boolean (anything else is refused before any IO) | `{ on }` or `{ error }` | Writes `{v:1,on,at}` (tmp then rename); setting the value it already has rewrites nothing. |
 
 Money data never changes through the `hq_money_today` tool: it only lets a session READ words (CONTRACT.md "`data/money/access.json` and `hq_money_today`").

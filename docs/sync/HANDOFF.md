@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 2 rest DONE: Money reaches Claude sessions as words only, off until the owner turns it on) · main @ 8a8a7ad (not pushed)
+DONE: Settings gains one card with a switch (off on a fresh install) for "Claude sessions may read Money (words only)"; MCP tool hq_money_today (tier read) answers { enabled:false, error } as an error while off and words and counts only
+  once on (set up or not, room ok/tight/unknown, days to payday, bills late, bills due soon, slips waiting), never an amount, account, payee, note, bill name or jar. dashboard/money-access.js is the only writer of
+  data/money/access.json {v:1,on,at}; the MCP reader (mcp/workspacehq/money-read.mjs) reads state.json read-only and only while the switch is on (CONTRACT.md's older "the server never reads money data" is revised there).
+  The guard lets a clean refusal carry its own answer object (e.payload) so a session still reads enabled:false. Re-recorded and attributed: the template hash (+1966 chars, the fragment) and the vals golden (18 new mac keys
+  on every scenario, nothing else). The use-log gains the money-access surface (action act).
+  Batch 2 rest is complete: delivery check, Clients list, Brief actions + session-waiting rule, launch tools, quick jump, Money words. Gates on this tree: main 1961/1961, money 261/261, renderer 822/822, selftest 2912 combos 0/0/0,
+  cdp-gate 73/73, cosmos native PASS, delivery-check native PASS. NOT done by the integrators: the push, and restarting the owner's app (tools\rollback.ps1 v5), so the first use marks are still to be read from the day log.
+IN-FLIGHT: none.
+ASKS (struct): none. BREAKS: none (additive; hq_money_today is a new tool, no Money data shape moves).
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 2 rest: quick jump landed - Ctrl+Alt+X shows what needs you, then jumps anywhere) · main @ 6bbec29 + this work
 DONE: the quick-run palette (Ctrl+Alt+X) gains two things, nothing removed. With an empty query up to three "Needs you" rows lead the spell list (the tray's screen-safe wording only; Enter opens the app where it is cleared, or runs Scan now),
   and Tab switches to Go mode: every space and sub-view, plus projects by name once a character is typed. A Go row only navigates, it never runs anything. New files dashboard/quick-targets.js (main side, three IPC channels
