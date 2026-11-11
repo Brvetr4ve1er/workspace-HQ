@@ -649,6 +649,11 @@ function createFake(opts) {
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
     ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
     ['machineHistory.read', machineHistoryRead],   // System › Machine › How the PC changed: invented checks, read-only
+    // Security space (hq:security:*): the empty state only (no vault chosen, nothing scanned); the space dish gives it an invented map. Nothing here ever holds a secret.
+    ['security.read', () => ({ settings: { vaultPath: null, keyFilePath: null, cliPath: null, walkthrough: {}, locked: false }, map: null, owner: { v: 1, accounts: {}, manual: [], identities: [] }, snapshots: [], status: null, cliFound: false, vaultExists: false })],
+    ['security.refresh', () => ({ error: 'no vault chosen: pick your .kdbx file first' })], ['security.settings', () => ({ ok: true })], ['security.edit', () => ({ ok: true })],
+    ['security.addManual', () => ({ ok: true, id: 'm-000000000000' })], ['security.addIdentity', () => ({ error: 'secure storage is unavailable' })], ['security.walkthrough', () => ({ ok: true })],
+    ['security.scanExports', () => ({ files: [] })], ['security.trashExport', () => ({ error: 'not in the latest scan' })], ['security.copy', () => ({ ok: true })],
     ['today.read', todayRead],   // Home › Where today went: invented days, offsets 0..3 full, 4..6 partial, others refused
     // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
     ...COSMOS.rows,

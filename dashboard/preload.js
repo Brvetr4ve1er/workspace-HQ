@@ -220,6 +220,20 @@ contextBridge.exposeInMainWorld('hq', {
     read: () => ipcRenderer.invoke('hq:machine-history:read'),
   },
 
+  // Security space (IPC-CONTRACT hq:security:*; main window only). The passphrase travels only as the refresh argument and never reaches a log or a file.
+  security: {
+    read: () => ipcRenderer.invoke('hq:security:read'),
+    refresh: (passphrase, checkBreaches) => ipcRenderer.invoke('hq:security:refresh', { passphrase, checkBreaches: checkBreaches === true }),
+    settings: (patch) => ipcRenderer.invoke('hq:security:settings', patch),
+    edit: (id, patch) => ipcRenderer.invoke('hq:security:edit', { id, patch }),
+    addManual: (o) => ipcRenderer.invoke('hq:security:add-manual', o),
+    addIdentity: (o) => ipcRenderer.invoke('hq:security:add-identity', o),
+    walkthrough: (stepId, done) => ipcRenderer.invoke('hq:security:walkthrough', { stepId, done: done === true }),
+    scanExports: () => ipcRenderer.invoke('hq:security:scan-exports'),
+    trashExport: (name, dir) => ipcRenderer.invoke('hq:security:trash-export', { name, dir }),
+    copy: (text) => ipcRenderer.invoke('hq:security:copy', { text }),
+  },
+
   // Brief history (IPC-CONTRACT hq:brief-history:read / :ack): what the Brief noticed and how it ended; ack only records that the all-clear card was shown
   briefHistory: {
     read: () => ipcRenderer.invoke('hq:brief-history:read'),

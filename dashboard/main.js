@@ -7,7 +7,7 @@
 // Tauri alternative: dashboard/ is the distDir; a src-tauri wrapper would call the
 // same run-pipeline.ps1 and the same data/quest-overrides.json from a Rust command.
 
-const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer, nativeTheme, powerMonitor } = require('electron');
+const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, shell, nativeImage, dialog, screen, globalShortcut, desktopCapturer, nativeTheme, powerMonitor, safeStorage, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -1261,6 +1261,7 @@ if (!app.requestSingleInstanceLock()) {
     const moneyApi = require('./money').init({ ipcMain, dataDir: DATA, getWin: () => win });   // money space: data/money/state.json (IPC-CONTRACT hq:money:*)
     const cosmosCtl = require('./cosmos').init({ ipcMain, dataDir: DATA, getWin: () => win, castSend });   // Cosmos space: data/cosmos/ (IPC-CONTRACT hq:cosmos:*)
     const useLogApi = require('./use-log').init({ ipcMain, appLog });   // usage counter: hq:use → one 'use' line in the day log (IPC-CONTRACT hq:use)
+    require('./security').init({ ipcMain, getWin: () => win, dataDir: DATA, safeStorage, shell, clipboard, appLog });   // Security space: vault reader (keepassxc-cli on stdin), breach check, data/security/ (IPC-CONTRACT hq:security:*; main window only, refresh never logged)
     require('./money-access').init({ ipcMain, dataDir: DATA });   // Settings › "Claude sessions may read Money (words only)": the ONLY writer of data/money/access.json, off by default (IPC-CONTRACT hq:money-access:*)
     require('./machine-history').init({ ipcMain, dataDir: DATA });   // System › Machine › How the PC changed: read-only history + the daily folder-size copy, off the boot path (IPC-CONTRACT hq:machine-history:read)
     require('./reach').init({ ipcMain, dataDir: DATA, exePath: process.execPath });   // Settings › Reach: whether each door is open (IPC-CONTRACT hq:reach:read)
