@@ -12,6 +12,14 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 dish 6 DONE: a chat becomes a vault note with no model running) · main @ a32752f (not pushed)
+DONE: contract row (a75b8ce, meta), then the dish (a32752f, fe). Save to vault no longer dead-ends when no local model answers: dashboard/claude-vault.js preview() asks the model first and, on status 'unavailable', falls back to the pure dashboard/vault-draft.mjs template (the owner's first message and the start of Claude's last, masked twice, quoted line by line, [[ neutralised; drafted_by names a template, no model); { id, template:true } forces it (llm.run never called); a model that ran and failed keeps its error. save() untouched (one note, only on Save/Replace).
+  Renderer: banner "Drafted from a template: no local model was running. Edit it, then Save.", badge Template, basis line without the model claim, "Draft again with the model" only when a model is reachable; ONE new top-level vals key `vtp` (renderVals now 1009 keys, ceiling 1015: six keys of headroom; machine-drift must nest its dft* under ONE key). tpl.hash +813 chars (extras fragment only); vals.golden: 154 scenarios moved only by vtp and the reworded clVaultTip, 2 new scenarios (golden-diff exit 0). claude-vault.test.mjs's model-offline case now asserts the template fallback.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2284 pass / 0 fail / 0 skips, money 261/261, renderer 947/947, Electron selftest 2960 combos 0/0/0, cdp-gate 79/79. No IPC channel, preload, MCP or data shape added; the app needs a restart for the main-side fallback.
+IN-FLIGHT: none in code (one dish remains: machine drift; new files only). ASKS (struct): unchanged. BREAKS: none (additive).
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 dish 5 DONE: what the Brief noticed and how it ended; PASS ALONG: the renderVals key ceiling) · main @ 422463c (not pushed)
 DONE: contract rows (48adff1, meta), then the dish (422463c, fe). A small ledger (dashboard/brief-ledger.js + pure brief-ledger.mjs, data/brief-ledger.json: refs, rule ids, counts, times; never a key, name, path or text) remembers each Brief row and how it closed (resolved, acted, dismissed, changed, silent).
   Seen two ways: History > Timeline gets an Operator section (last 14 days; a silent or changed close is never worded as fixed), and the Brief panel gets a "N cleared this week, M dismissed" footer plus a one-time all-clear card (only when the Brief is truly empty and something really resolved; "Got it" is the only write the renderer can cause).
