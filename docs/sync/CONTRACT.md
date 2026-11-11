@@ -546,6 +546,17 @@ Rows written before the code lands. A Claude session asks the RUNNING app to dis
 
 The real refresh from a session is NOT part of this: `hq_scan_trigger` stays collector-only until the structure lane's `assemble.mjs` flag lands (see HANDOFF ASKS). Captures and quest-done from a session keep their existing direct-file paths.
 
+### `data/brief-ledger.json` — what the Brief noticed and how it ended (frontend lane, 2026-11-11, batch 3, additive; local only, gitignored)
+
+Row written before the code lands. `dashboard/brief-ledger.js` (new, CommonJS; engine `dashboard/brief-ledger.mjs`, pure) is the ONLY writer. `brief.js` hands it each computed brief after the `data/brief.json` write; nothing else reads or writes it but the two IPC channels in IPC-CONTRACT "Brief history". No MCP tool reads it.
+
+| Thing | Shape |
+|---|---|
+| `data/brief-ledger.json` | `{ v:1, open:{ <12-hex ref>:{ rule, source, severity, count, first, last, acted? } }, closed:[{ rule, severity, count, first, ended, how }], busyFrom, lastClearShownAt }`. The ref is the SAME `refOf` as `brief-project.mjs` (the first 12 hex of sha256 of the item key): the raw key, a name, a path, an amount and free text are never stored; wording comes from the `WORDING` table by rule id at read time. `how` is one of `resolved`, `acted`, `dismissed`, `changed`, `silent`. `closed` is kept 30 days, at most 300; open entries not live for 30 days close as `silent`. `count` and `busyFrom` (ISO, when the list last went from empty to non-empty) are additive fields beyond the plan sketch. |
+| writes | atomic (`brief-ledger.json.<pid>.tmp`, then rename). A file that cannot be read is moved aside to `brief-ledger.json.corrupt` (a second one to `brief-ledger.json.corrupt.<ms>`), never emptied silently; the read answer's `notice` says so. The first observe of a process is a cold start: nothing closes. |
+| ignore | `.gitignore` carries `data/brief-ledger.json*` (json, `.tmp` and both corrupt forms), pinned in `tools/gitignore-owner-data.test.mjs`. |
+| rules | A key leaving the Brief is not "resolved" unless nothing hides it (rows below rank 12 stay open), no same-rule row is live (else `changed`), it carried no `acted` marker (else `acted`), its source answered (a source named in `errors`, or a live scan-stale/scan-failed row, makes it `silent`) and it was not in `brief-state.json` `dismissed` (else `dismissed`). `brief-core.mjs` and its goldens do not move. |
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
