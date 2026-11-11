@@ -557,6 +557,18 @@ Row written before the code lands. `dashboard/brief-ledger.js` (new, CommonJS; e
 | ignore | `.gitignore` carries `data/brief-ledger.json*` (json, `.tmp` and both corrupt forms), pinned in `tools/gitignore-owner-data.test.mjs`. |
 | rules | A key leaving the Brief is not "resolved" unless nothing hides it (rows below rank 12 stay open), no same-rule row is live (else `changed`), it carried no `acted` marker (else `acted`), its source answered (a source named in `errors`, or a live scan-stale/scan-failed row, makes it `silent`) and it was not in `brief-state.json` `dismissed` (else `dismissed`). `brief-core.mjs` and its goldens do not move. |
 
+### `data/disk-history.json` and System > Machine "How the PC changed" (frontend lane, 2026-11-11, batch 3, additive; local only, gitignored)
+
+Row written before the code lands. `dashboard/disk-history.js` (new, CommonJS) is the ONLY writer of `data/disk-history.json`: it copies `data/pc-health-disk.json` (owned by structure, unchanged) once per local day, off the boot path (5 s after start, every 6 h, and 1.5 s after the source file changes). `dashboard/machine-history.js` (new, read-only) answers the one IPC channel in IPC-CONTRACT "Machine history" and starts the disk copy. Nothing reads either file at boot; the first read happens when System > Machine first renders.
+
+| Thing | Shape |
+|---|---|
+| `data/disk-history.json` | `{ v:1, rows:[{ day:"YYYY-MM-DD" (the LOCAL day of the snapshot), at:ISO of the snapshot, partial:boolean, items:[{ label, gb }] }] }`. Labels and GB only, never a path (a path-shaped label is cut to its last segment, a folder with no label is left out and marks the row partial). One row per local day, at most 120 days. A later snapshot of the same day replaces the day's row, except an older snapshot never replaces a newer one and a partial one never replaces a complete one. |
+| writes | atomic (`disk-history.json.<pid>.tmp`, then rename); a same-content tick writes nothing. A file that cannot be read is moved aside to `disk-history.json.corrupt` (`.corrupt-2`, ...), never emptied silently. A file written by a newer app (`v` > 1) or over 2 MB is left alone and never overwritten. No source file means nothing is written, not even an empty file. |
+| ignore | `.gitignore` carries `data/disk-history.json*` (json, `.tmp` and every corrupt form), pinned in `tools/gitignore-owner-data.test.mjs`. |
+| `data/pc-health-history.json` (unchanged, structure's) | Cautions for any reader, none of them a shape change: `at` is zone-less LOCAL time; `temp` is temp-FILES GB; `pingMs` and `updateDays` are 0 when unknown (a gap, not a reading); the window is 96 checks. The panel never surfaces `gpuDriverDays`, `gpuTempC` or `battery`. |
+| the Estimate | A straight line over the valid free-disk readings, only on the owner's press; it refuses with words below 8 readings, below 14 days of span, or when the line is flat or rising, and otherwise says "about N days of room, if nothing changes". The Brief's disk row and `brief-core.mjs` and its goldens do not move. |
+
 ## 2026-10-16 · struct · quests re-raise (additive)
 A done quest whose condition returns is raised again as a NEW quest with id `<old id>-r<N>` (N ≥ 2),
 `created` = that scan's date and `reopened_from` = the old id; the old done quest stays in `quests[]`
