@@ -12,6 +12,18 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 dish 3 DONE: where today went on Home) · main @ 4f52cc4 (not pushed)
+DONE: contract rows (bc0a229, meta), then the dish (4f52cc4, fe): Home gets a ribbon for one local day (back arrow up to 7 days): Claude in 5-minute blocks per project (blocks, never hours worked), browser focus (no domains), PC awake/asleep from the day log
+  (asleep only between a suspend and the next resume or start; a hard kill or silent stretch is "unknown"), commit ticks (git log %ct only, at most 40 tracked repos, 3 s, no shell). A lane with no source says so ("update the Hub", "browser lane is kept for 3 days"), never a zero;
+  counts are null when a source could not be read. Main: dashboard/day-ribbon.js (hq:today:read, dayOffset 0..6, nothing read at boot, data/today.json numbers only every 10 min while the app runs); the Hub gets the additive op activityBuckets
+  (claude-hub/buckets.mjs; one line each in store.mjs and hub.mjs; INDEX_VERSION and the schema did not move, so the Hub host restarts with the app and an older Hub answers its unknown-op error, which the lane says in words); MCP hq_today (tier read; counts and their age; never a name, site, commit message or path).
+  Shared edits: main.js one init line, preload hq.today, use-log SURFACES + today-ribbon, MCP server/guard/README/tests in one commit (server.test.mjs also copies buckets.mjs, which store.mjs now imports), home.tpl one include, vals/index, app.js (mixin + tdyOffset/tdyNamesAt), live/store.js slice,
+  selftest rows (2912 -> 2932 combos), cdp-gate import, fake-preload (invented days), honesty denylist 'hours worked'. tpl.hash re-recorded (+6451 chars / +6459 bytes = the fragment's own length); vals.golden re-recorded: 154 scenarios, 34 paths, ALL tdy* (golden-diff --allow '^tdy' exit 0); no other golden moved.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2272 pass / 0 fail (7 skips are later dishes' tests waiting for their shared edits), money 261/261, renderer 946/946, Electron selftest 2932 combos 0/0/0, cdp-gate 76/76 (button sweep 584 buttons in 431 s: under the 700 s stop line; was 558 in 367 s).
+IN-FLIGHT: none in code (the four remaining dishes are new files only, integrated one at a time in order). ASKS (struct): unchanged. BREAKS: none (additive). The app needs a restart for the ribbon (a new IPC channel and the Hub op); the MCP tool is a separate process a session starts.
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 dish 2 DONE: ask the picture library and the grabs from any session) · main @ e3e4473 (not pushed)
 DONE: contract rows (meta), then the dish (fe): MCP tool hq_library_find (tier read), read-only over data/cosmos/library.json + curation.json + clips.json, the SAME search grammar as the Feed and hq_cosmos_search (imports runSearch/effectiveWorks;
   nothing re-implemented). Adds clips (a grab the index has not reached yet = indexed:false), site (host or registrable tail) and since (24h/7d/30d) filters that narrow to clips, where clip|library, one importsFolder per answer, root-relative paths only,
