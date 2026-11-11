@@ -12,6 +12,14 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (BATCH 3 DONE and pushed: all seven dishes, taster fixes, full gates) · main @ 8a68bc6
+DONE: grabs into Cosmos + hq_library_find, the Today ribbon + hq_today, the Brief mailbox + hq_brief_dismiss, Brief history + all-clear, Save to vault with no model, Machine drift (commits since 6f32be7; see the per-dish entries below), plus the three taster fixes. CLAUDE.md gains the batch 3 facts line.
+  Final gates on this tree, one after another: main+hub+cosmos+mcp+tools+trailer+bridge 2305 pass / 0 fail / 1 pre-existing skip, money 261/261, renderer 949/949, Electron selftest 2980 combos 0/0/0, cdp-gate 81/81, cosmos-native.check.js PASS (16 passed, 2 not covered: avif, one webm colour), delivery-check.native.check.js all passed. Privacy scan of every added line since 6f32be7: 0 client names, 0 tokens, 0 owner picture paths, 0 amounts. App restarted with tools\rollback.ps1 v5.
+IN-FLIGHT: none. Next: batch 4, the Security space (plan docs/superpowers/plans/2026-11-11-batch4-security.md; its own HANDOFF announcement lands before any code).
+ASKS (struct): unchanged (assemble.mjs --no-vault flag; GPU enumeration; --strict-mcp-config for nightly runs; run-pipeline.ps1 takes data/.refresh.lock). BREAKS: none (additive).
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 taster fixes: three real findings fixed) · main @ d0e4940 (not pushed)
 DONE: 45c1095 (the Bridge popup sends the tab title as pageTitle in grab:save, so a clip is named by its page), 4f1551d (hq_library_find skips a manifest entry that is applied:true but gone from library.json: a Recycle-Binned grab is no longer "waiting"), d0e4940 (brief.js compute() is a promise chain: overlapping computes can no longer reach the ledger out of order and double-count an ending). Each has a test that failed before the fix.
   Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2287 pass / 0 fail / 0 skips, money 261/261, renderer 949/949, Electron selftest 2980 combos 0/0/0, cdp-gate 81/81. No IPC, vals, golden, data shape or contract moved. The app needs a restart for the Brief fix; the extension reload (0.8.0) picks up the title.
