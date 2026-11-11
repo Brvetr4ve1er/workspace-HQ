@@ -185,6 +185,11 @@
     const has = (name) => !!(hq && typeof hq[name] === 'function');
     let spells = [], tele = { favorites: [], rollup: {} }, hits = [], sel = 0, pending = null, busy = false;
     let spend = null, spendSeq = 0, spendTimer = 0;   // the Log a spend row's state: { setup, preview }
+    // quick jump (cast-modes.js): mode 'run' = the spell list with "Needs you" rows first on an empty query; 'go' = jump to a space, a view or a project.
+    // Absent cast-modes.js (CM null) the palette behaves exactly as before. quick = hq.quick.read()'s answer, read once when the palette opens.
+    const CM = root.CastModes || null;
+    let mode = 'run', quick = null, quickError = '', emptyRun = '';
+    const hasQuick = () => !!(hq && hq.quick && typeof hq.quick.read === 'function' && typeof hq.quick.openBrief === 'function' && typeof hq.quick.openGo === 'function');
     const hasMoney = () => !!(hq && hq.money && typeof hq.money.apply === 'function' && typeof hq.money.read === 'function');
 
     function say(text, tone) {   // the palette's one message line (errors included)
@@ -200,8 +205,47 @@
       Promise.resolve(hq.hideCastPalette()).catch((e) => say('could not close the palette: ' + errText(e)));
     }
 
+    function chrome() {   // the mode chips, the footer hint and the placeholder for the current mode
+      if (!CM) return;
+      const chips = $('modes');
+      chips.hidden = false;
+      chips.textContent = '';
+      for (const m of CM.MODES) {
+        const c = doc.createElement('span');
+        c.className = m === mode ? 'on' : '';
+        c.textContent = CM.MODE_LABELS[m];
+        chips.appendChild(c);
+      }
+      $('hint').textContent = CM.HINTS[mode];
+      $('q').placeholder = mode === 'go' ? 'go to a space, a view or a project…' : 'run… or log a spend (150 cafe)';
+      $('q').setAttribute('aria-label', mode === 'go' ? 'Where to go' : 'Spell to run');
+    }
+    function setNote(text) { const n = $('note'); n.textContent = text || ''; n.hidden = !text; }
+    function setMode(next) {
+      if (!CM || next === mode) return;
+      if (mode === 'run') emptyRun = $('empty').textContent;
+      mode = next;
+      chrome();
+      filter();
+    }
+
     function filter() {
       const q = $('q').value;
+      if (CM && mode === 'go') {   // Go: spaces, views and (once something is typed) projects; a Go row only navigates
+        hits = CM.goRows(q, quick && quick.projects).map((r) => ({ go: true, label: r.label, hint: r.hint, route: r.route }));
+        sel = 0;
+        closeConfirm();
+        say('');
+        spend = null;
+        spendSeq++;
+        clearTimeout(spendTimer);
+        const note = CM.stateNote('go', { bridge: hasQuick(), view: quick, query: q, count: hits.length });
+        $('empty').textContent = note || 'nothing here';
+        setNote(hits.length ? note : '');
+        draw();
+        return;
+      }
+      if (CM && emptyRun) $('empty').textContent = emptyRun;
       hits = pickHits(spells, tele, q);
       sel = 0;
       closeConfirm();
@@ -209,6 +253,12 @@
       spend = null;
       spendSeq++;
       clearTimeout(spendTimer);
+      setNote('');
+      if (CM && !q.trim()) {   // nothing typed: up to three "Needs you" rows lead the list, projection wording only
+        const b = CM.briefRows(quick);
+        hits = [...b.rows, ...hits];
+        setNote(CM.stateNote('run', { bridge: hasQuick(), view: quick }));
+      }
       if (hasMoney() && amountLine(q)) {
         spend = { setup: false, preview: null };
         hits = withSpendRow(hits, q);
@@ -266,6 +316,24 @@
         r.setAttribute('aria-selected', i === sel ? 'true' : 'false');
         // names/icons come from third-party skill frontmatter — textContent only
         const mk = (cls, text) => { const sp = doc.createElement('span'); sp.className = cls; sp.textContent = text; return sp; };
+        if (s.kind === 'brief') {   // a "Needs you" row: the tray's screen-safe wording; Enter opens the app where it is cleared
+          r.appendChild(mk('ic', '!'));
+          r.appendChild(mk('nm', s.label));
+          r.appendChild(mk('meta muted', 'needs you'));
+          r.title = s.scan ? 'enter → scan now' : 'enter → open it in the app';
+          r.onclick = () => { sel = i; draw(); cast(); };
+          L.appendChild(r);
+          return;
+        }
+        if (s.go) {   // a Go row: it navigates, it never runs anything
+          r.appendChild(mk('ic', '→'));
+          r.appendChild(mk('nm', s.label));
+          r.appendChild(mk('meta faint', s.hint));
+          r.title = 'enter → open the app there';
+          r.onclick = () => { sel = i; draw(); cast(); };
+          L.appendChild(r);
+          return;
+        }
         if (s.spend) {   // the Log a spend row (money-quicklog)
           r.appendChild(mk('ic', '₫'));
           r.appendChild(mk('nm', spendText(spend, $('q').value)));
@@ -291,9 +359,35 @@
       const cur = L.children[sel];
       if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
     }
+    // Enter on a "Needs you" row: main maps the ref back to the item's full action (never through this wording); a scan row runs Scan now
+    async function openBriefRow(row) {
+      if (!hasQuick()) { say('this window has no navigation bridge'); return; }
+      busy = true;
+      say('');
+      let r;
+      try { r = await hq.quick.openBrief(row.ref); }
+      catch (e) { r = { error: errText(e) }; }
+      finally { busy = false; }
+      if (r && r.error) { say(String(r.error)); return; }
+      if (r === 'none') { say('that item is gone'); return; }
+      hide();
+    }
+    async function openGoRow(row) {
+      if (!hasQuick()) { say('this window has no navigation bridge'); return; }
+      busy = true;
+      say('');
+      let r;
+      try { r = await hq.quick.openGo(row.route); }
+      catch (e) { r = { error: errText(e) }; }
+      finally { busy = false; }
+      if (r && r.error) { say(String(r.error)); return; }
+      hide();
+    }
     async function cast() {
       const s = hits[sel];
       if (!s || busy) return;
+      if (s.kind === 'brief') { openBriefRow(s); return; }
+      if (s.go) { openGoRow(s); return; }
       if (s.spend) { logSpend(); return; }
       if (!has('castSpell')) { say('running spells is not available in this window'); return; }
       const name = s.name || s.id;
@@ -330,6 +424,7 @@
       // a held Enter auto-repeats: it must never approve the dry-run confirm it just opened
       else if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) cast(); }
       else if (e.key === 'Escape') { e.preventDefault(); if (pending) closeConfirm(); else hide(); }
+      else if (e.key === 'Tab' && CM) { e.preventDefault(); if (!pending) setMode(CM.nextMode(mode)); }   // Run <-> Go
     });
     $('q').addEventListener('input', filter);
 
@@ -351,7 +446,13 @@
       spells = castable(book);
       if (book == null && $('msg').hidden) $('empty').textContent = 'no spellbook yet — run a scan first';
       else if (book && !spells.length) $('empty').textContent = 'the spellbook has no runnable spells';
-      const keep = $('msg').hidden ? null : $('msg').textContent;
+      if (CM && hasQuick()) {   // the Needs-you rows and the project list: read once; an { error } is said, no rows
+        try { quick = await hq.quick.read(); } catch (e) { quick = { error: errText(e) }; }
+        if (quick && quick.error) { quickError = String(quick.error); quick = null; }
+      }
+      emptyRun = $('empty').textContent;
+      chrome();
+      const keep = $('msg').hidden ? (quickError || null) : $('msg').textContent;
       filter();
       if (keep) say(keep);
       $('q').focus();

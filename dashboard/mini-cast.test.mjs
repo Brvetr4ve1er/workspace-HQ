@@ -147,3 +147,14 @@ test('spendText: dry preview words, the typed line until then, the one-minute se
   assert.match(cast.spendText({ preview: { kind: 'slip', label: '$5', reason: 'needs your DA rate' } }, '$5'), /Inbox.*needs your DA rate/);
   assert.equal(cast.spendText({ preview: { kind: 'none', reason: 'type it like 150 cafe' } }, 'x'), 'Log a spend · type it like 150 cafe');
 });
+
+// ---- quick jump: the page wiring (cast.html loads cast-modes.js first; every id cast.js reads exists) ----
+test('cast.html loads cast-modes.js before cast.js, and every element id cast.js reads exists in cast.html', () => {
+  const html = readFileSync(new URL('./cast.html', import.meta.url), 'utf8');
+  const js = readFileSync(new URL('./cast.js', import.meta.url), 'utf8');
+  const modes = html.indexOf('<script src="./cast-modes.js"></script>'), page = html.indexOf('<script src="./cast.js"></script>');
+  assert.ok(modes > 0 && page > modes, 'cast-modes.js must come first (CSP script-src self, no inline script)');
+  const ids = new Set([...js.matchAll(/\$\('([a-zA-Z][\w-]*)'\)/g)].map((m) => m[1]));
+  assert.ok(ids.size >= 8);
+  for (const id of ids) assert.ok(html.includes('id="' + id + '"'), 'cast.js reads #' + id + ' but cast.html has no such element');
+});

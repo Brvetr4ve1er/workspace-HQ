@@ -132,6 +132,12 @@ contextBridge.exposeInMainWorld('hq', {
   rescanSpellbook: () => ipcRenderer.invoke('hq:spellbook-rescan'),
   getSpellTelemetry: () => ipcRenderer.invoke('hq:spell-telemetry'),
   hideCastPalette: () => ipcRenderer.invoke('hq:cast-palette-hide'),
+  // quick-run palette: "Needs you" rows + Go mode (IPC-CONTRACT hq:quick:*). The cast window shares this preload; main answers { error } to any other sender.
+  quick: {
+    read: () => ipcRenderer.invoke('hq:quick:read'),
+    openBrief: (ref) => ipcRenderer.invoke('hq:quick:open-brief', ref),
+    openGo: (route) => ipcRenderer.invoke('hq:quick:open-go', route),
+  },
   onCastOutput: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('hq:cast-output', handler);

@@ -1268,6 +1268,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./delivery-clients').init({ ipcMain, dataDir: DATA, resolveProjectPath });   // Projects > Clients: one read-only summary row per client job (IPC-CONTRACT hq:delivery:clients)
     sessionsApi = require('./sessions-board').init({ ipcMain, app, hub: claudeHub, getWins: () => BrowserWindow.getAllWindows(), shell, appLog, repoRoot: path.join(DIR, '..'), onBoard: (b) => briefApi.onBoard(b) });   // Claude › Sessions board + Resume (IPC-CONTRACT hq:sessions-board:*)
     navBridge = require('./nav-bridge').init({ ipcMain, getWin: () => win, createWindow });   // v5 clean pass: hq:open-at (+ tray openAt)
+    require('./quick-targets').init({ ipcMain, latest, trayBrief, showMainAt, runScan, log: (f) => useLogApi.mark(f.surface, f.action), isCastSender: (e) => !!castWin && !castWin.isDestroyed() && e.sender === castWin.webContents });   // quick-run palette: Needs-you rows + Go mode (IPC-CONTRACT hq:quick:*); only the cast window may call
     require('./assist-bridge-routes').setDeps({ dataDir: DATA, dialog, openAt: (r) => showMainAt(r), log: (m) => console.log(m) });   // Bridge 0.7.0: POST /pair (native dialog), GET /assist/brief, POST /assist/open (CONTRACT "Local bridge routes")
     createWindow(!START_HIDDEN);
     createTray();

@@ -48,6 +48,12 @@
   .meta.muted { color: var(--muted); } .meta.faint { color: var(--faint); }
   #empty { color: var(--faint); font-size: 12px; padding: 14px; text-align: center; }
 
+  /* v5: quick jump (Ctrl+Alt+X): the Run / Go mode chips under the field and one faint state line ("nothing needs you", "no projects loaded") */
+  #modes { display: flex; gap: 6px; margin-top: 8px; font-size: 11px; }
+  #modes span { padding: 2px 9px; border-radius: 999px; border: 1px solid var(--frame); color: var(--faint); }
+  #modes span.on { color: var(--text); border-color: var(--gold); background: color-mix(in oklab, var(--gold) 10%, transparent); }
+  #note { color: var(--faint); font-size: 11px; padding: 4px 14px 2px; flex: none; }
+
   .msg { margin: 6px 12px 0; padding: 7px 10px; border-radius: 8px; font-size: 12px; line-height: 1.35; word-break: break-word; flex: none; }
   .msg.red { color: var(--red); background: color-mix(in oklab, var(--red) 10%, transparent); border: 1px solid color-mix(in oklab, var(--red) 45%, transparent); }
 
@@ -69,13 +75,17 @@
   <div id="pal">
     <div class="inbox">
       <label class="field"><span class="pr" aria-hidden="true">›</span><input id="q" autofocus spellcheck="false" autocomplete="off" aria-label="Spell to run" aria-controls="list" placeholder="run… or log a spend (150 cafe)" /></label>
+      <!-- v5: quick jump — Tab switches Run / Go (cast-modes.js draws the chips) -->
+      <div id="modes" aria-hidden="true" hidden></div>
     </div>
+    <div id="note" hidden></div>
     <div id="list" role="listbox" aria-label="Spells"></div>
     <div id="empty" hidden>no matching spells</div>
     <div id="msg" class="msg red" role="alert" hidden></div>
     <div id="confirm" hidden><div class="why"></div><div class="cmd"></div><div class="cwd"></div><div class="keys">enter again → run it · esc → back</div></div>
-    <div class="foot"><span>↑↓ choose · enter → run · esc close</span><span id="stat"></span></div>
+    <div class="foot"><span id="hint">↑↓ choose · enter → run · esc close</span><span id="stat"></span></div>
   </div>
+  <script src="./cast-modes.js"></script>
   <script src="./cast.js"></script>
 </body>
 </html>
