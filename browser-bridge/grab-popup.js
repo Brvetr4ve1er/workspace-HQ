@@ -4,11 +4,11 @@
 // every page-supplied string is shown through textContent, never as HTML. The only thing that leaves this file is ONE
 // 'grab:save' runtime message per press of a row's Save button; the service worker (grab.js) does the saving.
 //
-//   HQGrabPopup.load() → model  { state: 'ok'|'empty'|'streamed'|'restricted'|'error'|'none', message, rows:[row…], clicked, pageUrl }
+//   HQGrabPopup.load() → model  { state: 'ok'|'empty'|'streamed'|'restricted'|'error'|'none', message, rows:[row…], clicked, pageUrl, pageTitle }
 //        row = { rank, entry, info: describe(), candidates:[{url, guess}], best, clicked }
 //   HQGrabPopup.render(doc, host, model, { copy, save }) → { paint(jobs) } — the section's DOM, text only; paint() shows each
 //        row's save state (queued, saving, saved to …, could not save) and disables Save while that row is waiting
-//   HQGrabPopup.save(row, pageUrl) → { ok, job?, message? }   sends the one message for this one row
+//   HQGrabPopup.save(row, pageUrl, pageTitle) → { ok, job?, message? }   sends the one message for this one row (the tab title rides along: it names the clip)
 //   HQGrabPopup.readJobs() → jobs from chrome.storage.session   (the worker is the only writer)
 //   HQGrabPopup.copyText(text) → Promise<boolean>   (navigator.clipboard, falling back to a hidden textarea)
 //   HQGrabPopup.create(deps) → same API over injected { chrome, rules, scan, nav, doc, now } (tests)
@@ -51,17 +51,17 @@
       target = picked.target;
       if (!tab) return { state: 'none', message: 'No page to read', rows: [], clicked: '' };
       if (rules.isRestricted(tab.url)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: '' };
-      var clicked = target ? target.srcUrl : '', pageUrl = String(tab.url || '');
+      var clicked = target ? target.srcUrl : '', pageUrl = String(tab.url || ''), pageTitle = String(tab.title || '').slice(0, 200);
       var out;
       try {
         var res = await C().scripting.executeScript({ target: { tabId: tab.id }, func: scanFn(), args: [{ min: rules.MIN_PX }] });
         out = res && res[0] ? res[0].result : null;
       } catch (e) {
         var m = String((e && e.message) || e);
-        if (/cannot access|extensions gallery|cannot be scripted|chrome:\/\//i.test(m)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: clicked, pageUrl: pageUrl };
-        return { state: 'error', message: "Couldn't read this page — " + m.slice(0, 80), rows: [], clicked: clicked, pageUrl: pageUrl };
+        if (/cannot access|extensions gallery|cannot be scripted|chrome:\/\//i.test(m)) return { state: 'restricted', message: rules.RESTRICTED_MESSAGE, rows: [], clicked: clicked, pageUrl: pageUrl, pageTitle: pageTitle };
+        return { state: 'error', message: "Couldn't read this page — " + m.slice(0, 80), rows: [], clicked: clicked, pageUrl: pageUrl, pageTitle: pageTitle };
       }
-      if (!out || !out.ok) return { state: 'error', message: "Couldn't read this page", rows: [], clicked: clicked, pageUrl: pageUrl };
+      if (!out || !out.ok) return { state: 'error', message: "Couldn't read this page", rows: [], clicked: clicked, pageUrl: pageUrl, pageTitle: pageTitle };
       var listed = out.items.filter(function (e) { return !e.streamed; });
       var streamedCount = (out.streamed || 0) + (/^blob:/i.test(clicked) ? 1 : 0);
       // the right-clicked media on top, even when the scanner filtered it (small, or reached some other way)
@@ -73,17 +73,17 @@
         var cands = rules.candidatesFor(e);
         return { rank: i + 1, entry: e, info: rules.describe(e), candidates: cands, best: cands.length ? cands[0].url : e.url, clicked: i === 0 && !!clicked && !/^blob:/i.test(clicked) };
       });
-      if (!rows.length) return { state: streamedCount ? 'streamed' : 'empty', message: streamedCount ? rules.STREAMED_MESSAGE : rules.EMPTY_MESSAGE, rows: [], clicked: clicked, streamed: streamedCount, pageUrl: pageUrl };
-      return { state: 'ok', message: '', rows: rows, clicked: clicked, streamed: streamedCount, capped: !!out.capped, pageUrl: pageUrl };
+      if (!rows.length) return { state: streamedCount ? 'streamed' : 'empty', message: streamedCount ? rules.STREAMED_MESSAGE : rules.EMPTY_MESSAGE, rows: [], clicked: clicked, streamed: streamedCount, pageUrl: pageUrl, pageTitle: pageTitle };
+      return { state: 'ok', message: '', rows: rows, clicked: clicked, streamed: streamedCount, capped: !!out.capped, pageUrl: pageUrl, pageTitle: pageTitle };
     }
 
     // The one message for one row. The worker re-checks everything (sender, one entry, the site, the file type).
-    async function save(row, pageUrl) {
+    async function save(row, pageUrl, pageTitle) {
       var e = row && row.entry;
       if (!e || typeof e.url !== 'string') return { ok: false, message: "Can't save this one" };
       var entry = { url: e.url, kind: e.kind === 'video' ? 'video' : 'image', variants: (e.variants || []).map(function (v) { return { url: v.url, w: v.w, x: v.x }; }) };
       try {
-        var res = await C().runtime.sendMessage({ type: 'grab:save', entry: entry, pageUrl: String(pageUrl || '') });
+        var res = await C().runtime.sendMessage({ type: 'grab:save', entry: entry, pageUrl: String(pageUrl || ''), pageTitle: String(pageTitle || '').slice(0, 200) });
         return res && typeof res === 'object' ? res : { ok: false, message: "Couldn't reach the extension — try again" };
       } catch (err) { return { ok: false, message: "Couldn't reach the extension — try again" }; }
     }

@@ -496,7 +496,7 @@ async function loadGrab() {
       copy: async (url) => toneOf('grab-status', (await HQGrabPopup.copyText(url)) ? 'Copied' : 'Could not copy — select the link above', 'ok'),
       // one press = one message for this one row; a refusal is said out loud and the row's Save comes back
       save: async (row) => {
-        const res = await HQGrabPopup.save(row, m.pageUrl);
+        const res = await HQGrabPopup.save(row, m.pageUrl, m.pageTitle);
         toneOf('grab-status', res.ok ? '' : res.message, res.ok ? '' : 'bad');
         if (view) view.paint(await HQGrabPopup.readJobs());
       },

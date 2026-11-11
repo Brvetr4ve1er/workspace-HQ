@@ -608,3 +608,22 @@ test('the manifest asks for downloads (Chrome: "Manage your downloads") and noth
   assert.ok(!(m.optional_permissions || []).includes('downloads'));
   assert.deepEqual(m.permissions.slice().sort(), ['activeTab', 'alarms', 'contextMenus', 'downloads', 'idle', 'scripting', 'storage', 'tabs']);
 });
+
+test('popup: the tab title rides the one grab:save message as pageTitle (so a clip is named by its page), trimmed to 200 characters; a tab with no title sends an empty one', async () => {
+  const p = popupWorld({ tab: { id: 7, url: 'https://alpha-site.test/blog/post', title: 'Alpha banner redesign ' + 'x'.repeat(300) }, scanResult: { ok: true, items: [item('https://alpha-site.test/m/a.jpg', 900, 600)], streamed: 0 } });
+  const sent = [];
+  p.chrome.runtime = { sendMessage: async (m) => { sent.push(m); return { ok: true }; } };
+  const m = plain(await p.pop.load());
+  assert.equal(m.state, 'ok');
+  assert.ok(m.pageTitle.startsWith('Alpha banner redesign') && m.pageTitle.length === 200, 'the model carries the title, capped');
+  await p.pop.save(m.rows[0], m.pageUrl, m.pageTitle);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].type, 'grab:save');
+  assert.equal(sent[0].pageUrl, 'https://alpha-site.test/blog/post');
+  assert.equal(sent[0].pageTitle, m.pageTitle);
+  const q = popupWorld({ tab: { id: 7, url: 'https://alpha-site.test/blog/post' }, scanResult: { ok: true, items: [item('https://alpha-site.test/m/a.jpg', 900, 600)], streamed: 0 } });
+  const sent2 = []; q.chrome.runtime = { sendMessage: async (x) => { sent2.push(x); return { ok: true }; } };
+  const m2 = plain(await q.pop.load());
+  await q.pop.save(m2.rows[0], m2.pageUrl, m2.pageTitle);
+  assert.equal(sent2[0].pageTitle, '');
+});
