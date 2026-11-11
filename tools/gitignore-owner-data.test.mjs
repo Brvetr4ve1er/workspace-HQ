@@ -25,6 +25,10 @@ const OWNER_DATA = [
   'data/delivery/checks/x.json', 'data/delivery/checks/x.json.1234.tmp', 'data/delivery/shots/x-1.png',
   'data/cosmos/library.json', 'data/cosmos/curation.json', 'data/cosmos/curation.json.prev', 'data/cosmos/cleanup.json',
   'data/cosmos/config.json', 'data/cosmos/thumbs/x.jpg', 'data/cosmos/imports/x.png', 'data/cosmos/clips/x.png',
+  // batch 3 (2026-11-11): one temp name each; clips.json and clip-<hash>.<ext> sit under data/cosmos/ (already ignored)
+  'data/cosmos/clips.json', 'data/cosmos/imports/clip-0123456789ab.png', 'data/cosmos/.grab-tmp/x.part',
+  'data/today.json', 'data/today.json.1234.tmp', 'data/brief-ledger.json', 'data/brief-ledger.json.corrupt', 'data/brief-ledger.json.1234.tmp',
+  'data/disk-history.json', 'data/disk-history.json.1234.tmp', 'data/intents/x.json', 'data/intents/x.json.1234.tmp',
 ];
 
 test('every owner data path is gitignored (public repo)', () => {

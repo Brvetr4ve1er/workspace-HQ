@@ -106,3 +106,8 @@ data/delivery.json*
 data/delivery/
 # Cosmos space (key 0): library, curation, thumbnails, imports and clips — the owner's own files, never committed
 data/cosmos/
+# batch 3 (2026-11-11): Today ribbon, Brief history ledger, Machine drift history and the session intent inbox - owner data, patterns for temp files too
+data/today.json*
+data/brief-ledger.json*
+data/disk-history.json*
+data/intents/
