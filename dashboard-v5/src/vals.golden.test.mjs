@@ -510,6 +510,7 @@ function canon(x, stack = new Set()) {
   stack.delete(x);
   return out;
 }
+const VALS_KEY_CEILING = 1015;   // measured 2026-11-11: 1007 keys = 17 ms per Home render, 1032 keys = 90 ms (the cliff is V8's 1020 descriptor limit)
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 const sorted = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
 
@@ -529,15 +530,17 @@ test('renderVals golden: every scenario matches __golden__/vals.hashes.json', (t
   const unpin = pinLocale();
   try {
     const got = {}, threw = [], unstable = [];
+    let maxKeys = 0;   // the flat renderVals object must stay under V8's ~1020-property limit (see VALS_KEY_CEILING)
     for (const sc of SCEN) {
       let json, again;
-      try { json = JSON.stringify(canon(render(sc))); again = JSON.stringify(canon(render(sc))); }
+      try { const rv = render(sc); maxKeys = Math.max(maxKeys, Object.keys(rv).length); json = JSON.stringify(canon(rv)); again = JSON.stringify(canon(render(sc))); }
       catch (e) { threw.push(sc.name + ' · ' + ((e && e.stack) || e)); continue; }
       if (json !== again) unstable.push(sc.name);
       got[sc.name] = sha(json);
       if (DUMP) writeFileSync(join(DUMP, sc.name + '.json'), JSON.stringify(JSON.parse(json), null, 2) + '\n');
     }
     assert.deepEqual(threw, [], 'renderVals threw in:\n' + threw.join('\n'));
+    assert.ok(maxKeys <= VALS_KEY_CEILING, 'renderVals returned ' + maxKeys + ' top-level keys (ceiling ' + VALS_KEY_CEILING + '): past about 1020 V8 makes the object a slow dictionary and the dc runtime\'s per-item { ...vals } copies (sc-for) made every Home render ~5x slower. Nest a new surface under ONE key (see src/vals/brief-history.js).');
     assert.deepEqual(unstable, [], 'two renders of the same scenario differ (non-deterministic): ' + unstable.join(', '));
     if (UPDATE) {
       mkdirSync(dirname(HASHES), { recursive: true });

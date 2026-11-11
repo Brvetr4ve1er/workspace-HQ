@@ -626,6 +626,7 @@ function createFake(opts) {
     }],
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
+    ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
     ['today.read', todayRead],   // Home › Where today went: invented days, offsets 0..3 full, 4..6 partial, others refused
     // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
     ...COSMOS.rows,

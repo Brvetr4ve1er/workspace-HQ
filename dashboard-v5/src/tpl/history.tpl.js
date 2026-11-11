@@ -1,6 +1,7 @@
 // History screen (v.history): trends, timeline, milestones.
 // Cut verbatim from lines 612-659 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import bhs from './brief-history.tpl.js';   // v5: 2026-11-11 Brief history (the Operator section, first in the timeline)
 export default String.raw`        <sc-if value="{{ v.history }}" hint-placeholder-val="{{ false }}">
           <div>
             <sc-if value="{{ isTrends }}" hint-placeholder-val="{{ true }}">
@@ -30,7 +31,7 @@ export default String.raw`        <sc-if value="{{ v.history }}" hint-placeholde
             </sc-if>
             <sc-if value="{{ isTimeline }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;flex-direction:column;gap:26px;max-width:800px">
-                <sc-for list="{{ weeks }}" as="w" hint-placeholder-count="3">
+${bhs}                <sc-for list="{{ weeks }}" as="w" hint-placeholder-count="3">
                   <section>
                     <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:8px;border-bottom:2px solid var(--frame)"><span style="font-size:18px">{{ w.w }}</span><span style="font-size:12px;color:var(--muted)">{{ w.stats }}</span></div>
                     <sc-for list="{{ w.ev }}" as="e" hint-placeholder-count="3">

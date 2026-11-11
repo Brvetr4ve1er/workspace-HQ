@@ -431,3 +431,28 @@ test('dismissKey (the session door) takes the same path as hq:brief:dismiss: a v
   assert.equal(typeof api.dismissKey, 'function');
   api.stop();
 });
+
+test('a ledger gets each computed brief AFTER the brief.json write, with the dismissed keys and the errors; a throwing ledger never breaks the brief; init lets it register its IPC', async () => {
+  const seen = [];
+  const ledger = {
+    observe: async (b, o) => { seen.push({ wrote: fs.existsSync(path.join(dataDir, 'brief.json')), items: b.items.length, dismissed: o.dismissedKeys, errors: o.errors }); },
+    registerIpc: (ipcMain, getBrief) => { ipcMain.handle('hq:brief-history:read', async () => getBrief()); },
+  };
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const b = brief.create({ dataDir, ...fakes(), ledger, now: () => NOW });
+  const r = await b.compute();
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].wrote, true, 'the ledger hears the brief after the file is written');
+  assert.equal(seen[0].items, r.brief.items.length);
+  assert.deepEqual(seen[0].dismissed, []);
+  assert.ok(Array.isArray(seen[0].errors));
+  const boom = brief.create({ dataDir, ...fakes(), ledger: { observe: async () => { throw new Error('ledger down'); } }, now: () => NOW });
+  assert.ok((await boom.compute()).brief.items.length >= 1, 'a ledger is a courtesy');
+  const handlers = new Map();
+  const ipcMain = { handle: (ch, fn) => handlers.set(ch, fn) };
+  const api = brief.init({ ipcMain, dataDir: tmp(), ...fakes(), ledger, notify: () => {}, getWins: () => [], intervalMs: 0, watch: false });
+  assert.deepEqual([...handlers.keys()].sort(), ['hq:brief-history:read', 'hq:brief:dismiss', 'hq:brief:read']);
+  api.stop();
+});

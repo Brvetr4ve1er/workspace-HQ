@@ -2,6 +2,7 @@
 // <!-- v5: Operator Brief --> new fragment, interpolated into tpl/home.tpl.js under the greeting. dc-lite dialect only:
 // dotted paths, !, ===; everything arrives finished from vals/brief.js (computed main-side by dashboard/brief-core.mjs).
 // Button strings match the other fragments' (money.tpl.js BTN / GOLD).
+import { bhsFooter, bhsAllClear } from './brief-history.tpl.js';   // <!-- v5: Brief history --> the all-clear card under the empty line, the cleared/dismissed footer at the end
 import batFragment, { batButton } from './brief-act.tpl.js';   // <!-- v5: Brief act --> the row's one local verb (dish brief-act-waiting)
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
@@ -18,7 +19,7 @@ export default String.raw`            <!-- v5: Operator Brief — the 1–3 thin
                 <sc-if value="{{ brfError }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--red)">Couldn’t build the brief · {{ brfErrorText }}</div></sc-if>
                 <sc-if value="{{ brfLoading }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">Reading what needs you…</div></sc-if>
                 <sc-if value="{{ brfEmpty }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--green)">{{ brfEmptyText }}</div></sc-if>
-                <sc-if value="{{ brfReady }}" hint-placeholder-val="{{ true }}">
+${bhsAllClear}                <sc-if value="{{ brfReady }}" hint-placeholder-val="{{ true }}">
                   <div role="list" style="display:flex;flex-direction:column;gap:8px">
                     <sc-for list="{{ brfItems }}" as="i" hint-placeholder-count="3">
                       <div role="listitem" style="${CARD};display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
@@ -48,6 +49,6 @@ ${batFragment}                        </div>
                   </div>
                 </sc-if>
                 <sc-if value="{{ brfHasSourceErrors }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--orange)">{{ brfSourceErrorsText }}</div></sc-if>
-              </section>
+${bhsFooter}              </section>
             </sc-if>
 `;

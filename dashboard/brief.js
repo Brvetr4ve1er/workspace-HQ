@@ -4,9 +4,10 @@
 // serves hq:brief:read / hq:brief:dismiss, and pushes hq:brief to the windows when the facts moved.
 // Never throws at a caller: a source that can't be read becomes an `errors` entry and the brief goes on without it.
 //
-// create({ dataDir, money, hub, liveState, getSessionBoard?, decorate?, now }) → { compute(), dismiss(key), buildInputs(), current(), sources() }   (pure-ish, for tests)
+// create({ dataDir, money, hub, liveState, getSessionBoard?, decorate?, ledger?, now }) → { compute(), dismiss(key), buildInputs(), current(), sources() }   (pure-ish, for tests)
 //   getSessionBoard() → the sessions board main already builds (the session-waiting rule's input; absent = that rule is silent)
 //   decorate(brief) → brief  (async ok) — brief-act.js adds the additive acted:{verb,at} marker to rows the owner acted on, before the write and push
+//   ledger → brief-ledger.js create(): observe(brief, { dismissedKeys, errors }) after each write; init() lets it register hq:brief-history:*
 //   current() → the last computed brief | null;  sources() → the live records the act-in-place rules were built from (brief-act.js rebuilds keys from them)
 // init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief?, getSessionBoard?, decorate?, intervalMs?, watch?, now? }) → { recompute(), recomputeNow(), onBoard(board), dismissKey(key), current(), sources(), stop() }
 //   dismissKey(key) → { changed, brief }: hq:brief:dismiss's own path for a caller that is not a window (the session door, dashboard/intent-inbox.js)
@@ -54,7 +55,7 @@ function writeAtomic(file, value) {
   fs.renameSync(tmp, file);
 }
 
-function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, now = () => new Date() }) {
+function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, ledger, now = () => new Date() }) {
   const briefFile = path.join(dataDir, 'brief.json'), stateFile = path.join(dataDir, 'brief-state.json');
   let last = null, lastSig = null, lastInputs = null;
 
@@ -128,6 +129,8 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, now
     // acted:{verb,at} on rows the owner acted on (brief-act.js, in memory) — added outside the engine, so the engine's output is unchanged
     if (typeof decorate === 'function') { try { const d = await decorate(brief); if (d && typeof d === 'object') brief = d; } catch { /* a marker is a courtesy: the brief goes on without it */ } }
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
+    // the ledger (brief-ledger.js) remembers what the Brief noticed and how it ended; after the write, so a failed write's 'brief' error source reaches it (every close is then silent)
+    if (ledger && typeof ledger.observe === 'function') { try { await ledger.observe(brief, { dismissedKeys: st.dismissed, errors: brief.errors }); } catch { /* a ledger is a courtesy */ } }
     const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.errors]);   // generatedAt alone is not a change
     const changed = sig !== lastSig;
     lastSig = sig; last = brief;
@@ -161,8 +164,8 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, now
   return { compute, dismiss, buildInputs, loadState, saveState, current: () => last, sources, files: { briefFile, stateFile } };
 }
 
-function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief, getSessionBoard, decorate, intervalMs = RECOMPUTE_MS, watch = true, now }) {
-  const b = create({ dataDir, money, hub, liveState, getSessionBoard, decorate, now });
+function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief, getSessionBoard, decorate, ledger, intervalMs = RECOMPUTE_MS, watch = true, now }) {
+  const b = create({ dataDir, money, hub, liveState, getSessionBoard, decorate, ledger, now });
   const push = (brief) => {
     for (const w of (getWins ? getWins() : [])) { try { if (w && !w.isDestroyed()) w.webContents.send('hq:brief', brief); } catch { /* a window mid-teardown */ } }
   };
@@ -188,6 +191,7 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrie
 
   ipcMain.handle('hq:brief:read', async () => ({ brief: (await settle(await b.compute())).brief }));
   ipcMain.handle('hq:brief:dismiss', async (_e, key) => ({ brief: (await settle(await b.dismiss(key))).brief }));
+  if (ledger && typeof ledger.registerIpc === 'function') ledger.registerIpc(ipcMain, () => b.current());   // hq:brief-history:read / :ack (brief-ledger.js)
 
   const watchers = [];
   const offs = [];

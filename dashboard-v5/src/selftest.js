@@ -27,7 +27,9 @@ const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', palette
   // Money for Claude sessions (Settings): the switch as main last said it, back to unloaded before every combo
   macOn: false, macLoaded: false, macAskedAt: null, macBusy: false, macErr: '',
   // Home › Where today went: back to today before every combo
-  tdyOffset: 0, tdyNamesAt: 0 };
+  tdyOffset: 0, tdyNamesAt: 0,
+  // Brief history: the ledger answer as main last said it, back to unloaded before every combo
+  bhsLoaded: false, bhsData: null, bhsErr: '', bhsBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -124,6 +126,7 @@ export async function run(W = window.WHQ) {
     const { cosmosStates, COSMOS_OFFLINE_ROWS, COSMOS_SCRUBBED_ROWS } = await import('./selftest-cosmos.mjs');
     const { fakeCosmos } = await import('../tools/cosmos-fixture.mjs');
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
+    const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const base = { askHistory: initial.askHistory };
 
     for (const theme of ['dark', 'light']) {
@@ -380,6 +383,21 @@ export async function run(W = window.WHQ) {
             LV.brief = brief;
             L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, extra || {}));
           });
+        }
+        // Brief history (src/selftest-brief-history.mjs): every state of the Operator rows, the footer and the all-clear card. The row's own state is put straight
+        // into the component and the arrival read is held (_bhsHold), so the fake's answer does not replace it; bhs-operator-offline hides hq.briefHistory for one
+        // combo (the store's hq, never window.hq) and puts it back.
+        for (const row of briefHistoryStates()) {
+          const hq5 = W.store.hq;
+          try {
+            await combo([theme, 'p3:' + row.name].join(' '), () => {
+              if (BHS_OFFLINE_ROWS.includes(row.name) && hq5) W.store.hq = Object.assign({}, hq5, { briefHistory: undefined });
+              L._bhsHold = true;
+              LV.brief = row.brief;
+              L.go(row.tab, row.sub || null);
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, row.hist));
+            });
+          } finally { W.store.hq = hq5; L._bhsHold = false; LV.brief = savedLive.brief; }
         }
         // Reach (Settings): every state of the doors block. The rows are put straight into state and the loader is held (_rchAsked), so the
         // fake's own rows don't replace them; rch-offline hides hq.reach for one combo (the store's hq, never window.hq) and puts it back.

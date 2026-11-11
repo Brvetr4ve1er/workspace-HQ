@@ -215,6 +215,12 @@ contextBridge.exposeInMainWorld('hq', {
     set: (on) => ipcRenderer.invoke('hq:money-access:set', on),
   },
 
+  // Brief history (IPC-CONTRACT hq:brief-history:read / :ack): what the Brief noticed and how it ended; ack only records that the all-clear card was shown
+  briefHistory: {
+    read: () => ipcRenderer.invoke('hq:brief-history:read'),
+    ack: () => ipcRenderer.invoke('hq:brief-history:ack'),
+  },
+
   // Home: where today went (IPC-CONTRACT hq:today:read; { dayOffset: 0..6 }, read once per arrival, nothing is written)
   today: {
     read: (o) => ipcRenderer.invoke('hq:today:read', o),
