@@ -32,6 +32,7 @@ import { accountsVals } from './accounts.js';
 import { moneyVals } from './money.js';
 import { briefVals } from './brief.js';
 import { reachVals } from './reach.js';
+import { moneyAccessVals } from './money-access.js';
 import { sessionsBoardVals } from './sessions-board.js';
 import { deliveryCheckVals } from './delivery-check.js';   // batch 2: the phone-and-language check under the delivery card (dck*)
 import { clientsVals } from './clients-list.js';   // batch 2: Projects › Clients (cls*)
@@ -41,7 +42,7 @@ import { moneyStartVals } from './money-start.js';   // Money in one minute: the
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, reachVals, sessionsBoardVals, moneyStartVals, deliveryVals, deliveryCheckVals, clientsVals, cosmosVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, reachVals, moneyAccessVals, sessionsBoardVals, moneyStartVals, deliveryVals, deliveryCheckVals, clientsVals, cosmosVals,
 ];
 
 export function renderVals() {

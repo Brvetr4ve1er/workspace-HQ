@@ -513,6 +513,7 @@ function createFake(opts) {
   // [method path, kind]: WRITE resolves true · SEND returns undefined · 'on:<channel>'
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
+  let macOn = false;   // the Money-access switch (hq.moneyAccess); control.reset puts it back off
   const SPEC = [
     ['runScan', WRITE], ['openRepo', WRITE], ['openFile', WRITE], ['reclaim', WRITE], ['snapshot', WRITE],
     ['captureSave', WRITE], ['claudeQuest', WRITE],
@@ -592,6 +593,7 @@ function createFake(opts) {
       return { view: MONEY.full, note: 'saved' };
     }],
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
+    ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
     // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
     ...COSMOS.rows,
   ];
@@ -636,7 +638,7 @@ function createFake(opts) {
   const control = {
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset();   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset(); macOn = false;   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }

@@ -25,7 +25,7 @@ export const TOOL_TIERS = Object.freeze({
   // read
   hq_brief: 'read', hq_status: 'read', hq_quests_list: 'read', hq_social_outbox: 'read', hq_activity: 'read',
   hq_recall: 'read', hq_chat_read: 'read', hq_sessions: 'read', hq_delivery: 'read',   // the last four arrive at the Pass
-  hq_cosmos_search: 'read',
+  hq_cosmos_search: 'read', hq_money_today: 'read',   // Money in words: answers only while the owner's switch (data/money/access.json) is on
   // note
   hq_capture: 'note', hq_quest_done: 'note', hq_social_cancel: 'note',
   // run
@@ -98,7 +98,8 @@ export function createGuard({ root, dataDir, collectorPath, cwd = process.cwd(),
     } catch (e) {
       isError = true;
       const clean = typeof o.isClean === 'function' ? o.isClean(e) : false;
-      out = { error: clean ? String(e && e.message) : `tool crashed: ${(e && e.message) || e}` };
+      // a clean refusal may carry its own answer object (e.payload, e.g. hq_money_today's { enabled:false, error }): the session reads that, still as an error
+      out = clean && e && e.payload && typeof e.payload === 'object' ? e.payload : { error: clean ? String(e && e.message) : `tool crashed: ${(e && e.message) || e}` };
       reason = clean ? 'tool refused' : 'tool crashed';
     }
     const ok = okOf(out, isError);

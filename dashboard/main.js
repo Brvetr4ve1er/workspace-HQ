@@ -1259,6 +1259,7 @@ if (!app.requestSingleInstanceLock()) {
     const moneyApi = require('./money').init({ ipcMain, dataDir: DATA, getWin: () => win });   // money space: data/money/state.json (IPC-CONTRACT hq:money:*)
     require('./cosmos').init({ ipcMain, dataDir: DATA, getWin: () => win, castSend });   // Cosmos space: data/cosmos/ (IPC-CONTRACT hq:cosmos:*)
     const useLogApi = require('./use-log').init({ ipcMain, appLog });   // usage counter: hq:use → one 'use' line in the day log (IPC-CONTRACT hq:use)
+    require('./money-access').init({ ipcMain, dataDir: DATA });   // Settings › "Claude sessions may read Money (words only)": the ONLY writer of data/money/access.json, off by default (IPC-CONTRACT hq:money-access:*)
     require('./reach').init({ ipcMain, dataDir: DATA, exePath: process.execPath });   // Settings › Reach: whether each door is open (IPC-CONTRACT hq:reach:read)
     let sessionsApi = null, briefActApi = null;   // the sessions board is created after the Brief (below): the Brief reads it lazily
     const briefApi = require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, onBrief: (b, fs) => { trayBrief.set(b, fs); updateTray(); }, getWins: () => BrowserWindow.getAllWindows(), getSessionBoard: () => (sessionsApi ? sessionsApi._board() : null), decorate: (b) => (briefActApi ? briefActApi.decorate(b) : b) });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)

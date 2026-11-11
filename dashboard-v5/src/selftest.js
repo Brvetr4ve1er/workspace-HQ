@@ -23,7 +23,9 @@ const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', palette
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
-  rchRows: null, rchAt: null, rchError: '', rchBusy: false };
+  rchRows: null, rchAt: null, rchError: '', rchBusy: false,
+  // Money for Claude sessions (Settings): the switch as main last said it, back to unloaded before every combo
+  macOn: false, macLoaded: false, macAskedAt: null, macBusy: false, macErr: '' };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -382,6 +384,25 @@ export async function run(W = window.WHQ) {
               L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, settingsOpen: true }, patch));
             });
           } finally { W.store.hq = hq0; L._rchAsked = false; }
+        }
+        // Money for Claude sessions (Settings, mac*): every state of the switch card. The state is put straight in and the loader is held (_macAsked),
+        // so the fake's own answer doesn't replace it; mac-offline hides hq.moneyAccess for one combo (the store's hq, never window.hq).
+        for (const [name, patch, offline] of [
+          ['mac-offline', {}, true],
+          ['mac-loading', {}],
+          ['mac-read-error', { macErr: 'selftest: synthetic read error' }],
+          ['mac-off-never', { macLoaded: true, macOn: false, macAskedAt: null }],
+          ['mac-on-asked', { macLoaded: true, macOn: true, macAskedAt: new Date(Date.now() - 3 * 3600e3).toISOString() }],
+          ['mac-on-saving', { macLoaded: true, macOn: true, macBusy: true, macAskedAt: null }],
+          ['mac-save-error', { macLoaded: true, macOn: false, macErr: 'selftest: that did not save' }],
+        ]) {
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (offline && hq0) W.store.hq = Object.assign({}, hq0, { moneyAccess: undefined });
+              L._macAsked = true;
+              L.go('home'); L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, settingsOpen: true }, patch));
+            });
+          } finally { W.store.hq = hq0; L._macAsked = false; }
         }
         // Sessions board (Claude › Sessions) and the Home strip: every state of the board. The board is put straight into the store and the
         // arrival refresh is held, so the fake's own board doesn't replace it; sbd-offline hides hq.sessionsBoard for one combo (the store's hq).

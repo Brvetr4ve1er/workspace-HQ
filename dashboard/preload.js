@@ -209,6 +209,11 @@ contextBridge.exposeInMainWorld('hq', {
     importFile: () => ipcRenderer.invoke('hq:money:import'),
     exportFile: () => ipcRenderer.invoke('hq:money:export'),
   },
+  // Settings: may Claude sessions read Money in words? (IPC-CONTRACT hq:money-access:*; a strict boolean, off by default)
+  moneyAccess: {
+    read: () => ipcRenderer.invoke('hq:money-access:read'),
+    set: (on) => ipcRenderer.invoke('hq:money-access:set', on),
+  },
 
   // Cosmos space (IPC-CONTRACT hq:cosmos:*). Intents and element ids only; paths come from main or from pathForFile (a dropped File).
   cosmos: {

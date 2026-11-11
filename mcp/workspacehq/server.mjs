@@ -321,6 +321,18 @@ const TOOLS = [
       return out;
     },
   },
+  // ---- MONEY IN WORDS (read-only, off until the owner turns it on in Settings; money-read.mjs never writes anything and works with the app closed) ----
+  {
+    name: 'hq_money_today',
+    description: "Money in words only: whether it is set up, whether the cycle is ok or tight, days to payday, how many bills are late or due soon, how many slips wait. A forecast, never a verdict. Never an amount, account, payee, note or bill name, and it cannot change anything. Answers an error while the owner has not turned it on in Settings.",
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    async run() {
+      const m = await import('./money-read.mjs');
+      const out = m.readMoneyToday({ dataDir: DATA });
+      if (out && out.error) { const e = new ToolError(String(out.error)); e.payload = out; throw e; }   // the session reads { enabled:false, error }, still as an error
+      return out;
+    },
+  },
   // ---- SOCIAL BINDING (confirm-gated staging; the read tools went with the Social tab, 2026-10-28) ----
   {
     name: 'hq_social_post',

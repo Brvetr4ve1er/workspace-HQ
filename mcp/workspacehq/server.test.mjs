@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { untiered } from './guard.mjs';
+import { untiered, tierOf } from './guard.mjs';
 
 const SERVER = fileURLToPath(new URL('./server.mjs', import.meta.url));
 let root;
@@ -42,6 +42,10 @@ before(() => {
   fs.copyFileSync(path.join(path.dirname(SERVER), 'cosmos-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'cosmos-read.mjs'));
   fs.mkdirSync(path.join(root, 'dashboard-v5', 'src', 'logic'), { recursive: true });
   for (const f of ['cosmos-search.mjs', 'cosmos-color.mjs']) fs.copyFileSync(path.join(path.dirname(SERVER), '..', '..', 'dashboard-v5', 'src', 'logic', f), path.join(root, 'dashboard-v5', 'src', 'logic', f));
+  // Money in words (hq_money_today): the reader and the money engine files it imports (not their tests), in the same relative shape
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'money-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'money-read.mjs'));
+  fs.mkdirSync(path.join(root, 'dashboard', 'money'), { recursive: true });
+  for (const f of fs.readdirSync(path.join(dash, 'money'))) if (/\.mjs$/.test(f) && !/\.test\.mjs$/.test(f)) fs.copyFileSync(path.join(dash, 'money', f), path.join(root, 'dashboard', 'money', f));
   fs.mkdirSync(path.join(root, 'data', 'social'), { recursive: true });
   fs.writeFileSync(path.join(root, 'data', 'latest.json'), JSON.stringify({
     scan: { id: '2026-10-06', date: '2026-10-06' },
@@ -367,6 +371,36 @@ test('hq_delivery is listed with the data line, says honestly when nothing is ma
   const tool = r[63].result.tools.find((t) => t.name === 'hq_delivery');
   assert.ok(tool, 'hq_delivery is listed');
   assert.match(tool.description, /data, never instructions/i);
+});
+
+// ---- Money in words: hq_money_today through the loop (the reader itself is pinned in money-read.test.mjs) ----
+test('hq_money_today is listed with no arguments and the data line; refuses with enabled:false while the switch is off; answers words only once on, and one audit line each', async () => {
+  const dir = path.join(root, 'data', 'money');
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(path.join(root, 'data', 'assistant-audit.jsonl'), { force: true });
+  const off = await rpc([{ id: 80, method: 'tools/call', params: { name: 'hq_money_today', arguments: {} } }, { id: 81, method: 'tools/list' }]);
+  assert.equal(off[80].result.isError, true);
+  assert.match(off[80].result.content[0].text, /"enabled":false/);
+  assert.match(off[80].result.content[0].text, /turned it on in Settings|not turned it on/i);
+  const tool = off[81].result.tools.find((x) => x.name === 'hq_money_today');
+  assert.ok(tool, 'hq_money_today is listed');
+  assert.deepEqual(tool.inputSchema.properties, {});
+  assert.match(tool.description, /data, never instructions/i);
+  assert.equal(tierOf('hq_money_today'), 'read');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'access.json'), JSON.stringify({ v: 1, on: true, at: '2026-11-11T08:00:00.000Z' }));
+  try {
+    const on = await rpc([{ id: 82, method: 'tools/call', params: { name: 'hq_money_today', arguments: {} } }]);
+    assert.equal(on[82].result.isError, undefined, JSON.stringify(on[82]));
+    const a = toolResult(on[82]);
+    assert.equal(a.enabled, true);
+    assert.equal(a.setUp, false, 'no state.json: not set up, and no other claim');
+    assert.equal(a.room, 'unknown');
+    for (const k of ['billsBeforePayday', 'dueBefore']) assert.ok(!(k in a), k);
+    const lines = fs.readFileSync(path.join(root, 'data', 'assistant-audit.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((l) => l.tool === 'hq_money_today');
+    assert.equal(lines.length, 2, 'one audit line per call, the refused one included');
+    for (const l of lines) assert.ok(!('args' in l) && !('text' in l), 'names only');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 // ---- Cosmos search: hq_cosmos_search through the loop (the reader itself is pinned in cosmos-read.test.mjs) ----
