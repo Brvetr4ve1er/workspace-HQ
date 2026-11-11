@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 2 rest DONE: tasting fixed, final gates, PUSHED, live app restarted) · main @ bf195b2
+DONE: six dishes, each committed on its own (delivery check, Clients list, act on a Brief row + the waiting-session sense, sessions
+  launched with the tools, Ctrl+Alt+X jump anywhere, Money in words). Six tasters found 0 high, 3 med, 15 low; one fixer landed the
+  three meds (bf195b2): the delivery check also probes [::1] (Vite on newer Node listens there only), a launch prompt starting with a
+  dash is prefixed so claude never reads it as an option, and hq_brief drops money-sourced rows while Money access is off.
+  Final gates, one after another: main 1983 (1982 pass, 1 pre-existing trailer skip), money 261/261, renderer 822/822, Electron selftest
+  2912 combos 0/0/0, cdp-gate all PASS, cosmos native check PASS, delivery-check native check PASS. Privacy scan of the batch: clean.
+  CLAUDE.md gains the batch's facts line.
+IN-FLIGHT: none. OWNER STEPS: Settings › Money for Claude stays off until you turn it on; try Ctrl+Alt+X, Projects › Clients, and one
+  delivery check against a client dev server; the Bridge pairing and Cosmos import steps from earlier batches still stand.
+ASKS (struct): unchanged (nightly --strict-mcp-config; run-pipeline.ps1 takes data/.refresh.lock; GPU enumeration). BREAKS: none (additive).
+
+---
 ## 2026-11-11 · FROM frontend (batch 2 rest DONE: Money reaches Claude sessions as words only, off until the owner turns it on) · main @ 8a8a7ad (not pushed)
 DONE: Settings gains one card with a switch (off on a fresh install) for "Claude sessions may read Money (words only)"; MCP tool hq_money_today (tier read) answers { enabled:false, error } as an error while off and words and counts only
   once on (set up or not, room ok/tight/unknown, days to payday, bills late, bills due soon, slips waiting), never an amount, account, payee, note, bill name or jar. dashboard/money-access.js is the only writer of
