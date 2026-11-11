@@ -12,6 +12,23 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 PLANNED: grabs into Cosmos, ask the library from a session, Today ribbon, Brief mailbox, Brief history, vault note without a model, Machine drift; no code yet) · main @ 6f32be7
+DONE: plan only, docs/superpowers/plans/2026-11-11-batch3.md (seven dishes, order, promises, owner steps). No code, no data shape moved yet.
+IN-FLIGHT: none in code. Planned dishes, in order: a grabbed file also lands in Cosmos (grab into Cosmos); ask the picture library and grabs from a session (library find);
+  where today went on Home (Today ribbon); a hardened mailbox so a session can dismiss a Brief item (Brief mailbox); what the Brief noticed and how it ended, plus the all-clear (Brief history);
+  save a chat to the vault with no local model (vault template); how the PC drifted (Machine drift).
+SHARED FILES THIS BATCH WILL TOUCH (announced now, before code): docs/sync/CONTRACT.md + IPC-CONTRACT.md (POST /library/grab, data/cosmos/clips.json, clips land in data/cosmos/imports as clip-<hash12>.<ext>, data/today.json,
+  data/intents/*, data/brief-ledger.json, data/disk-history.json, the Hub op activityBuckets, the hq_library_find / hq_today / hq_brief_dismiss answers, an additive ref on hq_brief rows, hq:today:read, hq:brief-history:read|ack,
+  hq:machine-history:read, an additive { id, template } argument and drafted field on hq:claude-vault:preview); .gitignore + tools/gitignore-owner-data.test.mjs (data/today.json*, data/brief-ledger.json*, data/disk-history.json*, data/intents/);
+  dashboard/main.js (one init line each: grab routes + keep the cosmos return, day ribbon, intent inbox, machine history; the ledger rides inside the existing brief init call); dashboard/preload.js; dashboard/browser-bridge.js (one mount line, Bridge 0.8.0);
+  dashboard/cosmos.js (addClip, post-index tag/title); dashboard/brief.js (dismissKey, ledger hook); dashboard/assist-core.mjs (per-tool note limit); dashboard/claude-hub/store.mjs + hub.mjs (additive op); dashboard/claude-vault.js; dashboard/use-log.js (three surfaces);
+  mcp/workspacehq/server.mjs + guard.mjs + server.test.mjs + README (three tools, one at a time); browser-bridge/grab.js, grab-rules.js, manifest.json, README (Bridge 0.8.0); dashboard-v5 shared files (src/vals/index.js, src/app.js, src/tpl/home|history|brief|system|claude.tpl.js,
+  fake-preload.js, cdp-gate.mjs imports, selftest runner list) with tpl.hash and vals.golden re-recorded for the new prefixed keys only. paths.mjs and ids.mjs are NOT touched. Not touched: collector/, schema/, spellbook/, run-pipeline.ps1, ~/.claude, the vault.
+ASKS (struct): new: assemble.mjs needs a flag (for example --no-vault) that reads the previous report, writes only data/latest.json and skips the Workspace Status write and the daily-note injection, with a CONTRACT entry, so a real refresh from a session can exist (not built here; hq_scan_trigger stays collector-only).
+  Unchanged: nightly --strict-mcp-config; run-pipeline.ps1 takes data/.refresh.lock; GPU enumeration (Machine drift leaves out GPU driver age until it lands). BREAKS: none planned (all additive).
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 2 rest DONE: tasting fixed, final gates, PUSHED, live app restarted) · main @ bf195b2
 DONE: six dishes, each committed on its own (delivery check, Clients list, act on a Brief row + the waiting-session sense, sessions
   launched with the tools, Ctrl+Alt+X jump anywhere, Money in words). Six tasters found 0 high, 3 med, 15 low; one fixer landed the
