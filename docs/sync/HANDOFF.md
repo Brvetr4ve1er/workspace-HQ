@@ -12,6 +12,13 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 taster fixes: three real findings fixed) · main @ d0e4940 (not pushed)
+DONE: 45c1095 (the Bridge popup sends the tab title as pageTitle in grab:save, so a clip is named by its page), 4f1551d (hq_library_find skips a manifest entry that is applied:true but gone from library.json: a Recycle-Binned grab is no longer "waiting"), d0e4940 (brief.js compute() is a promise chain: overlapping computes can no longer reach the ledger out of order and double-count an ending). Each has a test that failed before the fix.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2287 pass / 0 fail / 0 skips, money 261/261, renderer 949/949, Electron selftest 2980 combos 0/0/0, cdp-gate 81/81. No IPC, vals, golden, data shape or contract moved. The app needs a restart for the Brief fix; the extension reload (0.8.0) picks up the title.
+IN-FLIGHT: none. ASKS (struct): unchanged. BREAKS: none.
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 dish 7 DONE: how the PC changed on System > Machine; BATCH 3 CODE COMPLETE) · main @ 0b51b7d (not pushed)
 DONE: contract rows (736d99a, meta: data/disk-history.json, the cautions for pc-health-history.json, hq:machine-history:read), then the dish (0b51b7d, fe). System > Machine gets a "How the PC changed" panel: seven small charts from the 96 checks the collector already keeps (CPU, RAM, free disk, startup apps, temp files in GB, ping, days since update; a 0 ping or 0 update age is a gap, never a point), an Estimate the owner presses (refuses below 8 readings, below 14 days or when the line is flat or rising; otherwise "about N days of room, if nothing changes", never "will run out") and "What filled the disk" (folders that grew over 7 days, labels and GB only).
   Main: dashboard/disk-history.js is the ONLY writer of data/disk-history.json (one row per local day, 120 days, atomic, corrupt moved aside, a newer or oversized file never overwritten) and the read-only dashboard/machine-history.js answers hq:machine-history:read with the eight history fields only (never gpuDriverDays, gpuTempC, battery or a path); main.js got ONE line (machine-history init, which also starts the disk copy 5 s after start, off the boot path); preload hq.machineHistory; use mark machine-drift (SURFACES, count 80 -> 85); honesty denylist gains 'will run out'. brief-core and its goldens did not move (the Brief's disk row is unchanged).
