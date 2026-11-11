@@ -12,6 +12,15 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 4 dish 1 DONE: the Security engine, pure; contract rows committed) · main @ 180267a (not pushed)
+DONE: contract rows (22b603c, meta: data/security/* shapes, MCP hq_footprint answer, the ten hq:security:* channels main-window only, the data/security/ ignore line and its OWNER_DATA pins), then the engine (180267a, fe): dashboard/security-core.mjs + 18 tests + the invented fixture. Pure (no fs, network or Electron); the XML parser fails as 'unreadable export' on any protected value or malformed document; ids from the entry UUID; identity refs are HMAC under a per-install key (none without one); parse-and-drop proven by assertNoSecrets. No shared file touched, no IPC, no vals key, no golden moved.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2400 pass / 0 fail / 0 skips, money 261/261, renderer 1055/1055, Electron selftest 2980 combos 0/0/0, cdp-gate 81/81.
+  For the vault dish: reduceEntries WITH a refKey returns identities[].value (the email or phone, the intended label), so the vault module must encrypt it before anything reaches data/; edge directions, flag rules and the buildGraph extras (breached set, archived owner accounts leave every count) are in the cook's pass notes.
+IN-FLIGHT: none in code (three dishes remain: vault reader and store, the space, the doors; each lands with its own shared patch). The keepassxc-cli flags and the XML shape are still unverified against a real vault: the owner's first real refresh is the real check, and it is still pending.
+ASKS (struct): none. BREAKS: none (additive).
+
+---
+
 ## 2026-11-11 · FROM frontend (BATCH 4 ANNOUNCED: the Security space; the plan is corrected and committed, no code yet) · main @ 08c0a8e
 DONE: plan docs/superpowers/plans/2026-11-11-batch4-security.md (design docs/superpowers/specs/2026-11-11-security-space-design.md), corrected after a critic pass (Brief plumbing, a keyed identity ref, main-window-only security channels, the main.js line placement, shell/palette digits, an anchored export-name pattern, an honest XML parser).
 IN-FLIGHT: the four dishes, by plain name: the Security engine (pure parse-and-drop, flags, identity refs, graph model), the vault reader and store (keepassxc-cli on stdin, breach check, safeStorage, plain-export and conflict scan), the Security space (footprint map, health, setup walkthrough, generator), and the doors (hq_footprint for Claude, Brief senses, the Reach row). New files only apart from the shared edits below; no code lands before the contract rows commit.
