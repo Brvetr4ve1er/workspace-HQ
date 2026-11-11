@@ -3,13 +3,14 @@
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 import brief from './brief.tpl.js';   // 2026-11-05 Operator Brief, under the greeting
 import sessionsStrip from './sessions-strip.tpl.js';   // 2026-11-07 sessions strip, right after the Brief
+import today from './today.tpl.js';   // v5: 2026-11-11 Today ribbon (where today went), under the Brief and the sessions strip
 export default String.raw`        <sc-if value="{{ v.home }}" hint-placeholder-val="{{ true }}">
           <div>
             <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:22px">
               <h1 style="margin:0;font-weight:400;font-size:clamp(26px,3.2vw,37px);line-height:1"><x-import component-from-global-scope="hq-type" text="{{ home.greeting }}" hint-size="auto,1em"></x-import></h1>
               <span style="font-size:14px;color:var(--muted)">{{ home.sub }}</span>
             </div>
-${brief}${sessionsStrip}            <div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
+${brief}${sessionsStrip}${today}            <div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
               <div style="flex:1 1 520px;min-width:0;display:flex;flex-direction:column;gap:36px">
                 <sc-if value="{{ showSince }}" hint-placeholder-val="{{ false }}">
                   <section ref="{{ popIn }}" style="border:1px dashed var(--frame-hi);border-radius:12px;padding:12px 16px;background:var(--card)">

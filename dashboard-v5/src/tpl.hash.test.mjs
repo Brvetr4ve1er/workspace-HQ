@@ -65,9 +65,10 @@ import tpl from './app.tpl.js';
 // 2026-11-10 Projects › Clients: the list fragment (tpl/clients-list.tpl.js, +4800 chars - exactly the fragment's own length) interpolated into projects.tpl.js after the Vercel & Supabase block, one <!-- v5: --> marker; nothing else moved (+4800 chars / +4809 bytes: the fragment's own non-ASCII characters - ellipsis, curly apostrophe, middle dots - count 2 or 3 bytes)
 // 2026-11-10 Brief act in place: two fragments of tpl/brief-act.tpl.js interpolated into the existing Brief row in tpl/brief.tpl.js - the row's one local verb button (+659 chars, with its own line +27) and the done line + inline confirm under the row's text (+2507 chars), one <!-- v5: --> marker; nothing else moved (+3193 chars / +3195 bytes - exactly the two fragments and the button's own line)
 // 2026-11-11 Money for Claude sessions: the Settings card (tpl/money-access.tpl.js, +1966 chars - exactly the fragment's own length) interpolated into ov-settings.tpl.js right after the Reach block, one <!-- v5: --> marker; 18 new mac* vals keys (golden re-recorded, every moved value attributed with tools/golden-diff.mjs)
-const SHA256 = '1383b4e92aacaf62670c3524e498fd7c2599d5f91695e17b33b8ce66863415c8';
-const LENGTH = 406434;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 407074;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-11 Today ribbon (batch 3): the ribbon fragment (tpl/today.tpl.js, +6451 chars / +6459 bytes - exactly the fragment's own length) interpolated into home.tpl.js after the Brief and the sessions strip, its <!-- v5: --> markers; nothing else moved
+const SHA256 = '55ba0800232b58f09f12397b331c71cbf80cd071bda37a2e5f02992c711dac0c';
+const LENGTH = 412885;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 413533;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

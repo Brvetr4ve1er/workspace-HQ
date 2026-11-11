@@ -356,6 +356,19 @@ const TOOLS = [
       return out;
     },
   },
+  // ---- TODAY RIBBON (batch 3; read-only counts from data/today.json, which the app rewrites every 10 minutes; today-tool.mjs never writes) ----
+  {
+    name: 'hq_today',
+    description: "Where today went, as counts from the WorkspaceHQ Today ribbon: five-minute blocks with Claude and across how many projects, commits, PC asleep minutes and browser focus minutes, in one sentence plus the numbers. A block is five minutes with at least one turn in a Claude chat, not a measure of time spent. A count is null when its source could not be read (the sentence says so). Answers 'as of HH:MM'; with WorkspaceHQ closed it answers the last file it wrote and says so. Only today is answered here: another day needs the app open (its Home ribbon steps back up to 7 days). Read-only. It never returns a project name, website, commit message or path.",
+    inputSchema: { type: 'object', properties: {
+      daysAgo: { type: 'integer', minimum: 0, maximum: 6, description: 'Only 0 (today, the default) is answered here; another day is an error that says to open WorkspaceHQ.' } }, additionalProperties: false },
+    async run(args) {
+      const m = await import('./today-tool.mjs');
+      const out = m.readToday({ dataDir: DATA, daysAgo: args && args.daysAgo });
+      if (out && out.error) throw new ToolError(String(out.error));
+      return out;
+    },
+  },
   // ---- MONEY IN WORDS (read-only, off until the owner turns it on in Settings; money-read.mjs never writes anything and works with the app closed) ----
   {
     name: 'hq_money_today',

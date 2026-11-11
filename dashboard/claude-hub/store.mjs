@@ -5,6 +5,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'node:crypto';
 import promptNote from '../claude-prompt-note.js';
+import { activityBuckets } from './buckets.mjs';   // Today ribbon (batch 3): additive op, a pure query over this handle
 const { variablesOf } = promptNote;
 
 // Stable identity of a history.jsonl line (session + timestamp + indexed text): survives rotation/truncation, unlike the byte-offset id.
@@ -460,6 +461,7 @@ function api(db) {
     },
     linkRows: () => q("SELECT id, path, hq_project_id, link_state FROM project WHERE source = 'code' ORDER BY id").all().map((r) => ({ ...r })),
     optimize: () => { db.exec("INSERT INTO message_fts(message_fts) VALUES('optimize')"); },
+    activityBuckets(a) { return activityBuckets(db, a || {}); },   // throws on bad args; the Hub turns that into { ok:false, error }
     stats({ from, to, projectId, tzOffsetMin = 0 } = {}) {
       const DAY = /^\d{4}-\d{2}-\d{2}$/;
       if (!DAY.test(String(from)) || !DAY.test(String(to))) throw new Error('stats: from/to must be YYYY-MM-DD');

@@ -510,6 +510,38 @@ function createFake(opts) {
   })();
   // END cosmos-rows
 
+  // Home › Where today went (hq.today.read): an INVENTED day in the shape dashboard/day-core.mjs builds. dayOffset 0..3 = a full day (three
+  // invented projects, a browser lane, a sleep, commit ticks); 4..6 = the partial day (no Claude source, browser not kept, no app log); anything
+  // else is refused as main refuses it. Same data as placeholderDay in src/selftest-today.mjs (a classic script cannot import it).
+  const todayRead = (o) => {
+    const n = o && typeof o === 'object' && !Array.isArray(o) ? o.dayOffset : undefined;
+    if (!Number.isInteger(n) || n < 0 || n > 6) return { error: 'dayOffset must be a whole number from 0 to 6' };
+    const day = ['2026-11-10', '2026-11-09', '2026-11-08', '2026-11-07', '2026-11-06', '2026-11-05', '2026-11-04'][n], today = n === 0;
+    const blk = (lane, list) => list.map(([a, b]) => ({ lane, kind: 'block', startMin: a, endMin: b }));
+    const base = { ok: true, dayOffset: n, day, isToday: today, nowMin: today ? 14 * 60 + 20 : null, tzOffsetMin: 0, generatedAt: day + 'T14:20:00.000Z' };
+    if (n >= 4) {
+      const ln = (id, kind, state, note) => ({ id, kind, ref: null, state, ...(note ? { note } : {}) });
+      return { ...base,
+        lanes: [ln('claude', 'claude', 'unavailable', 'Claude lane: update the Hub (this one does not know the day query yet)'), ln('browser', 'browser', 'not-kept', 'browser lane is kept for 3 days'),
+          ln('power', 'power', 'unavailable', 'PC lane: no app log for this day (the app was not running, or the log is older than 30 days)'), ln('commits', 'commits', 'ok')],
+        spans: [], ticks: [{ lane: 'commits', min: 700, count: 2 }],
+        caption: 'Claude blocks unavailable, 2 commits, PC sleep unknown', counts: { claudeBlocks: null, claudeProjects: null, commits: 2, asleepMinutes: null, browserMinutes: null },
+        notes: ['Claude lane: update the Hub (this one does not know the day query yet)', 'browser lane is kept for 3 days', 'PC lane: no app log for this day (the app was not running, or the log is older than 30 days)'] };
+    }
+    const cl = (i, ref, blocks) => ({ id: 'claude-' + i, kind: 'claude', ref, state: 'ok', blocks });
+    return { ...base,
+      lanes: [cl(1, 'code:alpha-site', 22), cl(2, 'code:beta-app', 11), cl(3, 'code:gamma-notes', 4),
+        { id: 'browser', kind: 'browser', ref: null, state: 'ok' }, { id: 'power', kind: 'power', ref: null, state: 'ok' }, { id: 'commits', kind: 'commits', ref: null, state: 'ok' }],
+      spans: [...blk('claude-1', [[540, 580], [600, 640], [760, 790]]), ...blk('claude-2', [[620, 660], [800, 830]]), ...blk('claude-3', [[840, 860]]),
+        { lane: 'browser', kind: 'focus', startMin: 530, endMin: 560 }, { lane: 'browser', kind: 'focus', startMin: 700, endMin: 735 },
+        { lane: 'power', kind: 'awake', startMin: 480, endMin: 690 }, { lane: 'power', kind: 'asleep', startMin: 690, endMin: 750 }, { lane: 'power', kind: 'awake', startMin: 750, endMin: today ? 860 : 1080 },
+        { lane: 'power', kind: 'unknown', startMin: 0, endMin: 480 }],
+      ticks: [{ lane: 'commits', min: 585, count: 1 }, { lane: 'commits', min: 655, count: 2 }, { lane: 'commits', min: 805, count: 1 }],
+      caption: '37 five-minute blocks with Claude across 3 projects, 4 commits, PC asleep 1 h',
+      counts: { claudeBlocks: 37, claudeProjects: 3, commits: 4, asleepMinutes: 60, browserMinutes: 65 },
+      notes: ['PC lane: stretches with no app log line are shown as unknown, never as asleep'] };
+  };
+
   // [method path, kind]: WRITE resolves true · SEND returns undefined · 'on:<channel>'
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
@@ -594,6 +626,7 @@ function createFake(opts) {
     }],
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
+    ['today.read', todayRead],   // Home › Where today went: invented days, offsets 0..3 full, 4..6 partial, others refused
     // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
     ...COSMOS.rows,
   ];

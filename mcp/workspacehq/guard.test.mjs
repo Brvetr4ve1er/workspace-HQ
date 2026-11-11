@@ -112,7 +112,7 @@ const until = async (fn, ms = 8000) => { const t0 = Date.now(); while (Date.now(
 
 test('the tier table: five read tools today plus the Pass reads, note, run, stage; no act; drift helper', () => {
   assert.equal(tierOf('hq_brief'), 'read');
-  for (const t of ['hq_brief', 'hq_status', 'hq_quests_list', 'hq_social_outbox', 'hq_activity', 'hq_recall', 'hq_chat_read', 'hq_sessions', 'hq_delivery', 'hq_cosmos_search', 'hq_library_find', 'hq_money_today']) assert.equal(TOOL_TIERS[t], 'read', t);
+  for (const t of ['hq_brief', 'hq_status', 'hq_quests_list', 'hq_social_outbox', 'hq_activity', 'hq_recall', 'hq_chat_read', 'hq_sessions', 'hq_delivery', 'hq_cosmos_search', 'hq_library_find', 'hq_today', 'hq_money_today']) assert.equal(TOOL_TIERS[t], 'read', t);
   assert.equal(tierOf('hq_cosmos_search'), 'read');
   for (const t of ['hq_capture', 'hq_quest_done', 'hq_social_cancel']) assert.equal(TOOL_TIERS[t], 'note', t);
   assert.equal(TOOL_TIERS.hq_scan_trigger, 'run');

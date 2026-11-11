@@ -41,6 +41,7 @@ import { clientsListLogic } from './logic/clients-list.js';   // batch 2: Projec
 import { deliveryLogic } from './logic/delivery.js';   // Client delivery card on each project page: Mark, pick a scope file, checklist items, Copy update
 import { moneyStartLogic } from './logic/money-start.js';   // Money in one minute: the start card, the quick line, Ctrl K's Log a spend
 import { sessionsBoardLogic } from './logic/sessions-board.js';   // Claude › Sessions board + Home strip: Resume, Copy command, Open folder
+import { todayLogic } from './logic/today.js';   // batch 3: Home › Where today went (tdy*)
 import { moneyAccessLogic } from './logic/money-access.js';   // batch 2: Settings › Claude sessions may read Money in words (mac*)
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
@@ -108,6 +109,8 @@ export class Component extends DCLogic {
       // Ask (logic/ask.js, contract K-1): { askHistory, askInclude } from v3's localStorage keys; Ask saves them itself
       ...(this.askInitState ? this.askInitState() : {}),
       ...cosInitState(P, saved),
+      // Home › Where today went (logic/today.js): 0 = today; bumped when project names arrive from the Hub
+      tdyOffset: 0, tdyNamesAt: 0,
     };
   }
 
@@ -407,5 +410,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, cosmosLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic);
 Component.prototype.renderVals = renderVals;

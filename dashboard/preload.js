@@ -215,6 +215,11 @@ contextBridge.exposeInMainWorld('hq', {
     set: (on) => ipcRenderer.invoke('hq:money-access:set', on),
   },
 
+  // Home: where today went (IPC-CONTRACT hq:today:read; { dayOffset: 0..6 }, read once per arrival, nothing is written)
+  today: {
+    read: (o) => ipcRenderer.invoke('hq:today:read', o),
+  },
+
   // Cosmos space (IPC-CONTRACT hq:cosmos:*). Intents and element ids only; paths come from main or from pathForFile (a dropped File).
   cosmos: {
     read: (opts) => ipcRenderer.invoke('hq:cosmos:read', opts),

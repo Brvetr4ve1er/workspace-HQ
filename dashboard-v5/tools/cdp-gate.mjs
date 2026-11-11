@@ -32,6 +32,8 @@
 //   brief-act-done · brief-act-commit · brief-act-balance · brief-act-forged · brief-waiting-render
 // Money for Claude sessions (batch 2; --preload=fake; tools/cdp-money-access.mjs; the fake's hq.moneyAccess starts OFF and answers set(on) with { on }; each scenario ends with hqFake.reset(true) and Settings closed):
 //   money-access-off-by-default · money-access-toggle
+// Today ribbon (batch 3; --preload=fake; tools/cdp-today.mjs; the fake's hq.today.read answers invented days: offsets 0..3 full, 4..6 partial, others refused; each scenario ends with hqFake.reset(true) and day 0 shown):
+//   today-render · today-step-back · today-partial
 // Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
 //   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
 //   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
@@ -70,6 +72,7 @@ import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
 import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
+import { makeTodayScenarios } from './cdp-today.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2056,6 +2059,7 @@ Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

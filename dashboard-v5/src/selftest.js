@@ -25,7 +25,9 @@ const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', palette
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false,
   // Money for Claude sessions (Settings): the switch as main last said it, back to unloaded before every combo
-  macOn: false, macLoaded: false, macAskedAt: null, macBusy: false, macErr: '' };
+  macOn: false, macLoaded: false, macAskedAt: null, macBusy: false, macErr: '',
+  // Home › Where today went: back to today before every combo
+  tdyOffset: 0, tdyNamesAt: 0 };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
 // Ask entries as logic/ask.js keeps them: { id, q, a: { text, status, meta (v3's), est } } (+ local / refusal)
 const ASK_SEC = [{ id: 'scan', label: 'Scan', chars: 900, clipped: false }, { id: 'tasks', label: 'Tasks', chars: 400, clipped: true }, { id: 'vault', label: 'Vault', chars: 0, clipped: false, note: 'no matching notes' }];
@@ -121,6 +123,7 @@ export async function run(W = window.WHQ) {
     // the Cosmos states (src/selftest-cosmos.mjs) run on the invented library generator (tools/cosmos-fixture.mjs): the readable copy, no JSON file
     const { cosmosStates, COSMOS_OFFLINE_ROWS, COSMOS_SCRUBBED_ROWS } = await import('./selftest-cosmos.mjs');
     const { fakeCosmos } = await import('../tools/cosmos-fixture.mjs');
+    const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
     const base = { askHistory: initial.askHistory };
 
     for (const theme of ['dark', 'light']) {
@@ -139,7 +142,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery, cosmos: LV.cosmos };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery, cosmos: LV.cosmos, today: LV.today };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -317,6 +320,21 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, cosInitState(), { themePref: theme, snapOffset: 0 }, cs, extra || {}));
             });
           } finally { W.store.hq = hq3; W.store.refreshCosmos = rc0; }
+        }
+        // Home › Where today went (src/selftest-today.mjs): every state of the ribbon on invented days. The slice is put straight into the store and the
+        // arrival read is held (the fake's own answer would replace it); today-offline hides hq.today for one combo (the store's hq, never window.hq).
+        for (const [name, sub, tLive, ts, extra] of todayStates()) {
+          const hq4 = W.store.hq, rt0 = W.store.refreshToday;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (TODAY_OFFLINE_ROWS.includes(name) && hq4) W.store.hq = Object.assign({}, hq4, { today: undefined });
+              W.store.refreshToday = () => Promise.resolve({});
+              LV.today = tLive;
+              L._tdyAsked = true;
+              L.go('home', null);
+              L.setState(Object.assign({}, CLEAR, base, todayInitState(), { themePref: theme, snapOffset: 0 }, ts, extra || {}));
+            });
+          } finally { W.store.hq = hq4; W.store.refreshToday = rt0; LV.today = savedLive.today; L._tdyAsked = false; }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

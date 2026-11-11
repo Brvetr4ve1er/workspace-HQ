@@ -1251,6 +1251,7 @@ if (!app.requestSingleInstanceLock()) {
     claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog, vaultDir: VAULT });   // Claude Hub (spec 2026-10-13): index of every Claude Code session
     require('./claude-bridge-routes').setHub(claudeHub);   // claude.ai live sync: the extension's /claude/* bridge routes ask this Hub
   require('./claude-vault').init({ ipcMain, hub: claudeHub, dataDir: DATA, vaultDir: VAULT });   // Claude Hub H5: Save to vault (writes only on the owner's Save)
+  require('./day-ribbon').init({ ipcMain, dataDir: DATA, hub: claudeHub, projectsOf: () => studioProjects().map((p) => p.path) });   // Today ribbon (IPC-CONTRACT hq:today:read): read on demand, data/today.json every 10 min
     const claudeChatEngine = require('./claude-chat').init({ ipcMain, send: castSend, app, hub: claudeHub, getProjects: studioProjects, appLog });   // Claude Hub H3 in-app chat (spec 2026-10-13 §8)
     require('./vault-open').init({ ipcMain, app, shell, dataDir: DATA, docsRoot: DOCS_ROOT, log: (s) => console.log(s) });   // Life › Notes: Open in Obsidian / Search for a scanned, Obsidian-registered vault (hq:vault-open)
     require('./pc-health-open').init({ ipcMain, shell, dataDir: DATA });   // System › Machine: Open in Explorer for a folder in the current disk breakdown (hq:pc-open-folder)

@@ -451,6 +451,8 @@ function main() {
       if (!items.length || items.length > 50) throw new Error('syncPush needs 1–50 items');
       return pushItems(items);
     },
+    // Today ribbon (batch 3, additive; readers answer it): 5-minute activity blocks per project. No open index is an error, never an empty list.
+    activityBuckets: (a) => { if (!store) throw new Error('the index is not open yet'); return store.activityBuckets(a || {}); },
     stats: (a) => (store ? store.stats(a) : { from: a.from, to: a.to, tzOffsetMin: 0, days: [], projects: [],
       totals: { chats: 0, active_ms: 0, tokens_in: 0, tokens_out: 0, tokens_cache_read: 0, tokens_cache_write: 0 } }),
     link: (a) => {

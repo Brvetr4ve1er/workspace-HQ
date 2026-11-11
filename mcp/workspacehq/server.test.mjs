@@ -29,7 +29,7 @@ before(() => {
   fs.copyFileSync(path.join(path.dirname(SERVER), 'hub-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'hub-read.mjs'));
   fs.mkdirSync(path.join(root, 'dashboard', 'claude-hub'), { recursive: true });
   const dash = path.join(path.dirname(SERVER), '..', '..', 'dashboard');
-  for (const f of ['store.mjs', 'redact.mjs', 'redact-more.mjs']) fs.copyFileSync(path.join(dash, 'claude-hub', f), path.join(root, 'dashboard', 'claude-hub', f));
+  for (const f of ['store.mjs', 'buckets.mjs', 'redact.mjs', 'redact-more.mjs']) fs.copyFileSync(path.join(dash, 'claude-hub', f), path.join(root, 'dashboard', 'claude-hub', f));
   fs.copyFileSync(path.join(dash, 'claude-prompt-note.js'), path.join(root, 'dashboard', 'claude-prompt-note.js'));
   // sessions (hq_sessions): the tool and the app's classifier it imports, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'sessions-tool.mjs'), path.join(root, 'mcp', 'workspacehq', 'sessions-tool.mjs'));
@@ -41,6 +41,9 @@ before(() => {
   // Cosmos search (hq_cosmos_search): the reader, and the renderer's one search grammar with its colour helper, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'cosmos-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'cosmos-read.mjs'));
   fs.copyFileSync(path.join(path.dirname(SERVER), 'library-find.mjs'), path.join(root, 'mcp', 'workspacehq', 'library-find.mjs'));
+  // Today ribbon (hq_today): the reader and the pure day core it imports, in the same relative shape
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'today-tool.mjs'), path.join(root, 'mcp', 'workspacehq', 'today-tool.mjs'));
+  fs.copyFileSync(path.join(dash, 'day-core.mjs'), path.join(root, 'dashboard', 'day-core.mjs'));
   fs.mkdirSync(path.join(root, 'dashboard-v5', 'src', 'logic'), { recursive: true });
   for (const f of ['cosmos-search.mjs', 'cosmos-color.mjs']) fs.copyFileSync(path.join(path.dirname(SERVER), '..', '..', 'dashboard-v5', 'src', 'logic', f), path.join(root, 'dashboard-v5', 'src', 'logic', f));
   // Money in words (hq_money_today): the reader and the money engine files it imports (not their tests), in the same relative shape
@@ -514,4 +517,36 @@ test('hq_brief returns standing (additive): the stepped-aside items with their s
   fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify({ v: 1, generatedAt, more: 0, errors: [], items: [mk(1)] }));
   const old = await rpc([{ id: 38, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]);
   assert.deepEqual(toolResult(old[38]).standing, [], 'a brief.json written before standing existed answers []');
+});
+
+// ---- Today ribbon: hq_today through the loop (the reader itself is pinned in today-tool.test.mjs) ----
+test('hq_today is tiered read, answers today as counts with its age, says honestly when the app has not written it, and refuses another day with a message that names the app', async () => {
+  const file = path.join(root, 'data', 'today.json');
+  fs.rmSync(file, { force: true });
+  const none = await rpc([{ id: 90, method: 'tools/call', params: { name: 'hq_today', arguments: {} } }]);
+  assert.equal(none[90].result.isError, true);
+  assert.match(none[90].result.content[0].text, /open WorkspaceHQ/i);
+  const d = new Date(Date.now() - 4 * 60e3);
+  const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  fs.writeFileSync(file, JSON.stringify({ v: 1, day, generatedAt: d.toISOString(), counts: { claudeBlocks: 12, claudeProjects: 2, commits: 3, asleepMinutes: null, browserMinutes: null } }));
+  try {
+    const r = await rpc([
+      { id: 91, method: 'tools/call', params: { name: 'hq_today', arguments: {} } },
+      { id: 92, method: 'tools/call', params: { name: 'hq_today', arguments: { daysAgo: 2 } } },
+      { id: 93, method: 'tools/list' },
+    ]);
+    assert.equal(r[91].result.isError, undefined, JSON.stringify(r[91]));
+    const out = toolResult(r[91]);
+    assert.equal(out.counts.claudeBlocks, 12);
+    assert.equal(out.counts.asleepMinutes, null, 'an unreadable source stays null, never 0');
+    assert.match(out.asOf, /^as of \d\d:\d\d$/);
+    assert.equal(out.appLikelyOpen, true);
+    assert.equal(r[92].result.isError, true);
+    assert.match(r[92].result.content[0].text, /WorkspaceHQ/);
+    const tool = r[93].result.tools.find((x) => x.name === 'hq_today');
+    assert.ok(tool, 'hq_today is listed');
+    assert.equal(tierOf('hq_today'), 'read');
+    assert.equal(tool.inputSchema.required, undefined, 'no required field');
+    assert.doesNotMatch(JSON.stringify(out), /[\/]|\.test|http/i, 'no path, site or url in any answer');
+  } finally { fs.rmSync(file, { force: true }); }
 });
