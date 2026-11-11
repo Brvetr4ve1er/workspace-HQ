@@ -42,7 +42,7 @@ for keys), Tasks, Automations, Claude sessions, History, System and Life.
 In v5, Ask answers questions from your scan data with a local model (Ollama or LM Studio, on
 localhost).
 
-One global hotkey: `Ctrl+Alt+X` (quick-run). The summon, snip, recorder and Studio hotkeys went
+One global hotkey: `Ctrl+Alt+X` (quick-run). With nothing typed it leads with what needs you; Tab switches to Go mode (any space, view or project). The summon, snip, recorder and Studio hotkeys went
 with their features on 2026-10-28.
 
 ## Run it (PowerShell)

@@ -707,6 +707,20 @@ New files `dashboard/brief-act.js` + `dashboard/brief-act-core.mjs` (one init li
 
 Rules of the channel: main never parses a key. It REBUILDS keys from the live source records (the red quests, the stale Money accounts, the waiting sessions the last compute used) and acts only on the record whose rebuilt key equals the one sent, so an id comes from the record, never from the string. A forged or expired key, a verb of another rule, a `value` on a verb that takes none, a balance that is not a plain number (digits and separators, under 1e9) and a second click on a key while one is in flight each return `{error}` and write nothing. `quest-done` runs main's own `applyDone` (the DONE button's path: overrides + assemble, never render); `confirm-balance` runs the money engine's existing `account-save` intent through `hq:money:apply`'s own function, which re-anchors the account at now with the typed balance; `open-folder` is the sessions board's own open-folder rule (`shell.openPath` only). There is no push verb and no outbound verb. The use log gets one `use` mark per performed or handed-over verb (surface `brief-act`, action `act`), and the app log one line per outcome carrying the rule id and verb only, never a name, id, path or amount. The renderer feature-detects `window.hq.brief.act`; without it a row shows no verb.
 
+### Quick jump — the Ctrl+Alt+X palette (2026-11-10, additive; rows written before the handlers land)
+
+New files `dashboard/quick-targets.js` (main side) and `dashboard/cast-modes.js` (the pure half the palette page loads); one init line in `main.js`. No data file. The palette keeps its spell list and the Log a spend row; with an empty query up to three "Needs you" rows lead the list, and Tab switches to Go mode (spaces and sub-views; projects by name once a character is typed). A Go row only navigates, it never runs anything.
+
+The cast window loads the SAME shared `preload.js` as the main window, so it receives every `hq.*` group; a new preload group narrows nothing and is not claimed to. Protection is the sender: every `hq:quick:*` handler answers `{error:"not available from this window"}` unless `event.sender` is the cast window's own webContents (a missing check fails closed).
+
+| `window.hq` method | Channel | Args | Returns | Primary surface |
+|---|---|---|---|---|
+| `quick.read()` | `hq:quick:read` | none | `{brief:[{ref, label, scan}], status:'ok'\|'empty'\|'incomplete'\|'not-ready', projects:[{id, name}] \| null}` \| `{error}` — `brief` is the tray's screen-safe projection (`tray-brief.view().rows`: a 12-hex ref, the fixed-wording label, a scan flag; never the reason, an amount, a path or a name), at most 3; `projects` is FLAT, ids a route cannot carry are left out, `null` = no `latest.json` (the palette says "no projects loaded") | cast palette |
+| `quick.openBrief(ref)` | `hq:quick:open-brief` | a 12-hex ref | `'go'` \| `'scan'` \| `'none'` \| `{error}` — main maps the ref to the item's full action in the CURRENT brief (`trayBrief.open`), never through the projection; `'scan'` runs the tray's Scan now path (`{error}` when a scan did not start); a ref that is not 12 hex, or no longer on the brief, is `'none'` | cast palette |
+| `quick.openGo(route)` | `hq:quick:open-go` | `{tab, sub?, projectId?}` | `{ok:true}` \| `{error}` — the route is checked against nav-bridge `cleanRoute`, the palette's own table of spaces and sub-views (pinned to `catalog.mjs` by `quick-targets-parity.test.mjs`) and, for a project, against `latest.json`; the route handed to the window is rebuilt (`{tab, sub?, projectId?}`, nothing else rides along) | cast palette |
+
+One use mark per success (`surface:'quick-jump'`, `action:'open'`, no names). Handlers answer `{error}` instead of throwing.
+
 ## 2026-11-07 — Cosmos space (rows written before the handler lands)
 
 Additive only. New file `dashboard/cosmos.js` + `dashboard/cosmos/*.mjs` (one hook line in `main.js`, taking `getWin` and

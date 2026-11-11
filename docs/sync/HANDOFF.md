@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 2 rest: quick jump landed - Ctrl+Alt+X shows what needs you, then jumps anywhere) · main @ 6bbec29 + this work
+DONE: the quick-run palette (Ctrl+Alt+X) gains two things, nothing removed. With an empty query up to three "Needs you" rows lead the spell list (the tray's screen-safe wording only; Enter opens the app where it is cleared, or runs Scan now),
+  and Tab switches to Go mode: every space and sub-view, plus projects by name once a character is typed. A Go row only navigates, it never runs anything. New files dashboard/quick-targets.js (main side, three IPC channels
+  hq:quick:read|open-brief|open-go) and dashboard/cast-modes.js (pure half the page loads); shared edits are one init line in main.js, hq.quick in preload.js, cast.html + cast.js (absent cast-modes.js = the old palette), the
+  quick-jump use-log surface, the fake preload stand-in, and the IPC-CONTRACT rows. The cast window loads the SAME shared preload as the main window, so protection is the sender check on every handler, not a narrow bridge.
+  quick-targets-parity.test.mjs pins the Go table to catalog.mjs NAV/SUBS (Projects > Clients included, exact). Tab order tie-break for "run" is a fixed table (Money > Runway first); a use-log-driven override is not built.
+IN-FLIGHT: Money words (mcp guard.mjs/server.mjs, money-access.js) - this batch only.
+ASKS (struct): none. BREAKS: none (additive; no data shape moves, no golden moved).
+
+---
 ## 2026-11-10 · FROM frontend (batch 2 rest: launch tools landed - quest and project sessions carry the workspacehq tools in an explicit permission mode) · main @ 544c2d3
 DONE: sessions the app opens from a quest or project now run `claude "<prompt>" --permission-mode default [--mcp-config <tmp>]` through dashboard/claude-launch-tools.cmd (dashboard/launch-tools.js builds the args;
   claude-launch.js takes opts.tools; main.js: one create line, { tools } on the hq:claude-quest launch, sweepStale() at startup, cleanup() in the existing before-quit). Outside this repo the session gets a per-launch
