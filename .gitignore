@@ -111,3 +111,5 @@ data/today.json*
 data/brief-ledger.json*
 data/disk-history.json*
 data/intents/
+# Security space (batch 4, 2026-11-11): the account map, the owner's edits, status and snapshots - owner data, never committed
+data/security/

@@ -847,3 +847,24 @@ Main: `dashboard/machine-history.js` (new file, read-only; one `init` line in `m
 | Preload | Channel | Args | Answer | Notes |
 |---|---|---|---|---|
 | `machineHistory.read()` | `hq:machine-history:read` | none | `{ ok:true, rows:[{ at, cpu, ram, diskFreeGB, startup, temp, pingMs, updateDays }], disk:{ lines:[{ label, deltaGB, days }], note }, counts:{ rows, dropped, diskDays } }` or `{ error }` | Only those eight history fields are returned: `gpuDriverDays`, `gpuTempC`, `battery` and any path are never returned. At most 200 rows, files over 1 MB are refused. `disk.lines` are the folders that grew (newest complete reading against the complete one nearest 7 days earlier, at least 0.1 GB, at most 5), labels only. Read-only: it never moves or fixes a corrupt store, it only degrades `disk.note`. |
+
+### Security — the account map, health and setup (batch 4, 2026-11-11; additive; rows written before the handlers land)
+
+Main: `dashboard/security.js` (new file; ONE `init` line in `main.js`, placed after the use-log init), with `security-store.js` and `security-vault.js`. Preload group `hq.security`. Data: CONTRACT.md "`data/security/*`". Usage mark surfaces `security` and `security-refresh` (the renderer marks them through `hq:use`). No push channel.
+
+**Every `hq:security:*` channel is main-window only**: the handler first checks `event.sender === getWin().webContents` and otherwise answers `{ error:'not available here' }` (the cast palette window loads the same preload and must never reach `read`, which returns decrypted identity labels, nor refresh, edit, add, trash or copy). Nothing is refreshed at boot, on a timer, from MCP, the Bridge or a session. The handler for `hq:security:refresh` never forwards its args to any logger; the passphrase exists only as the invoke argument and the cli's stdin.
+
+| Preload | Channel | Args | Answer | Notes |
+|---|---|---|---|---|
+| `security.read()` | `hq:security:read` | none | `{ settings, map, owner, snapshots, status, cliFound:boolean, vaultExists:boolean }` or `{ error }` | `map.identities[].label` is DECRYPTED here (or null = "locked"); this answer goes to the main window only. `snapshots` is the last 400. |
+| `security.refresh(passphrase, checkBreaches)` | `hq:security:refresh` | `{ passphrase:string (1..1024, no CR or LF), checkBreaches:boolean }` | `{ ok:true, accounts, breachChecked:boolean, notes:string[] }` or `{ error }` | Single-flight (`{ error:'a refresh is already running' }`). Errors are words: `wrong passphrase or key file`, `vault file not found`, `KeePassXC is not installed`, `unreadable export`, `the export is too large (attachments in the vault?)`. A failed refresh writes nothing. The only outbound call is the HIBP range GET, only when `checkBreaches` is true. |
+| `security.settings(patch)` | `hq:security:settings` | `{ vaultPath?, keyFilePath?, cliPath? }` (absolute; `vaultPath` ends `.kdbx`) | `{ ok:true }` or `{ error }` | |
+| `security.edit(id, patch)` | `hq:security:edit` | `{ id, patch:{ signInWith?, recoveryRef?, twofa?, hiddenFromClaude?, archived? } }` | `{ ok:true }` or `{ error }` | Any other patch key is refused. |
+| `security.addManual(o)` | `hq:security:add-manual` | `{ title, host }` | `{ ok:true, id:'m-<12 hex>' }` or `{ error }` | The record carries `createdAt`. |
+| `security.addIdentity(o)` | `hq:security:add-identity` | `{ kind:'email'|'phone', value }` | `{ ok:true, ref }` or `{ error }` | The value is stored only as an `enc:` label; with safeStorage unavailable there is no ref and the answer is an error. |
+| `security.walkthrough(stepId, done)` | `hq:security:walkthrough` | `{ stepId, done:boolean }` | `{ ok:true }` or `{ error }` | |
+| `security.scanExports()` | `hq:security:scan-exports` | none | `{ files:[{ name, dir, size, mtime }] }` | Top level of Downloads, Desktop and Documents, by name only; "may be" wording. |
+| `security.trashExport(name, dir)` | `hq:security:trash-export` | `{ name, dir }` | `{ ok:true }` or `{ error }` | Only a file in the latest scan list, to the Recycle Bin; the day-log line carries no file name. |
+| `security.copy(text)` | `hq:security:copy` | `{ text }` | `{ ok:true }` | Clipboard, cleared after 30 s only if it still holds the same text (honest limit: Windows clipboard history or a cloud clipboard may keep it). |
+
+The same names-and-flags view for a Claude session is the MCP tool `hq_footprint` (tier `read`, CONTRACT.md "`data/security/*`").

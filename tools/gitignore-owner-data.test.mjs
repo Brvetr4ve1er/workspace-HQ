@@ -29,6 +29,10 @@ const OWNER_DATA = [
   'data/cosmos/clips.json', 'data/cosmos/imports/clip-0123456789ab.png', 'data/cosmos/.grab-tmp/x.part',
   'data/today.json', 'data/today.json.1234.tmp', 'data/brief-ledger.json', 'data/brief-ledger.json.corrupt', 'data/brief-ledger.json.1234.tmp',
   'data/disk-history.json', 'data/disk-history.json.1234.tmp', 'data/intents/x.json', 'data/intents/x.json.1234.tmp',
+  // batch 4 (2026-11-11): the Security space; one temp name each
+  'data/security/map.json', 'data/security/map.json.1234.tmp', 'data/security/owner.json', 'data/security/owner.json.1234.tmp',
+  'data/security/settings.json', 'data/security/settings.json.1234.tmp', 'data/security/status.json', 'data/security/status.json.1234.tmp',
+  'data/security/snapshots.jsonl', 'data/security/snapshots.jsonl.1234.tmp',
 ];
 
 test('every owner data path is gitignored (public repo)', () => {
