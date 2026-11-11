@@ -103,7 +103,16 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
       errors: errors.concat(Array.isArray(s.errors) ? s.errors : []) };
   }
 
-  async function compute() {
+  // One compute at a time: the read, the debounce, the interval, onBoard and dismiss all call this, and a slow older run (the Hub health
+  // call waits up to 5 s) must never reach the ledger after a newer one, or its stale dismissed list reopens a row the newer run closed.
+  let chain = Promise.resolve();
+  function compute() {
+    const run = chain.then(computeOnce, computeOnce);
+    chain = run.then(() => {}, () => {});
+    return run;
+  }
+
+  async function computeOnce() {
     const L = await lib();
     const st = loadState();
     const inputs = await buildInputs();

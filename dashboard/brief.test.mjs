@@ -456,3 +456,21 @@ test('a ledger gets each computed brief AFTER the brief.json write, with the dis
   assert.deepEqual([...handlers.keys()].sort(), ['hq:brief-history:read', 'hq:brief:dismiss', 'hq:brief:read']);
   api.stop();
 });
+
+test('computes are serialized: a slow compute and a fast one that overlap never reach the ledger out of order', async () => {
+  const log = [];
+  let n = 0, releaseFirst;
+  const gate = new Promise((r) => { releaseFirst = r; });
+  const hub = { request: async (op) => { const ok = { webCount: 1, lastSyncAt: '2026-11-05T09:00:00Z' }; if (op !== 'health') return ok; const id = ++n; log.push('hub' + id + ' start'); if (id === 1) await gate; log.push('hub' + id + ' end'); return ok; } };
+  const ledger = { observe: async () => { log.push('observe'); } };
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const b = brief.create({ dataDir, ...fakes({ hub }), ledger, now: () => NOW });
+  const first = b.compute();
+  const second = b.compute();
+  await new Promise((r) => setTimeout(r, 30));
+  releaseFirst();
+  await Promise.all([first, second]);
+  assert.deepEqual(log, ['hub1 start', 'hub1 end', 'observe', 'hub2 start', 'hub2 end', 'observe'], 'the older compute is observed first, and the second does not start until the first has finished');
+});
