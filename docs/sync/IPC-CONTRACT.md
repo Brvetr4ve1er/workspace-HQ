@@ -750,6 +750,8 @@ As-built (2026-11-08, search core): one more door, NOT an Electron channel. MCP 
 edits applied, `path` root-relative (`imports:<name>` for imports), no thumbnail / hash / colour record. The query grammar is
 ONE file, `dashboard-v5/src/logic/cosmos-search.mjs` (`runSearch`), imported by both the Feed and the MCP reader.
 
+As-built (2026-11-11, batch 3, library find): another door, NOT an Electron channel. MCP `hq_library_find({q?, site?, since?, where?: 'clip'|'library', limit?: 1-20})` (tier `read`, no vals keys, no IPC) answers from `library.json` + `curation.json` + `clips.json` with the same `runSearch` grammar; row and answer shape in CONTRACT.md's Cosmos section (additive).
+
 As-built (2026-11-08, main side; `dashboard/cosmos.js`, hooked in `main.js` after Money, one line with `getWin` and `castSend`):
 - Nine invoke channels (`read`, `apply`, `pick-folder`, `index`, `cancel-index`, `trash`, `reveal`, `import-files`, `import-local`) plus the one
   push `hq:cosmos:index-progress`; every handler resolves a value or `{error}` and none throws at the renderer.
