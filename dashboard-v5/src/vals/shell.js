@@ -3,6 +3,7 @@
 // keyboard sheet and toasts.
 import { FX } from '../logic/shared.js';
 import { machineIssues, machineVerdict } from '../logic/system.js';
+import { SEC_SUBTITLE } from '../logic/security.js';   // Security's screen subtitle (batch 4)
 
 export function shellVals(ctx) {
   const { S, H, LIVE, off, live, ps, cantWrite, writeReason, snap, viewedLabel, projects, open, unc, unp, sec, level, L, ambientDocked, v, ok, onPage, sub, subs, tabStyle, TR, rows, top, tierCount, TK } = ctx;
@@ -15,7 +16,7 @@ export function shellVals(ctx) {
   const nav = H.NAV.map((n, i) => {
     const a = S.tab === n.id && !onPage, b = navBadge[n.id];
     return Object.assign({}, n, {
-      digit: String((i + 1) % 10), delay: String(i * 45), group: GRP[n.id] || '', showGroup: !!GRP[n.id] && L.railLabels, showDivider: !!GRP[n.id] && !L.railLabels && i > 0, go: () => this.go(n.id), current: a ? 'page' : null, title: n.label + ' (' + ((i + 1) % 10) + ')', hasBadge: !!b, badge: b ? b[0] : '',
+      digit: i < 10 ? String((i + 1) % 10) : '' /* v5: only the first ten destinations have a number key; Security (the 11th) has none */, delay: String(i * 45), group: GRP[n.id] || '', showGroup: !!GRP[n.id] && L.railLabels, showDivider: !!GRP[n.id] && !L.railLabels && i > 0, go: () => this.go(n.id), current: a ? 'page' : null, title: n.label + (i < 10 ? ' (' + ((i + 1) % 10) + ')' : ''), hasBadge: !!b, badge: b ? b[0] : '',
       badgeStyle: { fontFamily: 'var(--px)', fontSize: 10, padding: '3px 5px', background: b ? b[1] : 'none', color: b && b[1] === 'var(--gold)' ? '#3a2a00' : '#fff', marginLeft: L.railLabels ? 0 : -8, alignSelf: L.railLabels ? 'center' : 'flex-start' },
       style: { position: 'relative', display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: L.railLabels ? '0 12px 0 8px' : '0 6px', minWidth: L.railLabels ? 176 : 48, background: a ? 'var(--card)' : 'transparent', border: '1px solid ' + (a ? 'var(--frame)' : 'transparent'), boxShadow: a ? 'inset 4px 0 0 var(--gold), 0 0 0 2px var(--frame)' : 'none', color: a ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', fontFamily: 'var(--term)', fontSize: 14, textAlign: 'left', transition: 'background .12s, color .12s, transform .12s' },
     });
@@ -46,6 +47,7 @@ export function shellVals(ctx) {
     system: H.pcScannedAt ? 'Machine checked ' + new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · live, not historical' : 'No machine check yet',
     life: 'screen time and notes',
     money: LIVE.money && LIVE.money.view ? (LIVE.money.view.hasAccounts ? 'breathing room ' + LIVE.money.view.room.amount + ' · payday ' + LIVE.money.view.payday : 'no accounts yet') + ' · local only, never synced' : 'accounts, bills, jars and receipts · local only',
+    security: SEC_SUBTITLE,
     cosmos: LIVE.cosmos && LIVE.cosmos.works ? (LIVE.cosmos.works.length + ' elements') + ' · local only, read in place' : 'your pictures and videos · local only',
   }[S.tab] || '';
   // ----- toasts -----

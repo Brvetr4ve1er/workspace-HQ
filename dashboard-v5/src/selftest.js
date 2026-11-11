@@ -125,6 +125,8 @@ export async function run(W = window.WHQ) {
     // the Cosmos states (src/selftest-cosmos.mjs) run on the invented library generator (tools/cosmos-fixture.mjs): the readable copy, no JSON file
     const { cosmosStates, COSMOS_OFFLINE_ROWS, COSMOS_SCRUBBED_ROWS } = await import('./selftest-cosmos.mjs');
     const { fakeCosmos } = await import('../tools/cosmos-fixture.mjs');
+    const { securityStates, passphraseLeaks, FAKE_PASSPHRASE, WRONG_PASSPHRASE_ERROR, SECURITY_OFFLINE_ROWS } = await import('./selftest-security.mjs');   // Security space: invented footprint, never a vault
+    const { secInit } = await import('./logic/security.js');
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
@@ -146,7 +148,7 @@ export async function run(W = window.WHQ) {
     // Phase 3 states the cross product above doesn't reach: one view each, both themes, both
     // time-machine ends. A few need sample rows the owner's data may lack; those go into the
     // STORE (store.live, never window.hq) and are put back below.
-    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery, cosmos: LV.cosmos, today: LV.today };
+    const LV = W.store.live, savedLive = { llm: LV.llm, claudeHub: LV.claudeHub, claudeLib: LV.claudeLib, claudeChat: LV.claudeChat, money: LV.money, brief: LV.brief, board: LV.board, delivery: LV.delivery, cosmos: LV.cosmos, today: LV.today, security: LV.security };
     try {
       const at = (tab, sub, project) => ({ tab, sub, project });
       const clutter = (M.CLUTTER || []).find((c) => c.rows && c.rows.length);
@@ -324,6 +326,60 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, cosInitState(), { themePref: theme, snapOffset: 0 }, cs, extra || {}));
             });
           } finally { W.store.hq = hq3; W.store.refreshCosmos = rc0; }
+        }
+        // Security (the 11th destination; src/selftest-security.mjs): every state of the Map, Health, Setup and Generator on the invented footprint, never a vault.
+        // The slice is put straight into the store and the arrival read and the export scan are held (the fake's own answer would replace it); security-offline hides
+        // hq.security for one combo (the store's hq, never window.hq). row[3] IS the whole `sec` state over secInit().
+        for (const [name, sub, secLive, ss, extra] of securityStates()) {
+          const hq7 = W.store.hq, rs0 = W.store.refreshSecurity, sx0 = W.store.scanSecurityExports;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (SECURITY_OFFLINE_ROWS.includes(name) && hq7) W.store.hq = Object.assign({}, hq7, { security: undefined });
+              W.store.refreshSecurity = () => Promise.resolve({}); W.store.scanSecurityExports = () => Promise.resolve({});
+              L.secArrive = () => Promise.resolve(null);   // the arrival would drop the dialog / sheet / generated text this row sets
+              LV.security = secLive;
+              L.go('security', sub);
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, sec: Object.assign({}, secInit(), ss) }, extra || {}));
+            });
+          } finally { W.store.hq = hq7; W.store.refreshSecurity = rs0; W.store.scanSecurityExports = sx0; LV.security = savedLive.security; delete L.secArrive; }
+        }
+        // security-unlock-clears: type the (invented) passphrase into the real dialog, send it, then cancel; at no step may the typed text be in the app state, the
+        // vals tree or the storages, and the input must be empty after send, after an error and after cancel. A wrong one first (an error), then the right one.
+        if (theme === 'dark') {
+          const hq7 = W.store.hq, rs0 = W.store.refreshSecurity, sx0 = W.store.scanSecurityExports;
+          const fail = (what) => note('security-unlock-clears', [what]);
+          const inputEl = () => document.querySelector('[data-sec="pass"]');
+          const leaks = (typed, step) => {
+            let vals = null; try { vals = L.renderVals(); } catch { /* a throwing render is its own failure */ }
+            const storages = {}; for (const [k, s] of [['sessionStorage', sessionStorage], ['localStorage', localStorage]]) { const o = {}; try { for (let i = 0; i < s.length; i++) o[s.key(i)] = s.getItem(s.key(i)); } catch { /* blocked */ } storages[k] = o; }
+            const hits = passphraseLeaks(typed, { state: L.state, vals, storage: storages });
+            if (hits.length) fail(step + ': the typed passphrase is in ' + hits.join(', '));
+          };
+          try {
+            await combo([theme, 'p3:security-unlock-clears'].join(' '), () => {
+              W.store.refreshSecurity = () => Promise.resolve({}); W.store.scanSecurityExports = () => Promise.resolve({});
+              L.secArrive = () => Promise.resolve(null);
+              LV.security = securityStates().find((r) => r[0] === 'security-map-flags')[2];
+              L.go('security', 'map');
+              L.setState(Object.assign({}, CLEAR, base, { themePref: 'dark', snapOffset: 0, sec: Object.assign({}, secInit(), { dlg: { busy: false, error: '', breaches: false } }) }));
+            });
+            await sleep(60);
+            for (const typed of ['wrong horse example', FAKE_PASSPHRASE]) {
+              const el = inputEl();
+              if (!el) { fail('the unlock dialog has no passphrase field'); break; }
+              el.value = typed; leaks(typed, 'typed ' + typed.slice(0, 5));
+              if (typeof L.secSubmitUnlock === 'function') { const p = L.secSubmitUnlock(); const e2 = inputEl(); if (e2 && e2.value !== '') fail('the field still holds the text right after send'); leaks(typed, 'sent'); await p; }
+              await rendered(); await sleep(60);
+              const e3 = inputEl(); if (e3 && e3.value !== '') fail('the field still holds the text after the answer');
+              leaks(typed, 'answered');
+              if (L.state.sec && L.state.sec.dlg && L.state.sec.dlg.error && L.state.sec.dlg.error !== WRONG_PASSPHRASE_ERROR && typed !== FAKE_PASSPHRASE) fail('the error is not the wrong-passphrase words: ' + L.state.sec.dlg.error);
+              if (!(L.state.sec && L.state.sec.dlg)) L.setState({ sec: Object.assign({}, L.state.sec, { dlg: { busy: false, error: '', breaches: false } }) });
+              await rendered();
+            }
+            const e4 = inputEl(); if (e4) { e4.value = FAKE_PASSPHRASE; const c = document.querySelector('[data-sec="dialog-cancel"]'); if (c) c.click(); await rendered(); }
+            const e5 = inputEl(); if (e5 && e5.value !== '') fail('the field still holds the text after cancel');
+            leaks(FAKE_PASSPHRASE, 'cancelled');
+          } finally { W.store.hq = hq7; W.store.refreshSecurity = rs0; W.store.scanSecurityExports = sx0; LV.security = savedLive.security; delete L.secArrive; }
         }
         // Home › Where today went (src/selftest-today.mjs): every state of the ribbon on invented days. The slice is put straight into the store and the
         // arrival read is held (the fake's own answer would replace it); today-offline hides hq.today for one combo (the store's hq, never window.hq).

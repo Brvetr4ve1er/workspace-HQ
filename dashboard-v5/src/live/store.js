@@ -14,6 +14,7 @@
 // preload, and then the screen is read-only with a stated reason.
 import * as A from './adapter.mjs';
 import { createCosmosSlice, emptyCosmos } from './cosmos-slice.mjs';
+import { createSecuritySlice, emptySecurity } from './security-slice.mjs';   // Security space (batch 4): read on arrival, never at boot
 import { createTodaySlice, emptyToday } from './today-slice.mjs';   // Home › Where today went: read once per arrival, no push
 import * as C from './catalog.mjs';
 
@@ -45,6 +46,7 @@ export function createStore(DATA, hq) {
     llm: null, casts: {},
     money: { view: null, error: '', loaded: false },
     cosmos: emptyCosmos(),
+    security: emptySecurity(),   // Security space: the last hq:security:read answer (names and flags only; read on arrival, never at boot)
     today: emptyToday(),   // Home › Where today went: the day main last built per offset (hq:today:read)
     brief: { brief: null, error: '', loaded: false },   // Operator Brief: the last brief main computed (hq:brief:*)   // money space: last view from hq:money:* (main owns the data)
     board: { board: null, error: '', loaded: false },   // Sessions board: the last board main built (hq:sessions-board:*)
@@ -504,6 +506,7 @@ export function createStore(DATA, hq) {
     return hubCall(() => hq.claudeHub.stats({ from: localDay(from), to: localDay(to), tzOffsetMin: -new Date().getTimezoneOffset() }), (r) => { lib().stats = r; }, null, (m) => { lib().statsErr = m; });
   }
   const cosmosSlice = createCosmosSlice({ hq, live, emit, pull });
+  const securitySlice = createSecuritySlice({ hq, live, emit, pull });   // nothing in boot, nothing to stop
   const todaySlice = createTodaySlice({ hq, live, emit, pull });   // refreshToday(dayOffset); no subscription, nothing to stop
   function stop() { offs.splice(0).forEach((f) => { try { f(); } catch {} }); clearTimeout(chatTimer); chatTimer = null; cosmosSlice.stopCosmos(); }
 
@@ -512,6 +515,6 @@ export function createStore(DATA, hq) {
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     emit, start, stop, refreshLlm, refreshMoney, applyMoney, previewMoneyLine, importMoney, refreshBrief, dismissBrief, refreshBoard, resumeSession, refreshDelivery, applyDelivery, refreshMachine, refreshGithub, refreshAccounts,
     refreshClaudeLib, syncClaudeLib, moreClaudeConvs, searchClaude, openClaudeDocument, closeClaudeDocument, openClaudeThread, earlierClaudeThread, closeClaudeThread, refreshClaudeStats, refreshClaudeForProject,
-    sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, ...cosmosSlice, ...todaySlice,
+    sendClaudeChat, cancelClaudeChat, adoptClaudeTurn, ...cosmosSlice, ...todaySlice, ...securitySlice,
   };
 }

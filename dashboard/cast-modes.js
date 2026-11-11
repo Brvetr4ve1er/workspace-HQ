@@ -37,7 +37,7 @@
   const REF_RE = /^[0-9a-f]{12}$/;
 
   // ---- the static copy of catalog.mjs NAV + SUBS (the parity test pins it) ----
-  const SPACES = [['home', 'Home'], ['projects', 'Projects'], ['tasks', 'Tasks'], ['automations', 'Automations'], ['claude', 'Claude'], ['history', 'History'], ['system', 'System'], ['life', 'Life'], ['money', 'Money'], ['cosmos', 'Cosmos']];
+  const SPACES = [['home', 'Home'], ['projects', 'Projects'], ['tasks', 'Tasks'], ['automations', 'Automations'], ['claude', 'Claude'], ['history', 'History'], ['system', 'System'], ['life', 'Life'], ['money', 'Money'], ['cosmos', 'Cosmos'], ['security', 'Security']];
   const SUBS = {
     projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase'], ['clients', 'Clients']],
     tasks: [['ranked', 'Ranked'], ['byproject', 'By project'], ['ideas', 'Ideas & risks']],
@@ -48,6 +48,7 @@
     life: [['screen', 'Screen time'], ['notes', 'Notes']],
     money: [['today', 'Today'], ['runway', 'Runway'], ['jars', 'Jars'], ['inbox', 'Inbox']],
     cosmos: [['feed', 'Feed']],
+    security: [['map', 'Map'], ['health', 'Health'], ['setup', 'Setup'], ['generate', 'Generator']],
   };
 
   const norm = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');

@@ -29,6 +29,7 @@ export const NAV = [
   { id: 'life', label: 'Life', glyph: '♥' },
   { id: 'money', label: 'Money', glyph: '◈' },
   { id: 'cosmos', label: 'Cosmos', glyph: '⬡' },
+  { id: 'security', label: 'Security', glyph: '⚿' },   // v5: Security space (batch 4), the 11th destination, no number key
 ];
 export const SUBS = {
   projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase'], ['clients', 'Clients']],
@@ -40,6 +41,7 @@ export const SUBS = {
   life: [['screen', 'Screen time'], ['notes', 'Notes']],
   money: [['today', 'Today'], ['runway', 'Runway'], ['jars', 'Jars'], ['inbox', 'Inbox']],
   cosmos: [['feed', 'Feed']],
+  security: [['map', 'Map'], ['health', 'Health'], ['setup', 'Setup'], ['generate', 'Generator']],
 };
 export const ST = {
   risk: { label: 'At risk', color: 'var(--red)', tone: 'red', rank: 0 },

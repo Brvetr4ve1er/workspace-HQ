@@ -47,6 +47,7 @@ import { moneyAccessLogic } from './logic/money-access.js';   // batch 2: Settin
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
 import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
+import { securityLogic } from './logic/security.js';   // Security space (batch 4)
 import { driftLogic } from './logic/drift.js';   // batch 3: System › Machine › How the PC changed (dft*)
 import { renderVals } from './vals/index.js';
 
@@ -73,7 +74,7 @@ export class Component extends DCLogic {
     setReduceFlag(!!P.reduceMotion);
     return {
       tab: saved.tab || this.props.startTab || 'home',
-      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed' }, saved.sub || {})),
+      sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed', security: 'map' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
@@ -121,6 +122,7 @@ export class Component extends DCLogic {
   componentDidMount() {
     this._prev = Object.assign({}, this.state, { sub: Object.assign({}, this.state.sub) }); this._prevProps = Object.assign({}, this.props);
     if (this.state.tab === 'cosmos') this.cosArrive();
+    if (this.state.tab === 'security') this.secArrive();
     if (this.clsOn()) this.clsArrive();   // Projects > Clients restored from the last session reads its list too (never at boot otherwise)
     if (this.state.route && this.state.route.type === 'project' && this.state.route.id) this.dckArrive(this.state.route.id, this.dlvArrive(this.state.route.id));   // client delivery: a project page restored from the last session reads its card too
     // deep links (tray): subscribed first and synchronously, main may push right after load
@@ -184,6 +186,7 @@ export class Component extends DCLogic {
     if (moved && S.tab === 'home') this.sbdArrive('strip');   // sessions board: the Home strip reads the board on arrival (main pushes changes after that)
     if (moved && S.tab === 'claude' && S.sub.claude === 'sessions') this.sbdArrive('board');
     if (moved && S.tab === 'cosmos') this.cosArrive();
+    if (moved && S.tab === 'security') this.secArrive();
     if (moved && this.clsOn()) this.clsArrive();   // Projects > Clients: the list reads when the sub-view opens
     if (moved && S.tab === 'money') this.store.refreshMoney();   // money: "today" moves on its own (due dates, payday) — re-read on arrival
   }
@@ -377,6 +380,7 @@ export class Component extends DCLogic {
   }
   closeTop() {
     const S = this.state;
+    if (typeof this.secEscape === 'function' && this.secEscape()) return;   // Security's unlock dialog / emergency sheet sit over everything and may not be focused
     // What's new sits over Settings (it opens from there), so it closes first
     const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'whatsNewOpen', 'cosReportOpen', 'cosIdx', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'cosLb', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
     for (const k of order) if (S[k]) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'cosLb'].includes(k) ? null : false }); return; }
@@ -414,5 +418,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic);
 Component.prototype.renderVals = renderVals;

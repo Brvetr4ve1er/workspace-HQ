@@ -33,9 +33,9 @@ test('nextMode cycles Run -> Go -> Run, and anything unknown starts at run', () 
   assert.match(M.HINTS.go, /tab run/);
 });
 
-test('goTable: the ten spaces first-class, sub-views after their space, every entry frozen and addressable', () => {
+test('goTable: the eleven spaces first-class, sub-views after their space, every entry frozen and addressable', () => {
   const spaces = M.goTable.filter((t) => t.kind === 'space');
-  assert.equal(spaces.length, 10);
+  assert.equal(spaces.length, 11);
   assert.ok(Object.isFrozen(M.goTable));
   assert.ok(M.goTable.some((t) => t.tab === 'money' && t.sub === 'runway' && t.label === 'Money › Runway'));
   assert.ok(M.goTable.some((t) => t.tab === 'projects' && t.sub === 'clients'));
@@ -44,10 +44,10 @@ test('goTable: the ten spaces first-class, sub-views after their space, every en
   for (const t of M.goTable.filter((x) => x.sub)) assert.match(t.sub, /^[a-z]{2,16}$/);
 });
 
-test('filterGo: an empty query is the ten spaces and no projects; projects appear only once a character is typed', () => {
+test('filterGo: an empty query is the eleven spaces and no projects; projects appear only once a character is typed', () => {
   for (const q of ['', '   ', undefined, null]) {
     const r = M.filterGo(q, PROJECTS);
-    assert.equal(r.length, 10);
+    assert.equal(r.length, 11);
     assert.ok(r.every((x) => x.kind === 'space'));
     assert.equal(M.goRows(q, PROJECTS).length, 8, 'the palette caps what it draws');
   }

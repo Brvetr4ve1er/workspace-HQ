@@ -74,6 +74,33 @@ test('no prototype sample copy in tpl / vals / logic / elements', () => {
   assert.deepEqual(hits, [], 'denylisted sample copy found:\n  ' + hits.join('\n  '));
 });
 
+// Security (batch 4): the space never claims a safety it cannot measure. It reads names and flags; it does not know that anything is safe, secure or
+// protected, so those words may not appear in the copy of any security* file in tpl / vals / logic (comments are stripped first; a test that names the words
+// builds them from parts or sits in a *.test.* file, which is not scanned). The rule is checked against planted lines below, so it is not vacuous.
+const SAFETY_CLAIM = /\b(safe|secure|secured|protected)\b/i;
+const securityFiles = () => read(['tpl', 'vals', 'logic']).filter((x) => /(^|\/)security[^/]*$/.test(x.rel));
+test('Security copy makes no safety claim (safe / secure / secured / protected)', () => {
+  const files = securityFiles();
+  assert.ok(files.length >= 5, 'the rule must actually scan the security files');
+  const hits = [];
+  for (const f of files) {
+    const code = stripComments(f.text);
+    const re = new RegExp(SAFETY_CLAIM.source, 'gi');
+    let m;
+    while ((m = re.exec(code))) hits.push(f.rel + ':' + lineOf(code, m.index) + '  "' + m[0] + '"');
+  }
+  assert.deepEqual(hits, [], 'a safety claim in Security copy:\n  ' + hits.join('\n  '));
+});
+
+test('the Security rule is not vacuous: a planted claim fails it, a comment or a longer word does not', () => {
+  const claims = (src) => SAFETY_CLAIM.test(stripComments(src));
+  assert.equal(claims("const note = 'your vault is safe';"), true);
+  assert.equal(claims('export default String.raw`<span>Secure by design</span>`;'), true);
+  assert.equal(claims("const w = 'Protected';"), true);
+  assert.equal(claims('// never say safe here\nconst ok = 1;'), false);
+  assert.equal(claims("const w = 'safely'; const x = 'unsafe';"), false);
+});
+
 // The .env guard lives in main (dashboard/commit-guard.js: hq:commit-preview flags
 // env files, hq:do-commit refuses them). A second, renderer-side regex drifts from
 // it (it missed `.env - Copy`, `<name>.env`…), so logic/ and vals/ must not carry one.

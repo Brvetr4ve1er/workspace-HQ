@@ -19,6 +19,7 @@ import system from './tpl/system.tpl.js';
 import life from './tpl/life.tpl.js';
 import money from './tpl/money.tpl.js';   // money space (space-port-money), 2026-11-03
 import cosmos from './tpl/cosmos.tpl.js';   // Cosmos Feed (key 0), 2026-11-09
+import { space as security, overlays as securityOverlays } from './tpl/security.tpl.js';   // Security space (batch 4): the space and its unlock dialog / sheet, placed apart like Cosmos' overlays
 import prompt from './tpl/prompt.tpl.js';
 import ambient from './tpl/ambient.tpl.js';
 import navBottom from './tpl/nav-bottom.tpl.js';
@@ -38,7 +39,7 @@ import extras from './tpl/extras.tpl.js';   // v5 additions (no design slice); e
 import toasts from './tpl/toasts.tpl.js';
 
 export default [
-  shell, home, projects, projectPage, tasks, automations, claude, history, system, life, money, cosmos,
+  shell, home, projects, projectPage, tasks, automations, claude, history, system, life, money, cosmos, security,
   prompt, ambient, navBottom, ovScrub, ovRuns, ovAsk, ovPalette, ovFocus,
-  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, cosmosOverlays, extras, toasts,
+  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, cosmosOverlays, securityOverlays, extras, toasts,
 ].join('');

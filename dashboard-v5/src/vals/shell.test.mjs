@@ -49,3 +49,35 @@ test('no browser block on the latest scan means "No data yet", whatever is viewe
   assert.equal(card.title, 'No data yet');
   assert.match(card.sub, /connect the browser extension/);
 });
+
+// ---- the 11th destination (Security, batch 4) has no number key: no digit, no "(n)" title and no palette hint ----
+test('the rail: ten destinations keep their digit and "(n)" title, Security (the 11th) has neither', () => {
+  localStorage.clear(); sessionStorage.clear();
+  const store = createStore({ scans: [scan('2026-10-02', [proj('a')])] }, null);
+  const c = new Component({ store, previewState: 'live', startTab: 'home', theme: 'dark', pet: false });
+  const nav = c.renderVals().nav;
+  assert.equal(nav.length, 11);
+  assert.deepEqual(nav.slice(0, 10).map((n) => n.digit), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
+  assert.equal(nav[0].title, 'Home (1)');
+  assert.equal(nav[9].title, 'Cosmos (0)');
+  const sec = nav[10];
+  assert.equal(sec.id, 'security');
+  assert.equal(sec.digit, '');
+  assert.equal(sec.title, 'Security');
+  assert.ok(!/(d)/.test(sec.title), 'no "(n)" in the title');
+});
+
+test('the palette: Security is listed under Go to with an empty hint, and a query of "1" does not find it', () => {
+  localStorage.clear(); sessionStorage.clear();
+  const store = createStore({ scans: [scan('2026-10-02', [proj('a')])] }, null);
+  const c = new Component({ store, previewState: 'live', startTab: 'home', theme: 'dark', pet: false });
+  Object.assign(c.state, { paletteOpen: true, paletteMode: 'go', paletteQuery: '' });
+  const goAll = c.paletteItems().groups.find((g) => g.name === 'Go to').items;
+  const s = goAll.find((i) => i.label === 'Security');
+  assert.ok(s, 'Security is in the Go to list');
+  assert.equal(s.hint, '');
+  assert.equal(goAll.find((i) => i.label === 'Home').hint, '1');
+  Object.assign(c.state, { paletteQuery: '1' });
+  const found = (c.paletteItems().groups.find((g) => g.name === 'Go to') || { items: [] }).items.map((i) => i.label);
+  assert.ok(found.includes('Home') && !found.includes('Security'), 'a "1" finds the destination with that digit only: ' + found.join(','));
+});

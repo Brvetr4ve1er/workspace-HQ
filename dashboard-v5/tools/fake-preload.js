@@ -242,6 +242,76 @@ const fakeCosmos = function fakeCosmos(opts) {
 };
 // END cosmos-fixture
 
+// BEGIN security-fixture (pasted from tools/cdp-security.mjs fakeSecuritySource(); a test fails on drift; INVENTED accounts only: example.test, acme.test, alpha-site.test, owner@example.test)
+const FAKE_SECURITY_FIXTURE = {"settings":{"v":1,"vaultPath":"C:/placeholder/vault/example.kdbx","keyFilePath":null,"cliPath":null,"walkthrough":{"email-2fa":{"done":true,"at":"2026-11-01T09:00:00.000Z"},"emergency-sheet":{"done":true,"at":"2026-11-02T09:00:00.000Z"}}},"map":{"v":1,"refreshedAt":"2026-11-10T09:00:00.000Z","accounts":[{"id":"k-000000000001","title":"example.test","host":"example.test","group":"Root/Web","created":"2025-02-10T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":false,"passkey":false,"strength":"weak","reuseGroup":1,"old":false,"identityRef":"i-aaaaaaaaaaaa","breached":false},{"id":"k-000000000002","title":"acme.test","host":"acme.test","group":"Root/Web","created":"2025-04-02T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":true,"passkey":false,"strength":"strong","reuseGroup":1,"old":true,"identityRef":"i-aaaaaaaaaaaa","breached":false},{"id":"k-000000000003","title":"alpha-site.test","host":"alpha-site.test","group":"Root/Web","created":"2025-09-15T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":false,"passkey":true,"strength":"strong","reuseGroup":null,"old":false,"identityRef":"i-aaaaaaaaaaaa","breached":true},{"id":"k-000000000004","title":"beta-shop.test","host":"beta-shop.test","group":"Root/Web","created":"2026-01-20T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":false,"passkey":false,"strength":"strong","reuseGroup":null,"old":false,"identityRef":"i-bbbbbbbbbbbb","breached":false},{"id":"k-000000000005","title":"gamma-mail.test","host":"gamma-mail.test","group":"Root/Web","created":"2026-03-03T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":true,"passkey":false,"strength":"strong","reuseGroup":null,"old":false,"identityRef":"i-aaaaaaaaaaaa","breached":false},{"id":"k-000000000006","title":"delta-forum.test","host":"delta-forum.test","group":"Root/Web","created":"2026-06-18T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":false,"passkey":false,"strength":"strong","reuseGroup":null,"old":false,"identityRef":"i-bbbbbbbbbbbb","breached":false},{"id":"k-000000000007","title":"login.example.test","host":"login.example.test","group":"Root/Web","created":"2026-08-25T08:00:00.000Z","modified":"2026-10-01T08:00:00.000Z","totp":false,"passkey":false,"strength":"strong","reuseGroup":null,"old":false,"identityRef":null,"breached":false}],"identities":[{"ref":"i-aaaaaaaaaaaa","kind":"email","label":"owner@example.test"},{"ref":"i-bbbbbbbbbbbb","kind":"phone","label":"+1 555 010 0199"}]},"owner":{"v":1,"accounts":{"k-000000000004":{"twofa":"sms","signInWith":"k-000000000003","recoveryRef":"i-aaaaaaaaaaaa"},"k-000000000006":{"hiddenFromClaude":true}},"manual":[{"id":"m-0123456789ab","title":"old-hobby.test","host":"old-hobby.test","createdAt":"2026-05-05T00:00:00.000Z"}],"identities":[]},"snapshots":[{"at":"2026-10-20T09:00:00.000Z","accounts":5,"identities":2,"flags":{"weak":1,"reused":2,"breached":0,"no2fa":3,"old":1,"notInVault":0}},{"at":"2026-11-01T09:00:00.000Z","accounts":6,"identities":2,"flags":{"weak":1,"reused":2,"breached":1,"no2fa":3,"old":1,"notInVault":1}},{"at":"2026-11-10T09:00:00.000Z","accounts":7,"identities":2,"flags":{"weak":1,"reused":2,"breached":1,"no2fa":3,"old":1,"notInVault":1}}],"status":{"v":1,"at":"2026-11-10T09:00:00.000Z","refreshedAt":"2026-11-10T09:00:00.000Z","breachCheckedAt":"2026-11-10T09:00:00.000Z","exportsFound":1,"conflicts":1,"email2faDone":true,"walkthroughStarted":true},"cliFound":true,"vaultExists":true};
+const FAKE_SECURITY_EXPORTS = [{"name":"Chrome Passwords.csv","dir":"C:/placeholder/Downloads","size":4096,"mtime":"2026-11-09T10:00:00.000Z"}];
+function createFakeSecurity(fx, exportsList) {
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const S = clone(fx), files = clone(exportsList || []);
+  const PASS = 'correct horse example';
+  let seq = 0;
+  const hex = (n) => ('000000000000' + n.toString(16)).slice(-12);
+  const view = () => ({ settings: clone(S.settings), map: clone(S.map), owner: clone(S.owner), snapshots: clone(S.snapshots), status: clone(S.status), cliFound: S.cliFound, vaultExists: S.vaultExists });
+  const OK_KEYS = ['signInWith', 'recoveryRef', 'twofa', 'hiddenFromClaude', 'archived'];
+  return {
+    read: async () => view(),
+    refresh: async (pass, check) => {
+      if (pass !== PASS) return { error: 'wrong passphrase or key file' };
+      const at = '2026-11-11T09:00:00.000Z';
+      if (S.map) S.map.refreshedAt = at;
+      S.status.refreshedAt = at;
+      if (check !== false) S.status.breachCheckedAt = at;
+      return { ok: true, accounts: S.map ? S.map.accounts.length : 0, breachChecked: check !== false, notes: [] };
+    },
+    scanExports: async () => ({ files: clone(files) }),
+    trashExport: async (name, dir) => {
+      const i = files.findIndex((f) => f.name === name && f.dir === dir);
+      if (i < 0) return { error: 'not in the last scan' };
+      files.splice(i, 1);
+      S.status.exportsFound = files.length;
+      return { ok: true };
+    },
+    edit: async (id, patch) => {
+      if (!id || !patch || typeof patch !== 'object') return { error: 'nothing to change' };
+      const keys = Object.keys(patch);
+      if (!keys.length || keys.some((k) => OK_KEYS.indexOf(k) < 0)) return { error: 'that change is not allowed' };
+      const cur = S.owner.accounts[id] || (S.owner.accounts[id] = {});
+      for (const k of keys) { if (patch[k] === null || patch[k] === false) delete cur[k]; else cur[k] = patch[k]; }
+      return { ok: true };
+    },
+    addManual: async (o) => {
+      const title = o && typeof o.title === 'string' ? o.title.trim() : '';
+      if (!title) return { error: 'a name is required' };
+      const id = 'm-' + hex(++seq);
+      S.owner.manual.push({ id, title, host: o && typeof o.host === 'string' ? o.host.trim() : '', createdAt: '2026-11-11T09:30:00.000Z' });
+      return { ok: true, id };
+    },
+    addIdentity: async (o) => {
+      const v = o && typeof o.value === 'string' ? o.value.trim() : '';
+      const email = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), digits = v.replace(/[\s\-()+]/g, '');
+      const phone = /^\d{8,15}$/.test(digits);
+      if (!email && !phone) return { error: 'not an email or phone number' };
+      const ref = 'i-' + hex(0xc0de00 + ++seq);
+      S.owner.identities.push({ ref, kind: email ? 'email' : 'phone', label: v });
+      return { ok: true, ref };
+    },
+    settings: async (p) => {
+      const v = p && typeof p.vaultPath === 'string' ? p.vaultPath : null;
+      if (v !== null && !(/^([A-Za-z]:[\\/]|\/)/.test(v) && /\.kdbx$/i.test(v))) return { error: 'the vault path must be absolute and end in .kdbx' };
+      S.settings.vaultPath = v;
+      S.vaultExists = !!v;
+      return { ok: true };
+    },
+    walkthrough: async (stepId, done) => {
+      if (typeof stepId !== 'string' || !stepId) return { error: 'unknown step' };
+      S.settings.walkthrough[stepId] = { done: !!done, at: '2026-11-11T09:00:00.000Z' };
+      return { ok: true };
+    },
+    copy: async (text) => (typeof text === 'string' && text ? { ok: true } : { error: 'nothing to copy' }),
+  };
+}
+// END security-fixture
+
 // storage (optional): a Web Storage for set(…, {persist:true}); the Electron branch passes sessionStorage
 function createFake(opts) {
   const storage = opts && opts.storage ? opts.storage : null;
@@ -568,6 +638,7 @@ function createFake(opts) {
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
   let macOn = false;   // the Money-access switch (hq.moneyAccess); control.reset puts it back off
+  let SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the Security fake (state: edits, ticks, trashed files); control.reset re-creates it
   const SPEC = [
     ['runScan', WRITE], ['openRepo', WRITE], ['openFile', WRITE], ['reclaim', WRITE], ['snapshot', WRITE],
     ['captureSave', WRITE], ['claudeQuest', WRITE],
@@ -650,11 +721,10 @@ function createFake(opts) {
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
     ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
     ['machineHistory.read', machineHistoryRead],   // System › Machine › How the PC changed: invented checks, read-only
-    // Security space (hq:security:*): the empty state only (no vault chosen, nothing scanned); the space dish gives it an invented map. Nothing here ever holds a secret.
-    ['security.read', () => ({ settings: { vaultPath: null, keyFilePath: null, cliPath: null, walkthrough: {}, locked: false }, map: null, owner: { v: 1, accounts: {}, manual: [], identities: [] }, snapshots: [], status: null, cliFound: false, vaultExists: false })],
-    ['security.refresh', () => ({ error: 'no vault chosen: pick your .kdbx file first' })], ['security.settings', () => ({ ok: true })], ['security.edit', () => ({ ok: true })],
-    ['security.addManual', () => ({ ok: true, id: 'm-000000000000' })], ['security.addIdentity', () => ({ error: 'secure storage is unavailable' })], ['security.walkthrough', () => ({ ok: true })],
-    ['security.scanExports', () => ({ files: [] })], ['security.trashExport', () => ({ error: 'not in the latest scan' })], ['security.copy', () => ({ ok: true })],
+    // Security space (hq:security:*): an INVENTED footprint (the paste block above createFake); refresh answers ok only for the invented passphrase. Nothing here ever holds a real secret.
+    ['security.read', (...a) => SECF.read(...a)], ['security.refresh', (...a) => SECF.refresh(...a)], ['security.settings', (...a) => SECF.settings(...a)], ['security.edit', (...a) => SECF.edit(...a)],
+    ['security.addManual', (...a) => SECF.addManual(...a)], ['security.addIdentity', (...a) => SECF.addIdentity(...a)], ['security.walkthrough', (...a) => SECF.walkthrough(...a)],
+    ['security.scanExports', (...a) => SECF.scanExports(...a)], ['security.trashExport', (...a) => SECF.trashExport(...a)], ['security.copy', (...a) => SECF.copy(...a)],
     ['today.read', todayRead],   // Home › Where today went: invented days, offsets 0..3 full, 4..6 partial, others refused
     // Cosmos space (hq:cosmos:*): rows generated beside the fixture (the cosmos-rows block above SPEC); pathForFile is SYNCHRONOUS ('' bare, like the real preload)
     ...COSMOS.rows,
@@ -700,7 +770,7 @@ function createFake(opts) {
   const control = {
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset(); macOn = false;   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }
