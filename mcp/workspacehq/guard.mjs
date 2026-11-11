@@ -27,7 +27,7 @@ export const TOOL_TIERS = Object.freeze({
   hq_recall: 'read', hq_chat_read: 'read', hq_sessions: 'read', hq_delivery: 'read',   // the last four arrive at the Pass
   hq_cosmos_search: 'read', hq_library_find: 'read', hq_today: 'read', hq_money_today: 'read',   // Money in words: answers only while the owner's switch (data/money/access.json) is on
   // note
-  hq_capture: 'note', hq_quest_done: 'note', hq_social_cancel: 'note',
+  hq_capture: 'note', hq_quest_done: 'note', hq_social_cancel: 'note', hq_brief_dismiss: 'note',   // hq_brief_dismiss: 10 an hour (assist-core LIMITS.noteTools); it asks the running app through data/intents/
   // run
   hq_scan_trigger: 'run',
   // stage

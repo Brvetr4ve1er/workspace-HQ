@@ -8,7 +8,8 @@
 //   getSessionBoard() → the sessions board main already builds (the session-waiting rule's input; absent = that rule is silent)
 //   decorate(brief) → brief  (async ok) — brief-act.js adds the additive acted:{verb,at} marker to rows the owner acted on, before the write and push
 //   current() → the last computed brief | null;  sources() → the live records the act-in-place rules were built from (brief-act.js rebuilds keys from them)
-// init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief?, getSessionBoard?, decorate?, intervalMs?, watch?, now? }) → { recompute(), recomputeNow(), onBoard(board), current(), sources(), stop() }
+// init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrief?, getSessionBoard?, decorate?, intervalMs?, watch?, now? }) → { recompute(), recomputeNow(), onBoard(board), dismissKey(key), current(), sources(), stop() }
+//   dismissKey(key) → { changed, brief }: hq:brief:dismiss's own path for a caller that is not a window (the session door, dashboard/intent-inbox.js)
 //   onBoard(board): the sessions board pushed; the brief re-runs only when the set of waiting sessions it could name has changed
 //   onBrief(brief, firstSeen) is called after each change (and every 10 min otherwise, so the tray's age stays true);
 //   firstSeen = brief-state.json's { key: {first, last} } — it survives the toast bookkeeping (settle merges it back in).
@@ -215,10 +216,12 @@ function init({ ipcMain, dataDir, money, hub, liveState, notify, getWins, onBrie
       if (sig !== waitSig) { waitSig = sig; schedule(); }
     } catch { /* the board is a courtesy input */ }
   }
+  // the session door (intent-inbox.js): the SAME path as hq:brief:dismiss, settled the same way, answering the real changed flag so a dismissal that did nothing is never reported as done
+  const dismissKey = async (key) => { const r = await settle(await b.dismiss(key)); return { changed: r.changed === true, brief: r.brief }; };
   const recomputeNow = () => b.compute().then(settle).catch(() => null);   // after an act: the row's done line should not wait out the debounce
 
   return {
-    recompute: schedule, recomputeNow, onBoard, current: b.current, sources: b.sources,
+    recompute: schedule, recomputeNow, onBoard, dismissKey, current: b.current, sources: b.sources,
     stop() { clearTimeout(timer); if (tick) clearInterval(tick); for (const w of watchers) { try { w.close(); } catch { /* closed */ } } for (const off of offs) { try { off(); } catch { /* gone */ } } },
     _brief: b, _notify: notify,
   };

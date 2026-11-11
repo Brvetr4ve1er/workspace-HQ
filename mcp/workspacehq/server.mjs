@@ -11,6 +11,8 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { createGuard, createInflight, describe } from './guard.mjs';
+import * as DISMISS_DOOR from './app-door.mjs';   // hq_brief_dismiss: name, description and schema live with the door (its rules are dashboard/intent-core.mjs)
+import { refOf } from '../../dashboard/brief-project.mjs';   // hq_brief rows carry the SAME 12-hex ref the Brief's own projection uses (hq_brief_dismiss takes only that)
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(DIR, '..', '..');
@@ -174,7 +176,9 @@ const TOOLS = [
         if (typeof more === 'number') more = Math.max(0, more - (before - ranked.length));
         if (Array.isArray(errors)) errors = errors.filter((e) => !(e && typeof e === 'object' && e.source === 'money'));
       }
-      return { ...b, ...(more !== undefined ? { more } : {}), ...(errors !== undefined ? { errors } : {}), items: ranked.slice(0, limit), overflow: ranked.slice(limit), standing, ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
+      // additive: every row also carries ref (12 hex of its key) so a session can name a row to hq_brief_dismiss without ever sending a key
+      const withRef = (it) => (it && typeof it === 'object' && typeof it.key === 'string' ? { ...it, ref: refOf(it.key) } : it);
+      return { ...b, ...(more !== undefined ? { more } : {}), ...(errors !== undefined ? { errors } : {}), items: ranked.slice(0, limit).map(withRef), overflow: ranked.slice(limit).map(withRef), standing: standing.map(withRef), ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
     },
   },
   {
@@ -355,6 +359,13 @@ const TOOLS = [
       if (out && out.error) throw new ToolError(String(out.error));
       return out;
     },
+  },
+  // ---- BRIEF MAILBOX (batch 3; the session side of the door: app-door.mjs asks the RUNNING app through data/intents/, which decides; nothing is queued while the app is closed) ----
+  {
+    name: DISMISS_DOOR.NAME,
+    description: DISMISS_DOOR.DESCRIPTION,
+    inputSchema: DISMISS_DOOR.INPUT_SCHEMA,
+    async run(args) { return DISMISS_DOOR.run(args, { dataDir: DATA }); },
   },
   // ---- TODAY RIBBON (batch 3; read-only counts from data/today.json, which the app rewrites every 10 minutes; today-tool.mjs never writes) ----
   {

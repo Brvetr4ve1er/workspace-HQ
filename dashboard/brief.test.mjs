@@ -409,3 +409,25 @@ test('onBoard re-runs the brief only when the waiting sessions it could name cha
   assert.equal(wrote, base0 + 1, 'the same board again is not');
   api.stop();
 });
+
+test('dismissKey (the session door) takes the same path as hq:brief:dismiss: a visible key leaves the brief and pushes, a forged or already-dismissed key answers changed:false and writes nothing', async () => {
+  const handlers = new Map(), sent = [];
+  const win = { isDestroyed: () => false, webContents: { send: (ch, p) => sent.push([ch, p]) } };
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', 12)])));
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [win], intervalMs: 0, watch: false, now: () => NOW });
+  const first = (await handlers.get('hq:brief:read')()).brief;
+  const key = first.items[0].key;
+  const pushedBefore = sent.length;
+  const forged = await api.dismissKey('dirty:not-a-row:1');
+  assert.equal(forged.changed, false, 'a key that is not in the top three changes nothing');
+  assert.equal(sent.length, pushedBefore, 'and pushes nothing');
+  const ok = await api.dismissKey(key);
+  assert.equal(ok.changed, true, 'a visible key leaves the brief');
+  assert.ok(!ok.brief.items.some((i) => i.key === key));
+  assert.ok(sent.length > pushedBefore, 'the windows heard about it, as with the IPC handler');
+  assert.ok(!JSON.parse(fs.readFileSync(path.join(dataDir, 'brief.json'), 'utf8')).items.some((i) => i.key === key), 'data/brief.json no longer holds it');
+  assert.equal((await api.dismissKey(key)).changed, false, 'the same key again is a no-op');
+  assert.equal(typeof api.dismissKey, 'function');
+  api.stop();
+});

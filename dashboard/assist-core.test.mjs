@@ -12,6 +12,7 @@ const many = (n, tool, tier, msAgo = 60e3) => Array.from({ length: n }, (_, i) =
 test('the limits table pins the rulebook numbers', () => {
   assert.deepEqual([...TIERS], ['read', 'note', 'run', 'stage']);   // no act tier
   assert.equal(LIMITS.note.perHourPerTool, 30);
+  assert.deepEqual({ ...LIMITS.noteTools }, { hq_brief_dismiss: 10 });
   assert.equal(LIMITS.stage.perHour, 10);
   assert.equal(LIMITS.stage.waitingMax, 20);
   assert.equal(LIMITS.run.cooldownMs, 10 * 60e3);
@@ -42,6 +43,18 @@ test('note: 30 an hour per tool; the 31st is refused with retryAt; another tool 
   assert.equal(decide({ ...ctx, tool: 'hq_quest_done' }, many(30, 'hq_capture', 'note'), NOW).allow, true);
   assert.equal(decide(ctx, [...many(30, 'hq_capture', 'note').map((e) => ({ ...e, ok: false }))], NOW).allow, true);
   assert.equal(decide(ctx, many(30, 'hq_capture', 'note', HOUR_MS + 1000), NOW).allow, true);
+});
+
+test('note: a per-tool override (hq_brief_dismiss is 10 an hour); the other note tools keep 30; the override is read only for its own tool and the table is frozen', () => {
+  const ctx = { door: 'mcp', tool: 'hq_brief_dismiss', tier: 'note', cwd: 'C:/work/alpha-site' };
+  assert.equal(decide(ctx, many(9, 'hq_brief_dismiss', 'note'), NOW).allow, true);
+  const d = decide(ctx, many(10, 'hq_brief_dismiss', 'note'), NOW);
+  assert.equal(d.allow, false);
+  assert.match(d.reason, /10 an hour/);
+  assert.equal(d.retryAt, new Date(NOW - 69e3 + HOUR_MS).toISOString());
+  assert.equal(decide({ ...ctx, tool: 'hq_capture' }, many(10, 'hq_capture', 'note'), NOW).allow, true, 'hq_capture is still 30');
+  assert.equal(decide({ ...ctx, tool: 'toString' }, many(30, 'toString', 'note'), NOW).allow, false, 'an inherited name is not an override');
+  assert.equal(Object.isFrozen(LIMITS.noteTools), true);
 });
 
 test('stage: 10 an hour across stage tools, and at most 20 waiting', () => {

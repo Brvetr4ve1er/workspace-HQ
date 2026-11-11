@@ -583,6 +583,9 @@ test('MCP: hq_social_outbox lists claimed_at/released_at and filters sending; hq
     copyFileSync(join(dirname(SERVER), 'guard.mjs'), join(root, 'mcp', 'workspacehq', 'guard.mjs'));
     mkdirSync(join(root, 'dashboard'), { recursive: true });
     for (const f of ['assist-core.mjs', 'assist-audit.mjs', 'refresh-lock.js', 'reach.js']) copyFileSync(join(dirname(SERVER), '..', '..', 'dashboard', f), join(root, 'dashboard', f));
+    // the server statically imports the Brief mailbox door (hq_brief_dismiss) and the ref function it shares with the Brief
+    copyFileSync(join(dirname(SERVER), 'app-door.mjs'), join(root, 'mcp', 'workspacehq', 'app-door.mjs'));
+    for (const f of ['intent-core.mjs', 'brief-project.mjs']) copyFileSync(join(dirname(SERVER), '..', '..', 'dashboard', f), join(root, 'dashboard', f));
     mkdirSync(join(root, 'data', 'social'), { recursive: true });
     const d = seed();
     byId(d, 'act-staged-2').released_at = '2026-01-01T00:20:00.000Z';

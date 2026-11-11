@@ -3,7 +3,7 @@
 // audit log (dashboard/assist-audit.mjs) because every Claude session runs its own MCP process.
 //
 //   TIERS                                  ['read','note','run','stage'] — there is no act tier
-//   LIMITS                                 the numbers below, one table
+//   LIMITS                                 the numbers below, one table (note.perHourPerTool, with noteTools as a per-tool override of it)
 //   decide(ctx, recentEntries, now)        → { allow: true } | { allow: false, reason, retryAt? }   (pure)
 //        ctx = { door, tool, tier, cwd, waiting?, running? }   waiting = actions staged and not yet approved, running = null | { by }
 //   auditEntry(fields)                     → the names-only log line, a fixed key set (never args, text, titles or paths)
@@ -16,6 +16,7 @@ export const DOORS = Object.freeze(['mcp', 'browser']);
 export const HOUR_MS = 3600e3;
 export const LIMITS = Object.freeze({
   note: Object.freeze({ perHourPerTool: 30 }),
+  noteTools: Object.freeze({ hq_brief_dismiss: 10 }),   // a per-tool override of note.perHourPerTool (a note that changes the Brief gets the tighter hand)
   stage: Object.freeze({ perHour: 10, waitingMax: 20 }),
   run: Object.freeze({ oneAtATime: true, cooldownMs: 10 * 60e3 }),
 });
@@ -53,9 +54,10 @@ export function decide(ctx, recentEntries, now) {
 
   if (tier === 'note') {
     const mine = done.filter((e) => e.tier === 'note' && e.tool === name && inHour(e));
-    if (mine.length >= LIMITS.note.perHourPerTool) {
+    const cap = Object.prototype.hasOwnProperty.call(LIMITS.noteTools, name) ? LIMITS.noteTools[name] : LIMITS.note.perHourPerTool;
+    if (mine.length >= cap) {
       const oldest = Math.min(...mine.map(at));
-      return deny(`'${name}' is limited to ${LIMITS.note.perHourPerTool} an hour — try again later`, oldest + HOUR_MS);
+      return deny(`'${name}' is limited to ${cap} an hour — try again later`, oldest + HOUR_MS);
     }
     return { allow: true };
   }

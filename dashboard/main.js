@@ -55,6 +55,7 @@ const START_HIDDEN = process.argv.includes('--hidden') || process.argv.includes(
 let win, tray, watcher, qbWatcher, dailyWatcher, castWin = null;
 let bridge = null;   // localhost ingest for the WorkspaceHQ Bridge browser extension
 let navBridge = null;   // v5 M4: nav-bridge init() result ({ openAt }) — tray Show / Open Automations
+let intentInbox = null;   // Brief mailbox (intent-inbox.js): stop() removes the app heartbeat at quit
 let claudeHub = null;   // Claude Hub host (claude-hub-host.js), set in whenReady
 const activeDevServers = new Map();
 
@@ -1265,6 +1266,7 @@ if (!app.requestSingleInstanceLock()) {
     let sessionsApi = null, briefActApi = null;   // the sessions board is created after the Brief (below): the Brief reads it lazily
     const briefApi = require('./brief').init({ ipcMain, dataDir: DATA, money: moneyApi, hub: claudeHub, liveState, notify: trayNotify, onBrief: (b, fs) => { trayBrief.set(b, fs); updateTray(); }, getWins: () => BrowserWindow.getAllWindows(), getSessionBoard: () => (sessionsApi ? sessionsApi._board() : null), decorate: (b) => (briefActApi ? briefActApi.decorate(b) : b) });   // Operator Brief: data/brief.json (IPC-CONTRACT hq:brief:*)
     briefActApi = require('./brief-act').init({ ipcMain, getBrief: briefApi.current, sources: briefApi.sources, applyDone, moneyApply: moneyApi.apply, openFolder: (id) => (sessionsApi ? sessionsApi.openFolder(id) : { error: 'the sessions board is not running.' }), useMark: useLogApi.mark, appLog: (l) => appLog.event('brief-act', { note: l }), onActed: briefApi.recomputeNow });   // act in place on a Brief row (IPC-CONTRACT hq:brief:act)
+    intentInbox = require('./intent-inbox').init({ dataDir: DATA, brief: briefApi, log: (l) => appLog.event('intent', { note: l }) });   // Brief mailbox: a session may dismiss one top-three Brief row through data/intents/ (CONTRACT "data/intents"; hq_brief_dismiss)
     require('./delivery-check').init({ ipcMain, dataDir: DATA, resolveProjectPath, devServers: activeDevServers, latest });   // Client delivery check: phone size + ar/fr/en against a LOCAL dev server only; data/delivery/ (IPC-CONTRACT hq:delivery-check:*)
     require('./delivery').init({ ipcMain, dataDir: DATA, resolveProjectPath });   // Client delivery card on each project page: data/delivery.json (IPC-CONTRACT hq:delivery:*)
     require('./delivery-clients').init({ ipcMain, dataDir: DATA, resolveProjectPath });   // Projects > Clients: one read-only summary row per client job (IPC-CONTRACT hq:delivery:clients)
@@ -1302,6 +1304,7 @@ if (!app.requestSingleInstanceLock()) {
     if (latestWatch) try { latestWatch.close(); } catch {}   // no stray debounce timer baking mid-quit
     for (const w of [watcher, qbWatcher, dailyWatcher]) if (w) try { w.close(); } catch {}
     if (bridge) try { bridge.stop(); } catch {}
+    try { intentInbox && intentInbox.stop(); } catch {}   // removes our own heartbeat, so a session sees 'the app is closed' at once
     try { claudeHub && claudeHub.stop(); } catch {}   // the Hub releases its db lock on stdin close
     // no orphaned incantations: kill any live cast trees on the way out
     for (const [, entry] of castRegistry) {
