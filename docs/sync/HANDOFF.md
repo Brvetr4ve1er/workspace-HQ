@@ -12,6 +12,17 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 dish 1 DONE: a grabbed file also lands in Cosmos as a clip) · main @ 223e6da (not pushed)
+DONE: owner-data ignores + pins and the CONTRACT rows for POST /library/grab and clips.json (f4415ac, meta), then the dish (223e6da, fe). After a save the owner pressed finishes, Bridge 0.8.0 posts the saved path to the
+  loopback bridge (POST /library/grab, paired token and origin, 4 KB body, 120 an hour, names-only audit as library.grab); the app copies the file into data/cosmos/imports as clip-<hash12>.<ext> (a clip is an import: paths.mjs, ids.mjs and the
+  cosmos suites did not move), keeps provenance in data/cosmos/clips.json, and after the next index run applies the clip's tags and title. The Downloads original stays. Intake rules live in dashboard/cosmos/clips.mjs; cosmos.js stays the only writer
+  of data/cosmos. main.js: the cosmos return is kept and one grab-routes setDeps line added. Four Bridge-version pins moved to 0.8.0 (browser-bridge, claude-sync-ext, grab-ext, popup-tokens tests). No renderer, vals, IPC or golden moved.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2270 pass / 0 fail (7 skips are the other dishes' tests waiting for their shared edits), money 261/261, renderer 946/946, Electron selftest 2912 combos 0/0/0, cdp-gate 73/73, cosmos native check PASS.
+IN-FLIGHT: none in code (the other six dishes are written as new files only and are integrated one at a time, in order; no shared file of theirs is touched yet).
+ASKS (struct): unchanged (assemble.mjs flag for a raw refresh from a session; nightly --strict-mcp-config; run-pipeline.ps1 takes data/.refresh.lock; GPU enumeration). BREAKS: none (additive). OWNER STEP: reload the extension (0.8.0) after the push; grab one picture and open Cosmos (set a Cosmos folder first).
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 PLANNED: grabs into Cosmos, ask the library from a session, Today ribbon, Brief mailbox, Brief history, vault note without a model, Machine drift; no code yet) · main @ 6f32be7
 DONE: plan only, docs/superpowers/plans/2026-11-11-batch3.md (seven dishes, order, promises, owner steps). No code, no data shape moved yet.
 IN-FLIGHT: none in code. Planned dishes, in order: a grabbed file also lands in Cosmos (grab into Cosmos); ask the picture library and grabs from a session (library find);
