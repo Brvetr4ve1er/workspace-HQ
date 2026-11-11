@@ -21,6 +21,7 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 | `data/brief.json` | written by `dashboard/brief.js`; read by the renderer (over `hq:brief:*`) and MCP `hq_brief` | derived · gitignored · frontend lane |
 | `data/brief-state.json` | `dashboard/brief.js` only | dismissed keys + toast history · gitignored · frontend lane |
 | `data/money/meta.json` | written by `dashboard/money.js` on a successful export; read by `dashboard/brief.js` | `{lastExportAt}` · gitignored · frontend lane |
+| `data/money/access.json` | `dashboard/money-access.js` only; read (never written) by the MCP `hq_money_today` | `{v:1,on,at}` · the owner's "Claude sessions may read Money (words only)" switch · OFF when absent · gitignored · frontend lane |
 | `data/assistant-audit.jsonl` (+ `.1`) | appended by the MCP server (`mcp/workspacehq`) and, next, the bridge assist routes; read by the MCP `hq_activity` and the rulebook | names-only call log · gitignored · frontend lane |
 | `data/.refresh.lock` | taken and released by the MCP `hq_scan_trigger` and by the app's Scan now (`dashboard/refresh-lock.js`) | runtime state, **don't validate** · gitignored · frontend lane |
 | `data/.bridge-pairing.json` | written by the bridge pair route (`dashboard/assist-bridge-routes.js`) after the owner's Allow | `{v:1, origin, pairedAt}` · gitignored · frontend lane |
@@ -360,6 +361,15 @@ Written only by `dashboard/brief.js` (atomic tmp + rename) every time the Brief 
 `data/brief-state.json`: `{ "dismissed": [key], "toasted": { key: ISO }, "lastTop": key | null }` — toasted entries older than 24 h are pruned; `lastTop` is the top key last seen outside quiet hours (change-only toasts).
 `data/money/meta.json`: `{ "lastExportAt": ISO }` — the Brief's "no money backup in 30 days" rule reads it.
 
+#### `data/money/access.json` and `hq_money_today` — Money in words for Claude sessions (batch 2 rest, 2026-11-11; frontend lane, additive)
+
+This revises the older statement that the MCP server never reads money data: it now reads `state.json`, **read-only and only while `access.json` says on**.
+
+- `data/money/access.json`: `{ "v": 1, "on": boolean, "at": ISO }`. Written only by `dashboard/money-access.js` (tmp then rename; a corrupt file is quarantined to `access.json.corrupt[-N]` by that writer only). Absent, unreadable, or `on` anything but the boolean `true` all mean OFF. A fresh install is OFF.
+- MCP tool `hq_money_today` (tier `read`, one audit line per call, names only): answers `{ enabled:true, setUp:boolean, room:'ok'|'tight'|'unknown', roomWhy:'needs a DA rate'|'needs a payday day'|null, daysToPayday:number|null, billsLate:n|null, billsDueSoon:n|null, slipsWaiting:n|null, generatedAt }`; while off it answers `{ enabled:false, error }` with `isError`. When no account exists: `setUp:false`, `room:'unknown'` and the counts are `null` (no other claim). It never returns an amount, an account, a payee, a note, a bill name or a jar; `billsBeforePayday` and `dueBefore` are not in the answer.
+- `mcp/workspacehq/money-read.mjs` never writes, renames or quarantines anything and works with the app closed. The pure mapping lives in `dashboard/money/words.mjs` (it counts the obligation flags `isLate` / `isSoon` and never reads a formatted amount).
+- Money never changes through this tool: it is a forecast read, never a verdict and never a write. The drop-file write tools are not part of this.
+
 ### `data/brief.json` / `brief-state.json` — 2026-11-07 amendment: Brief senses, overflow, count (frontend lane, additive)
 
 Nothing is removed or renamed: the twelve existing rules keep their ids, keys and order.
@@ -420,7 +430,7 @@ Nothing is removed or renamed; every existing rule keeps its id, key and order, 
 - **`items[].acted`** (also on `overflow[]` and `standing[]` entries): additive `{verb, at: ISO}`, present only on a row the owner performed `quest-done` or `confirm-balance` on (IPC-CONTRACT `hq:brief:act`). It is added by `dashboard/brief-act.js` after the engine ran, so `computeBrief` output is unchanged; it is held in memory only (it does not survive an app restart), expires after 24 h and is dropped the moment its key leaves the brief. `brief.json` carries it; the projection below never does.
 - **Projection**: the wording table gains the `session-waiting` row ("A Claude session has waited on a tool for a while"; many: "N Claude sessions have waited on a tool for a while"). Still no names, paths or ids.
 
-**`use` event in the day log** — written by `dashboard/use-log.js` (channel `hq:use`) through `appLog.event('use', {surface, action})`. `surface` ∈ `brief-panel` `sessions-board` `sessions-strip` `delivery-card` `money-start` `money-quick` `palette-money-line` `reach` `delivery-check` `clients-list` `brief-act` `quick-jump`; `action` ∈ `open` `act` `resume` `copy` `log`. No names, ids or text. The main-side tray also writes `appLog.event('use', {surface: 'tray-brief', rule})` directly (the rule id only, no `action`).
+**`use` event in the day log** — written by `dashboard/use-log.js` (channel `hq:use`) through `appLog.event('use', {surface, action})`. `surface` ∈ `brief-panel` `sessions-board` `sessions-strip` `delivery-card` `money-start` `money-quick` `palette-money-line` `reach` `delivery-check` `clients-list` `brief-act` `quick-jump` `money-access`; `action` ∈ `open` `act` `resume` `copy` `log`. No names, ids or text. The main-side tray also writes `appLog.event('use', {surface: 'tray-brief', rule})` directly (the rule id only, no `action`).
 
 ### `data/.bridge-pairing.json` and the local bridge routes — pairing and the Brief (frontend lane, 2026-11-07, additive; `dashboard/assist-bridge-routes.js`)
 

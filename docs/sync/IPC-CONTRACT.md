@@ -807,3 +807,14 @@ The one deliberate break of the additive-only rule. These features had no record
 | Prompt library, harvest, runs, packs | `claudePrompts.status/open/promote/run/importPack/exportPack` (`hq:claude-prompts:*`); `claudeHub.promptCandidates` `hq:claude-hub:prompt-candidates`, `hideCandidate` `:hide-candidate`, `promptStats` `:prompt-stats`; Hub ops `promptUse` / `promptStats` / `promptCandidates` / `hideCandidate`. `claudeHub.documents` stays (prompt notes are still indexed as documents). |
 | Canvas + stat card | `getCanvas` `hq:canvas-read`, `canvasAdd` `hq:canvas-add`, `canvasRemove` `hq:canvas-remove`, `canvasCreate` `hq:canvas-create`, `canvasClear` `hq:canvas-clear`, push `onCanvas` `hq:canvas` (the data/canvas watcher is gone); `statCardSave` `hq:stat-card-save`; MCP `hq_canvas_read/add/remove/create/clear`; `DATA.canvas` no longer baked by build-data.mjs; whq3-prefs `canvasPins` no longer read or written. `data/canvas/` (boards + removed.jsonl) stays on disk. |
 | Social tab (the outbox approval gate STAYS) | `getSocial` `hq:social-read`; `socialVault.list/open/save` (`hq:social-vault:*`); `socialOpenSite` `hq:social-open-site`; `socialCancel` `hq:social-cancel` (the app's Inbox Discard — the popup's Skip and MCP `hq_social_cancel` still cancel through the same `cancelStaged` rule); `claudeHub.socialSummary` `hq:claude-hub:social-summary` + Hub op `socialSummary`; Ask's `social` include key (llm-context SECTION_IDS); MCP `hq_social_status/feed/mentions/metrics`. Unchanged: `/social/*` bridge routes, `data/social/*.json` shapes (CONTRACT.md "Social bridge sidecars"), MCP `hq_social_post/reply/outbox/cancel`. |
+
+### Money access — the Claude-sessions-may-read-Money switch (batch 2 rest, 2026-11-11; additive)
+
+Main: `dashboard/money-access.js` (the ONLY writer of `data/money/access.json`). Preload group `hq.moneyAccess`. Usage mark surface `money-access` (action `act`), no names.
+
+| Preload | Channel | Args | Answer | Notes |
+|---|---|---|---|---|
+| `moneyAccess.read()` | `hq:money-access:read` | — | `{ on:boolean, lastAskedAt:ISO|null }` | `{ error }` | `on` is false on a fresh install or when the file is absent or corrupt (a corrupt file is quarantined by this writer). `lastAskedAt` is the newest audit line of tool `hq_money_today`, read by tool name and time only. |
+| `moneyAccess.set(on)` | `hq:money-access:set` | `on`: a strict boolean (anything else is refused before any IO) | `{ on }` | `{ error }` | Writes `{v:1,on,at}` (tmp then rename); setting the value it already has rewrites nothing. |
+
+Money data never changes through the `hq_money_today` tool: it only lets a session READ words (CONTRACT.md "`data/money/access.json` and `hq_money_today`").
