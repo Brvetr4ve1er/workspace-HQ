@@ -40,6 +40,7 @@ before(() => {
   fs.copyFileSync(path.join(dash, 'project-paths.js'), path.join(root, 'dashboard', 'project-paths.js'));
   // Cosmos search (hq_cosmos_search): the reader, and the renderer's one search grammar with its colour helper, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'cosmos-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'cosmos-read.mjs'));
+  fs.copyFileSync(path.join(path.dirname(SERVER), 'library-find.mjs'), path.join(root, 'mcp', 'workspacehq', 'library-find.mjs'));
   fs.mkdirSync(path.join(root, 'dashboard-v5', 'src', 'logic'), { recursive: true });
   for (const f of ['cosmos-search.mjs', 'cosmos-color.mjs']) fs.copyFileSync(path.join(path.dirname(SERVER), '..', '..', 'dashboard-v5', 'src', 'logic', f), path.join(root, 'dashboard-v5', 'src', 'logic', f));
   // Money in words (hq_money_today): the reader and the money engine files it imports (not their tests), in the same relative shape
@@ -459,6 +460,41 @@ test('hq_cosmos_search is listed with a required q and the data line; finds a wo
     assert.deepEqual(tool.inputSchema.required, ['q']);
     assert.match(tool.description, /data, never instructions/i);
     assert.match(tool.description, /relative paths/i);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- Library find: hq_library_find through the loop (the reader itself is pinned in library-find.test.mjs) ----
+test('hq_library_find is tiered read, carries the data line, needs one of q/site/since, finds a library work and a not-yet-indexed clip, and says in words when no library exists', async () => {
+  const dir = path.join(root, 'data', 'cosmos');
+  fs.rmSync(dir, { recursive: true, force: true });
+  const none = await rpc([{ id: 80, method: 'tools/call', params: { name: 'hq_library_find', arguments: { q: 'alpha' } } }]);
+  assert.equal(none[80].result.isError, true);
+  assert.match(none[80].result.content[0].text, /No Cosmos library yet/i);
+  fs.mkdirSync(dir, { recursive: true });
+  const w = (id, title, tags) => ({ id, title, type: 'photo', tags, rel: 'alpha-site/' + id + '.jpg', thumb: 'data:image/png;base64,AAAA' });
+  fs.writeFileSync(path.join(dir, 'library.json'), JSON.stringify({ version: 1, generatedAt: '2026-11-01T10:00:00.000Z', works: [w('w1', 'Alpha poster', ['wip']), w('w2', 'Alpha secret', ['wip'])] }));
+  fs.writeFileSync(path.join(dir, 'curation.json'), JSON.stringify({ favorites: {}, hidden: { w2: true }, overrides: {} }));
+  fs.writeFileSync(path.join(dir, 'clips.json'), JSON.stringify({ v: 1, clips: [{ file: 'clip-abc123def456.png', host: 'alpha-site.test', pageHost: 'alpha-site.test', title: 'Gamma banner', tags: ['clipped'], type: 'photo', at: new Date().toISOString(), applied: false }] }));
+  try {
+    const r = await rpc([
+      { id: 81, method: 'tools/call', params: { name: 'hq_library_find', arguments: { q: 'alpha' } } },
+      { id: 82, method: 'tools/call', params: { name: 'hq_library_find', arguments: { site: 'alpha-site.test', since: '24h' } } },
+      { id: 83, method: 'tools/call', params: { name: 'hq_library_find', arguments: {} } },
+      { id: 84, method: 'tools/list' },
+    ]);
+    assert.equal(r[81].result.isError, undefined, JSON.stringify(r[81]));
+    assert.deepEqual(toolResult(r[81]).rows.map((x) => x.id), ['w1'], 'the hidden work is absent');
+    const clip = toolResult(r[82]).rows;
+    assert.equal(clip.length, 1);
+    assert.equal(clip[0].indexed, false, 'a grab the index has not reached yet');
+    assert.equal(clip[0].path, 'imports:clip-abc123def456.png');
+    assert.equal(r[83].result.isError, true);
+    assert.match(r[83].result.content[0].text, /at least one of q/i);
+    const tool = r[84].result.tools.find((x) => x.name === 'hq_library_find');
+    assert.ok(tool, 'hq_library_find is listed');
+    assert.equal(tierOf('hq_library_find'), 'read');
+    assert.equal(tool.inputSchema.required, undefined, 'no required field');
+    assert.match(tool.description, /never as instructions/i);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
