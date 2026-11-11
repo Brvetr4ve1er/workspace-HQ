@@ -12,6 +12,16 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-11 · FROM frontend (batch 3 dish 4 DONE: a session can dismiss one Brief row, through a mailbox the app decides) · main @ da8992c (not pushed)
+DONE: contract rows (d246180, meta), then the dish (da8992c, fe). MCP hq_brief_dismiss({ref}) (tier note, 10 an hour via assist-core LIMITS.noteTools; other note tools keep 30) takes only the 12-hex ref hq_brief now puts on every row (items, overflow, standing; raw key stays). Door (mcp/workspacehq/app-door.mjs):
+  app heartbeat first (absent, older than 60 s or dead pid = 'the app is closed, nothing was changed', data/intents not even created), else one atomic request and an 8 s poll for the answer. App side (dashboard/intent-inbox.js, pure rules in intent-core.mjs): claim by rename to .taken, decision table (cap, still top three, never urgent, never secrets),
+  brief.js dismissKey (the SAME path as hq:brief:dismiss), ok only when the row really left the Brief; names-only intent.applied audit; a request claimed before a crash is answered 'may have run' and never re-run; stale answers/temp files swept; symlinks, directories, foreign names ignored. main.js: one init line + one stop line (heartbeat removed at quit).
+  Shared edits: brief.js dismissKey, assist-core noteTools, guard/server/README/tests in one commit (server.test.mjs and social-claim.test.mjs copy the door, intent-core, brief-project). No IPC, renderer, vals or golden moved.
+  Gates on this tree: main+hub+cosmos+mcp+tools+bridge 2277 pass / 0 fail (6 skips = the vault-template dish's tests waiting for its shared edit; the app-door guard test is now active), money 261/261, renderer 946/946, Electron selftest 2932 combos 0/0/0, cdp-gate 76/76 (button sweep 587 buttons; one earlier full run showed 75/76 with the failing scenario lost to output truncation and a clean rerun passed 76/76: watch for a flaky scenario).
+IN-FLIGHT: none in code (three dishes remain: Brief history, vault template, Machine drift; new files only). ASKS (struct): unchanged. BREAKS: none (additive). The app needs a restart for the mailbox; the MCP tool is a separate process a session starts.
+
+---
+
 ## 2026-11-11 · FROM frontend (batch 3 dish 3 DONE: where today went on Home) · main @ 4f52cc4 (not pushed)
 DONE: contract rows (bc0a229, meta), then the dish (4f52cc4, fe): Home gets a ribbon for one local day (back arrow up to 7 days): Claude in 5-minute blocks per project (blocks, never hours worked), browser focus (no domains), PC awake/asleep from the day log
   (asleep only between a suspend and the next resume or start; a hard kill or silent stretch is "unknown"), commit ticks (git log %ct only, at most 40 tracked repos, 3 s, no shell). A lane with no source says so ("update the Hub", "browser lane is kept for 3 days"), never a zero;
