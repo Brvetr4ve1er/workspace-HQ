@@ -17,13 +17,14 @@
 
 **Batch 1's cook specs:** [`docs/superpowers/plans/2026-11-07-kitchen-batch1.md`](../plans/2026-11-07-kitchen-batch1.md).
 
-## Progress (2026-11-11)
+## Progress (2026-11-12)
 
 | Batch | What | State |
 |---|---|---|
 | 1 | rulebook + use counter, chat recall, Brief senses + tray + standing, sessions board, Bridge 0.7.0 (pair, badge, find + save), Money start + quick line, client delivery card, Cosmos pure modules | shipped 2026-11-08 |
 | 2, track 1 | the Cosmos space on key 0 (engine, native thumbnails, Feed, lightbox, index, import, hq_cosmos_search) | shipped 2026-11-09 |
 | 2, track 2 | delivery check, Clients list, act from the Brief, sessions launched with tools, jump anywhere, Money in words | 4 of 6 integrated; see docs/superpowers/plans/2026-11-10-batch2-rest.md |
+| 3, 4 and what is left | batch 3 (grabs into Cosmos, library find, Today ribbon, Brief mailbox and history, vault template, Machine drift) and batch 4 (the Security space) | shipped 2026-11-11; the open owner steps, structure asks, decisions and proposed batches 5 and 6 are in docs/superpowers/plans/2026-11-12-backlog.md |
 
 ## North star
 
