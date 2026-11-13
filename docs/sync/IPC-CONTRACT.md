@@ -715,11 +715,13 @@ The cast window loads the SAME shared `preload.js` as the main window, so it rec
 
 | `window.hq` method | Channel | Args | Returns | Primary surface |
 |---|---|---|---|---|
-| `quick.read()` | `hq:quick:read` | none | `{brief:[{ref, label, scan}], status:'ok'\|'empty'\|'incomplete'\|'not-ready', projects:[{id, name}] \| null}` \| `{error}` — `brief` is the tray's screen-safe projection (`tray-brief.view().rows`: a 12-hex ref, the fixed-wording label, a scan flag; never the reason, an amount, a path or a name), at most 3; `projects` is FLAT, ids a route cannot carry are left out, `null` = no `latest.json` (the palette says "no projects loaded") | cast palette |
+| `quick.read()` | `hq:quick:read` | none | `{brief:[{ref, label, scan}], status:'ok'\|'empty'\|'incomplete'\|'not-ready', projects:[{id, name}] \| null, use:{marks, byTarget:{"tab/sub":n}} \| null}` \| `{error}` — `brief` is the tray's screen-safe projection (`tray-brief.view().rows`: a 12-hex ref, the fixed-wording label, a scan flag; never the reason, an amount, a path or a name), at most 3; `projects` is FLAT, ids a route cannot carry are left out, `null` = no `latest.json` (the palette says "no projects loaded") | cast palette |
 | `quick.openBrief(ref)` | `hq:quick:open-brief` | a 12-hex ref | `'go'` \| `'scan'` \| `'none'` \| `{error}` — main maps the ref to the item's full action in the CURRENT brief (`trayBrief.open`), never through the projection; `'scan'` runs the tray's Scan now path (`{error}` when a scan did not start); a ref that is not 12 hex, or no longer on the brief, is `'none'` | cast palette |
 | `quick.openGo(route)` | `hq:quick:open-go` | `{tab, sub?, projectId?}` | `{ok:true}` \| `{error}` — the route is checked against nav-bridge `cleanRoute`, the palette's own table of spaces and sub-views (pinned to `catalog.mjs` by `quick-targets-parity.test.mjs`) and, for a project, against `latest.json`; the route handed to the window is rebuilt (`{tab, sub?, projectId?}`, nothing else rides along) | cast palette |
 
 One use mark per success (`surface:'quick-jump'`, `action:'open'`, no names). Handlers answer `{error}` instead of throwing.
+
+**2026-11-13 (additive, batch 5 "Jump ordered by measured use"):** `hq:quick:read` gains `use: { marks: number, byTarget: { "<tab>/<sub>": number } } | null`. Counts only, from the last 14 days of the day logs' `use` lines (`dashboard/use-counts.js`); a space is `"<tab>/"`, a sub-view `"<tab>/<sub>"`, keys only from the palette's own table; no name, id, path or text. `null` when the counter cannot read. The palette uses it ONLY to break ties between equal-score rows of a TYPED query, and only once the counts add up to 10 or more; below that, and for the empty query, the order is what it was. Use marks gain eleven surfaces `space-<id>` (one per nav destination, written once per arrival by the main window).
 
 ## 2026-11-07 — Cosmos space (rows written before the handler lands)
 
