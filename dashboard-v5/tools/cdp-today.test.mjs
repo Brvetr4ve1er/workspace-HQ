@@ -36,7 +36,7 @@ test('the legend words the scenarios look for are in the vals', async () => {
   const self = Object.assign(Object.create(todayLogic), { state: { tab: 'home', route: null }, LIVE: { today: { loaded: false, days: {}, errors: {}, revision: 0 } }, hq: { today: { read() {} } }, useMark() {}, store: { refreshToday: () => Promise.resolve() }, setState() {} });
   const v = todayVals.call(self, { S: self.state, LIVE: self.LIVE, live: true });
   self.tdyRearm();
-  const words = v.tdyLegend.map((g) => g.label).join(' | ');
+  const words = v.tdyv.tdyLegend.map((g) => g.label).join(' | ');
   for (const w of ['Claude (5-minute blocks)', 'browser focus', 'PC asleep']) assert.ok(words.includes(w), w);
 });
 

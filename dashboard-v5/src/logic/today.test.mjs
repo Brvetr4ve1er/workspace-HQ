@@ -58,19 +58,21 @@ function rig(o = {}) {
 test('every key is tdy-prefixed in every state, and the frozen "off" constant is frozen', () => {
   const states = [rig({ state: { tab: 'claude' } }), rig({ noBridge: true }), rig(), rig({ errors: { 0: 'boom' } }), rig({ days: { 0: MODEL() } }), rig({ days: { 0: MODEL() }, errors: { 0: 'boom' } })];
   for (const r of states) {
-    const v = r.vals();
+    const top = r.vals();
+    assert.deepEqual(Object.keys(top), ['tdyv'], 'ONE top-level key');
+    const v = top.tdyv;
     for (const k of Object.keys(v)) assert.match(k, /^tdy[A-Z]/, k);
     r.done();
   }
-  assert.ok(Object.isFrozen(rig({ state: { tab: 'claude' } }).vals()));
+  assert.ok(Object.isFrozen(rig({ state: { tab: 'claude' } }).vals().tdyv));
 });
 
 test('every binding in the template exists in the vals, including the fields of each loop item', () => {
   const r = rig({ days: { 0: MODEL() } });
-  const v = r.vals();
+  const v = r.vals().tdyv;   // the template binds tdyv.<name>; the group is checked against the same names
   const bound = tpl.replace(/hint-placeholder-val="[^"]*"/g, '');
-  const loops = new Map([...bound.matchAll(/<sc-for list="\{\{\s*([A-Za-z0-9_.]+)\s*\}\}" as="(\w+)"/g)].map((m) => [m[2], m[1]]));
-  const all = [...bound.matchAll(/\{\{\s*([A-Za-z0-9_.!]+)\s*\}\}/g)].map((m) => m[1].replace(/^!/, ''));
+  const loops = new Map([...bound.matchAll(/<sc-for list="\{\{\s*([A-Za-z0-9_.]+)\s*\}\}" as="(\w+)"/g)].map((m) => [m[2], m[1].replace(/^tdyv./, '')]));
+  const all = [...bound.matchAll(/\{\{\s*([A-Za-z0-9_.!]+)\s*\}\}/g)].map((m) => m[1].replace(/^!/, '').replace(/^tdyv./, ''));
   let n = 0;
   for (const b of all) {
     const [head, ...rest] = b.split('.');
@@ -82,8 +84,9 @@ test('every binding in the template exists in the vals, including the fields of 
     n++;
   }
   assert.ok(n >= 40, 'only ' + n + ' bindings checked');
+  assert.ok(!/{{s*!?tdy[A-Z]/.test(bound) && !/list="{{s*tdy[A-Z]/.test(bound), 'no template binding is flat: every one goes through tdyv');
   assert.match(tpl, /role="img"/);
-  assert.match(tpl, /aria-label="\{\{ tdyAria \}\}"/);
+  assert.match(tpl, /aria-label="{{ tdyv.tdyAria }}"/);
   r.done();
 });
 
@@ -92,7 +95,7 @@ test('nothing is read at boot or while the owner is anywhere but Home; leaving H
   off.vals(); off.vals();
   await settle();
   assert.deepEqual([off.reads, off.projectsCalls.length], [[], 0]);
-  assert.equal(off.vals().tdyShow, false);
+  assert.equal(off.vals().tdyv.tdyShow, false);
   const old = rig({ live: false });
   old.vals(); await settle();
   assert.deepEqual(old.reads, [], 'an older scan is being viewed: the ribbon is about now, so it stays out');
@@ -121,46 +124,46 @@ test('no bridge: an honest offline state, nothing is read, nothing is marked', a
   const r = rig({ noBridge: true });
   const v = r.vals();
   await settle();
-  assert.deepEqual([v.tdyShow, v.tdyOffline, v.tdyReady, v.tdyLoading], [true, true, false, false]);
-  assert.match(v.tdyOfflineText, /desktop app/);
+  assert.deepEqual([v.tdyv.tdyShow, v.tdyv.tdyOffline, v.tdyv.tdyReady, v.tdyv.tdyLoading], [true, true, false, false]);
+  assert.match(v.tdyv.tdyOfflineText, /desktop app/);
   assert.deepEqual([r.reads, r.marks], [[], []]);
-  assert.equal(v.tdyBackDisabled, true);
+  assert.equal(v.tdyv.tdyBackDisabled, true);
 });
 
 test('loading before an answer, an error with nothing to show, and the last answer kept with the reason when a refresh fails', async () => {
   const a = rig(); const va = a.vals();
-  assert.deepEqual([va.tdyLoading, va.tdyReady, va.tdyHasError], [true, false, false]);
+  assert.deepEqual([va.tdyv.tdyLoading, va.tdyv.tdyReady, va.tdyv.tdyHasError], [true, false, false]);
   const b = rig({ errors: { 0: 'the day could not be built: x' } }); const vb = b.vals();
-  assert.deepEqual([vb.tdyHasError, vb.tdyLoading, vb.tdyReady], [true, false, false]);
-  assert.match(vb.tdyErrorText, /Couldn’t read the day · the day could not be built: x/);
+  assert.deepEqual([vb.tdyv.tdyHasError, vb.tdyv.tdyLoading, vb.tdyv.tdyReady], [true, false, false]);
+  assert.match(vb.tdyv.tdyErrorText, /Couldn’t read the day · the day could not be built: x/);
   const c = rig({ days: { 0: MODEL() }, errors: { 0: 'ipc closed' } }); const vc = c.vals();
-  assert.deepEqual([vc.tdyReady, vc.tdyHasStale], [true, true]);
-  assert.match(vc.tdyStaleText, /ipc closed · showing the last answer/);
-  assert.equal(vc.tdyCaption, MODEL().caption);
+  assert.deepEqual([vc.tdyv.tdyReady, vc.tdyv.tdyHasStale], [true, true]);
+  assert.match(vc.tdyv.tdyStaleText, /ipc closed · showing the last answer/);
+  assert.equal(vc.tdyv.tdyCaption, MODEL().caption);
   for (const r of [a, b, c]) r.done();
 });
 
 test('a ready day: the caption in blocks, the picture, one row per lane, a text twin and the lane notes; no "hours"', () => {
   const r = rig({ days: { 0: MODEL() } });
   const v = r.vals();
-  assert.equal(v.tdyReady, true);
-  assert.equal(v.tdyDayLabel, 'Today');
-  assert.equal(v.tdyCaption, '4 five-minute blocks with Claude across 2 projects, 2 commits, PC asleep 2 h 30 m');
-  assert.match(v.tdyAria, /^Where today went, Today\. 4 five-minute blocks/);
-  assert.equal(v.tdyRows.length, 5);
-  assert.equal(v.tdyRects.length, 5);
-  assert.deepEqual(v.tdyRects.map((x) => x.fill).slice(0, 2), ['var(--purple)', 'var(--purple)']);
-  assert.equal(v.tdyTicks.length, 1);
-  assert.equal(v.tdyHasNow, true);
-  assert.equal(v.tdyHasFuture, true);
-  assert.match(v.tdySvgViewBox, /^0 0 960 \d/);
-  assert.deepEqual(v.tdyTwin.map((t) => t.text), [
+  assert.equal(v.tdyv.tdyReady, true);
+  assert.equal(v.tdyv.tdyDayLabel, 'Today');
+  assert.equal(v.tdyv.tdyCaption, '4 five-minute blocks with Claude across 2 projects, 2 commits, PC asleep 2 h 30 m');
+  assert.match(v.tdyv.tdyAria, /^Where today went, Today\. 4 five-minute blocks/);
+  assert.equal(v.tdyv.tdyRows.length, 5);
+  assert.equal(v.tdyv.tdyRects.length, 5);
+  assert.deepEqual(v.tdyv.tdyRects.map((x) => x.fill).slice(0, 2), ['var(--purple)', 'var(--purple)']);
+  assert.equal(v.tdyv.tdyTicks.length, 1);
+  assert.equal(v.tdyv.tdyHasNow, true);
+  assert.equal(v.tdyv.tdyHasFuture, true);
+  assert.match(v.tdyv.tdySvgViewBox, /^0 0 960 \d/);
+  assert.deepEqual(v.tdyv.tdyTwin.map((t) => t.text), [
     'project 1: 3 five-minute blocks', 'project 2: 1 five-minute block', 'browser: browser lane is kept for 3 days',
     'PC: awake 5 h, asleep 2 h 30 m, unknown 2 h 30 m', 'commits: 2 commits',
   ]);
-  assert.deepEqual(v.tdyNotes, [{ text: 'browser lane is kept for 3 days' }]);
-  assert.equal(v.tdyRows.find((x) => x.label === 'browser').hasNote, true);
-  assert.ok(v.tdyLegend.every((g) => /^var\(--/.test(g.color)), 'colour tokens only');
+  assert.deepEqual(v.tdyv.tdyNotes, [{ text: 'browser lane is kept for 3 days' }]);
+  assert.equal(v.tdyv.tdyRows.find((x) => x.label === 'browser').hasNote, true);
+  assert.ok(v.tdyv.tdyLegend.every((g) => /^var\(--/.test(g.color)), 'colour tokens only');
   assert.doesNotMatch(JSON.stringify(v), /hours? (worked|of work)|productive|NaN|undefined/i);
   r.done();
 });
@@ -170,33 +173,33 @@ test('project names come from the Hub on this screen only; without them the lane
   r.vals(); await settle(); await settle();
   assert.equal(r.projectsCalls.length, 1, 'the project list is read once per arrival');
   const v = r.vals();
-  assert.deepEqual(v.tdyRows.slice(0, 2).map((x) => x.label), ['alpha-site', 'project 2']);
-  assert.equal(v.tdyTwin[0].text, 'alpha-site: 3 five-minute blocks');
+  assert.deepEqual(v.tdyv.tdyRows.slice(0, 2).map((x) => x.label), ['alpha-site', 'project 2']);
+  assert.equal(v.tdyv.tdyTwin[0].text, 'alpha-site: 3 five-minute blocks');
   const failed = rig({ days: { 0: MODEL() }, namesFail: true });
   failed.vals(); await settle(); await settle();
-  assert.deepEqual(failed.vals().tdyRows.slice(0, 2).map((x) => x.label), ['project 1', 'project 2']);
-  assert.equal(failed.vals().tdyReady, true);
-  assert.deepEqual(rig({ days: { 0: MODEL() }, noNames: true }).vals().tdyRows[0].label, 'project 1');
+  assert.deepEqual(failed.vals().tdyv.tdyRows.slice(0, 2).map((x) => x.label), ['project 1', 'project 2']);
+  assert.equal(failed.vals().tdyv.tdyReady, true);
+  assert.deepEqual(rig({ days: { 0: MODEL() }, noNames: true }).vals().tdyv.tdyRows[0].label, 'project 1');
   for (const x of [r, failed]) x.done();
 });
 
 test('stepping back: one read per day not yet held, arrows disabled at both ends, never past 6 days', async () => {
   const r = rig({ days: { 0: MODEL() } });
-  assert.deepEqual([r.vals().tdyBackDisabled, r.vals().tdyForwardDisabled], [false, true]);
+  assert.deepEqual([r.vals().tdyv.tdyBackDisabled, r.vals().tdyv.tdyForwardDisabled], [false, true]);
   assert.equal(r.self.tdyForward(), false, 'no day after today');
   assert.equal(r.self.tdyBack(), true);
   assert.equal(r.self.state.tdyOffset, 1);
   assert.deepEqual(r.reads.slice(-1)[0], [1, false]);
   const readsAfterOne = r.reads.length;
-  assert.equal(r.vals().tdyLoading, true, 'the new day has no answer yet');
-  assert.equal(r.vals().tdyDayLabel, 'Yesterday');
+  assert.equal(r.vals().tdyv.tdyLoading, true, 'the new day has no answer yet');
+  assert.equal(r.vals().tdyv.tdyDayLabel, 'Yesterday');
   for (let i = 0; i < 5; i++) assert.equal(r.self.tdyBack(), true);
   assert.equal(r.self.state.tdyOffset, 6);
   assert.equal(r.self.tdyBack(), false);
   assert.equal(r.self.state.tdyOffset, 6);
   const v = r.vals();
-  assert.deepEqual([v.tdyBackDisabled, v.tdyForwardDisabled], [true, false]);
-  assert.match(v.tdyBackLabel, /goes back 7 days/);
+  assert.deepEqual([v.tdyv.tdyBackDisabled, v.tdyv.tdyForwardDisabled], [true, false]);
+  assert.match(v.tdyv.tdyBackLabel, /goes back 7 days/);
   assert.equal(r.reads.length, readsAfterOne + 5);
   assert.equal(r.self.tdyForward(), true);
   assert.equal(r.self.state.tdyOffset, 5);
@@ -234,9 +237,9 @@ test('the usage mark: one today-ribbon mark per render while a ribbon shows, non
 test('the layout is memoized on the slice revision, the day, the width and the names: a second render is the same objects', () => {
   const r = rig({ days: { 0: MODEL() } });
   const a = r.vals(), b = r.vals();
-  assert.equal(a.tdyRows, b.tdyRows);
+  assert.equal(a.tdyv.tdyRows, b.tdyv.tdyRows);
   r.today.revision += 1;
-  assert.notEqual(r.vals().tdyRows, a.tdyRows);
+  assert.notEqual(r.vals().tdyv.tdyRows, a.tdyv.tdyRows);
   r.done();
 });
 
@@ -245,13 +248,13 @@ test('a phone-width window lays the ribbon out at 360 with a 6-hour axis; a righ
   globalThis.window = { innerWidth: 375 };
   try {
     const v = r.vals();
-    assert.match(v.tdySvgViewBox, /^0 0 360 /);
-    assert.deepEqual(v.tdyAxis.map((a) => a.label), ['00', '06', '12', '18', '24']);
+    assert.match(v.tdyv.tdySvgViewBox, /^0 0 360 /);
+    assert.deepEqual(v.tdyv.tdyAxis.map((a) => a.label), ['00', '06', '12', '18', '24']);
     globalThis.window = { innerWidth: 1280 };
     globalThis.document = { documentElement: { dir: 'rtl' } };
     r.today.revision += 1;
     const rtl = r.vals();
-    assert.equal(rtl.tdyRows[0].labelAnchor, 'end');
+    assert.equal(rtl.tdyv.tdyRows[0].labelAnchor, 'end');
   } finally { delete globalThis.window; delete globalThis.document; r.done(); }
 });
 

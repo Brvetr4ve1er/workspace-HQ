@@ -72,9 +72,10 @@ import tpl from './app.tpl.js';
 // 2026-11-11 Security space (batch 4): the space fragment and the overlays fragment of tpl/security.tpl.js (the unlock dialog, the emergency sheet), +44579 chars / +44581 bytes - exactly the two fragments' own length - joined after cosmos and before extras, the blocks carrying <!-- v5: --> markers; nothing else moved; every value the fragments read sits under the one vals key secv
 // 2026-11-13 Security honesty pass (batch 5): one fragment (tpl/security.tpl.js, Health's export card), the 'Looked in ...' line under the export note (+358 chars / +358 bytes - exactly the line, its <!-- v5: --> marker and the expanded MUTED style); nothing else moved; its values sit under the existing secv key
 // 2026-11-13 Cosmos polish (batch 5): the two Cosmos fragments only (tpl/cosmos.tpl.js, tpl/cosmos-overlays.tpl.js), +3977 chars / +3977 bytes: sort and group become <select>s (their <option>s written out once, because the HTML parser drops an <sc-for> inside a <select>), the drop host gains the drag outline hooks, a failed card shows its title and the words, the lightbox gains the size toggle and the failed-original note, the index overlay gains one row per phase; each with its <!-- v5: --> marker; nothing outside the Cosmos fragments moved
-const SHA256 = 'db3834cb4f39cb8a0a29d4659a8cbed9a57b7a428f15625431d6fa82fcb8fe16';
-const LENGTH = 473369;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 474030;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-13 free renderVals keys (batch 5): one fragment (tpl/today.tpl.js), the Today ribbon binds tdyv.<name> instead of the flat tdy<name> (39 bindings x 5 chars = +195) and its <!-- v5: --> marker says why (+66) = +261 chars / +261 bytes; no markup, label or handler moved
+const SHA256 = '7a0bae259467e0088d815c51e0e00fb7b86e672283518e121a738b0361d9681b';
+const LENGTH = 473630;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 474291;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

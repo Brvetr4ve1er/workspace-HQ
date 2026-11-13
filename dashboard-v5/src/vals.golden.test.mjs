@@ -513,7 +513,7 @@ function canon(x, stack = new Set()) {
   stack.delete(x);
   return out;
 }
-const BATCH5_KEY_CEILING = 1012;   // batch 5: Cosmos polish adds ONE key (cosp) to the 1011 left by batch 4, and nothing else may add any until the fold lowers it
+const BATCH5_KEY_CEILING = 1003;   // batch 5 free-vals-keys: the Today ribbon's 34 tdy* values moved under ONE key (tdyv), 1012 -> 979 measured 2026-11-13; at most 1003 keeps at least 12 of headroom under VALS_KEY_CEILING (the target is 1000)
 const VALS_KEY_CEILING = 1015;   // measured 2026-11-11: 1007 keys = 17 ms per Home render, 1032 keys = 90 ms (the cliff is V8's 1020 descriptor limit)
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 const sorted = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));

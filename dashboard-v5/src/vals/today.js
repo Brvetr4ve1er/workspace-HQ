@@ -1,4 +1,4 @@
-// Home › "Where today went": render values. Keys are tdy-prefixed — one shared namespace with every other surface. The day arrives finished
+// Home › "Where today went": render values. Every value is tdy-prefixed and nested under ONE top-level key, tdyv (the renderVals key ceiling). The day arrives finished
 // from main (dashboard/day-ribbon.js → hq:today:read, held by live/today-slice.mjs); geometry is logic/today-geometry.mjs, memoized on the
 // slice's revision + day + width. This module only shapes it. Honest states: no bridge · still loading · read failed (nothing to show) ·
 // ready (and, when a refresh failed, the last answer with the reason). Nothing is drawn for a lane whose source is missing: its note is.
@@ -35,7 +35,10 @@ const OFF = Object.freeze({
 const pageWidth = () => { try { return typeof window !== 'undefined' && Number.isFinite(window.innerWidth) ? window.innerWidth : WIDE_VIEW_WIDTH; } catch { return WIDE_VIEW_WIDTH; } };
 const pageRtl = () => { try { return typeof document !== 'undefined' && !!document.documentElement && document.documentElement.dir === 'rtl'; } catch { return false; } };
 
-export function todayVals(ctx) {
+// ONE top-level renderVals key (tdyv): the 34 tdy* values keep their names inside it (the key ceiling, vals.golden.test.mjs).
+export function todayVals(ctx) { return { tdyv: todayGroup.call(this, ctx) }; }
+
+function todayGroup(ctx) {
   const { S, LIVE, live } = ctx;
   const onHome = S.tab === 'home' && !S.route && !!live;   // the ribbon is about now: hidden while an older scan is being viewed, like the Brief
   if (!onHome) { this.tdyRearm(); return OFF; }
