@@ -22,16 +22,18 @@ export default String.raw`  <sc-if value="{{ cosLbOpen }}" hint-placeholder-val=
       <div role="dialog" aria-modal="true" aria-label="Cosmos element" tabindex="-1" autoFocus="{{ true }}" style="position:relative;display:flex;flex-wrap:wrap;gap:16px;width:min(1240px,100%);max-height:calc(100vh - 32px);overflow:auto;outline:none">
         <div style="flex:3 1 460px;min-width:0;display:flex;flex-direction:column;gap:10px">
           <!-- v5: the stage - a video plays from the original; an image sits over its saved thumbnail, so a slow or failed original still shows the thumbnail -->
-          <div data-cos="lb-stage" style="position:relative;display:grid;place-items:center;height:calc(100vh - 150px);max-height:880px;min-height:240px;overflow:hidden;border-radius:12px;border:1px solid var(--frame);background:var(--ink)">
+          <div data-cos="lb-stage" style="position:relative;display:grid;place-items:{{ cosp.lbSize.place }};height:calc(100vh - 150px);max-height:880px;min-height:240px;overflow:{{ cosp.lbSize.overflow }};border-radius:12px;border:1px solid var(--frame);background:var(--ink)">
             <sc-if value="{{ cosLbIsVideo }}" hint-placeholder-val="{{ false }}"><video controls preload="metadata" poster="{{ cosLbPoster }}" src="{{ cosLbSrc }}" aria-label="{{ cosLbAlt }}" style="grid-area:1/1;width:100%;height:100%;object-fit:contain;background:var(--ink)"></video></sc-if>
             <sc-if value="{{ cosLbIsImage }}" hint-placeholder-val="{{ true }}">
               <sc-if value="{{ cosLbFallbackSrc }}" hint-placeholder-val="{{ true }}"><img src="{{ cosLbFallbackSrc }}" alt="" aria-hidden="true" draggable="false" style="grid-area:1/1;width:100%;height:100%;object-fit:contain"></sc-if>
-              <img data-cos="lb-image" src="{{ cosLbSrc }}" alt="{{ cosLbAlt }}" decoding="async" draggable="false" style="grid-area:1/1;width:100%;height:100%;object-fit:contain">
+              <!-- v5: a failed original is replaced by a note over the thumbnail; the size toggle (Fit / Actual size) sets data-size and the image style -->
+              <sc-if value="{{ !cosp.lbFailed }}" hint-placeholder-val="{{ true }}"><img data-cos="lb-image" data-size="{{ cosp.lbSize.mode }}" src="{{ cosLbSrc }}" alt="{{ cosLbAlt }}" decoding="async" draggable="false" onError="{{ cosp.onLbError }}" style="grid-area:1/1;{{ cosp.lbSize.imgStyle }}"></sc-if>
+              <sc-if value="{{ cosp.lbFailed }}" hint-placeholder-val="{{ false }}"><div data-cos="lb-failed" role="status" style="grid-area:1/1;align-self:end;justify-self:center;margin:12px;padding:6px 12px;border-radius:8px;font-size:12px;background:var(--ink);color:var(--text);border:1px solid var(--orange)">{{ cosp.lbFailedText }}</div></sc-if>
             </sc-if>
           </div>
           <div style="${ROW};justify-content:space-between">
             <button type="button" onClick="{{ cosLbPrev }}" disabled="{{ !cosLbHasPrev }}" aria-label="Previous element" style="${BTN}" ${BTN_HOVER}>‹ Previous</button>
-            <span data-cos="lb-pos" style="font-size:12px;color:var(--muted)">{{ cosLbPos }}</span>
+            <span style="${ROW};justify-content:center;gap:10px"><span data-cos="lb-pos" style="font-size:12px;color:var(--muted)">{{ cosLbPos }}</span><sc-if value="{{ cosLbIsImage }}" hint-placeholder-val="{{ true }}"><button type="button" data-cos="lb-size" onClick="{{ cosp.lbSize.toggle }}" aria-pressed="{{ cosp.lbSize.pressed }}" title="Switch between fitting the picture and its actual size" style="${BTN}" ${BTN_HOVER}>{{ cosp.lbSize.label }}</button></sc-if></span>
             <button type="button" onClick="{{ cosLbNext }}" disabled="{{ !cosLbHasNext }}" aria-label="Next element" style="${BTN}" ${BTN_HOVER}>Next ›</button>
           </div>
         </div>
@@ -88,6 +90,8 @@ export default String.raw`  <sc-if value="{{ cosLbOpen }}" hint-placeholder-val=
           <sc-if value="{{ cosIdxRunning }}" hint-placeholder-val="{{ false }}"><button type="button" data-cos="idx-cancel" onClick="{{ cosIdxCancel }}" style="${BTN}" ${BTN_HOVER}>Cancel</button></sc-if>
         </div>
         <sc-if value="{{ cosIdxRunning }}" hint-placeholder-val="{{ false }}"><div data-cos="idx-progress" role="status" aria-live="polite" style="${CARD};border-color:var(--blue);font-size:13px">{{ cosIdxProgress }}</div></sc-if>
+        <!-- v5: one row per engine phase (reading the folder, thumbnails, file hashes, duplicates): done, running with N / total, or waiting -->
+        <sc-if value="{{ cosp.hasPhases }}" hint-placeholder-val="{{ false }}"><div data-cos="idx-phases" style="display:flex;flex-direction:column;gap:4px;font-size:13px"><sc-for list="{{ cosp.phases }}" as="ph" hint-placeholder-count="4"><div data-cos="idx-phase" data-phase="{{ ph.id }}" data-state="{{ ph.state }}" style="display:flex;gap:12px;justify-content:space-between"><span>{{ ph.label }}</span><span style="color:var(--muted)">{{ ph.text }}</span></div></sc-for></div></sc-if>
         <sc-if value="{{ cosIdxHasSummary }}" hint-placeholder-val="{{ false }}"><div data-cos="idx-summary" style="font-size:13px;color:var(--muted)">{{ cosIdxSummary }}</div></sc-if>
         <div style="${ROW};border-top:1px solid var(--frame);padding-top:12px"><span style="font-size:12px;color:var(--faint);flex:1 1 200px">Coming from the old gallery? Bring its favourites, hidden pictures and edits over.</span><button type="button" onClick="{{ cosIdxImport }}" style="${BTN}" ${BTN_HOVER}>Import from Cosmos Local</button></div>
       </div>

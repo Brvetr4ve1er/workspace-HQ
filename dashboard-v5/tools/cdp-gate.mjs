@@ -45,6 +45,8 @@
 //   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
 //   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
 //   cosmos-index-progress · cosmos-drop-import
+// Cosmos polish (batch 5; tools/cdp-cosmos-polish.mjs): cosmos-polish-selects · cosmos-polish-failed-card · cosmos-polish-lightbox · cosmos-polish-drag ·
+//   cosmos-polish-index-phases · cosmos-polish-report   (cosmos-render-budget and cosmos-button-sweep above re-run unchanged)
 //
 // A scenario is `async (t) => [failure strings]` ([] = pass) in SCENARIOS below.
 // t.evaluate(expr) evaluates in the page (awaits promises, returns by value) ·
@@ -75,6 +77,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { makeCosmosScenarios } from './cdp-cosmos.mjs';
+import { makeCosmosPolishScenarios } from './cdp-cosmos-polish.mjs';
 import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
 import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
@@ -2066,6 +2069,7 @@ Object.assign(SCENARIOS, {
 
 // scenarios that need more than the default 90 s
 Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
+Object.assign(SCENARIOS, makeCosmosPolishScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
 Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));

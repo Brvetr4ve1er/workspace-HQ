@@ -712,3 +712,128 @@ integrated('app: arriving at the tab calls cosArrive once', () => {
   c.componentDidUpdate();
   assert.equal(n, 1);
 });
+
+// ---- Cosmos polish (batch 5): failed pictures, size toggle, Escape in a draft, the drag outline ----------------------------------------
+test('polish state keys: cosBroken, cosLbZoom and cosDrag are part of the contract with neutral defaults', () => {
+  const s = cosInitState();
+  assert.deepEqual(s.cosBroken, {});
+  assert.equal(s.cosLbZoom, 'fit');
+  assert.equal(s.cosDrag, 0);
+  for (const k of ['cosBroken', 'cosLbZoom', 'cosDrag']) assert.ok(COS_STATE_KEYS.includes(k), k);
+  assert.equal(cosInitState().cosBroken, cosInitState().cosBroken);   // one shared empty map, so the card cache is not defeated
+});
+
+test('a thousand image errors become ONE setState; a thumbnail falls back to its original before the card is marked failed', async () => {
+  const works = Array.from({ length: 1000 }, (_, i) => W(1, { id: 'm' + i }));
+  const r = await loaded({ works });
+  let sets = 0;
+  const set = r.self.setState;
+  r.self.setState = function (p) { sets += 1; return set.call(this, p); };
+  for (const w of works) { r.self.cosImgError(w.id); r.self.cosImgError(w.id); }   // an <img> may fire twice for one failure
+  assert.equal(sets, 0);   // nothing yet: the reports are pending
+  assert.equal(r.self.cosFlushFailures(), 1000);
+  assert.equal(sets, 1);
+  assert.equal(r.self.state.cosBroken.m0, 'thumb');
+  assert.equal(r.self.state.cosBroken.m999, 'thumb');
+  for (const w of works) r.self.cosImgError(w.id);
+  r.self.cosFlushFailures();
+  assert.equal(sets, 2);
+  assert.equal(r.self.state.cosBroken.m0, 'failed');
+  r.self.cosCleanup();
+});
+
+test('a failure for an id the library does not hold changes nothing, and a flush after unmount does nothing', async () => {
+  const r = await loaded();
+  const before = r.self.state.cosBroken;
+  r.self.cosImgError('nope');
+  r.self.cosFlushFailures();
+  assert.equal(r.self.state.cosBroken, before);
+  r.self.cosImgError('w1');
+  r.self.cosCleanup();
+  assert.equal(r.self.cosFlushFailures(), 0);
+  assert.equal(r.self.state.cosBroken, before);
+  r.self.cosImgError('w2');   // a new batcher after a remount works again
+  assert.equal(r.self.cosFlushFailures(), 1);
+  assert.equal(r.self.state.cosBroken.w2, 'thumb');
+  r.self.cosCleanup();
+});
+
+test('an arrival gives every picture one new try (the failed map is cleared)', async () => {
+  const r = await loaded();
+  r.self.setState({ cosBroken: { w1: 'failed' } });
+  r.self.cosImgError('w2');
+  await r.self.cosArrive();
+  assert.deepEqual(r.self.state.cosBroken, {});
+  assert.equal(r.self.cosFlushFailures(), 0);   // the pending report was dropped with the library switch
+});
+
+test('the lightbox original failing is recorded once, under its own key', async () => {
+  const r = await loaded();
+  r.self.cosLbError('w1'); r.self.cosLbError('w1');
+  assert.deepEqual(r.self.state.cosBroken, { 'lb:w1': 'failed' });
+});
+
+test('the size toggle takes fit or actual only, and opening an element starts at fit', async () => {
+  const r = await loaded();
+  r.self.cosSetZoom('actual');
+  assert.equal(r.self.state.cosLbZoom, 'actual');
+  r.self.cosSetZoom('bogus');
+  assert.equal(r.self.state.cosLbZoom, 'actual');
+  r.self.cosOpen('w2');
+  assert.equal(r.self.state.cosLbZoom, 'fit');
+});
+
+test('Escape (cosEscape): with a title draft and the lightbox topmost it drops the draft and keeps the lightbox', async () => {
+  const r = await loaded({ state: { cosLb: { id: 'w1', edit: 'title', draft: 'half', trashAsk: true } } });
+  assert.equal(r.self.cosEscape(), true);
+  assert.deepEqual(r.self.state.cosLb, { id: 'w1', edit: null, trashAsk: true });
+  assert.equal(r.self.cosEscape(), false);   // no draft left: closeTop closes the lightbox as before
+});
+
+test('Escape (cosEscape): a tag draft counts, and anything open above the lightbox means false', async () => {
+  const a = await loaded({ state: { cosLb: { id: 'w1', edit: null, trashAsk: false, tagDraft: 'new' } } });
+  assert.equal(a.self.cosEscape(), true);
+  assert.equal(a.self.state.cosLb.tagDraft, undefined);
+  for (const above of ['paletteOpen', 'settingsOpen', 'cheatOpen', 'cosIdx', 'cosReportOpen']) {
+    const b = await loaded({ state: { cosLb: { id: 'w1', edit: 'title', draft: 'x', trashAsk: false }, [above]: true } });
+    assert.equal(b.self.cosEscape(), false, above);
+    assert.equal(b.self.state.cosLb.draft, 'x', above);
+  }
+});
+
+test('drag outline counter: files count, text does not, a child enter/leave never flickers it, a drop clears it', async () => {
+  const r = await loaded();
+  const files = { dataTransfer: { types: ['Files'] } }, text = { dataTransfer: { types: ['text/plain'] } };
+  r.self.cosDragEnter(text);
+  assert.equal(r.self.state.cosDrag, 0);
+  r.self.cosDragEnter(files); r.self.cosDragEnter(files);
+  assert.equal(r.self.state.cosDrag, 2);
+  r.self.cosDragLeave(files);
+  assert.equal(r.self.state.cosDrag, 1);
+  r.self.cosDragLeave(files); r.self.cosDragLeave(files);
+  assert.equal(r.self.state.cosDrag, 0);
+  r.self.cosDragEnter(files);
+  r.self.cosDragReset();
+  assert.equal(r.self.state.cosDrag, 0);
+});
+
+integrated('app: Escape with a title draft over the lightbox drops the draft first, a second Escape closes it; a palette over the draft closes first', () => {
+  const c = make({ startTab: 'cosmos' });
+  c.setState({ cosLb: { id: 'w1', edit: 'title', draft: 'half', trashAsk: false } });
+  c.onKey(key('Escape'));
+  assert.deepEqual(c.state.cosLb, { id: 'w1', edit: null, trashAsk: false });
+  c.onKey(key('Escape'));
+  assert.equal(c.state.cosLb, null);
+  c.setState({ cosLb: { id: 'w1', edit: 'title', draft: 'kept', trashAsk: false }, paletteOpen: true });
+  c.onKey(key('Escape'));
+  assert.equal(c.state.paletteOpen, false);
+  assert.equal(c.state.cosLb.draft, 'kept');
+  c.setState({ settingsOpen: true });
+  c.onKey(key('Escape'));
+  assert.equal(c.state.settingsOpen, false);
+  assert.equal(c.state.cosLb.draft, 'kept');
+  c.onKey(key('Escape'));
+  assert.equal(c.state.cosLb.edit, null);
+  c.onKey(key('Escape'));
+  assert.equal(c.state.cosLb, null);
+});

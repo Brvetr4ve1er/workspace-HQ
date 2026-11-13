@@ -513,6 +513,7 @@ function canon(x, stack = new Set()) {
   stack.delete(x);
   return out;
 }
+const BATCH5_KEY_CEILING = 1012;   // batch 5: Cosmos polish adds ONE key (cosp) to the 1011 left by batch 4, and nothing else may add any until the fold lowers it
 const VALS_KEY_CEILING = 1015;   // measured 2026-11-11: 1007 keys = 17 ms per Home render, 1032 keys = 90 ms (the cliff is V8's 1020 descriptor limit)
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 const sorted = (o) => Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
@@ -544,6 +545,7 @@ test('renderVals golden: every scenario matches __golden__/vals.hashes.json', (t
     }
     assert.deepEqual(threw, [], 'renderVals threw in:\n' + threw.join('\n'));
     assert.ok(maxKeys <= VALS_KEY_CEILING, 'renderVals returned ' + maxKeys + ' top-level keys (ceiling ' + VALS_KEY_CEILING + '): past about 1020 V8 makes the object a slow dictionary and the dc runtime\'s per-item { ...vals } copies (sc-for) made every Home render ~5x slower. Nest a new surface under ONE key (see src/vals/brief-history.js).');
+    assert.ok(maxKeys <= BATCH5_KEY_CEILING, 'renderVals returned ' + maxKeys + ' top-level keys; batch 5 allows at most ' + BATCH5_KEY_CEILING);
     assert.deepEqual(unstable, [], 'two renders of the same scenario differ (non-deterministic): ' + unstable.join(', '));
     if (UPDATE) {
       mkdirSync(dirname(HASHES), { recursive: true });

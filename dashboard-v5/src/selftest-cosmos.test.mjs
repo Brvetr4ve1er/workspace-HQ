@@ -15,13 +15,15 @@ const by = (name) => { const r = ROWS.find((x) => x[0] === name); assert.ok(r, n
 // the 25 states the dish names (a 26th, cosmos-index-first, covers the overlay before any root exists)
 const REQUIRED = ['cosmos-offline', 'cosmos-loading', 'cosmos-error', 'cosmos-error-with-library', 'cosmos-no-root', 'cosmos-empty-library', 'cosmos-no-match', 'cosmos-no-favourites',
   'cosmos-ready', 'cosmos-ready-grouped-type', 'cosmos-ready-paged', 'cosmos-ready-roomy', 'cosmos-stale', 'cosmos-root-missing', 'cosmos-indexing', 'cosmos-index-overlay', 'cosmos-index-done',
-  'cosmos-lightbox-image', 'cosmos-lightbox-video', 'cosmos-lightbox-edit-title', 'cosmos-lightbox-trash-ask', 'cosmos-report', 'cosmos-report-conflicts', 'cosmos-report-replace-ask', 'cosmos-scrubbed'];
+  'cosmos-lightbox-image', 'cosmos-lightbox-video', 'cosmos-lightbox-edit-title', 'cosmos-lightbox-trash-ask', 'cosmos-report', 'cosmos-report-conflicts', 'cosmos-report-replace-ask', 'cosmos-scrubbed',
+  // batch 5 polish
+  'cosmos-failed-card', 'cosmos-lightbox-actual-size', 'cosmos-lightbox-failed-original', 'cosmos-feed-dragging', 'cosmos-report-skipped'];
 
 test('state names are unique, prefixed cosmos-, and include every named state', () => {
   assert.equal(new Set(NAMES).size, NAMES.length);
   for (const n of NAMES) assert.match(n, /^cosmos-[a-z0-9-]+$/, n);
   for (const n of REQUIRED) assert.ok(NAMES.includes(n), 'missing ' + n);
-  assert.ok(ROWS.length <= 30, 'rows ' + ROWS.length + ': each runs in both themes under a 180 s selftest');
+  assert.ok(ROWS.length <= 32, 'rows ' + ROWS.length + ': each runs in both themes under a 180 s selftest');
 });
 
 test('every row has the Money shape and the feed sub', () => {
@@ -166,4 +168,17 @@ test('subsetLibrary: 60 works in order, odd cases kept, every reference still re
   assert.notEqual(LIB.works.length, s.works.length);
   assert.equal(LIB.works.length, 1000, 'the input is untouched');
   assert.equal(subsetLibrary(s, 60), s, 'already small: returned as is');
+});
+
+test('batch 5 polish rows set the polish state they name (a failed card, actual size, a failed original, the drag outline, the fuller report)', () => {
+  const failed = by('cosmos-failed-card')[3].cosBroken;
+  assert.deepEqual(Object.values(failed).sort(), ['failed', 'thumb']);
+  const [, , C0] = by('cosmos-failed-card');
+  for (const id of Object.keys(failed)) assert.ok(C0.works.some((w) => w.id === id), id + ' is in the library');
+  assert.equal(by('cosmos-lightbox-actual-size')[3].cosLbZoom, 'actual');
+  const lbf = by('cosmos-lightbox-failed-original')[3];
+  assert.deepEqual(lbf.cosBroken, { ['lb:' + lbf.cosLb.id]: 'failed' });
+  assert.equal(by('cosmos-feed-dragging')[3].cosDrag, 1);
+  const rep = by('cosmos-report-skipped')[2].report;
+  assert.ok(rep.rekeyed > 0 && rep.skippedCount > 0 && rep.skipped.length > 0 && rep.manifest === 'used');
 });

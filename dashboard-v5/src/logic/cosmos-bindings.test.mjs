@@ -16,6 +16,8 @@ import overlaysTpl from '../tpl/cosmos-overlays.tpl.js';
 import { resolve } from '../dc/runtime.js';
 import { cosmosVals, COS_OFF } from '../vals/cosmos.js';
 import { cosmosLogic, cosInitState } from './cosmos.js';
+import { SORT_MODES } from './cosmos-search.mjs';
+import { GROUP_MODES } from './cosmos-group.mjs';
 import { emptyCosmos } from '../live/cosmos-slice.mjs';
 
 globalThis.window = globalThis.window || { HQFx: { sfx() {} } };
@@ -216,7 +218,7 @@ test('theme tokens only: no literal colour but the gold button text and the dial
 // ---- the DOM hooks the spec and the cdp scenarios use ---------------------------------------------------------------------------------
 test('the Feed hooks exist: feed host, search, count, empty (with its reason), more, the cards, the grid', () => {
   const t = stripComments(feedTpl);
-  assert.match(t, /<div data-cos="feed" ref="\{\{ cosGridRef \}\}" onDragOver="\{\{ cosOnDragOver \}\}" onDrop="\{\{ cosOnDrop \}\}"/);
+  assert.match(t, /<div data-cos="feed" data-drag="\{\{ cosp\.dragAttr \}\}" ref="\{\{ cosGridRef \}\}" onDragEnter="\{\{ cosp\.onDragEnter \}\}" onDragLeave="\{\{ cosp\.onDragLeave \}\}" onDragOver="\{\{ cosOnDragOver \}\}" onDrop="\{\{ cosOnDrop \}\}"/);
   assert.match(t, /<input data-cos="search"[^>]*aria-label="Search elements"[^>]*placeholder="word, tag:name, colour, #hex"/);
   assert.match(t, /<span data-cos="count"[^>]*>\{\{ cosCount \}\}<\/span>/);
   assert.match(t, /<div data-cos="empty" data-reason="\{\{ cosReason \}\}"/);
@@ -231,7 +233,14 @@ test('the Feed text the spec fixes is there: hint line, buttons, pills, banners'
   const t = stripComments(feedTpl);
   for (const s of ['Drop pictures here to add them', 'Index a folder', 'Re-index', 'Import from Cosmos Local', 'favourites only', 'show hidden', 'Retry', 'Cancel']) assert.ok(t.includes('>' + s + '<'), 'missing: ' + s);
   for (const k of ['cosBannerRoot', 'cosBannerStale', 'cosBannerIndexing', 'cosBannerFailed', 'cosScrubbed', 'cosOfflineText', 'cosLoadingText', 'cosErrorText', 'cosErrorNote']) assert.ok(t.includes('{{ ' + k + ' }}'), 'unbound: ' + k);
-  for (const k of ['cosSorts', 'cosGroups', 'cosDensities']) assert.ok(loops(feedTpl).some((l) => l.list === k), 'no chip row for ' + k);
+  assert.ok(loops(feedTpl).some((l) => l.list === 'cosDensities'), 'no chip row for cosDensities');
+  // sort and group are <select>s over their option lists (batch 5), not chip rows
+  for (const [k, name] of [['cosSorts', 'sort'], ['cosGroups', 'group']]) {
+    // an <sc-for> inside a <select> is dropped by the HTML parser: one <option> per mode is written out, each bound to <model>.sel.<mode>
+    const modes = k === 'cosSorts' ? SORT_MODES : GROUP_MODES;
+    for (const m of modes) assert.ok(t.includes('<option value="' + m + '" selected="{{ ' + k + '.sel.' + m + ' }}">'), 'no <option> for ' + k + ' ' + m);
+    assert.ok(t.includes('<select data-cos="' + name + '" value="{{ ' + k + '.value }}" onChange="{{ ' + k + '.onChange }}"'), 'no <select> for ' + k);
+  }
 });
 
 test('a card: lazy decoded <img> with the title as alt, a play badge for video, real star and eye buttons beside (not inside) the open button', () => {
@@ -280,7 +289,9 @@ test('the lightbox: media from the original with the thumbnail beneath, title ed
   assert.match(t, /<video controls preload="metadata"[^>]*src="\{\{ cosLbSrc \}\}"/);
   assert.match(t, /poster="\{\{ cosLbPoster \}\}"/);
   assert.match(t, /src="\{\{ cosLbFallbackSrc \}\}"/);
-  assert.match(t, /<img data-cos="lb-image" src="\{\{ cosLbSrc \}\}" alt="\{\{ cosLbAlt \}\}"/);
+  assert.match(t, /<img data-cos="lb-image" data-size="\{\{ cosp\.lbSize\.mode \}\}" src="\{\{ cosLbSrc \}\}" alt="\{\{ cosLbAlt \}\}"/);
+  assert.match(t, /<button type="button" data-cos="lb-size" onClick="\{\{ cosp\.lbSize\.toggle \}\}"/);
+  assert.match(t, /<div data-cos="lb-failed"[^>]*>\{\{ cosp\.lbFailedText \}\}<\/div>/);
   assert.match(t, /onKeyDown="\{\{ cosLbTitleKey \}\}"/);
   assert.match(t, /onKeyDown="\{\{ cosLbTagKey \}\}"/);
   assert.match(t, /placeholder="add tags, comma separated"/);

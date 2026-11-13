@@ -83,7 +83,7 @@ test('a Cosmos overlay still open keeps the values live even when the tab moved'
 test('the off object is the idle shape: every key defined, handlers are functions, arrays frozen', () => {
   assert.deepEqual(undefinedPaths(COS_OFF), []);
   assert.ok(Object.keys(COS_OFF).length > 100);
-  for (const k of Object.keys(COS_OFF)) assert.match(k, /^cos[A-Z]/, k);
+  for (const k of Object.keys(COS_OFF)) assert.match(k, /^(cos[A-Z]|cosp$)/, k);   // cosp: the ONE polish key (batch 5)
   assert.equal(COS_OFF.cosOn, false);
   assert.equal(COS_OFF.cosOffline, false);
   assert.equal(COS_OFF.cosLoading, false);
@@ -322,19 +322,29 @@ test('groups: headers come with the cards and a count', () => {
   assert.ok(v.cosHeight > 0);
 });
 
-test('the toolbar chips mark the current sort / group / density', () => {
+test('the sort and group selects hold the current value, and density keeps its chips', () => {
   const v = rig().vals({ cosSort: 'title', cosGroup: 'month', cosDensity: 'roomy' });
-  assert.deepEqual(v.cosSorts.filter((c) => c.on).map((c) => c.label), ['Title A-Z']);
-  assert.deepEqual(v.cosGroups.filter((c) => c.on).map((c) => c.label), ['By month']);
+  assert.equal(v.cosSorts.value, 'title');
+  assert.equal(v.cosGroups.value, 'month');
+  assert.deepEqual(v.cosSorts.options.filter((o) => o.selected).map((o) => o.label), ['Title A-Z']);
+  assert.deepEqual(v.cosGroups.options.filter((o) => o.selected).map((o) => o.label), ['By month']);
   assert.deepEqual(v.cosDensities.filter((c) => c.on).map((c) => c.label), ['Roomy']);
-  assert.equal(v.cosSorts.length, 7);
-  assert.equal(v.cosGroups.length, 5);
+  assert.equal(v.cosSorts.options.length, 7);
+  assert.equal(v.cosGroups.options.length, 5);
   assert.equal(v.cosDensities.length, 3);
+});
+
+test('choosing a sort or group option sets state exactly as the chip did (an event or a bare value; a value that is not a mode is ignored)', () => {
   const r = rig();
-  let sorted = null;
-  r.self.cosSetSort = (m) => { sorted = m; };
-  r.vals().cosSorts[0].go();
-  assert.equal(sorted, 'newest');
+  const picks = [];
+  r.self.cosSetSort = (m) => picks.push(['sort', m]);
+  r.self.cosSetGroup = (m) => picks.push(['group', m]);
+  const v = r.vals();
+  v.cosSorts.onChange({ target: { value: 'title' } });
+  v.cosGroups.onChange('month');
+  v.cosSorts.onChange({ target: { value: 'not-a-mode' } });
+  assert.deepEqual(picks, [['sort', 'title'], ['group', 'month']]);
+  assert.equal(v.cosSorts.options[0].value, 'newest');
 });
 
 test('search value, chip and handlers', () => {
@@ -585,4 +595,101 @@ test('the Feed memo can be swapped for a counting one: one get per render on the
   r.vals(); r.vals();
   assert.equal(gets, 2);
   assert.equal(real.stats.misses, 1);
+});
+
+// ---- Cosmos polish (batch 5): failed pictures, the size toggle, the drag outline, phase rows, the fuller report ------------------------
+const card = (v, id) => v.cosCards.find((c) => c.id === id);
+
+test('polish: a card whose thumbnail fails shows the original, and one whose pictures both fail shows its title and the words (no image)', () => {
+  const r = rig();
+  const hits = [];
+  r.self.cosImgError = (id) => hits.push(id);
+  const fine = card(r.vals(), 'w1');
+  assert.equal(fine.src, 'file:///data/thumbs/w1.jpg');
+  assert.equal(fine.failed, false);
+  assert.equal(fine.failedAttr, null);
+  const thumb = card(r.vals({ cosBroken: { w1: 'thumb' } }), 'w1');
+  assert.equal(thumb.src, 'file:///alpha-site/w1.png');
+  assert.equal(thumb.thumbFailed, true);
+  assert.equal(thumb.failed, false);
+  const dead = card(r.vals({ cosBroken: { w1: 'failed' } }), 'w1');
+  assert.equal(dead.hasSrc, false);
+  assert.equal(dead.failed, true);
+  assert.equal(dead.failedAttr, 'true');
+  assert.equal(dead.failedText, 'could not load');
+  assert.equal(dead.title, 'amber pier');   // the card keeps its title
+  card(r.vals(), 'w2').onImgError();
+  assert.deepEqual(hits, ['w2']);
+});
+
+test('polish: the failed-picture map is part of the card cache key (a new map rebuilds the cards, the same map hands back the same array)', () => {
+  const r = rig();
+  const broken = { w3: 'failed' };
+  const a = r.vals({ cosBroken: broken }), b = r.vals({ cosBroken: broken });
+  assert.equal(a.cosCards, b.cosCards);
+  const c = r.vals({ cosBroken: { w3: 'thumb' } });
+  assert.notEqual(c.cosCards, a.cosCards);
+  assert.equal(card(c, 'w3').failed, false);
+});
+
+test('polish: cosp - the drag outline follows the counter, the size toggle follows the zoom, and there is exactly one new top-level key', () => {
+  const r = rig();
+  const off = r.vals();
+  assert.equal(off.cosp.dragOn, false);
+  assert.equal(off.cosp.dragAttr, null);
+  assert.equal(off.cosp.dragOutline, 'none');
+  const on = r.vals({ cosDrag: 2 });
+  assert.equal(on.cosp.dragOn, true);
+  assert.equal(on.cosp.dragAttr, 'true');
+  assert.match(on.cosp.dragOutline, /dashed/);
+  assert.equal(off.cosp.lbSize.mode, 'fit');
+  assert.equal(off.cosp.lbSize.label, 'Actual size');
+  const actual = r.vals({ cosLbZoom: 'actual' });
+  assert.equal(actual.cosp.lbSize.mode, 'actual');
+  assert.equal(actual.cosp.lbSize.label, 'Fit');
+  assert.equal(actual.cosp.lbSize.overflow, 'auto');
+  const sets = [];
+  r.self.cosSetZoom = (m) => sets.push(m);
+  r.vals().cosp.lbSize.toggle();
+  r.vals({ cosLbZoom: 'actual' }).cosp.lbSize.toggle();
+  assert.deepEqual(sets, ['actual', 'fit']);
+  assert.deepEqual(keysOf(COS_OFF).filter((k) => !/^cos[A-Z]/.test(k)), ['cosp']);
+  assert.deepEqual(keysOf(off), keysOf(COS_OFF));
+});
+
+test('polish: the lightbox failed-original note shows only for an image whose original failed', () => {
+  const r = rig();
+  const hits = [];
+  r.self.cosLbError = (id) => hits.push(id);
+  const ok = r.vals({ cosLb: { id: 'w2', edit: null, trashAsk: false } });
+  assert.equal(ok.cosp.lbFailed, false);
+  const bad = r.vals({ cosLb: { id: 'w2', edit: null, trashAsk: false }, cosBroken: { 'lb:w2': 'failed' } });
+  assert.equal(bad.cosp.lbFailed, true);
+  assert.match(bad.cosp.lbFailedText, /^Could not open the original/);
+  bad.cosp.onLbError();
+  assert.deepEqual(hits, ['w2']);
+  assert.equal(r.vals({ cosLb: { id: 'w3', edit: null, trashAsk: false }, cosBroken: { 'lb:w2': 'failed' } }).cosp.lbFailed, false);
+});
+
+test('polish: the index overlay lists one row per phase, and no rows when nothing runs', () => {
+  assert.deepEqual(rig().vals({ cosIdx: true }).cosp.phases, []);
+  assert.equal(rig().vals({ cosIdx: true }).cosp.hasPhases, false);
+  const r = rig({ cosmos: slice({ indexing: { phase: 'thumbs', done: 40, total: 100 } }) });
+  const v = r.vals({ cosIdx: true });
+  assert.equal(v.cosp.hasPhases, true);
+  assert.deepEqual(v.cosp.phases.map((p) => [p.id, p.state, p.text]), [['walk', 'done', 'done'], ['thumbs', 'running', '40 / 100'], ['hashes', 'waiting', 'waiting'], ['dupes', 'waiting', 'waiting']]);
+  assert.match(v.cosIdxProgress, /^Indexing: thumbnails 40 \/ 100$/);   // the one-line progress is still there
+});
+
+test('polish: the import report gains the seeded, re-keyed and skipped lines only when main sent the numbers', () => {
+  const base = { clusters: 2, favorites: 3, hidden: 0, overrides: 1, found: 4, missingIds: [], missingCount: 0, conflicts: 0, token: null, note: 'Imported' };
+  const plain = rig({ cosmos: slice({ report: base }) }).vals({ cosReportOpen: true });
+  assert.equal(plain.cosRepLines.length, 6);
+  const full = { ...base, seeded: 12, rekeyed: 3, skippedCount: 2, skipped: [{ id: 'a', reason: 'id-known' }, { id: 'b', reason: 'no-id' }], notMatchedCount: 0, manifest: 'used' };
+  const v = rig({ cosmos: slice({ report: full }) }).vals({ cosReportOpen: true });
+  const labels = v.cosRepLines.map((l) => l.label);
+  for (const l of ['Matched to old ids', 'Re-keyed to the old ids', 'Skipped from the manifest', 'Manifest']) assert.ok(labels.includes(l), l);
+  assert.ok(!labels.includes('Not matched'));
+  const calm = rig({ cosmos: slice({ report: { ...full, skippedCount: 0, skipped: [] } }) }).vals({ cosReportOpen: true });
+  assert.ok(!calm.cosRepLines.map((l) => l.label).includes('Skipped from the manifest'));
 });

@@ -154,6 +154,7 @@ export class Component extends DCLogic {
     clearInterval(this._focusT); FX().destroy(); this.stopWhatsNewWait();
     if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); if (this._offNav) this._offNav(); this.store.stop();
     this.flushPending(); window.removeEventListener('pagehide', this._onHide);
+    if (typeof this.cosCleanup === 'function') this.cosCleanup();   // Cosmos: stop the failed-picture batch
   }
   componentDidUpdate() {
     const S = this.state;
@@ -381,6 +382,7 @@ export class Component extends DCLogic {
   closeTop() {
     const S = this.state;
     if (typeof this.secEscape === 'function' && this.secEscape()) return;   // Security's unlock dialog / emergency sheet sit over everything and may not be focused
+    if (typeof this.cosEscape === 'function' && this.cosEscape()) return;   // a half-typed title or tag in the topmost lightbox: Escape drops the draft first
     // What's new sits over Settings (it opens from there), so it closes first
     const order = ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'whatsNewOpen', 'cosReportOpen', 'cosIdx', 'cheatOpen', 'settingsOpen', 'paletteOpen', 'cosLb', 'scrubOpen', 'moreOpen', 'runsOpen', 'askOpen', 'ambientOverlay', 'focus', 'pageMore'];
     for (const k of order) if (S[k]) { if (k === 'focus') this.endFocus(false); else this.setState({ [k]: ['levelUp', 'sheet', 'commit', 'confirm', 'onboard', 'vault', 'cosLb'].includes(k) ? null : false }); return; }

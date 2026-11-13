@@ -14,6 +14,7 @@ import { emptyReason } from '../logic/cosmos-view.mjs';
 import { SORT_MODES, SORT_LABELS, TYPE_LABELS, isFlagged } from '../logic/cosmos-search.mjs';
 import { GROUP_MODES, GROUP_LABELS } from '../logic/cosmos-group.mjs';
 import { DENSITIES } from '../logic/cosmos-layout.mjs';
+import { selectModel, cardImage, lbSizeModel, lbFailedModel, phaseRows, reportExtraLines } from '../logic/cosmos-polish.mjs';
 
 export const COS_TEXT = Object.freeze({
   offline: "Cosmos needs the desktop app's gallery module. Main process unavailable, read only; nothing here changes your files.",
@@ -52,6 +53,13 @@ const summaryText = (s) => {
   return 'Last index: ' + parts.join(' · ');
 };
 
+// the polish keys (batch 5) ride under ONE top-level key, `cosp`; the lightbox size model carries its own style strings
+const LB_FIT = 'width:100%;height:100%;object-fit:contain';
+const LB_ACTUAL = 'width:auto;height:auto;max-width:none;max-height:none;object-fit:none';
+const lbSizeVals = (zoom, set) => Object.assign({}, lbSizeModel(zoom, set), zoom === 'actual' ? { imgStyle: LB_ACTUAL, overflow: 'auto', place: 'safe center' } : { imgStyle: LB_FIT, overflow: 'hidden', place: 'center' });
+const NO_SEL = Object.freeze(Object.fromEntries([...SORT_MODES, ...GROUP_MODES].map((m) => [m, false])));
+const emptySelect = (fn) => Object.freeze({ value: '', options: Object.freeze([]), sel: NO_SEL, onChange: fn });
+
 // ---- the blank (idle) shape: every key, neutral values. The frozen "off the tab" object IS this. ----------------------
 function blank(fn) {
   return {
@@ -60,7 +68,7 @@ function blank(fn) {
     cosOfflineText: COS_TEXT.offline, cosLoadingText: COS_TEXT.loading,
     cosCards: Object.freeze([]), cosHeaders: Object.freeze([]), cosHeight: 0, cosGridStyle: Object.freeze({}), cosGridRef: fn,
     cosCount: '', cosChip: '', cosHasChip: false, cosHasMore: false, cosMoreLabel: '', cosLeft: '', cosMore: fn,
-    cosQueryText: '', cosHasQuery: false, cosOnSearch: fn, cosClear: fn, cosSorts: Object.freeze([]), cosGroups: Object.freeze([]), cosDensities: Object.freeze([]),
+    cosQueryText: '', cosHasQuery: false, cosOnSearch: fn, cosClear: fn, cosSorts: emptySelect(fn), cosGroups: emptySelect(fn), cosDensities: Object.freeze([]),
     cosFavOnly: false, cosToggleFav: fn, cosShowHiddenOn: false, cosToggleHidden: fn, cosOnDrop: fn, cosOnDragOver: fn,
     cosBusy: false, cosScrubbed: false, cosIndexBtn: fn, cosImportBtn: fn,
     cosBannerIndexing: false, cosBannerIndexingText: '', cosBannerCancel: fn,
@@ -75,12 +83,17 @@ function blank(fn) {
     cosIdxRunning: false, cosIdxProgress: '', cosIdxCancel: fn, cosIdxHasSummary: false, cosIdxSummary: '', cosIdxImport: fn,
     cosRepOpen: false, cosRepClose: fn, cosRepNote: '', cosRepLines: Object.freeze([]), cosRepHasMissing: false, cosRepMissingText: '', cosRepMissing: Object.freeze([]),
     cosRepConflicts: 0, cosRepCanReplace: false, cosRepReplaced: false, cosRepAsk: false, cosRepReplaceStart: fn, cosRepReplaceYes: fn, cosRepReplaceNo: fn, cosRepBusy: false,
+    cosp: Object.freeze({
+      dragOn: false, dragAttr: null, dragOutline: 'none', onDragEnter: fn, onDragLeave: fn,
+      lbSize: Object.freeze(lbSizeVals('fit', fn)), lbFailed: false, lbFailedText: '', onLbError: fn,
+      phases: Object.freeze([]), hasPhases: false,
+    }),
   };
 }
 /** Returned on every call while the owner is elsewhere: same reference, frozen. */
 export const COS_OFF = Object.freeze(blank(NOOP));
 
-// card list per feed: rebuilt only when the cards, the effective works or the curation change (a keystroke that narrows
+// card list per feed: rebuilt only when the cards, the effective works, the curation or the failed-picture map change (a keystroke that narrows
 // nothing, or an unchanged re-render, hands back the very same array)
 const cardCache = new WeakMap();   // feed.cards -> { works, curation, feedHeaders, out, headers }
 
@@ -117,7 +130,7 @@ export function cosmosVals(ctx) {
   let cards = B.cosCards, headers = B.cosHeaders;
   if (feed && feed.cards.length) {
     const hit = cardCache.get(feed.cards);
-    if (hit && hit.works === feed.works && hit.curation === C.curation && hit.feedHeaders === feed.headers) { cards = hit.out; headers = hit.headers; }
+    if (hit && hit.works === feed.works && hit.curation === C.curation && hit.feedHeaders === feed.headers && hit.broken === cs.cosBroken) { cards = hit.out; headers = hit.headers; }
     else {
       const byId = new Map();
       for (const w of feed.works) byId.set(w.id, w);
@@ -125,14 +138,16 @@ export function cosmosVals(ctx) {
       cards = feed.cards.map((c) => {
         const w = byId.get(c.id) || { id: c.id };
         const fav = isFlagged(cu.favorites, c.id), hidden = isFlagged(cu.hidden, c.id);
+        const img = cardImage(w, cs.cosBroken && cs.cosBroken[c.id]);
         return {
-          id: c.id, box: c.box, src: w.thumbUrl || w.url || '', hasSrc: !!(w.thumbUrl || w.url), alt: w.title == null ? '' : String(w.title), title: w.title == null ? '' : String(w.title),
+          id: c.id, box: c.box, src: img.src, hasSrc: img.hasSrc, thumbFailed: img.thumbFailed, failed: img.failed, failedAttr: img.failed ? 'true' : null, failedText: img.failedText,
+          onImgError: () => this.cosImgError(c.id), alt: w.title == null ? '' : String(w.title), title: w.title == null ? '' : String(w.title),
           video: !!w.video, fav, hidden, bg: w.color && typeof w.color.hex === 'string' ? w.color.hex : '', type: w.type || '',
           open: () => this.cosOpen(c.id), favGo: () => this.cosFavorite(c.id), hideGo: () => this.cosHide(c.id),
         };
       });
       headers = feed.headers.map((h) => ({ key: h.key, label: h.label, count: h.count, countText: fmtInt(h.count), box: h.box }));
-      cardCache.set(feed.cards, { works: feed.works, curation: C.curation, feedHeaders: feed.headers, out: cards, headers });
+      cardCache.set(feed.cards, { works: feed.works, curation: C.curation, feedHeaders: feed.headers, broken: cs.cosBroken, out: cards, headers });
     }
   }
 
@@ -164,7 +179,7 @@ export function cosmosVals(ctx) {
   // ---- the lightbox ---------------------------------------------------------------------------------------------------
   const lb = cs.cosLb;
   const w = lb && can && hasLib ? cosWork(C, lb.id) : null;
-  let lbv = {};
+  let lbv = {}, lbp = {};
   if (w) {
     const cu = C.curation || {};
     const order = feed ? feed.ids : [];
@@ -190,6 +205,7 @@ export function cosmosVals(ctx) {
       cosLbTitleSave: () => this.cosTitleSave(), cosLbTitleCancel: () => this.cosTitleCancel(),
       cosLbCanTrash: cosCanTrash(w), cosLbTrashAsk: cosCanTrash(w) && !!lb.trashAsk, cosLbTrashStart: () => this.cosTrashAsk(), cosLbTrashYes: () => this.cosTrashYes(), cosLbTrashNo: () => this.cosTrashNo(), cosLbBusy: busy,
     };
+    lbp = Object.assign(lbFailedModel(!w.video && !!(cs.cosBroken && cs.cosBroken['lb:' + w.id]), !!w.thumbUrl), { onLbError: () => this.cosLbError(w.id) });
   }
 
   // ---- the index overlay ----------------------------------------------------------------------------------------------
@@ -201,6 +217,8 @@ export function cosmosVals(ctx) {
     cosIdxHasSummary: !!C.summary, cosIdxSummary: summaryText(C.summary), cosIdxImport: () => this.cosImportLocal(),
   };
 
+  const phases = phaseRows(indexing);
+
   // ---- the import report -----------------------------------------------------------------------------------------------
   const rep = C.report && typeof C.report === 'object' ? C.report : null;
   let repv = {};
@@ -211,7 +229,7 @@ export function cosmosVals(ctx) {
     const line = (label, n) => ({ label, value: fmtInt(n) });
     repv = {
       cosRepOpen: true, cosRepClose: () => this.cosReportClose(), cosRepNote: typeof rep.note === 'string' ? rep.note : '',
-      cosRepLines: [line('Clusters', rep.clusters || 0), line('Favourites', rep.favorites || 0), line('Hidden', rep.hidden || 0), line('Edits', rep.overrides || 0), line('Found in the library', rep.found || 0), line('Not in the library', missingCount)],
+      cosRepLines: [line('Clusters', rep.clusters || 0), line('Favourites', rep.favorites || 0), line('Hidden', rep.hidden || 0), line('Edits', rep.overrides || 0), line('Found in the library', rep.found || 0), line('Not in the library', missingCount), ...reportExtraLines(rep).map((l) => ({ label: l.label, value: l.value }))],
       cosRepHasMissing: missingCount > 0, cosRepMissingText: missingCount > 0 ? plural(missingCount, 'referenced element is', 'referenced elements are') + ' not in the library' + (missing.length < missingCount ? '; showing ' + missing.length : '') : '',
       cosRepMissing: missing.slice(0, 20).map((id) => ({ id: String(id) })),
       cosRepConflicts: rep.conflicts || 0, cosRepCanReplace: canReplace, cosRepReplaced: !!rep.replaced, cosRepAsk: canReplace && !!cs.cosReplaceAsk,
@@ -227,17 +245,25 @@ export function cosmosVals(ctx) {
     cosCount: count, cosChip: feed ? feed.chip : '', cosHasChip: !!(feed && feed.chip), cosHasMore: remaining > 0,
     cosMoreLabel: remaining > 0 ? 'Show ' + fmtInt(Math.min(COS_PAGE_STEP, remaining)) + ' more' : '', cosLeft: remaining > 0 ? fmtInt(remaining) + ' left' : '', cosMore: () => this.cosMore(),
     cosQueryText: String(cs.cosQuery || ''), cosHasQuery: q !== '', cosOnSearch: (e) => this.cosSearch(e.target.value), cosClear: () => this.cosClear(),
-    cosSorts: SORT_MODES.map((m) => chip(cs.cosSort === m, () => this.cosSetSort(m), SORT_LABELS[m])),
-    cosGroups: GROUP_MODES.map((m) => chip(cs.cosGroup === m, () => this.cosSetGroup(m), GROUP_LABELS[m])),
+    cosSorts: selectModel(SORT_MODES, SORT_LABELS, cs.cosSort, (m) => this.cosSetSort(m)),
+    cosGroups: selectModel(GROUP_MODES, GROUP_LABELS, cs.cosGroup, (m) => this.cosSetGroup(m)),
     cosDensities: DENSITIES.map((m) => chip(cs.cosDensity === m, () => this.cosSetDensity(m), m[0].toUpperCase() + m.slice(1))),
     cosFavOnly: !!cs.cosFav, cosToggleFav: () => this.cosToggleFav(), cosShowHiddenOn: !!cs.cosShowHidden, cosToggleHidden: () => this.cosToggleHidden(),
-    cosOnDrop: (e) => { if (e && e.preventDefault) e.preventDefault(); return this.cosDrop(e && e.dataTransfer && e.dataTransfer.files); },
+    cosOnDrop: (e) => { if (e && e.preventDefault) e.preventDefault(); this.cosDragReset(); return this.cosDrop(e && e.dataTransfer && e.dataTransfer.files); },
     cosOnDragOver: (e) => { if (e && e.preventDefault) e.preventDefault(); },
     cosBusy: busy, cosScrubbed: !ctx.live && can, cosIndexBtn: () => this.cosIndexOpen(), cosImportBtn: () => this.cosImportLocal(),
     cosBannerIndexing: can && !!indexing, cosBannerIndexingText: progressText(indexing), cosBannerCancel: () => this.cosIndexCancel(),
     cosBannerRoot: rootDown, cosBannerRootText: rootDown ? 'The folder is not reachable right now. Showing the last index' + (when ? ' from ' + when : '') + '; originals may not open.' : '',
     cosBannerStale: stale, cosBannerStaleText: stale ? 'Last indexed ' + days + ' days ago' : '',
     cosBannerFailed: can && failed, cosBannerFailedText: failed ? summaryText(C.summary) : '',
+    cosp: {
+      dragOn: cs.cosDrag > 0, dragAttr: cs.cosDrag > 0 ? 'true' : null, dragOutline: cs.cosDrag > 0 ? '2px dashed var(--gold)' : 'none',
+      onDragEnter: (e) => this.cosDragEnter(e), onDragLeave: (e) => this.cosDragLeave(e),
+      lbSize: lbSizeVals(cs.cosLbZoom, (m) => this.cosSetZoom(m)),
+      lbFailed: false, lbFailedText: '', onLbError: NOOP,
+      phases, hasPhases: phases.length > 0,
+    },
   }, lbv, idx, repv);
+  Object.assign(out.cosp, lbp);
   return out;
 }

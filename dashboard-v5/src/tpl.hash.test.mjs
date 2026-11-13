@@ -71,9 +71,10 @@ import tpl from './app.tpl.js';
 // 2026-11-11 Machine drift (batch 3): the panel fragment (tpl/drift.tpl.js, +6570 chars / +6575 bytes - exactly the fragment's own length) interpolated into system.tpl.js between the Trends and Starts-with-Windows sections of System > Machine, its <!-- v5: Machine drift --> marker; it wraps itself in {{ dftv.dftShow }} (ONE top-level vals key); nothing else moved
 // 2026-11-11 Security space (batch 4): the space fragment and the overlays fragment of tpl/security.tpl.js (the unlock dialog, the emergency sheet), +44579 chars / +44581 bytes - exactly the two fragments' own length - joined after cosmos and before extras, the blocks carrying <!-- v5: --> markers; nothing else moved; every value the fragments read sits under the one vals key secv
 // 2026-11-13 Security honesty pass (batch 5): one fragment (tpl/security.tpl.js, Health's export card), the 'Looked in ...' line under the export note (+358 chars / +358 bytes - exactly the line, its <!-- v5: --> marker and the expanded MUTED style); nothing else moved; its values sit under the existing secv key
-const SHA256 = 'b6203aaea702edb4a5ae1bd7a28ba45bb4f8c5855816a39fe053369c11ce25fd';
-const LENGTH = 469392;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 470053;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-13 Cosmos polish (batch 5): the two Cosmos fragments only (tpl/cosmos.tpl.js, tpl/cosmos-overlays.tpl.js), +3977 chars / +3977 bytes: sort and group become <select>s (their <option>s written out once, because the HTML parser drops an <sc-for> inside a <select>), the drop host gains the drag outline hooks, a failed card shows its title and the words, the lightbox gains the size toggle and the failed-original note, the index overlay gains one row per phase; each with its <!-- v5: --> marker; nothing outside the Cosmos fragments moved
+const SHA256 = 'db3834cb4f39cb8a0a29d4659a8cbed9a57b7a428f15625431d6fa82fcb8fe16';
+const LENGTH = 473369;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 474030;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

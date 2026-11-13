@@ -16,6 +16,7 @@ import { FEED_PAGE, buildFeed, feedKey, createFeedMemo } from './cosmos-view.mjs
 import { effectiveWorks, isFlagged, parseTags, SORT_MODES } from './cosmos-search.mjs';
 import { GROUP_MODES } from './cosmos-group.mjs';
 import { DENSITIES } from './cosmos-layout.mjs';
+import { applyFailures, createFailureBatcher, dragStep, escapeAction } from './cosmos-polish.mjs';
 
 export const COS_OFFLINE = 'Cosmos needs the desktop app';
 export const COS_PAGE_STEP = 240;
@@ -30,6 +31,7 @@ export function cosToday(d = new Date()) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+const NO_BROKEN = Object.freeze({});   // the one shared empty failed-picture map (a fresh {} per call would defeat the card cache)
 const pick = (list, v, dflt) => (list.includes(v) ? v : dflt);
 
 /**
@@ -54,6 +56,9 @@ export function cosInitState(P = {}, saved = {}) {
     cosReplaceAsk: false,
     cosBusy: false,
     cosFolder: '',
+    cosBroken: NO_BROKEN,    // pictures that would not load: { [id]: 'thumb' | 'failed' } (and 'lb:<id>': 'failed' for the lightbox's original)
+    cosLbZoom: 'fit', // the lightbox size: 'fit' | 'actual'
+    cosDrag: 0,       // dragenter minus dragleave while files are dragged over the Feed (so a child element never flickers the outline)
   };
 }
 
@@ -105,6 +110,7 @@ export const cosmosLogic = {
   // Marks the surface used (a no-op where hq.use is absent). Resolves main's answer; never throws.
   async cosArrive() {
     if (typeof this.useMark === 'function') { try { this.useMark('cosmos', 'open'); } catch { /* a usage mark is a bonus */ } }
+    this.cosResetBroken();   // a drive that was missing last time gets one fresh try
     const st = this.store;
     if (!st || typeof st.refreshCosmos !== 'function') return { error: COS_OFFLINE };
     let r;
@@ -153,7 +159,7 @@ export const cosmosLogic = {
   },
   cosOpen(id) {
     if (typeof id !== 'string' || !id) return;
-    this.setState({ cosLb: { id, edit: null, trashAsk: false } });
+    this.setState({ cosLb: { id, edit: null, trashAsk: false }, cosLbZoom: 'fit' });
     FX().sfx('open');
   },
   cosClose() { if (this.state.cosLb) this.setState({ cosLb: null }); },
@@ -185,6 +191,48 @@ export const cosmosLogic = {
       default: return false;
     }
   },
+
+  // ---- polish: failed pictures, the size toggle, Escape in a draft, the drag outline ------------------------------------
+  // A card's <img> error: the reports are batched (one setState per 100 ms), so a missing drive does not re-render a thousand times.
+  cosImgError(id) {
+    if (typeof id !== 'string' || !id) return;
+    if (!this._cosBatcher) {
+      this._cosBatcher = createFailureBatcher({
+        onFlush: (ids) => this.setState((s) => {
+          const next = applyFailures(s.cosBroken, ids, (i) => cosWork(this.LIVE && this.LIVE.cosmos, i));
+          return next === s.cosBroken ? null : { cosBroken: next };
+        }),
+      });
+    }
+    this._cosBatcher.report(id);
+  },
+  // the selftest has no timers: it drives the pending batch by hand (a no-op when nothing is pending)
+  cosFlushFailures() { return this._cosBatcher ? this._cosBatcher.flushNow() : 0; },
+  // a library switch, a fresh arrival or a re-index: forget what failed so every picture gets one new try
+  cosResetBroken() {
+    if (this._cosBatcher) this._cosBatcher.clear();
+    const b = this.state.cosBroken;
+    if (b && Object.keys(b).length) this.setState({ cosBroken: NO_BROKEN });
+  },
+  // unmount: nothing reported or flushed afterwards reaches setState
+  cosCleanup() { if (this._cosBatcher) { this._cosBatcher.dispose(); this._cosBatcher = null; } },
+  // the lightbox's own original failed to load: one picture, no flood, so no batching
+  cosLbError(id) {
+    if (typeof id !== 'string' || !id) return;
+    this.setState((s) => (s.cosBroken && s.cosBroken['lb:' + id] ? null : { cosBroken: { ...(s.cosBroken || {}), ['lb:' + id]: 'failed' } }));
+  },
+  cosSetZoom(mode) { if (mode === 'fit' || mode === 'actual') this.setState({ cosLbZoom: mode }); },
+  // Escape: called first by app.js closeTop(). True ONLY when the lightbox is the topmost overlay AND a title or tag draft is open:
+  // the draft is dropped and the lightbox stays (a second Escape closes it). Otherwise false and closeTop runs as before.
+  cosEscape() {
+    const a = escapeAction(this.state);
+    if (!a.handled) return false;
+    this.setState(a.patch);
+    return true;
+  },
+  cosDragEnter(e) { this.setState((s) => { const n = dragStep(s.cosDrag, 'enter', e && e.dataTransfer).count; return n === s.cosDrag ? null : { cosDrag: n }; }); },
+  cosDragLeave(e) { this.setState((s) => { const n = dragStep(s.cosDrag, 'leave', e && e.dataTransfer).count; return n === s.cosDrag ? null : { cosDrag: n }; }); },
+  cosDragReset() { if (this.state.cosDrag) this.setState({ cosDrag: 0 }); },
 
   // ---- the one write path ---------------------------------------------------------------------------------
   // Resolves true when main saved it, false otherwise (already toasted).
@@ -334,6 +382,7 @@ export const cosmosLogic = {
     try { r = await this.store.indexCosmos(); } catch (e) { r = { error: (e && e.message) || String(e) }; }
     if (r === true) {
       this.setState({ cosBusy: false, cosIdx: false });
+      this.cosResetBroken();
       FX().sfx('done');
       return true;
     }

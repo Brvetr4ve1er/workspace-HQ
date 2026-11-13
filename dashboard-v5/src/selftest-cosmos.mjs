@@ -90,6 +90,7 @@ export function cosmosStates(lib) {
   const ws = (small && small.works) || [];
   const plain = ws.find((w) => !w.video && !w.approx && !isImport(w) && w.thumbUrl && Array.isArray(w.tags) && w.tags.length > 0) || ws[0];
   const video = ws.find((w) => w.video) || plain;
+  const other = ws.find((w) => !w.video && !w.approx && !isImport(w) && w.thumbUrl && w !== plain) || plain;
   const dropped = ws.find(isImport) || plain;
   const lb = (w, extra) => ({ cosLb: Object.assign({ id: w ? w.id : '', edit: null, trashAsk: false }, extra || {}) });
   const row = (name, live, cs, extra) => [name, 'feed', live, cs || {}, extra || {}];
@@ -123,9 +124,15 @@ export function cosmosStates(lib) {
     row('cosmos-lightbox-video', idle(), lb(video)),
     row('cosmos-lightbox-edit-title', idle(), lb(plain, { edit: 'title', draft: plain ? String(plain.title) : '' })),
     row('cosmos-lightbox-trash-ask', idle(), lb(dropped, { trashAsk: true })),
+    // batch 5 polish: a card whose thumbnail fell back / whose pictures both failed, the lightbox at actual size, a failed original, the drag outline
+    row('cosmos-failed-card', idle(), plain && other ? { cosBroken: { [plain.id]: 'thumb', [other.id]: 'failed' } } : {}),
+    row('cosmos-lightbox-actual-size', idle(), Object.assign(lb(plain), { cosLbZoom: 'actual' })),
+    row('cosmos-lightbox-failed-original', idle(), Object.assign(lb(plain), plain ? { cosBroken: { ['lb:' + plain.id]: 'failed' } } : {})),
+    row('cosmos-feed-dragging', idle(), { cosDrag: 1 }),
     row('cosmos-report', withReport(rep()), { cosReportOpen: true }),
     row('cosmos-report-conflicts', withReport(conflicts()), { cosReportOpen: true }),
     row('cosmos-report-replace-ask', withReport(conflicts()), { cosReportOpen: true, cosReplaceAsk: true }),
+    row('cosmos-report-skipped', withReport(rep({ rekeyed: 3, skippedCount: 3, skipped: [{ id: 'alpha-site-9101', reason: 'id-known' }, { id: null, reason: 'no-id' }, { id: 'alpha-site-9102', reason: 'bad-path' }], notMatchedCount: 1, notMatched: [{ rel: 'placeholder/a.png', id: 'alpha-site-0001', manifestId: 'alpha-site-9103', reason: 'referenced' }], manifest: 'used' })), { cosReportOpen: true }),
     row('cosmos-scrubbed', idle(), {}, { snapOffset: 1 }),
   ];
 }
