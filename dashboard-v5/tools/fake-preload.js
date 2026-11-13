@@ -684,7 +684,7 @@ function createFake(opts) {
     ['brief.dismiss', (key) => ({ brief: Object.assign({}, BRIEF, { items: BRIEF.items.filter((i) => i.key !== key) }) })],
     ['brief.onBrief', 'on:hq:brief'],
     // the quick-run palette's bridge (hq.quick, cast.html only; the main window never calls it): invented rows, no names
-    ['quick.read', () => ({ brief: [{ ref: 'aaaaaaaaaaaa', label: 'A project has secrets in plain sight', scan: false }], status: 'ok', projects: [{ id: 'project-a', name: 'Project A' }] })],
+    ['quick.read', () => ({ brief: [{ ref: 'aaaaaaaaaaaa', label: 'A project has secrets in plain sight', scan: false }], status: 'ok', projects: [{ id: 'project-a', name: 'Project A' }], use: { marks: 3, byTarget: { 'money/': 2, 'claude/': 1 } } })],
     ['quick.openBrief', () => 'go'], ['quick.openGo', () => ({ ok: true })],
     // act in place on a Brief row (hq.brief.act): a placeholder that answers like main's table does. The rule comes from the key's first segment; a key no rule
     // owns (a forged one), a verb of another rule and a bad balance are refused with main's own words. quest-done and confirm-balance answer an acted marker,

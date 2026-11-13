@@ -1,5 +1,5 @@
 // Quick-jump, main side (Ctrl+Alt+X palette: "Needs you" rows + Go mode). Three IPC channels the palette calls:
-//   hq:quick:read ()                 → { brief:[{ ref, label, scan }], status, projects:[{ id, name }] | null } | { error }
+//   hq:quick:read ()                 → { brief:[{ ref, label, scan }], status, projects:[{ id, name }] | null, use:{ marks, byTarget } | null } | { error }
 //   hq:quick:open-brief (ref)        → 'go' | 'scan' | 'none' | { error }      (the palette closes itself after)
 //   hq:quick:open-go (route)         → { ok: true } | { error }                (route = { tab, sub?, projectId? }, validated again here)
 //
@@ -14,13 +14,16 @@
 // "Scan now" path; false = not started, said honestly). A Go route is checked against the same table the palette draws from
 // (cast-modes.js goTable), nav-bridge's cleanRoute (SEG_RE / ID_RE), and, for a project, latest.json.
 //
-// create({ latest, trayBrief, showMainAt, runScan, log, isCastSender, cleanRoute? }) → { read(e), openBrief(e, ref), openGo(e, route) }
+// `use` is COUNTS ONLY from the last 14 days of use marks (use-counts.js: { marks, byTarget:{ 'tab/sub': n } }); null when the counter throws.
+// The palette breaks ties of a typed query with it, once it holds 10 counted opens (cast-modes.js).
+// create({ latest, trayBrief, showMainAt, runScan, log, isCastSender, cleanRoute?, useCounts? }) → { read(e), openBrief(e, ref), openGo(e, route) }
 //   latest()            the parsed latest.json or null (main's latest())
 //   trayBrief           tray-brief.create() instance (view(), open(ref, showMainAt))
 //   showMainAt(route)   main's showMainAt (the nav-bridge openAt path)
 //   runScan()           main's runScan → boolean (false = a scan did not start)
 //   log({ surface, action })   one use mark per success, e.g. (f) => useLog.mark(f.surface, f.action); never names; a throw never blocks
 //   isCastSender(e)     (e) => !!castWin && e.sender === castWin.webContents
+//   useCounts           { read() } test seam; default is use-counts.create(), built lazily on the first read (follows app-log's folder rule, main.js needs no edit)
 // init({ ipcMain, ...deps }) → the same object; registers the three channels. Handlers answer { error } instead of throwing.
 const { cleanRoute: navCleanRoute } = require('./nav-bridge');
 const modes = require('./cast-modes.js');
@@ -37,8 +40,11 @@ const msg = (e) => String((e && e.message) || e || 'unknown error').slice(0, 200
 // the one table of valid (tab, sub) pairs: the palette's own
 const TABS = new Set(modes.goTable.filter((t) => t.kind === 'space').map((t) => t.tab));
 const SUBS = new Set(modes.goTable.filter((t) => t.kind === 'sub').map((t) => t.tab + '/' + t.sub));
+// every key a counts object may carry (a space is 'tab/', a sub-view 'tab/sub'); anything else a counter returns is dropped
+const GO_KEYS = new Set(modes.goTable.map((t) => t.tab + '/' + (t.sub || '')));
 
-function create({ latest, trayBrief, showMainAt, runScan, log, isCastSender, cleanRoute = navCleanRoute } = {}) {
+function create({ latest, trayBrief, showMainAt, runScan, log, isCastSender, cleanRoute = navCleanRoute, useCounts } = {}) {
+  let counter = useCounts || null;
   const fromCast = (e) => { try { return typeof isCastSender === 'function' && isCastSender(e) === true; } catch { return false; } };
   const mark = () => { try { if (typeof log === 'function') log({ surface: 'quick-jump', action: 'open' }); } catch { /* a usage mark never blocks a jump */ } };
 
@@ -56,6 +62,18 @@ function create({ latest, trayBrief, showMainAt, runScan, log, isCastSender, cle
     return out;
   }
 
+  // { marks, byTarget } of plain numbers, or null; a counter that throws, or answers anything else, is null and never an error
+  function use() {
+    try {
+      if (!counter) counter = require('./use-counts.js').create();
+      const u = counter.read();
+      if (!isObj(u) || !isObj(u.byTarget) || !Number.isFinite(u.marks)) return null;
+      const byTarget = {};
+      for (const k of Object.keys(u.byTarget)) { const n = u.byTarget[k]; if (GO_KEYS.has(k) && Number.isFinite(n) && n > 0) byTarget[k] = Math.floor(n); }
+      return { marks: Math.max(0, Math.floor(u.marks)), byTarget };
+    } catch { return null; }
+  }
+
   function read(e) {
     if (!fromCast(e)) return { error: NOT_HERE };
     try {
@@ -68,7 +86,7 @@ function create({ latest, trayBrief, showMainAt, runScan, log, isCastSender, cle
         if (!isObj(r) || typeof r.ref !== 'string' || !REF_RE.test(r.ref) || typeof r.label !== 'string' || !r.label.trim()) continue;
         brief.push({ ref: r.ref, label: clip(r.label.trim(), LABEL_MAX), scan: r.scan === true });
       }
-      return { brief, status: isObj(v) && STATUSES.includes(v.status) ? v.status : 'not-ready', projects: projects() };
+      return { brief, status: isObj(v) && STATUSES.includes(v.status) ? v.status : 'not-ready', projects: projects(), use: use() };
     } catch (err) { return { error: msg(err) }; }
   }
 

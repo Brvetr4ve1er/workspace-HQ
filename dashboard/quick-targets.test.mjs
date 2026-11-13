@@ -48,6 +48,7 @@ function rig(over = {}) {
     runScan: () => { calls.scans++; return true; },
     log: (f) => calls.logs.push(f),
     isCastSender,
+    useCounts: { read: () => ({ marks: 0, byTarget: {} }) },   // never the real logs folder
     ...over,
   };
   return { q: QT.create(deps), calls, deps };
@@ -72,15 +73,15 @@ test('read() carries no why, no amounts, no paths and no ids other than project 
   for (const leak of ['placeholder', 'secret-dir', '.env', '98765432', 'example.invalid', 'git_safety', 'generatedAt', 'statusLine', 'a key at']) assert.ok(!text.includes(leak), leak);
   const keys = new Set();
   (function walk(x) { if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) { keys.add(k); walk(v); } })(JSON.parse(text));
-  assert.deepEqual([...keys].filter((k) => !/^\d+$/.test(k)).sort(), ['brief', 'id', 'label', 'name', 'projects', 'ref', 'scan', 'status']);
+  assert.deepEqual([...keys].filter((k) => !/^\d+$/.test(k)).sort(), ['brief', 'byTarget', 'id', 'label', 'marks', 'name', 'projects', 'ref', 'scan', 'status', 'use']);
 });
 
 test('read(): honest states: no brief yet, no latest.json (projects null), a throwing source', () => {
-  assert.deepEqual(rig({ trayBrief: { view: () => ({ status: 'not-ready', rows: [] }) }, latest: () => null }).q.read(CAST), { brief: [], status: 'not-ready', projects: null });
-  assert.deepEqual(rig({ trayBrief: { view: () => ({ status: 'empty', rows: [] }) }, latest: () => ({ projects: [] }) }).q.read(CAST), { brief: [], status: 'empty', projects: [] });
+  assert.deepEqual(rig({ trayBrief: { view: () => ({ status: 'not-ready', rows: [] }) }, latest: () => null }).q.read(CAST), { brief: [], status: 'not-ready', projects: null, use: { marks: 0, byTarget: {} } });
+  assert.deepEqual(rig({ trayBrief: { view: () => ({ status: 'empty', rows: [] }) }, latest: () => ({ projects: [] }) }).q.read(CAST), { brief: [], status: 'empty', projects: [], use: { marks: 0, byTarget: {} } });
   const thrown = rig({ trayBrief: { view: () => { throw new Error('boom'); } }, latest: () => { throw new Error('disk'); } }).q.read(CAST);
-  assert.deepEqual(thrown, { brief: [], status: 'not-ready', projects: null });
-  assert.deepEqual(rig({ trayBrief: null, latest: undefined }).q.read(CAST), { brief: [], status: 'not-ready', projects: null });
+  assert.deepEqual(thrown, { brief: [], status: 'not-ready', projects: null, use: { marks: 0, byTarget: {} } });
+  assert.deepEqual(rig({ trayBrief: null, latest: undefined }).q.read(CAST), { brief: [], status: 'not-ready', projects: null, use: { marks: 0, byTarget: {} } });
   const odd = rig({ trayBrief: { view: () => ({ status: 'whatever', rows: [{ ref: 'bad', label: 'x' }, { ref: REF_A, label: '' }] }) } }).q.read(CAST);
   assert.equal(odd.status, 'not-ready');
   assert.deepEqual(odd.brief, []);
@@ -232,4 +233,47 @@ test('init registers the three channels and each answers an { error } instead of
   for (const ch of Object.keys(handlers)) assert.deepEqual(await handlers[ch](MAIN, {}), { error: QT.NOT_HERE });
   assert.doesNotThrow(() => QT.init({}));
   assert.doesNotThrow(() => QT.init());
+});
+
+// ---- use: counts only, from use-counts.js (batch 5) ----
+test('read() answers use { marks, byTarget } and stays free of names', () => {
+  const { q } = rig({ useCounts: { read: () => ({ marks: 14, byTarget: { 'money/': 6, 'claude/sessions': 5, 'tasks/': 3 }, note: 'free text', path: 'C:/placeholder/x' }) } });
+  const r = q.read(CAST);
+  assert.deepEqual(r.use, { marks: 14, byTarget: { 'money/': 6, 'claude/sessions': 5, 'tasks/': 3 } });
+  assert.deepEqual(Object.keys(r.use).sort(), ['byTarget', 'marks']);
+  assert.ok(!/free text|placeholder/.test(JSON.stringify(r.use)));
+});
+
+test('read(): keys that are not palette targets, and non-numbers, are dropped from use', () => {
+  const { q } = rig({ useCounts: { read: () => ({ marks: 3, byTarget: { 'money/': 2, 'sample-app': 9, 'project/sample-app': 4, 'tasks/': 'many', 'cosmos/feed': 1.9, 'nope/': 5 } }) } });
+  assert.deepEqual(q.read(CAST).use, { marks: 3, byTarget: { 'money/': 2, 'cosmos/feed': 1 } });
+});
+
+test('a throwing or junk useCounts answers use null, not an error, and the rest of the answer stays', () => {
+  for (const bad of [{ read() { throw new Error('disk gone'); } }, { read: () => null }, { read: () => 'x' }, { read: () => ({ marks: 'a', byTarget: {} }) }, { read: () => ({ marks: 1 }) }]) {
+    const { q } = rig({ useCounts: bad });
+    const r = q.read(CAST);
+    assert.equal(r.error, undefined);
+    assert.equal(r.use, null);
+    assert.equal(r.status, 'ok');
+    assert.equal(r.brief.length, 3);
+  }
+});
+
+test('the default counter reads a log folder: invented use lines arrive as counts through read()', async () => {
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qt-use-'));
+  try {
+    const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+    const name = 'app-' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '.log';
+    fs.writeFileSync(path.join(dir, name), [1, 2, 3].map(() => JSON.stringify({ event: 'use', surface: 'space-money', action: 'open' })).join('\n') + '\n');
+    const UC = require('./use-counts.js');
+    const { q } = rig({ useCounts: UC.create({ logDir: dir }) });
+    assert.deepEqual(q.read(CAST).use, { marks: 3, byTarget: { 'money/': 3 } });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('use counts are refused to non-cast senders like the rest of read()', () => {
+  const { q } = rig({ useCounts: { read: () => ({ marks: 1, byTarget: {} }) } });
+  assert.deepEqual(q.read(MAIN), { error: QT.NOT_HERE });
 });

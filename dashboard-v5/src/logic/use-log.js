@@ -4,6 +4,8 @@
 //   dashboard/use-log.js). It sends AT MOST ONCE per arrival on a screen, and does nothing where hq.use is absent (a browser tab, an old
 //   preload, a test rig). Call it from the vals of a surface ONLY inside that surface's own visibility guard (vals run for every tab on every
 //   render), e.g. `if (S.tab === 'home' && live) this.useMark('brief-panel')`.
+// useSpace(tab)  marks 'space-<tab>' for an arrival ON A SPACE (src/app.js componentDidUpdate calls it when the tab changes, never for a move
+//   between sub-views of the same space); a tab outside the nav ids is refused. Counts only: the Go palette orders typed-query ties by them.
 // useArrive()  — call from the navigation `moved` branch (src/app.js componentDidUpdate): a new screen starts a new arrival, so a surface
 //   marked on Home is marked again after the owner leaves and comes back. useMark also notices a screen change by itself, so the order of
 //   render and didUpdate does not matter (no double send).
@@ -13,6 +15,11 @@
 //
 // Reach (Settings): rchEnsure() loads the rows once per opening of Settings, rchLoad() reads hq.reach.read(), rchCopy(text) copies a command.
 // State keys are rch-prefixed: rchRows, rchAt, rchBusy, rchError.
+import { NAV } from '../live/catalog.mjs';
+
+// the spaces a 'space-<id>' mark may name: the nav's own ids (dashboard/use-log.js builds the same eleven from cast-modes.js; a parity test pins both)
+const SPACE_MARKS = new Set(NAV.map((n) => n.id));
+
 const screenKey = (self) => {
   const S = self.state || {};
   return JSON.stringify([S.tab || '', S.route || null, (S.sub && S.tab && S.sub[S.tab]) || '']);
@@ -43,6 +50,7 @@ export const useLogLogic = {
     return true;
   },
   useArrive() { this._useSync(); },
+  useSpace(tab) { return typeof tab === 'string' && SPACE_MARKS.has(tab) ? this.useMark('space-' + tab) : false; },
   _useWait(id, surface, action) {
     (this._usePending || (this._usePending = new Map())).set(id, [surface, action]);
     if (this._useListening || typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;

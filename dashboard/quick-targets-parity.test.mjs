@@ -43,3 +43,11 @@ test('Projects › Clients is a Go target (delivery-clients landed)', () => {
 test('ids in goTable are routes nav-bridge accepts (lower-case letters, 2-16)', () => {
   for (const t of goTable) { assert.match(t.tab, /^[a-z]{2,16}$/); if (t.sub) assert.match(t.sub, /^[a-z]{2,16}$/); }
 });
+
+test('every SURFACE_TARGETS target exists in catalog NAV/SUBS, and SPACE_IDS are the NAV ids', () => {
+  const { SURFACE_TARGETS, SPACE_IDS } = require('./cast-modes.js');
+  const inCatalog = new Set();
+  for (const n of NAV) { inCatalog.add(n.id + '/'); for (const [id] of SUBS[n.id] || []) inCatalog.add(n.id + '/' + id); }
+  for (const [surface, target] of Object.entries(SURFACE_TARGETS)) assert.ok(inCatalog.has(target), surface + ' -> ' + target + ' is not in catalog.mjs');
+  assert.deepEqual([...SPACE_IDS], NAV.map((n) => n.id));
+});

@@ -11,14 +11,14 @@ const useLog = require('./use-log.js');
 const fakeLog = () => { const lines = []; return { lines, event: (name, f) => { lines.push([name, f]); return true; } }; };
 
 test('every allowlisted surface and action passes, and writes exactly appLog.event("use", {surface, action})', () => {
-  assert.deepEqual([...useLog.SURFACES], ['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh']);
+  assert.deepEqual([...useLog.SURFACES], ['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh', 'space-home', 'space-projects', 'space-tasks', 'space-automations', 'space-claude', 'space-history', 'space-system', 'space-life', 'space-money', 'space-cosmos', 'space-security']);
   assert.deepEqual([...useLog.ACTIONS], ['open', 'act', 'resume', 'copy', 'log']);
   // spaced out so the per-minute cap never interferes: every surface x every action is accepted
   const log = fakeLog();
   let c = 0;
   const u = useLog.create({ appLog: log, now: () => (c += 3000) });
   for (const s of useLog.SURFACES) for (const a of useLog.ACTIONS) assert.deepEqual(u.mark(s, a), { ok: true });
-  assert.equal(log.lines.length, 95);
+  assert.equal(log.lines.length, 150);
   const log2 = fakeLog();
   let t = 0;
   const u2 = useLog.create({ appLog: log2, now: () => (t += 5000) });
@@ -79,4 +79,17 @@ test('init registers hq:use and the handler answers like mark()', () => {
   assert.ok(handlers['hq:use']({}, 'free text', 'open').error);
   assert.deepEqual(log.lines, [['use', { surface: 'sessions-board', action: 'resume' }]]);
   assert.doesNotThrow(() => useLog.init({}));
+});
+
+test('every nav space has an allowlisted space-<id> surface (and nothing else of that shape), and an unknown space is refused', async () => {
+  const { NAV } = await import('../dashboard-v5/src/live/catalog.mjs');
+  const spaceSurfaces = useLog.SURFACES.filter((s) => s.startsWith('space-'));
+  assert.deepEqual(spaceSurfaces, NAV.map((n) => 'space-' + n.id));
+  const log = fakeLog();
+  const u = useLog.create({ appLog: log });
+  assert.deepEqual(u.mark('space-money', 'open'), { ok: true });
+  assert.ok(u.mark('space-settings', 'open').error);
+  assert.ok(u.mark('space-', 'open').error);
+  assert.ok(u.mark('space-alpha-site', 'open').error);
+  assert.deepEqual(log.lines, [['use', { surface: 'space-money', action: 'open' }]]);
 });

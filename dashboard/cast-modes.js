@@ -11,8 +11,12 @@
 //   goTable                          frozen flat list: { kind:'space'|'sub', tab, sub|null, label, own, words }
 //   filterGo(query, projects?, table?) → unranked matches [{ ...target, score }]; an empty query = the ten spaces only; projects only
 //                                       after at least one typed character
-//   rankGo(rows, query)              → sorted copy: score, then spaces before sub-views before projects, then TIE_BREAK, then table order
-//   goRows(query, projects?, limit?) → rankGo(filterGo(...)).slice(0, limit)   (what the palette draws in Go mode)
+//   rankGo(rows, query, use?)        → sorted copy: score, then spaces before sub-views before projects, then (typed query + active use only)
+//                                       the measured count, then TIE_BREAK, then table order
+//   goRows(query, projects?, limit?, use?) → rankGo(filterGo(...)).slice(0, limit)   (what the palette draws in Go mode)
+//   SPACE_IDS                        frozen ids of the spaces (use-log.js builds its 'space-<id>' surfaces from it)
+//   SURFACE_TARGETS                  { older use surface: 'tab/sub' it proves a visit to } — one arrival is never counted twice
+//   USE_ACTIVE_MIN, useActive(use), hintFor(mode, use)   ordering by use is ACTIVE once the counts add up to 10
 //   briefRows(view)                  → { rows:[{ kind:'brief', ref, label, scan }] (≤ 3), note: string|null } from hq.quick.read()'s answer
 //   stateNote(mode, ctx)             → the one honest line for a state with nothing to draw (or a caveat), else null
 //   tieBreak(query, a, b)            → negative / 0 / positive for two equal-score rows, from the fixed TIE_BREAK table
@@ -33,6 +37,9 @@
     run: 'up/down choose · enter run · tab go · esc close',
     go: 'up/down choose · enter open · tab run · esc close',
   });
+  const HINT_USE = 'ties ordered by what you use';
+  // measured use (use-counts.js, answered by hq:quick:read as `use`) only breaks ties of a TYPED query and only once it has 10 counted opens
+  const USE_ACTIVE_MIN = 10;
   const BRIEF_MAX = 3, LABEL_MAX = 64, NAME_MAX = 80, QUERY_MAX = 80, GO_MAX = 8, PROJECTS_SCAN_MAX = 2000;
   const REF_RE = /^[0-9a-f]{12}$/;
 
@@ -50,6 +57,15 @@
     cosmos: [['feed', 'Feed']],
     security: [['map', 'Map'], ['health', 'Health'], ['setup', 'Setup'], ['generate', 'Generator']],
   };
+
+  const SPACE_IDS = Object.freeze(SPACES.map((s) => s[0]));
+  // an older use surface → the ONE sub-view it proves a visit to. A surface that sits on a screen a 'space-<id>' mark already covers is
+  // absent on purpose (a Home arrival writes space-home and brief-panel, and counts once). dashboard/use-counts.js reads this table.
+  const SURFACE_TARGETS = Object.freeze({
+    'sessions-board': 'claude/sessions', 'sessions-strip': 'claude/sessions',
+    'clients-list': 'projects/clients', 'machine-drift': 'system/machine', 'brief-history': 'history/timeline',
+    'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
+  });
 
   const norm = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
   const wordsOf = (s) => norm(s).split(/[^a-z0-9]+/).filter(Boolean);
@@ -130,21 +146,39 @@
     return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib);
   }
 
-  function rankGo(rows, query) {
+  // true only for a counts object whose byTarget numbers add up to USE_ACTIVE_MIN or more
+  function useActive(use) {
+    if (!isObj(use) || !isObj(use.byTarget)) return false;
+    let n = 0;
+    for (const k of Object.keys(use.byTarget)) { const v = use.byTarget[k]; if (Number.isFinite(v) && v > 0) n += v; }
+    return n >= USE_ACTIVE_MIN;
+  }
+  const countOf = (use, r) => {
+    if (r.kind === 'project') return 0;   // a project is never counted: it never outranks a space or a view
+    const v = use.byTarget[keyOf(r)];
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  };
+  const hintFor = (mode, use) => (mode === 'go' && useActive(use) ? HINTS.go + ' · ' + HINT_USE : HINTS[mode] || HINTS.run);
+
+  // rankGo(rows, query, use?): with a TYPED query and an active use object, rows that tie on score and kind sort by their measured count
+  // (higher first) before the fixed TIE_BREAK table. An empty query, no use object, or fewer than 10 counted opens: exactly the old order.
+  function rankGo(rows, query, use) {
     const list = Array.isArray(rows) ? rows.filter(isObj) : [];
+    const byUse = !!cleanQuery(query) && useActive(use);
     return list.map((r, i) => [r, i]).sort((x, y) => {
       const a = x[0], b = y[0];
       return ((a.score ?? 9) - (b.score ?? 9))
         || ((KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9))
+        || (byUse ? countOf(use, b) - countOf(use, a) : 0)
         || tieBreak(query, a, b)
         || (x[1] - y[1]);
     }).map((x) => x[0]);
   }
 
   // what the palette draws: label + the route to ask main for. A space/sub route is { tab, sub? }; a project's is { tab, projectId }.
-  function goRows(query, projects, limit) {
+  function goRows(query, projects, limit, use) {
     const max = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : GO_MAX;
-    const slice = rankGo(filterGo(query, projects), query).slice(0, max);
+    const slice = rankGo(filterGo(query, projects), query, use).slice(0, max);
     return slice.map((r) => ({
       kind: r.kind,
       label: r.label,
@@ -184,5 +218,5 @@
     return briefRows(c.view).note;
   }
 
-  return { MODES, MODE_LABELS, HINTS, goTable, filterGo, rankGo, goRows, briefRows, stateNote, nextMode, tieBreak, TIE_BREAK };
+  return { MODES, MODE_LABELS, HINTS, goTable, filterGo, rankGo, goRows, briefRows, stateNote, nextMode, tieBreak, TIE_BREAK, SPACE_IDS, SURFACE_TARGETS, USE_ACTIVE_MIN, useActive, hintFor };
 });

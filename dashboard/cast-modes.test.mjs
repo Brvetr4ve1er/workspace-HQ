@@ -184,3 +184,109 @@ test('rankGo does not mutate its input', () => {
   M.rankGo(rows, 'run');
   assert.deepEqual(rows.map((r) => r.label), before);
 });
+
+// ---- ordered by measured use (batch 5): only typed-query ties, only once 10 opens are counted ----
+const useOf = (byTarget) => ({ marks: Object.values(byTarget).reduce((a, n) => a + n, 0), byTarget });
+
+test('SPACE_IDS and SURFACE_TARGETS: the eleven spaces, the eight older surfaces and only real targets', () => {
+  assert.deepEqual([...M.SPACE_IDS], M.goTable.filter((t) => t.kind === 'space').map((t) => t.tab));
+  assert.equal(M.SPACE_IDS.length, 11);
+  assert.ok(Object.isFrozen(M.SPACE_IDS) && Object.isFrozen(M.SURFACE_TARGETS));
+  assert.deepEqual({ ...M.SURFACE_TARGETS }, {
+    'sessions-board': 'claude/sessions', 'sessions-strip': 'claude/sessions', 'clients-list': 'projects/clients', 'machine-drift': 'system/machine',
+    'brief-history': 'history/timeline', 'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
+  });
+  const keys = new Set(M.goTable.map((t) => t.tab + '/' + (t.sub || '')));
+  for (const t of Object.values(M.SURFACE_TARGETS)) assert.ok(keys.has(t), t);
+});
+
+test('useActive: the counts must add up to 10; junk is never active', () => {
+  assert.equal(M.USE_ACTIVE_MIN, 10);
+  assert.equal(M.useActive(useOf({ 'money/': 9 })), false);
+  assert.equal(M.useActive(useOf({ 'money/': 9, 'tasks/': 1 })), true);
+  for (const bad of [null, undefined, 3, 'x', [], {}, { byTarget: null }, { byTarget: { 'money/': 'ten' } }, { byTarget: { 'money/': NaN } }, { byTarget: { 'money/': -50, 'tasks/': 9 } }]) {
+    assert.equal(M.useActive(bad), false, JSON.stringify(bad));
+  }
+  assert.equal(M.useActive({ byTarget: { 'money/': -50, 'tasks/': 99 } }), true, 'a negative count is ignored, not subtracted');
+});
+
+test('below activation rankGo equals the old order for every case, with or without a use object', () => {
+  const few = useOf({ 'automations/': 4, 'automations/runnable': 3 });   // 7 opens: not active
+  for (const q of ['run', 'ru', 'money', 'projects', 'go', 'a', 'sample', 'view', '']) {
+    const old = JSON.stringify(M.rankGo(M.filterGo(q, PROJECTS), q));
+    assert.equal(JSON.stringify(M.rankGo(M.filterGo(q, PROJECTS), q, few)), old, q);
+    assert.equal(JSON.stringify(M.rankGo(M.filterGo(q, PROJECTS), q, null)), old, q);
+    assert.equal(JSON.stringify(M.goRows(q, PROJECTS, undefined, few)), JSON.stringify(M.goRows(q, PROJECTS)), q);
+  }
+  assert.deepEqual(labels(M.goRows('run', null, undefined, few)), ['Money › Runway', 'Automations › Runnable']);
+});
+
+test('with 12 counted opens a typed query breaks its ties by count: "run" lists Automations > Runnable first, two tied spaces list the busier one', () => {
+  const use = useOf({ 'automations/runnable': 8, 'money/runway': 2, 'automations/': 2 });
+  assert.deepEqual(labels(M.goRows('run', null, undefined, use)), ['Automations › Runnable', 'Money › Runway']);
+  // "s" ties Security and System (own name starts with it); table order puts System first, the counts decide
+  const spaces = (use2) => labels(M.goRows('s', null, 20, use2).filter((r) => r.kind === 'space'));
+  const plain = spaces(null);
+  assert.ok(plain.indexOf('System') < plain.indexOf('Security'), plain.join(','));
+  const busy = spaces(useOf({ 'security/': 11, 'system/': 1 }));
+  assert.ok(busy.indexOf('Security') < busy.indexOf('System'), busy.join(','));
+  const busy2 = spaces(useOf({ 'security/': 1, 'system/': 11 }));
+  assert.ok(busy2.indexOf('System') < busy2.indexOf('Security'), busy2.join(','));
+});
+
+test('12 quick-jump or reach marks alone leave an empty byTarget: not active, the order and the hint stay as they were', () => {
+  // use-counts.js gives those surfaces no target, so byTarget stays empty while marks (informational) is 12
+  const none = { marks: 12, byTarget: {} };
+  assert.equal(M.useActive(none), false);
+  assert.equal(JSON.stringify(M.goRows('run', null, undefined, none)), JSON.stringify(M.goRows('run')));
+  assert.equal(M.hintFor('go', none), M.HINTS.go);
+});
+
+test('the empty query stays in nav order even with active use', () => {
+  const use = useOf({ 'security/': 30, 'money/': 20, 'cosmos/': 10 });
+  assert.equal(JSON.stringify(M.goRows('', null, undefined, use)), JSON.stringify(M.goRows('')));
+  assert.deepEqual(labels(M.goRows('', null, undefined, use)), ['Home', 'Projects', 'Tasks', 'Automations', 'Claude', 'History', 'System', 'Life']);
+  assert.equal(JSON.stringify(M.goRows('', PROJECTS, 20, use)), JSON.stringify(M.goRows('', PROJECTS, 20)));
+});
+
+test('equal counts fall back to TIE_BREAK, then table order', () => {
+  const same = useOf({ 'automations/runnable': 6, 'money/runway': 6 });
+  assert.deepEqual(labels(M.goRows('run', null, undefined, same)), ['Money › Runway', 'Automations › Runnable']);
+  const none = useOf({ 'tasks/': 12 });   // active, but neither run target has a count
+  assert.deepEqual(labels(M.goRows('run', null, undefined, none)), ['Money › Runway', 'Automations › Runnable']);
+  // a query with no table entry falls to table order (Automations before Money)
+  const raw = M.rankGo(M.filterGo('run'), 'something else', none);
+  assert.deepEqual(labels(raw), ['Automations › Runnable', 'Money › Runway']);
+});
+
+test('a project never outranks a space or a view, whatever the counts; a better score still beats use', () => {
+  const use = useOf({ 'money/': 40, 'money/runway': 40, 'cosmos/': 12 });
+  const pr = [{ id: 'money-app', name: 'Money App' }];
+  const rows = M.goRows('money', pr, 20, use);
+  const firstProject = rows.findIndex((r) => r.kind === 'project');
+  assert.ok(firstProject > 0 && rows.slice(0, firstProject).every((r) => r.kind !== 'project'));
+  assert.equal(rows[0].label, 'Money');
+  // an exact name (score 0) beats a heavily used prefix match (score 1)
+  const exact = M.goRows('system', null, undefined, useOf({ 'system/machine': 50 }));
+  assert.equal(exact[0].label, 'System');
+});
+
+test('hintFor says "ties ordered by what you use" only in Go mode while use ordering is active', () => {
+  const on = useOf({ 'money/': 10 });
+  assert.equal(M.hintFor('go', on), M.HINTS.go + ' · ties ordered by what you use');
+  assert.equal(M.hintFor('run', on), M.HINTS.run);
+  assert.equal(M.hintFor('go', useOf({ 'money/': 9 })), M.HINTS.go);
+  assert.equal(M.hintFor('go'), M.HINTS.go);
+  assert.equal(M.hintFor('nonsense', on), M.HINTS.run);
+});
+
+test('rankGo with use does not mutate its inputs and never throws on junk', () => {
+  const use = useOf({ 'money/': 12 });
+  const rows = M.filterGo('m');
+  const before = JSON.stringify(rows), ub = JSON.stringify(use);
+  M.rankGo(rows, 'm', use);
+  assert.equal(JSON.stringify(rows), before);
+  assert.equal(JSON.stringify(use), ub);
+  for (const bad of [null, 5, 'x', [], { byTarget: 7 }, { byTarget: [] }]) assert.doesNotThrow(() => M.rankGo(rows, 'm', bad));
+  assert.doesNotThrow(() => M.rankGo(rows, undefined, use));
+});

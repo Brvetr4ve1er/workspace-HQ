@@ -15,7 +15,7 @@
 // Brief standing line (hqFake.set answers the fake brief plus two stepped-aside items; ends with hqFake.reset(true)):
 //   brief-standing
 // Assistant rulebook scenarios (--preload=fake; the fake's reach.read answers 4 placeholder rows, use() records its calls):
-//   reach-render · use-marks
+//   reach-render · use-marks · use-space-marks
 // Recall dish (--preload=fake; hqFake.set answers the Hub's refusal and a health with index-only chats):
 //   reindex-guard
 // Sessions board dish (--preload=fake; the fake's sessionsBoard.read answers an invented board of 8 sessions, one per state, 1 nightly run, 2 Codex threads;
@@ -1677,6 +1677,28 @@ const SCENARIOS = {
     await t.evaluate(`(() => { WHQ.app.logic.go('home'); return true; })()`); await t.sleep(500);
     m = await marks();
     if (m.length !== 2) out.push('leaving Home and coming back made ' + m.length + ' mark(s) in all, want 2');
+    return out.concat(t.errors());
+  },
+
+  // Jump ordered by measured use: arriving on a space writes ONE hq:use 'space-<id>' mark; staying, or moving between sub-views of the same space, writes no more; coming back writes one again
+  async 'use-space-marks'(t) {
+    const pre = await fresh(t); if (pre) return pre;
+    const out = [];
+    const marks = () => t.evaluate(`hqFake.calls('use').filter((c) => String(c.args[0]).startsWith('space-')).map((c) => c.args.join('/'))`);
+    await t.evaluate(`(() => { WHQ.app.logic.go('home'); return true; })()`); await t.sleep(150);
+    await t.evaluate(`(() => { hqFake.reset(); WHQ.app.logic.go('money'); return true; })()`); await t.sleep(400);
+    let m = await marks();
+    if (JSON.stringify(m) !== JSON.stringify(['space-money/open'])) out.push('arriving on Money sent ' + JSON.stringify(m) + ', want exactly ["space-money/open"]');
+    await t.evaluate(`(() => { WHQ.app.logic.setState({ toasts: [] }); return true; })()`); await t.sleep(300);
+    m = await marks();
+    if (m.length !== 1) out.push('staying on Money sent ' + (m.length - 1) + ' more space mark(s)');
+    await t.evaluate(`(() => { WHQ.app.logic.go('money', 'runway'); return true; })()`); await t.sleep(300);
+    m = await marks();
+    if (m.length !== 1) out.push('moving between Money sub-views sent ' + (m.length - 1) + ' more space mark(s), want none');
+    await t.evaluate(`(() => { WHQ.app.logic.go('tasks'); return true; })()`); await t.sleep(300);
+    await t.evaluate(`(() => { WHQ.app.logic.go('money'); return true; })()`); await t.sleep(300);
+    m = await marks();
+    if (JSON.stringify(m) !== JSON.stringify(['space-money/open', 'space-tasks/open', 'space-money/open'])) out.push('leaving and coming back made ' + JSON.stringify(m));
     return out.concat(t.errors());
   },
 };

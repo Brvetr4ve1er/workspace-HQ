@@ -184,6 +184,7 @@ export class Component extends DCLogic {
     if (moved && S.route && S.route.type === 'project' && S.route.id) this.dckArrive(S.route.id, this.dlvArrive(S.route.id));   // client delivery: the project page's card reads on arrival
     if (moved && S.tab === 'history' && !S.route) this.store.refreshClaudeStats && this.store.refreshClaudeStats(30);
     if (moved) this.useArrive();   // a new screen starts a new arrival: a surface marked on Home is marked again after leaving and coming back
+    if (moved && ps.tab !== S.tab) this.useSpace(S.tab);   // one 'space-<id>' mark per arrival on a space (Jump orders typed-query ties by these counts)
     if (moved && S.tab === 'home') this.sbdArrive('strip');   // sessions board: the Home strip reads the board on arrival (main pushes changes after that)
     if (moved && S.tab === 'claude' && S.sub.claude === 'sessions') this.sbdArrive('board');
     if (moved && S.tab === 'cosmos') this.cosArrive();

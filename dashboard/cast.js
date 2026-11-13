@@ -216,7 +216,7 @@
         c.textContent = CM.MODE_LABELS[m];
         chips.appendChild(c);
       }
-      $('hint').textContent = CM.HINTS[mode];
+      $('hint').textContent = typeof CM.hintFor === 'function' ? CM.hintFor(mode, quick && quick.use) : CM.HINTS[mode];   // 'ties ordered by what you use' only while use ordering is active
       $('q').placeholder = mode === 'go' ? 'go to a space, a view or a project…' : 'run… or log a spend (150 cafe)';
       $('q').setAttribute('aria-label', mode === 'go' ? 'Where to go' : 'Spell to run');
     }
@@ -232,7 +232,7 @@
     function filter() {
       const q = $('q').value;
       if (CM && mode === 'go') {   // Go: spaces, views and (once something is typed) projects; a Go row only navigates
-        hits = CM.goRows(q, quick && quick.projects).map((r) => ({ go: true, label: r.label, hint: r.hint, route: r.route }));
+        hits = CM.goRows(q, quick && quick.projects, undefined, quick && quick.use).map((r) => ({ go: true, label: r.label, hint: r.hint, route: r.route }));
         sel = 0;
         closeConfirm();
         say('');

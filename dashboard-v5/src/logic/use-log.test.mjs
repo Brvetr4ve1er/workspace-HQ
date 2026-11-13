@@ -186,3 +186,37 @@ test('a hidden window is not an arrival: the mark waits for the first show, and 
     if (had) Object.defineProperty(globalThis, 'document', had); else delete globalThis.document;
   }
 });
+
+// ---- space-<id> marks (Jump ordered by measured use) ----
+test('useSpace marks space-<tab> once per arrival, only for a nav id', () => {
+  const { self, sent } = rig({ state: { tab: 'money', sub: {} } });
+  assert.equal(self.useSpace('money'), true);
+  assert.equal(self.useSpace('money'), false, 'a re-render of the same screen');
+  assert.deepEqual(sent, [['space-money', 'open']]);
+  for (const bad of ['settings', 'space-money', '', null, undefined, 7, '__proto__', 'alpha-site']) assert.equal(self.useSpace(bad), false, String(bad));
+  assert.equal(sent.length, 1, 'nothing outside the nav ids is ever sent');
+  self.state = { ...self.state, tab: 'tasks' };
+  self.useArrive();
+  assert.equal(self.useSpace('tasks'), true);
+  self.state = { ...self.state, tab: 'money' };
+  self.useArrive();
+  assert.equal(self.useSpace('money'), true, 'coming back is a new arrival');
+  assert.deepEqual(sent.map((s) => s[0]), ['space-money', 'space-tasks', 'space-money']);
+});
+
+test('every nav space has a mark that dashboard/use-log.js allows (parity with the main-side allowlist)', async () => {
+  const { createRequire } = await import('node:module');
+  const { NAV } = await import('../live/catalog.mjs');
+  const useLogMain = createRequire(import.meta.url)('../../../dashboard/use-log.js');
+  const { self, sent } = rig();
+  let n = 0;
+  for (const s of NAV) { self.state = { ...self.state, tab: s.id }; self.useArrive(); if (self.useSpace(s.id)) n++; }
+  assert.equal(n, NAV.length);
+  for (const [surface] of sent) assert.ok(useLogMain.SURFACES.includes(surface), surface);
+});
+
+test('useSpace sends nothing without a bridge', () => {
+  const { self, sent } = rig({ noBridge: true });
+  assert.equal(self.useSpace('home'), false);
+  assert.deepEqual(sent, []);
+});

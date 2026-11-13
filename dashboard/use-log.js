@@ -5,7 +5,9 @@
 // create({ appLog, now? }) → { mark(surface, action) }   mark → { ok: true } | { error }
 // init({ ipcMain, appLog, now? }) → the same object; registers ipcMain.handle('hq:use', (e, surface, action) => mark(surface, action))
 // At most 30 accepted a minute (sliding window); anything outside the allowlists, or over the cap, is refused and never logged.
-const SURFACES = Object.freeze(['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh']);
+// one 'space-<id>' mark per nav destination (the main window writes it once per arrival on a space); ids come from the palette's own list
+const SPACE_SURFACES = require('./cast-modes.js').SPACE_IDS.map((id) => 'space-' + id);
+const SURFACES = Object.freeze(['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh'].concat(SPACE_SURFACES));
 const ACTIONS = Object.freeze(['open', 'act', 'resume', 'copy', 'log']);
 const PER_MINUTE = 30;
 const WINDOW_MS = 60e3;
