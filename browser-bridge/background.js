@@ -11,6 +11,7 @@
 
 importScripts('endpoint-guard.js', 'assist.js', 'grab-rules.js', 'grab.js');   // 0.7.0: endpoint guard (every token-bearing fetch), pairing + Brief badge, "Find the best version"
 importScripts('social.js');   // SOCIAL BINDING: socialTick (read) + socialSend (approved write)
+importScripts('social-switch.js');   // 0.9.0: the periodic social read is OFF until the owner switches it on in the popup
 importScripts('claude-sync.js');   // CLAUDE SYNC (0.6.0): paced read-only claude.ai -> /claude/sync
 
 const DEFAULTS = { endpoint: 'http://127.0.0.1:47821', paused: false, token: '' };
@@ -80,11 +81,11 @@ HQGrab.install();   // contextMenus.onClicked and downloads.onChanged are (re)wi
 async function bootstrap() {
   try { chrome.idle.setDetectionInterval(IDLE_SECONDS); } catch { /* ignore */ }
   chrome.alarms.create('flush', { periodInMinutes: FLUSH_MINUTES });
-  chrome.alarms.create(SOCIAL_ALARM, { periodInMinutes: SOCIAL_PERIOD_MIN });   // periodic read-only social scrape
   chrome.alarms.create(HQAssist.ALARM, { periodInMinutes: 5 });   // 0.7.0: the Brief on the toolbar badge
   await transition(await activeTab());
   flush();
-  socialTick().catch(() => {});
+  await socialSwEnsureAlarm().catch(() => {});   // 0.9.0: the social alarm exists only while the owner's switch is on (an 0.8.0 alarm is cleared here)
+  socialSwTick().catch(() => {});
   claudeEnsureAlarm().catch(() => {});
   HQAssist.tick().catch(() => {});
 }
@@ -115,7 +116,7 @@ chrome.idle.onStateChanged.addListener(async (state) => {
 
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'flush') flush();
-  else if (a.name === SOCIAL_ALARM) socialTick().catch(() => {});
+  else if (a.name === SOCIAL_ALARM) socialSwTick().catch(() => {});
   else if (a.name === CLAUDE_SYNC_ALARM) claudeSyncTick().catch(() => {});
   else if (a.name === HQAssist.ALARM) HQAssist.tick().catch(() => {});
   else if (a.name === HQGrab.ALARM) HQGrab.pump().catch(() => {});   // a save left pending by a worker restart carries on
@@ -129,6 +130,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   // the site and the file type). There is no message for saving several.
   if (msg && msg.type === 'grab:save') { HQGrab.enqueue(msg, sender).then(reply).catch(() => reply({ ok: false, message: "Can't save this one" })); return true; }
   if (msg && msg.type === 'social:send' && msg.action) { socialSend(msg.action).then(reply); return true; }
+  if (msg && msg.type === 'social:set') { socialSwSet(msg.on === true).then(reply).catch((e) => reply({ on: false, error: String(e) })); return true; }
   if (msg && msg.type === 'social:sync') { socialTick().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }
   // popup "check again": deliver queued focus sessions now instead of on the next alarm
   if (msg && msg.type === 'bridge:flush') { flush().then(() => reply({ ok: true })).catch((e) => reply({ ok: false, error: String(e) })); return true; }

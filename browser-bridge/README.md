@@ -21,7 +21,10 @@ while a Chrome window is focused and you're not idle (60s idle stops the clock).
 Sub-1.5s tab flickers are dropped. Everything stays **on your machine**: it's
 POSTed to `127.0.0.1` only, and the app keeps a rolling 3-day window.
 
-**Social feeds, mentions and metrics** (`social.js`). Every 5 minutes the
+**Social feeds, mentions and metrics** (`social.js`). **Off by default (0.9.0):** the
+periodic read only runs after you tick the "social" switch in the popup (`social-switch.js`,
+`social-switch-popup.js`); a manual Sync still reads once. Approving and sending a post
+is separate and needs no switch. When the switch is on, every 5 minutes the
 extension reads the social sites you are **already logged into in an open tab**
 (the first open tab per site; no tab, nothing read). The read runs inside that
 tab with the site's own session, so the extension never stores a password or

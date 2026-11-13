@@ -83,6 +83,8 @@
     <div class="note">Reads your own claude.ai chats with claude.ai's own page requests — read-only, at most one every 2 s, only while a claude.ai tab is open — and sends them only to WorkspaceHQ on this PC. These requests are not a public API: claude.ai may change or rate-limit them; sync then pauses and says so. A chat over 4 MB is skipped and counted. Only your first claude.ai organization is synced.</div>
   </section>
 
+  <section id="social-auto" class="blk"></section>
+
   <label class="row">
     <input type="checkbox" id="paused" />
     <span>pause capture</span>
@@ -111,6 +113,7 @@
   </details>
 
   <div id="err" class="err"></div>
+  <script src="social-switch-popup.js"></script>
   <script src="endpoint-guard.js"></script>
   <script src="assist.js"></script>
   <script src="grab-rules.js"></script>

@@ -224,7 +224,7 @@ test('tick: unticking "on" mid-run stops the reads and the status stays off', as
 test('manifest 0.7.0, background wiring, popup controls and the risk note', () => {
   const read = (f) => fs.readFileSync(new URL('../browser-bridge/' + f, import.meta.url), 'utf8');
   const m = JSON.parse(read('manifest.json'));
-  assert.equal(m.version, '0.8.0'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
+  assert.equal(m.version, '0.9.0'); assert.ok(m.optional_host_permissions.includes('https://claude.ai/*'));
   assert.ok(!m.host_permissions.some((h) => h.includes('claude.ai')), 'claude.ai stays optional, granted on the owner\'s click');
   const bg = read('background.js');
   assert.match(bg, /importScripts\('claude-sync\.js'\)/);
