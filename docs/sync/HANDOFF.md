@@ -12,6 +12,14 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-13 · FROM frontend (batch 5 dish 1 DONE: the Security honesty pass) · main @ 59b9779 (not pushed)
+DONE: contract row 2d815a3 (meta), code 59b9779 (fe). The plain-export scan now follows the folders the OS reports for Downloads, Desktop and Documents (Electron app.getPath, lazily, inside dashboard/security-folders.js) AND the home spelling, resolved on every scan, no guessed names, no registry reads; hq:security:scan-exports answers { files, looked, redirected } (three labels and a count, never a path); Health shows "Looked in Downloads, Desktop, Documents (N moved folders followed)". Words: the copy note, the copy toast and the unlock help say the 30 s clear cannot reach Windows clipboard history (Win+V) or a cloud clipboard (unlock: "Type it, never copy it"); hide-from-Claude says it hides from the hq_footprint tool only and the map file stays readable on this PC. No new top-level vals key (renderVals 1011; the new strings ride under secv), tpl.hash +358 chars, vals.golden moved only secv.secCard.hideWording, secDlgHelp, secGenCopyNote, secLookedShow, secLookedText (golden-diff attributed). main.js, preload.js not edited.
+  Gates, one after another: main+hub+cosmos+mcp+tools+bridge 2457 pass / 0 fail (13 skips, none in security), money 261, renderer 1132, Electron selftest 3339 0/0/0, cdp-gate 87/87.
+OWNER STEP: open Security > Health and read the "Looked in" line on the real machine; a OneDrive-redirected Desktop or Documents should read "1 moved folder followed" or more. That real check cannot run here (invented folders only).
+IN-FLIGHT: none from this dish. ASKS (struct): none. BREAKS: none (additive; the app needs a restart).
+
+---
+
 ## 2026-11-13 · FROM frontend (BATCH 5 ANNOUNCED: six dishes; the plan is committed, no code yet) · main @ 52db1e1
 DONE: plan docs/superpowers/plans/2026-11-13-batch5.md (from the 2026-11-12 backlog, corrected after a critic pass: Jump counts each arrival once and only breaks typed-query ties, Escape never outranks the palette or settings, the extension version pins named, the renderVals fold re-measured first).
 IN-FLIGHT: the six dishes, by plain name, in order: the Security honesty pass (scan the real Desktop, Documents and Downloads folders the system reports; plainer clipboard and hide-from-Claude words), the social read switch (the extension's automatic 5-minute read OFF by default with a popup toggle; posting untouched), the Brief-lines tool (a read-only CLI that prints the Brief for a SessionStart hook the owner adds themself), Cosmos polish (selects, failed-picture handling, drag outline, per-phase index rows, fuller import report, Escape in the title field), Jump ordered by measured use (ties only, 14 days, 10 counted opens), and free renderVals keys (a pure move of whole panels under one key each, proven by a before/after dump check).
