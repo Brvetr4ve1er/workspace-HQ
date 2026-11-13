@@ -44,9 +44,9 @@ test('non-use events, garbage lines and a use line with an unknown or non-string
   assert.deepEqual(make(d).read(), { marks: 1, byTarget: { 'money/': 1 } });
 });
 
-test('SURFACE_TARGETS: the older surfaces map to the documented sub-views, and only those', () => {
+test('SURFACE_TARGETS: the seven older surfaces map to the documented sub-views, and only those', () => {
   assert.deepEqual({ ...U.SURFACE_TARGETS }, {
-    'sessions-board': 'claude/sessions', 'sessions-strip': 'claude/sessions', 'clients-list': 'projects/clients',
+    'sessions-board': 'claude/sessions', 'clients-list': 'projects/clients',
     'machine-drift': 'system/machine', 'brief-history': 'history/timeline',
     'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
   });
@@ -54,7 +54,7 @@ test('SURFACE_TARGETS: the older surfaces map to the documented sub-views, and o
   day(d, '2026-11-13', ['sessions-board', 'sessions-strip', 'clients-list', 'machine-drift', 'brief-history', 'money-start', 'money-quick', 'money-access'].map((s) => use(s)));
   assert.deepEqual(make(d).read(), {
     marks: 8,
-    byTarget: { 'claude/sessions': 2, 'history/timeline': 1, 'money/today': 3, 'projects/clients': 1, 'system/machine': 1 },
+    byTarget: { 'claude/sessions': 1, 'history/timeline': 1, 'money/today': 3, 'projects/clients': 1, 'system/machine': 1 },
   });
 });
 
@@ -67,7 +67,7 @@ test('every SURFACE_TARGETS target and every space id exists in the app catalog 
 
 test('the other known surfaces map to NO target: marks count, byTarget stays empty', () => {
   const d = mk();
-  const none = ['brief-panel', 'today-ribbon', 'brief-act', 'cosmos', 'security', 'security-refresh', 'delivery-card', 'delivery-check', 'quick-jump', 'reach', 'palette-money-line'];
+  const none = ['sessions-strip', 'brief-panel', 'today-ribbon', 'brief-act', 'cosmos', 'security', 'security-refresh', 'delivery-card', 'delivery-check', 'quick-jump', 'reach', 'palette-money-line'];
   day(d, '2026-11-13', none.map((s) => use(s)));
   assert.deepEqual(make(d).read(), { marks: none.length, byTarget: {} });
 });

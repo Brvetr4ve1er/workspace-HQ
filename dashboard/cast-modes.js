@@ -62,7 +62,7 @@
   // an older use surface → the ONE sub-view it proves a visit to. A surface that sits on a screen a 'space-<id>' mark already covers is
   // absent on purpose (a Home arrival writes space-home and brief-panel, and counts once). dashboard/use-counts.js reads this table.
   const SURFACE_TARGETS = Object.freeze({
-    'sessions-board': 'claude/sessions', 'sessions-strip': 'claude/sessions',
+    'sessions-board': 'claude/sessions',   // 'sessions-strip' is absent on purpose: the strip renders on Home, so it proves no Sessions visit
     'clients-list': 'projects/clients', 'machine-drift': 'system/machine', 'brief-history': 'history/timeline',
     'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
   });

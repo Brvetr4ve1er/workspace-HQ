@@ -188,12 +188,12 @@ test('rankGo does not mutate its input', () => {
 // ---- ordered by measured use (batch 5): only typed-query ties, only once 10 opens are counted ----
 const useOf = (byTarget) => ({ marks: Object.values(byTarget).reduce((a, n) => a + n, 0), byTarget });
 
-test('SPACE_IDS and SURFACE_TARGETS: the eleven spaces, the eight older surfaces and only real targets', () => {
+test('SPACE_IDS and SURFACE_TARGETS: the eleven spaces, the seven older surfaces and only real targets', () => {
   assert.deepEqual([...M.SPACE_IDS], M.goTable.filter((t) => t.kind === 'space').map((t) => t.tab));
   assert.equal(M.SPACE_IDS.length, 11);
   assert.ok(Object.isFrozen(M.SPACE_IDS) && Object.isFrozen(M.SURFACE_TARGETS));
   assert.deepEqual({ ...M.SURFACE_TARGETS }, {
-    'sessions-board': 'claude/sessions', 'sessions-strip': 'claude/sessions', 'clients-list': 'projects/clients', 'machine-drift': 'system/machine',
+    'sessions-board': 'claude/sessions', 'clients-list': 'projects/clients', 'machine-drift': 'system/machine',
     'brief-history': 'history/timeline', 'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
   });
   const keys = new Set(M.goTable.map((t) => t.tab + '/' + (t.sub || '')));

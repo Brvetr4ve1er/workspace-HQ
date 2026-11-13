@@ -31,11 +31,11 @@ const SPACE_IDS = Object.freeze((modes.SPACE_IDS && modes.SPACE_IDS.length ? [..
 
 // older surface → the ONE sub-view it proves a visit to. Surfaces that sit on a screen a space mark already covers map to nothing.
 const LOCAL_TARGETS = {
-  'sessions-board': 'claude/sessions', 'sessions-strip': 'claude/sessions',
+  'sessions-board': 'claude/sessions',   // 'sessions-strip' is absent on purpose: the strip renders on Home (space-home already counts that arrival)
   'clients-list': 'projects/clients', 'machine-drift': 'system/machine', 'brief-history': 'history/timeline',
   'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
 };
-const NO_TARGET = ['brief-panel', 'today-ribbon', 'brief-act', 'cosmos', 'security', 'security-refresh', 'delivery-card', 'delivery-check', 'quick-jump', 'reach', 'palette-money-line'];
+const NO_TARGET = ['brief-panel', 'today-ribbon', 'brief-act', 'cosmos', 'security', 'security-refresh', 'sessions-strip', 'delivery-card', 'delivery-check', 'quick-jump', 'reach', 'palette-money-line'];
 const SURFACE_TARGETS = Object.freeze(Object.assign({}, modes.SURFACE_TARGETS || LOCAL_TARGETS));
 
 // surface → target key | null, for every surface a line may carry and be counted as a mark
