@@ -9,6 +9,7 @@
 //   owner      the owner's own edits { accounts, manual, identities }
 //   snapshots  numbers-only growth lines; status = numbers, booleans and timestamps only
 //   exports    null = never scanned, [] = scanned and none found (the honest difference)
+//   looked / redirected   the scan's labels (Downloads, Desktop, Documents) and a count of moved folders followed; null before a scan
 //   revision   bumped on every change of map / owner / snapshots / status / exports; the vals' memo key includes it
 //
 // The master passphrase passes THROUGH unlockSecurity as an argument and is never stored: not in LIVE, not in a closure that
@@ -23,7 +24,7 @@ const words = (e) => String((e && e.message) || e || 'unknown problem').slice(0,
 
 /** A fresh LIVE.security. */
 export function emptySecurity() {
-  return { loaded: false, error: '', settings: null, map: null, owner: emptyOwner(), snapshots: [], status: null, cliFound: false, vaultExists: false, exports: null, exportsError: '', revision: 0 };
+  return { loaded: false, error: '', settings: null, map: null, owner: emptyOwner(), snapshots: [], status: null, cliFound: false, vaultExists: false, exports: null, looked: null, redirected: 0, exportsError: '', revision: 0 };
 }
 export function emptyOwner() { return { accounts: {}, manual: [], identities: [] }; }
 
@@ -92,6 +93,8 @@ export function createSecuritySlice({ hq, live, emit, pull } = {}) {
       if (isObj(r) && Array.isArray(r.files)) {
         s.exports = r.files.filter((f) => isObj(f) && typeof f.name === 'string' && typeof f.dir === 'string')
           .map((f) => ({ name: f.name, dir: f.dir, size: Number.isFinite(f.size) ? f.size : 0, mtime: typeof f.mtime === 'string' || typeof f.mtime === 'number' ? f.mtime : null }));
+        s.looked = Array.isArray(r.looked) ? r.looked.filter((x) => typeof x === 'string').slice(0, 6) : null;   // labels only, never a path
+        s.redirected = Number.isFinite(r.redirected) && r.redirected > 0 ? Math.floor(r.redirected) : 0;
         s.exportsError = '';
         s.revision += 1;
       } else s.exportsError = isObj(r) && typeof r.error === 'string' ? r.error : 'the scan gave no answer';

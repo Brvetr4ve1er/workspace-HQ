@@ -171,12 +171,12 @@ test('the hide-from-Claude switch carries the honest sentence; the generator cop
   useRow(r, 'security-map-card');
   const v = r.vals();
   assert.equal(v.secCard.hideWording, HIDE_WORDING);
-  assert.match(v.secCard.hideWording, /hides this account from the hq_footprint tool; a session that reads the files in this folder could still see the file/);
+  assert.match(v.secCard.hideWording, /hides this account from the hq_footprint tool only; the map file stays readable on this PC by anything that can read this app.s data folder, a Claude session included/);
   assert.match(v.secCard.hideLabel, /Hide from Claude/);
   useRow(r, 'security-generator');
   const g = r.vals();
   assert.equal(g.secGenCopyNote, COPY_NOTE);
-  assert.match(g.secGenCopyNote, /cleared from the clipboard after 30 s; Windows clipboard history may keep it, so for a real password prefer KeePassXC.s own generator/);
+  assert.match(g.secGenCopyNote, /cleared from the clipboard after 30 s; that clear cannot reach Windows clipboard history \(Win\+V\) or a cloud clipboard, which may keep a copy, so for a real password prefer KeePassXC.s own generator/);
 });
 
 test('flag words: every flag has a label and a what-to-do line, and the health rows list them in the fixed order', () => {
@@ -667,7 +667,7 @@ test('generator: Generate makes a passphrase of 7 words by default; chars follow
   assert.equal(v.secGenDoLabel, 'Generate another');
   await v.secGenCopy();
   assert.deepEqual(r.log.find((x) => x[0] === 'copy').slice(1), [v.secGenOut]);
-  assert.ok(r.vals().secGenNote.includes('Windows clipboard history may keep it'));
+  assert.ok(r.vals().secGenNote.includes('Windows clipboard history (Win+V) or a cloud clipboard'));
   // chars
   r.vals().secGenKinds[1].go();
   assert.equal(r.vals().secGenHasOut, false, 'changing the kind drops the old output');

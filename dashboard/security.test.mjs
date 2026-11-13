@@ -43,8 +43,8 @@ function make(o = {}) {
     ipcMain: ipc, getWin: () => fakeWin(main), dataDir, safeStorage: fakeSafeStorage(o.available !== false),
     shell: { trashItem: async (p) => { trashed.push(p); } }, clipboard: clip, appLog,
     deps: {
-      allowScriptCli: true, core: coreUnderTest, timers, now: () => NOW, scanDirs: [scanRoot], fetchRange: o.fetchRange || (async () => 'FFFF:0'),
-      env: { ...process.env, HQ_KEEPASSXC_CLI: FAKE_CLI, HQ_FAKE_KP_XML: xmlPath, HQ_FAKE_KP_MODE: o.mode || 'ok' },
+      allowScriptCli: true, core: coreUnderTest, timers, now: () => NOW, scanDirs: o.getPath ? undefined : [scanRoot], getPath: o.getPath, home: o.home, fetchRange: o.fetchRange || (async () => 'FFFF:0'),
+      env: { ...process.env, HQ_SECURITY_SCAN_DIRS: '', HQ_KEEPASSXC_CLI: FAKE_CLI, HQ_FAKE_KP_XML: xmlPath, HQ_FAKE_KP_MODE: o.mode || 'ok' },
       spawn: (...a) => { spawnCalls.push(a); return cp.spawn(...a); },
     },
   });
@@ -197,6 +197,24 @@ test('scan-exports lists name-only guesses and stamps status; trash-export moves
   assert.deepEqual(t.trashed, [path.join(t.scanRoot, 'Chrome Passwords.csv')]);
   assert.equal(JSON.stringify(t.logs).includes('Chrome'), false, 'the day log carries no file name');
   assert.ok(t.logs.some((l) => l[0] === 'security' && l[1].note === 'moved a plain export to the Recycle Bin'));
+  t.handle.dispose();
+});
+
+test('a redirected Desktop (an invented cloud folder) is scanned by name, trash-export follows the latest scan, and the answer carries labels and a count, never a path', async () => {
+  const cloud = tmp('hq-sec-cloud-'); const home = tmp('hq-sec-home-');
+  const desk = path.join(cloud, 'Example Cloud', 'Desktop'); fs.mkdirSync(desk, { recursive: true });
+  fs.writeFileSync(path.join(desk, 'passwords.csv'), 'x');
+  const t = make({ home, getPath: (n) => (n === 'desktop' ? desk : path.join(home, n[0].toUpperCase() + n.slice(1))) });
+  assert.deepEqual(t.trashed, []);
+  assert.match((await t.call('trash-export', { name: 'passwords.csv', dir: desk })).error, /latest scan/, 'not before it is in a scan');
+  const s = await t.call('scan-exports', {});
+  assert.deepEqual(s.files.map((f) => f.name), ['passwords.csv']);
+  assert.deepEqual(s.looked, ['Downloads', 'Desktop', 'Documents']);
+  assert.equal(s.redirected, 1);
+  const json = JSON.stringify({ looked: s.looked, redirected: s.redirected });
+  assert.equal(json.includes('Example Cloud') || json.includes(cloud) || json.includes(home), false, 'no path in the looked answer');
+  assert.deepEqual(await t.call('trash-export', { name: 'passwords.csv', dir: desk }), { ok: true });
+  assert.deepEqual(t.trashed, [path.join(desk, 'passwords.csv')]);
   t.handle.dispose();
 });
 

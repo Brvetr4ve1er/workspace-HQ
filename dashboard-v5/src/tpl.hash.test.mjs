@@ -70,9 +70,10 @@ import tpl from './app.tpl.js';
 // 2026-11-11 Save to vault with no local model (batch 3, vault-template): one fragment (tpl/extras.tpl.js, the Save to vault dialog), +813 chars / +813 bytes: the badge reads {{ vtp.badge }} (Template or Local model), the drafting line no longer claims a local model, and the template banner + the "Draft again with the model" button follow the basis line; each marked <!-- v5: --> ; nothing else moved
 // 2026-11-11 Machine drift (batch 3): the panel fragment (tpl/drift.tpl.js, +6570 chars / +6575 bytes - exactly the fragment's own length) interpolated into system.tpl.js between the Trends and Starts-with-Windows sections of System > Machine, its <!-- v5: Machine drift --> marker; it wraps itself in {{ dftv.dftShow }} (ONE top-level vals key); nothing else moved
 // 2026-11-11 Security space (batch 4): the space fragment and the overlays fragment of tpl/security.tpl.js (the unlock dialog, the emergency sheet), +44579 chars / +44581 bytes - exactly the two fragments' own length - joined after cosmos and before extras, the blocks carrying <!-- v5: --> markers; nothing else moved; every value the fragments read sits under the one vals key secv
-const SHA256 = '6ddc01f94ef523e5b78d9b5cb6796802a0ed33b715f04290014671ac07e5bd9e';
-const LENGTH = 469034;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 469695;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-13 Security honesty pass (batch 5): one fragment (tpl/security.tpl.js, Health's export card), the 'Looked in ...' line under the export note (+358 chars / +358 bytes - exactly the line, its <!-- v5: --> marker and the expanded MUTED style); nothing else moved; its values sit under the existing secv key
+const SHA256 = 'b6203aaea702edb4a5ae1bd7a28ba45bb4f8c5855816a39fe053369c11ce25fd';
+const LENGTH = 469392;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 470053;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

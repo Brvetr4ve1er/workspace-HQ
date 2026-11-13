@@ -4,14 +4,16 @@
 //   getWin: () => the MAIN window (like cosmos.js and nav-bridge.js). EVERY channel first checks event.sender === getWin().webContents and
 //   otherwise answers { error: 'not available here' }: the cast palette window loads the same preload and must never reach read (decrypted
 //   identity labels), refresh, edit, add, trash or copy.
-//   deps (tests / gates only): { core, spawn, fetchRange, env, now, randomBytes, existsSync, fs, scanDirs, timers, timeoutMs, maxBytes, execPath }.
+//   deps (tests / gates only): { core, spawn, fetchRange, env, now, randomBytes, existsSync, fs, scanDirs, getPath, home, timers, timeoutMs, maxBytes, execPath }.
+//   getPath: (name) => the folder the OS reports for 'downloads' | 'desktop' | 'documents' (default: Electron's app.getPath, resolved lazily,
+//   see security-folders.js). The scan follows a moved Desktop / Documents / Downloads AND the home spelling, resolved on every scan.
 //
 // hq:security:read -> { settings, map, owner, snapshots, status, cliFound, vaultExists }
 // hq:security:refresh { passphrase, checkBreaches } -> { ok, accounts, breachChecked, notes } | { error }
 // hq:security:settings { vaultPath?, keyFilePath?, cliPath? } -> { ok } | { error }
 // hq:security:edit { id, patch } -> { ok } | { error }          hq:security:add-manual { title, host } -> { ok, id } | { error }
 // hq:security:add-identity { kind, value } -> { ok, ref } | { error }      hq:security:walkthrough { stepId, done } -> { ok } | { error }
-// hq:security:scan-exports -> { files }                          hq:security:trash-export { name, dir } -> { ok } | { error }
+// hq:security:scan-exports -> { files, looked, redirected }      hq:security:trash-export { name, dir } -> { ok } | { error }
 // hq:security:copy { text } -> { ok }   (cleared after 30 s only if the clipboard still holds the same text; honest limit: this does not
 //                                        remove the text from Windows clipboard history or a cloud clipboard)
 //
@@ -23,6 +25,7 @@ const path = require('node:path');
 const nodeFs = require('node:fs');
 const { create: createStore } = require('./security-store');
 const { create: createVault } = require('./security-vault');
+const { resolveScanDirs, LOOKED } = require('./security-folders');
 
 const CHANNELS = ['read', 'refresh', 'settings', 'edit', 'add-manual', 'add-identity', 'walkthrough', 'scan-exports', 'trash-export', 'copy'];
 const FIRST_SCAN_MS = 60_000;
@@ -39,12 +42,6 @@ function makeCrypto(safeStorage) {
     encrypt(str) { try { return usable() ? safeStorage.encryptString(String(str)).toString('base64') : null; } catch { return null; } },
     decrypt(b64) { try { return usable() ? safeStorage.decryptString(Buffer.from(String(b64), 'base64')) : null; } catch { return null; } },
   };
-}
-
-function defaultScanDirs(env) {
-  if (env.HQ_SECURITY_SCAN_DIRS) return String(env.HQ_SECURITY_SCAN_DIRS).split(path.delimiter).filter(Boolean);   // gates
-  const home = os.homedir();
-  return ['Downloads', 'Desktop', 'Documents'].map((d) => path.join(home, d));
 }
 
 function init({ ipcMain, getWin, dataDir, safeStorage, shell, clipboard, appLog, deps = {} } = {}) {
@@ -65,7 +62,10 @@ function init({ ipcMain, getWin, dataDir, safeStorage, shell, clipboard, appLog,
   });
   const logEvent = (fields) => { try { appLog && appLog.event('security', fields); } catch { /* never blocks */ } };
   getCore().then((c) => { if (c) store.attachCore(c); }).catch(() => {});   // status counts follow owner edits once the engine is loaded
-  const scanDirs = () => deps.scanDirs || defaultScanDirs(env);
+  // resolved per call: a folder moved while the app runs is followed by the next scan. looked = labels, redirected = a count; never a path.
+  const scanDirs = () => (deps.scanDirs
+    ? { dirs: deps.scanDirs, looked: [...LOOKED], redirected: 0 }
+    : resolveScanDirs({ env, getPath: deps.getPath, home: deps.home || os.homedir() }));
 
   const fromMain = (event) => {
     try {
@@ -84,11 +84,12 @@ function init({ ipcMain, getWin, dataDir, safeStorage, shell, clipboard, appLog,
 
   function scanNow() {
     try {
-      const files = vault.scanExports({ dirs: scanDirs() });
+      const where = scanDirs();
+      const files = vault.scanExports({ dirs: where.dirs });
       const conflicts = vault.scanConflicts(store.readSettings().vaultPath);
       store.setScanResult({ exportsFound: files.length, conflicts });
-      return { files, conflicts };
-    } catch { return { files: [], conflicts: 0 }; }
+      return { files, conflicts, looked: where.looked, redirected: where.redirected };
+    } catch { return { files: [], conflicts: 0, looked: [...LOOKED], redirected: 0 }; }
   }
 
   handle('read', () => {
@@ -106,7 +107,7 @@ function init({ ipcMain, getWin, dataDir, safeStorage, shell, clipboard, appLog,
   handle('add-manual', (a) => store.addManual({ title: a.title, host: a.host }));
   handle('add-identity', (a) => store.addIdentity({ kind: a.kind, value: a.value }));
   handle('walkthrough', (a) => store.setWalkthrough(a.stepId, a.done));
-  handle('scan-exports', () => { const { files } = scanNow(); return { files }; });
+  handle('scan-exports', () => { const { files, looked, redirected } = scanNow(); return { files, looked, redirected }; });
   handle('trash-export', async (a) => {
     const r = await vault.trashExport(a.name, a.dir);
     if (r && r.ok) scanNow();   // the status count follows the list

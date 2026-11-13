@@ -12,7 +12,7 @@
 // The unlock dialog's input is UNCONTROLLED: nothing here binds its value, and no key of secv holds what was typed.
 import { emptySecurity } from '../live/security-slice.mjs';
 import { buildMapModel, filterByDate, dateStops, layoutGraph, growthSummary, LOCKED_LABEL, FLAG_ORDER } from '../logic/security-graph.mjs';
-import { secInit, secSteps, FLAG_WORDS, HIDE_WORDING, COPY_NOTE, CONFLICT_WORDING, EXPORT_WORDING, TWOFA_OPTIONS, SHEET_LINES } from '../logic/security.js';
+import { secInit, secSteps, FLAG_WORDS, HIDE_WORDING, COPY_NOTE, CONFLICT_WORDING, EXPORT_WORDING, TWOFA_OPTIONS, SHEET_LINES, lookedLine } from '../logic/security.js';
 import { estimateBits, LIMITS, SET_NAMES } from '../logic/security-generate.mjs';
 
 export const SEC_W = 900;
@@ -27,7 +27,7 @@ export const SEC_TEXT = Object.freeze({
   noVaultPath: 'No vault file chosen yet. Choose it in Setup.',
   noVaultFile: 'The chosen vault file was not found. Check the path in Setup.',
   unlockTitle: 'Unlock the vault',
-  unlockHelp: 'Type the master passphrase. It is passed to keepassxc-cli on its standard input and the field is emptied as soon as it is sent. This app does not write it anywhere.',
+  unlockHelp: 'Type the master passphrase. It is passed to keepassxc-cli on its standard input and the field is emptied as soon as it is sent. This app does not write it anywhere. Type it, never copy it: the app’s 30 s clipboard clear cannot reach Windows clipboard history (Win+V) or a cloud clipboard.',
   breachCheck: 'check breaches online (Have I Been Pwned, 5 hash characters leave the PC)',
   breachOff: 'The breach check is off: no network call is made and breach status stays "not checked".',
   genIntro: 'A convenience only. For a real password prefer KeePassXC’s own generator.',
@@ -81,7 +81,7 @@ function blank() {
     secCard: blankCard(),
     // health
     secFlagRows: E, secBreachLine: '', secFlagged: E, secHasFlagged: false, secFlaggedMore: '', secHasFlaggedMore: false, secNoFlagsText: '', secHasNoFlags: false,
-    secExports: E, secHasExports: false, secExportsNote: '', secExportsScan: NOOP, secConflictShow: false, secConflictText: '', secConflictCount: '',
+    secExports: E, secHasExports: false, secExportsNote: '', secLookedShow: false, secLookedText: '', secExportsScan: NOOP, secConflictShow: false, secConflictText: '', secConflictCount: '',
     // setup
     secSteps: E, secStepsDone: '', secVaultRef: NOOP, secVaultValue: '', secVaultSave: NOOP, secVaultErr: '', secHasVaultErr: false, secVaultKey: NOOP,
     secSheetOpen: false, secSheetTitle: SEC_TEXT.sheetTitle, secSheetHelp: SEC_TEXT.sheetHelp, secSheetLines: E, secSheetPrint: NOOP, secSheetClose: NOOP,
@@ -240,6 +240,7 @@ function securityFlat(ctx) {
     out.secExports = (files || []).map((f) => ({ name: f.name, dir: f.dir, meta: kb(f.size) + (dayOf(typeof f.mtime === 'string' ? f.mtime : '') ? ' · ' + dayOf(f.mtime) : ''), wording: EXPORT_WORDING, trash: () => this.secTrashExport(f.name, f.dir) }));
     out.secHasExports = !!files && files.length > 0;
     out.secExportsNote = files === null ? (SL.exportsError ? 'The scan could not run: ' + SL.exportsError : SEC_TEXT.exportsNever) : files.length === 0 ? SEC_TEXT.exportsNone : plural(files.length, 'file', 'files') + ' ' + (files.length === 1 ? 'has' : 'have') + ' a name like a password export. A name match is a guess: the file is never opened. If it is one, move it to the Recycle Bin below, then empty the bin yourself.';
+    out.secLookedText = lookedLine(SL.looked, SL.redirected); out.secLookedShow = out.secLookedText !== '';
     out.secExportsScan = () => (this.store && this.store.scanSecurityExports ? this.store.scanSecurityExports() : null);
     const conflicts = Number.isFinite(st.conflicts) ? st.conflicts : 0;
     out.secConflictShow = conflicts > 0; out.secConflictCount = plural(conflicts, 'conflict copy', 'conflict copies'); out.secConflictText = CONFLICT_WORDING;

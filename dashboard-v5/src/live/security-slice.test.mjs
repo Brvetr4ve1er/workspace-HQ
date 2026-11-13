@@ -24,7 +24,7 @@ function rig(security, opts = {}) {
 
 test('emptySecurity is the contract shape: loaded false, exports null (never scanned)', () => {
   const s = emptySecurity();
-  assert.deepEqual(Object.keys(s).sort(), ['cliFound', 'error', 'exports', 'exportsError', 'loaded', 'map', 'owner', 'revision', 'settings', 'snapshots', 'status', 'vaultExists'].sort());
+  assert.deepEqual(Object.keys(s).sort(), ['cliFound', 'error', 'exports', 'exportsError', 'loaded', 'looked', 'map', 'owner', 'redirected', 'revision', 'settings', 'snapshots', 'status', 'vaultExists'].sort());
   assert.equal(s.loaded, false);
   assert.equal(s.map, null);
   assert.equal(s.exports, null);
@@ -154,6 +154,19 @@ test('scanSecurityExports: [] means scanned and clean, null means never scanned;
   await slice.scanSecurityExports();
   assert.deepEqual(S().exports, []);
   assert.equal(S().exportsError, '');
+});
+
+test('scanSecurityExports keeps the looked-in labels and the moved-folder count (additive; an old answer without them reads null and 0)', async () => {
+  let next = { files: [], looked: ['Downloads', 'Desktop', 'Documents', 5], redirected: 2.9 };
+  const { slice, S } = rig({ scanExports: async () => next });
+  assert.equal(S().looked, null);
+  await slice.scanSecurityExports();
+  assert.deepEqual(S().looked, ['Downloads', 'Desktop', 'Documents']);
+  assert.equal(S().redirected, 2);
+  next = { files: [] };
+  await slice.scanSecurityExports();
+  assert.equal(S().looked, null);
+  assert.equal(S().redirected, 0);
 });
 
 test('writes pass main\'s answer through and re-read only after an ok', async () => {

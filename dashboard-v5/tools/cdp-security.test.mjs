@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import * as mod from './cdp-security.mjs';
 import { securityFixture, FIXTURE_EXPORTS, FAKE_PASSPHRASE } from '../src/selftest-security.mjs';
-import { STEPS, HIDE_WORDING, COPY_NOTE, CONFLICT_WORDING, EXPORT_WORDING } from '../src/logic/security.js';
+import { STEPS, HIDE_WORDING, COPY_NOTE, CONFLICT_WORDING, EXPORT_WORDING, lookedLine } from '../src/logic/security.js';
+import { SEC_TEXT } from '../src/vals/security.js';
 
 const { makeSecurityScenarios, SECURITY_SCENARIOS, SECURITY_WRITE_METHODS, PAGE, createFakeSecurity, fakeSecuritySource, expectedBubbles, STEP_IDS, SENTENCES, COUNT_STEPS } = mod;
 const SRC = fs.readFileSync(new URL('./cdp-security.mjs', import.meta.url), 'utf8');
@@ -85,6 +86,8 @@ test('expectations: the invented footprint has 10 bubbles; the sentences and ste
   assert.deepEqual([...STEP_IDS], STEPS.map((s) => s.id));
   assert.equal(SENTENCES.hide, HIDE_WORDING);
   assert.ok(COPY_NOTE.includes(SENTENCES.clipboard));
+  assert.ok(SEC_TEXT.unlockHelp.includes(SENTENCES.unlockClipboard));
+  assert.equal(lookedLine(['Downloads', 'Desktop', 'Documents'], 1), SENTENCES.looked);
   assert.equal(SENTENCES.conflict, CONFLICT_WORDING);
   assert.equal(SENTENCES.exportGuess, EXPORT_WORDING);
   assert.equal(SENTENCES.breachBox, 'check breaches online (Have I Been Pwned, 5 hash characters leave the PC)');

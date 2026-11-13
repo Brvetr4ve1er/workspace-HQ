@@ -17,10 +17,18 @@ export const SEC_REFRESH_SURFACE = 'security-refresh';
 export const SEC_OFFLINE = 'Security needs the desktop app';
 export const SEC_SUBTITLE = 'names and flags only · no password is kept in this app';
 
-export const HIDE_WORDING = 'hides this account from the hq_footprint tool; a session that reads the files in this folder could still see the file';
-export const COPY_NOTE = 'cleared from the clipboard after 30 s; Windows clipboard history may keep it, so for a real password prefer KeePassXC’s own generator';
+export const HIDE_WORDING = 'hides this account from the hq_footprint tool only; the map file stays readable on this PC by anything that can read this app’s data folder, a Claude session included';
+export const COPY_NOTE = 'cleared from the clipboard after 30 s; that clear cannot reach Windows clipboard history (Win+V) or a cloud clipboard, which may keep a copy, so for a real password prefer KeePassXC’s own generator';
 export const CONFLICT_WORDING = 'Syncthing made a conflict copy: open both in KeePassXC and merge (Database > Merge)';
 export const EXPORT_WORDING = 'may be a plain password export';
+
+/** Health's "where the plain-export scan looked" line: three labels and a count, never a path. null = the scan has not answered yet. */
+export function lookedLine(looked, redirected) {
+  const names = Array.isArray(looked) ? looked.filter((x) => typeof x === 'string' && x && x.length <= 40).slice(0, 6) : [];
+  if (names.length === 0) return '';
+  const n = Number.isFinite(redirected) && redirected > 0 ? Math.floor(redirected) : 0;
+  return 'Looked in ' + names.join(', ') + ' (' + n + ' moved ' + (n === 1 ? 'folder' : 'folders') + ' followed)';
+}
 
 export const TWOFA_OPTIONS = Object.freeze([['unknown', 'not recorded'], ['ente', 'Ente Auth'], ['sms', 'SMS'], ['passkey', 'passkey'], ['none', 'none']]);
 

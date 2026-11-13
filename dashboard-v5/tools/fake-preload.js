@@ -263,7 +263,7 @@ function createFakeSecurity(fx, exportsList) {
       if (check !== false) S.status.breachCheckedAt = at;
       return { ok: true, accounts: S.map ? S.map.accounts.length : 0, breachChecked: check !== false, notes: [] };
     },
-    scanExports: async () => ({ files: clone(files) }),
+    scanExports: async () => ({ files: clone(files), looked: ['Downloads', 'Desktop', 'Documents'], redirected: 1 }),
     trashExport: async (name, dir) => {
       const i = files.findIndex((f) => f.name === name && f.dir === dir);
       if (i < 0) return { error: 'not in the last scan' };

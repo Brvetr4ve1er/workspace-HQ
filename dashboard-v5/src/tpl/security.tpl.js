@@ -174,6 +174,8 @@ export const space = String.raw`        <sc-if value="{{ secv.secShow }}" hint-p
                     <section data-sec="exports" style="${CARD};${COL}">
                       <div style="${ROW}"><span style="${LABEL}">Files that may be plain password exports</span><span style="flex:1"></span><button type="button" data-sec="exports-scan" onClick="{{ secv.secExportsScan }}" style="${BTN}" ${BTN_HOVER}>Check again</button></div>
                       <div data-sec="exports-note" style="${MUTED}">{{ secv.secExportsNote }}</div>
+                      <!-- v5: Batch 5 honesty pass - says where the scan looked (labels and a count, never a path), so a moved folder is visible -->
+                      <sc-if value="{{ secv.secLookedShow }}" hint-placeholder-val="{{ true }}"><div data-sec="exports-looked" style="${MUTED}">{{ secv.secLookedText }}</div></sc-if>
                       <sc-if value="{{ secv.secHasExports }}" hint-placeholder-val="{{ true }}">
                         <div role="list" style="display:flex;flex-direction:column;gap:8px">
                           <sc-for list="{{ secv.secExports }}" as="ex" hint-placeholder-count="2">

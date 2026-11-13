@@ -41,7 +41,7 @@ export function createFakeSecurity(fx, exportsList) {
       if (check !== false) S.status.breachCheckedAt = at;
       return { ok: true, accounts: S.map ? S.map.accounts.length : 0, breachChecked: check !== false, notes: [] };
     },
-    scanExports: async () => ({ files: clone(files) }),
+    scanExports: async () => ({ files: clone(files), looked: ['Downloads', 'Desktop', 'Documents'], redirected: 1 }),
     trashExport: async (name, dir) => {
       const i = files.findIndex((f) => f.name === name && f.dir === dir);
       if (i < 0) return { error: 'not in the last scan' };
@@ -102,8 +102,10 @@ export function expectedBubbles(fx = securityFixture()) {
 export const COUNT_STEPS = 10;
 export const STEP_IDS = Object.freeze(['email-2fa', 'install-keepassxc', 'create-vault', 'emergency-sheet', 'import-browser', 'phone-keepassdx', 'syncthing', 'ente-auth', 'import-authenticator', 'first-refresh']);
 export const SENTENCES = Object.freeze({
-  hide: 'hides this account from the hq_footprint tool; a session that reads the files in this folder could still see the file',
-  clipboard: 'Windows clipboard history may keep it',
+  hide: 'hides this account from the hq_footprint tool only; the map file stays readable on this PC by anything that can read this app’s data folder, a Claude session included',
+  clipboard: 'Windows clipboard history (Win+V) or a cloud clipboard',
+  unlockClipboard: 'Type it, never copy it: the app’s 30 s clipboard clear cannot reach Windows clipboard history (Win+V) or a cloud clipboard.',
+  looked: 'Looked in Downloads, Desktop, Documents (1 moved folder followed)',
   conflict: 'Syncthing made a conflict copy: open both in KeePassXC and merge (Database > Merge)',
   exportGuess: 'may be a plain password export',
   breachBox: 'check breaches online (Have I Been Pwned, 5 hash characters leave the PC)',
@@ -308,6 +310,7 @@ export function makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } 
         if (await t.evaluate(PAGE.checkbox('[data-sec="breaches"]')) !== true) out.push('the breach checkbox must default on');
         const box = await t.evaluate(PAGE.text('[data-sec="dialog"]'));
         if (!box || !box.includes(SENTENCES.breachBox)) out.push('the dialog never says "' + SENTENCES.breachBox + '"');
+        if (!box || !box.includes(SENTENCES.unlockClipboard)) out.push('the unlock help never carries the clipboard sentence, it reads "' + box + '"');
         // wrong passphrase
         await t.evaluate(PAGE.focusField('[data-sec="pass"]'));
         await type(t, WRONG);
@@ -385,6 +388,9 @@ export function makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } 
         if (!line || !/not checked/.test(line)) out.push('the breach line reads "' + line + '"');
         const exports = await t.evaluate(PAGE.texts('[data-sec="export-row"]'));
         if (exports.length !== 1 || !exports[0].includes(SENTENCES.exportGuess) || !exports[0].includes('Chrome Passwords.csv')) out.push('the export list reads ' + brief(exports));
+        const looked = await t.evaluate(PAGE.text('[data-sec="exports-looked"]'));
+        if (looked !== SENTENCES.looked) out.push('the looked-in line reads "' + looked + '"');
+        if (looked && /[\/:]/.test(looked)) out.push('the looked-in line carries a path: "' + looked + '"');
         const conflict = await t.evaluate(PAGE.text('[data-sec="conflicts"]'));
         if (!conflict || !conflict.includes(SENTENCES.conflict)) out.push('the conflict card reads "' + conflict + '"');
         if (await t.evaluate(PAGE.callCount('security.trashExport')) !== 0) out.push('opening Health moved a file');
@@ -474,6 +480,7 @@ export function makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } 
         if (copies.length !== 1 || copies[0].args[0] !== pass) out.push('Copy sent ' + brief(copies.map((c) => c.args)) + ', want the shown text once');
         const note = await t.evaluate(PAGE.text('[data-sec="gen-note"]'));
         if (!note || !note.includes(SENTENCES.clipboard)) out.push('the copy note reads "' + note + '"');
+        if (note && !/^Copied; /.test(note)) out.push('the copy toast must start with "Copied; ", it reads "' + note + '"');
         const stat = await t.evaluate(PAGE.text('[data-sec="gen-copy-note"]'));
         if (!stat || !stat.includes(SENTENCES.clipboard)) out.push('the standing copy note reads "' + stat + '"');
         // characters, symbols off
