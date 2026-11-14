@@ -645,7 +645,7 @@ As built (additive to the rows above; nothing was removed or renamed): `sessions
 
 | `window.hq` method | Channel | Args | Returns | Primary surface |
 |---|---|---|---|---|
-| `use(surface, action)` | `hq:use` | allowlisted ids only (see CONTRACT.md, the `use` event); at most 30 a minute | `{ok:true}` \| `{error}`; writes `appLog.event('use', …)`; anything off the allowlist is refused and never logged | every surface (a no-op where `hq.use` is absent) |
+| `use(surface, action)` | `hq:use` | allowlisted ids only (see CONTRACT.md, the `use` event); at most 30 a minute | `{ok:true}` \| `{error}`; writes `appLog.event('use', …)`; anything off the allowlist is refused and never logged | every surface (a no-op where `hq.use` is absent). Batch 6: allowlist gains `claude-vault` and `security-recycle`; an `act` mark is sent per real click (no per-arrival dedupe), still capped at 30 a minute here |
 | `reach.read()` | `hq:reach:read` | — | `{at, rows:[{id:'phone-door'\|'user-scope'\|'bridge'\|'tray-icon'\|'calls', ok:true\|false\|null, detail, step?, who:'owner'\|'app', copy?}]}` | Settings (Reach block) |
 | MCP `hq_activity` | (MCP, not IPC) | `{since?}` | `{since, counts:{byTool, byTier, byDoor}, recent:[{at, door, tool, tier, ok, reason?, ms}], lastScanTrigger, skippedLines, doors:[the reach rows]}` | any Claude session |
 | MCP `hq_scan_trigger` | (MCP, not IPC) | — | `{started:true, pid, note}` \| `{started:false, reason, retryAt?}` (fields added, none removed) | any Claude session |
