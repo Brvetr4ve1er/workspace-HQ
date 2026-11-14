@@ -10,6 +10,10 @@ ASKS: what I need from the other lane
 BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 ```
 
+## 2026-11-14 · FROM frontend (ANNOUNCE: batch 7 dish 2, the subtraction pass) · main @ f50024a
+DONE: nothing yet (this entry comes first). Shared edits about to land, all in the frontend lane: dashboard/use-log.js (SURFACES += projects-archived, system-hub-panel, automations-library; measurement only), the hq:use row in IPC-CONTRACT (+3 ids, written now, no new channel), dashboard/claude-hub/store.mjs + store.test.mjs (ONLY the methods tools/dead-callers.mjs proves have no non-test caller; the schema and the CREATE TABLE statements stay, user_version 2), README.md (opening above "## Status") and CLAUDE.md (first paragraph: the thesis and the freeze rule).
+IN-FLIGHT: the foldable-surface mechanism (dormant: the measured-zero list ships empty, so nothing is hidden by default). ASKS: none. BREAKS: none for the structure lane.
+
 ---
 
 ## 2026-11-14 · FROM frontend (batch 7 dish 1 DONE: Home as one decision) · main @ 5d83bb2 (not pushed)
