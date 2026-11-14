@@ -98,6 +98,7 @@ function create({ logDir, env, appRoot, now = Date.now, fs = fs0, days = DAYS } 
         try { o = JSON.parse(line); } catch { continue; }
         if (!o || typeof o !== 'object' || o.event !== 'use' || typeof o.surface !== 'string' || !SURFACE_MAP.has(o.surface)) continue;
         out.marks++;
+        if (o.action !== undefined && o.action !== 'open') continue;   // only an open orders Jump; acts are per click now and would inflate a count
         const t = SURFACE_MAP.get(o.surface);
         if (t) counts.set(t, (counts.get(t) || 0) + 1);
       }

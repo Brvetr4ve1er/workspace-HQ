@@ -173,3 +173,23 @@ test('the default folder follows app-log: HQ_APP_LOG_DIR when absolute', () => {
   const c = U.create({ env: { HQ_APP_LOG_DIR: d }, now: () => NOW.getTime() });
   assert.deepEqual(c.read(), { marks: 1, byTarget: { 'tasks/': 1 } });
 });
+
+test('only an open feeds Jump ordering: act, resume, copy and log marks add to marks but to no target', () => {
+  const d = mk();
+  const lines = [];
+  for (const a of ['act', 'resume', 'copy', 'log']) for (const s of ['machine-drift', 'money-access', 'clients-list', 'sessions-board', 'space-cosmos']) lines.push(use(s, a));
+  lines.push(use('machine-drift', 'open'));
+  lines.push(JSON.stringify({ ts: '2026-11-13T09:00:00.000+00:00', event: 'use', pid: 1, surface: 'money-start' }));   // an older line with no action is an open
+  day(d, '2026-11-13', lines);
+  const r = make(d).read();
+  assert.deepEqual(r.byTarget, { 'money/today': 1, 'system/machine': 1 });
+  assert.equal(r.marks, lines.length);
+});
+
+test('ten act marks on one mapped surface never reach ACTIVE_MIN', () => {
+  const d = mk();
+  day(d, '2026-11-13', Array.from({ length: U.ACTIVE_MIN }, () => use('machine-drift', 'act')));
+  const r = make(d).read();
+  assert.deepEqual(r.byTarget, {});
+  assert.equal(U.isActive(r), false);
+});
