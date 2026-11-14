@@ -12,6 +12,13 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-14 · FROM frontend (ANNOUNCE: the two collector one-liners, owner-approved) · main @ 8c522e7 (not pushed)
+DONE: nothing yet (this entry comes first, as the session contract asks).
+IN-FLIGHT: the owner said yes (2026-11-14) to the frontend session making the two struct-lane one-liners itself: collector/enrich.mjs (the spawnSync of claude -p) and collector/weekly-narrator.mjs (same) each gain '--strict-mcp-config', '--mcp-config', <absolute path of tools/empty-mcp.json built from the file's own __dirname>, so the unattended nightly runs load no MCP tools at all, including a user-scope workspacehq registration. One struct: commit with only those two files; tools/nightly-isolation.test.mjs turns from a todo into a real check. Then an fe: commit updates the Reach user-scope row and the tools/README.md caveat to say the nightly runs are isolated.
+ASKS: none (structure lane: please do not edit those two lines in the meantime). BREAKS: none (no data shape, no output change; the model call is the same, only its tool config is empty).
+
+---
+
 ## 2026-11-14 · FROM frontend (batch 6 dish 7 DONE: fast-gates, one gate command and an opt-in settle sweep) · main @ 22f98ae (not pushed)
 DONE: 22f98ae (fe). ONE COMMAND: `node tools/gates.mjs` runs main, hub, money, cosmos, renderer, tools, the Electron selftest and the CDP gate in order, one at a time, and prints one table (`--list`, `--only`, `--skip`, `--bail`, `--native`, `--budget`, `--settle`, `--sweep-compare`; tools/README.md). Its CDP step starts and always stops only its own dev-main electron (own profile, free port). SETTLE (OPT-IN): `cdp-gate.mjs --settle` (dashboard-v5/tools/cdp-settle.mjs) makes button-sweep, money-button-sweep, cosmos-button-sweep and delivery-check-button-sweep wait for a quiet #app DOM and no outstanding fetch (cap 800 ms, cap hits counted in a `[settle]` line) instead of fixed sleeps. The OLD sweep stays the default and the gate; no assertion, finding class or KNOWN_CUTS entry changed (a source test pins them). Shared files touched, not announced in the plan: dashboard-v5/tools/cdp-cosmos.mjs and cdp-delivery-check.mjs (one optional `settleWait` argument each, used only inside their sweeps), cdp-gate.mjs, README.md, tools/README.md.
   FIX FOUND BY THE FIRST REAL RUN: the runner's selftest step lacked `--preload=fake`; without it the selftest showed 1 error (3349 combos 1/0/0) while the by-hand gate with --preload=fake is 0/0/0. The step now passes it (gates.test.mjs pinned).
