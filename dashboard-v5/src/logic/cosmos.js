@@ -255,11 +255,15 @@ export const cosmosLogic = {
     return true;
   },
 
+  // act marks (batch 6): a favourite or a hide that took effect is one ('cosmos','act'); a failed one marks nothing
+  _cosActMark() { try { if (typeof this.useMark === 'function') this.useMark('cosmos', 'act'); } catch { /* a usage mark is a bonus */ } },
   async cosFavorite(id) {
     const eid = idOf(this, id), C = this.LIVE && this.LIVE.cosmos;
     if (!eid) return false;
     const on = !isFlagged(C && C.curation && C.curation.favorites, eid);
-    return this.cosApply({ type: 'favorite', id: eid, on });
+    const ok = await this.cosApply({ type: 'favorite', id: eid, on });
+    if (ok) this._cosActMark();
+    return ok;
   },
   async cosHide(id) {
     const eid = idOf(this, id), C = this.LIVE && this.LIVE.cosmos;
@@ -267,6 +271,7 @@ export const cosmosLogic = {
     const on = !isFlagged(C && C.curation && C.curation.hidden, eid);
     const order = this.cosOrder(), at = order.indexOf(eid), lb = this.state.cosLb;
     const ok = await this.cosApply({ type: 'hide', id: eid, on });
+    if (ok) this._cosActMark();
     // a hidden element leaves the Feed (unless hidden ones are shown): the lightbox moves on instead of staying on a ghost
     if (ok && on && !this.state.cosShowHidden && lb && lb.id === eid) {
       const next = order[at + 1] || order[at - 1];

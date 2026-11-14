@@ -9,6 +9,8 @@
 // useArrive()  — call from the navigation `moved` branch (src/app.js componentDidUpdate): a new screen starts a new arrival, so a surface
 //   marked on Home is marked again after the owner leaves and comes back. useMark also notices a screen change by itself, so the order of
 //   render and didUpdate does not matter (no double send).
+// An 'act' mark is one real click that took effect (batch 6, act marks): it is NOT deduped per arrival and does not wait for the window to be
+//   seen (a click means someone is there), so ten Dismiss clicks are ten acts. main still caps the channel at 30 a minute. Opens are unchanged.
 // A mark is counted only while the window can be SEEN (document.visibilityState === 'visible'): a window that loads hidden (--hidden, a login
 //   item, the tray) or reloads after a scan with nobody there is not an arrival. A mark made while hidden waits and is sent on the first real
 //   show, if the owner is still on the same screen. Without a document (a test rig) the page counts as visible.
@@ -38,11 +40,15 @@ export const useLogLogic = {
   useMark(surface, action = 'open') {
     const send = this.hq && this.hq.use;
     if (typeof send !== 'function') return false;          // nothing to send to: not marked either, so a later bridge still counts the arrival
+    if (action === 'act') return this._useSend(send, surface, action);   // every real click counts: no seen-set, no hidden-window wait
     const seen = this._useSync();
     const id = surface + '/' + action;
     if (seen.has(id)) return false;
     if (!pageVisible()) { this._useWait(id, surface, action); return false; }   // not seen yet: no mark, it waits for the first show
     seen.add(id);
+    return this._useSend(send, surface, action);
+  },
+  _useSend(send, surface, action) {
     try {
       const r = send.call(this.hq, surface, action);
       if (r && typeof r.catch === 'function') r.catch(() => {});   // a usage mark never raises anything at the owner

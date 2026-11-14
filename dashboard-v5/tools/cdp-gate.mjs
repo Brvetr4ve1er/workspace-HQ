@@ -16,6 +16,8 @@
 //   brief-standing
 // Assistant rulebook scenarios (--preload=fake; the fake's reach.read answers 4 placeholder rows, use() records its calls):
 //   reach-render · use-marks · use-space-marks
+// Act marks (batch 6; --preload=fake; tools/cdp-act-marks.mjs; ends with hqFake.reset(true) and Home shown):
+//   use-act-marks
 // Recall dish (--preload=fake; hqFake.set answers the Hub's refusal and a health with index-only chats):
 //   reindex-guard
 // Sessions board dish (--preload=fake; the fake's sessionsBoard.read answers an invented board of 8 sessions, one per state, 1 nightly run, 2 Codex threads;
@@ -87,6 +89,7 @@ import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
 import { makeVaultTemplateScenarios } from './cdp-vault-template.mjs';
 import { makeMachineDriftScenarios } from './cdp-drift.mjs';
 import { makeSecurityScenarios } from './cdp-security.mjs';
+import { makeActMarksScenarios } from './cdp-act-marks.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2101,6 +2104,7 @@ Object.assign(SCENARIOS, makeBriefHistoryScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultTemplateScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMachineDriftScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
+Object.assign(SCENARIOS, makeActMarksScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

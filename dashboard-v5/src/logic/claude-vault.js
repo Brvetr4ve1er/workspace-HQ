@@ -37,7 +37,10 @@ export const claudeVaultLogic = {
     let r;
     try { r = await api.save(replace === true ? { path: v.path, markdown: v.draft, replace: true } : { path: v.path, markdown: v.draft }); }
     catch (e) { r = { error: String((e && e.message) || e) }; }
-    if (r === true) this.toast('success', 'Saved to vault: ' + v.rel);
+    if (r === true) {
+      try { if (typeof this.useMark === 'function') this.useMark('claude-vault', 'act'); } catch { /* a usage mark is a bonus */ }
+      this.toast('success', 'Saved to vault: ' + v.rel);
+    }
     if (ticket !== this._vaultTicket || !this.state.vault) return;   // closed meanwhile: the toast said what happened
     if (r === true) { this.setState({ vault: Object.assign({}, v, { phase: 'saved', askReplace: false }) }); return; }
     if (r && r.exists) { this.setState({ vault: Object.assign({}, v, { phase: 'ready', exists: true, askReplace: true, saveError: 'A note with this name appeared after the draft was made.' }) }); return; }

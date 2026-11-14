@@ -340,7 +340,7 @@ export function makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } 
         const note = await t.evaluate(PAGE.text('[data-sec="note"]'));
         if (!note || !/breach check off or not finished/.test(note)) out.push('the note after a refresh without the breach check reads "' + note + '"');
         const rmarks = await t.evaluate(PAGE.refreshMarks);
-        if (rmarks.length !== 1) out.push('security-refresh marks: ' + brief(rmarks) + ', want exactly one (a second press in the same arrival is the same mark)');
+        if (rmarks.length !== 2) out.push('security-refresh marks: ' + brief(rmarks) + ', want exactly two (one act per press, the wrong passphrase and the right one: batch 6 act marks)');
         // cancel
         await t.evaluate(PAGE.click('[data-sec="refresh"]'));
         if (!await t.waitFor(PAGE.has('[data-sec="dialog"]'), 3000)) return out.concat('the dialog did not open a second time');

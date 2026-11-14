@@ -67,7 +67,7 @@ test('every SURFACE_TARGETS target and every space id exists in the app catalog 
 
 test('the other known surfaces map to NO target: marks count, byTarget stays empty', () => {
   const d = mk();
-  const none = ['sessions-strip', 'brief-panel', 'today-ribbon', 'brief-act', 'cosmos', 'security', 'security-refresh', 'delivery-card', 'delivery-check', 'quick-jump', 'reach', 'palette-money-line'];
+  const none = ['sessions-strip', 'brief-panel', 'today-ribbon', 'brief-act', 'cosmos', 'security', 'security-refresh', 'claude-vault', 'security-recycle', 'delivery-card', 'delivery-check', 'quick-jump', 'reach', 'palette-money-line'];
   day(d, '2026-11-13', none.map((s) => use(s)));
   assert.deepEqual(make(d).read(), { marks: none.length, byTarget: {} });
 });

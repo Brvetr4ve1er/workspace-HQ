@@ -221,7 +221,10 @@ export const securityLogic = {
     const st = this.store;
     if (!st || typeof st.trashSecurityExport !== 'function') return { error: SEC_OFFLINE };
     const r = await st.trashSecurityExport(name, dir);
-    if (r && r.ok === true) this.toast('success', 'Moved to the Recycle Bin. Empty the bin yourself when you are sure.');
+    if (r && r.ok === true) {
+      try { if (typeof this.useMark === 'function') this.useMark('security-recycle', 'act'); } catch { /* a usage mark is a bonus */ }
+      this.toast('success', 'Moved to the Recycle Bin. Empty the bin yourself when you are sure.');
+    }
     else this.toast('error', (r && r.error) || 'Could not move that file');
     return r;
   },
