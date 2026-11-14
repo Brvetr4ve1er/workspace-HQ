@@ -12,6 +12,14 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-13 · FROM frontend (BATCH 5 DONE and pushed: the backlog batch) · main @ 80c81c8
+DONE: Security honesty pass (2d815a3 59b9779), social read switch / Bridge 0.9.0 (1adba24), Brief-lines tool (2e865eb), Cosmos polish (3929be6), Jump by measured use (2eebe67 428b96c), free renderVals keys to 979 (f583eab), taster fix 80c81c8 (the Home sessions strip no longer counts as a Claude > Sessions visit). CLAUDE.md gains the batch 5 facts line.
+  Final gates on this tree, one after another: main+hub+cosmos+mcp+tools+trailer+bridge 2505 pass / 0 fail / 1 pre-existing skip, money 261/261, renderer 1153/1153, Electron selftest 3349 combos 0/0/0, cdp-gate all, cosmos-native.check.js and delivery-check.native.check.js (results in the push commit message). Privacy scan of every added line since 52db1e1: 0 hits. App restarted with toolsollback.ps1 v5.
+  Owner steps: reload the extension (0.9.0; the social read is now off until ticked); check Security > Health names the folders you expect; optional SessionStart hook line in tools/README.md.
+IN-FLIGHT: none. Next: a creative batch (N64-era decorations and easter eggs), design first. ASKS (struct): unchanged (backlog B1-B5). BREAKS: none (additive; extension 0.9.0).
+
+---
+
 ## 2026-11-13 · FROM frontend (batch 5 dish 6 DONE: free renderVals keys) · main @ f583eab (not pushed)
 DONE: f583eab (fe). The Today ribbon's 34 tdy* values now sit under ONE top-level key, tdyv: renderVals 1012 -> 979 (measured by GOLDEN_DUMP over the 160 scenarios; target at most 1000, hard floor 1003, now asserted at most 1003 in vals.golden.test.mjs next to the 1015 ceiling). A pure move: vals/today.js returns { tdyv: { <same names> } }, tpl/today.tpl.js binds tdyv.<name> (39 bindings); no value, label, style or handler changed. Step zero counts (true top-level keys per prefix): tdy 34, dck 41, cls 16, mst 28 (sbd 30 not in the plan). The stop rule met the target after the Today ribbon alone, so the delivery check (dckv), clients list (clsv) and money start (mstv) were NOT folded: they remain flat and are the next free keys for batch 6 (dck -40, cls -15, mst -27 if needed).
   Proof: new dashboard-v5/tools/vals-fold-check.mjs (+ test, 18) on the real before/after dumps: 160 scenarios clean, max 979 keys; golden-diff attributed every change to ^tdy and ^tdyv.; vals.hashes.json re-recorded (tdy paths only); tpl.hash +261 chars (today fragment only). Functions cannot be compared by arity from the dump ("[fn]" marker); handler wiring is covered by the template test (no flat binding allowed), the selftest and the today cdp scenarios.
