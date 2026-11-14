@@ -57,7 +57,12 @@ if ($Weekly -or (Get-Date).DayOfWeek -eq 'Sunday') {
 # days-old data. Optional: a failed bake leaves the previous bundle, never fails the scan.
 $steps += @{ name = 'bake'; args = @((Join-Path $scanDir 'dashboard\build-data.mjs')); optional = $true }
 
+# Refresh lock (data/.refresh.lock, shared with the app's Scan and the MCP): wait for a real holder, skip once if it stays; the app's own Scan is its parent and counts as inherited.
+. (Join-Path $scanDir 'tools\nightly-lock.ps1')
+if ((Take-NightlyLock -DataDir (Join-Path $scanDir 'data') -Log ${function:Log}) -eq 'skipped') { exit 0 }
+try {
 foreach ($s in $steps) {
+  Heartbeat-NightlyLock
   Log "-> $($s.name)"
   $out = & node @($s.args) 2>&1
   $code = $LASTEXITCODE
@@ -75,3 +80,4 @@ Get-ChildItem $logDir -Filter 'pipeline-*.log' | Sort-Object LastWriteTime -Desc
   Select-Object -Skip 30 | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Log "WorkspaceHQ pipeline done -> $ReportsDir\Workspace Status $Date.{json,md}"
+} finally { Release-NightlyLock }
