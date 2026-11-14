@@ -15,7 +15,8 @@
 //   item, the tray) or reloads after a scan with nobody there is not an arrival. A mark made while hidden waits and is sent on the first real
 //   show, if the owner is still on the same screen. Without a document (a test rig) the page counts as visible.
 //
-// Reach (Settings): rchEnsure() loads the rows once per opening of Settings, rchLoad() reads hq.reach.read(), rchCopy(text) copies a command.
+// Reach (Settings): rchEnsure() loads the rows once per opening of Settings, rchLoad() reads hq.reach.read(), rchCopy(text) copies a command,
+// rchAct(spec) runs a row's action button (batch 6).
 // State keys are rch-prefixed: rchRows, rchAt, rchBusy, rchError.
 import { NAV } from '../live/catalog.mjs';
 
@@ -89,6 +90,27 @@ export const useLogLogic = {
       this.setState({ rchError: String((e && e.message) || e).slice(0, 200), rchBusy: false });
       return false;
     } finally { this._rchBusy = false; }
+  },
+  // a Reach row's action button (vals/reach.js ACTIONS: { api, arg }): calls hq.reach[api](arg); a refused answer says why in a toast, a cancelled
+  // dialog says nothing, and only an answer that took effect is an 'act' mark and a re-read of the rows
+  async rchAct(spec) {
+    const api = this.hq && this.hq.reach;
+    const fn = spec && api && typeof api[spec.api] === 'function' ? api[spec.api] : null;
+    if (!fn || this._rchActing) return false;
+    this._rchActing = true;
+    this.setState({ rchBusy: true });
+    let r = null, threw = '';
+    try { r = await fn.call(api, spec.arg); } catch (e) { threw = String((e && e.message) || e).slice(0, 200); }
+    this._rchActing = false;
+    this.setState({ rchBusy: false });
+    const ok = !threw && !!r && !r.error && r.ok !== false;
+    if (ok) {
+      if (typeof r.note === 'string' && r.note) this.toast('success', r.note.slice(0, 160));
+      else if (typeof r.folderName === 'string' && r.folderName) this.toast('success', 'Saved: ' + r.folderName.slice(0, 80));
+      try { this.useMark('reach', 'act'); } catch { /* a usage mark is a bonus */ }
+      await this.rchLoad();
+    } else if (threw || (r && r.error && !r.canceled)) this.toast('error', (threw || String(r.error)).slice(0, 160));
+    return ok;
   },
   rchCopy(text) {
     this.copy(text, 'Copied');

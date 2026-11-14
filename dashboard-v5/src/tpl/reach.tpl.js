@@ -1,6 +1,6 @@
 // Reach block in Settings — whether each door to the assistant is open, with its one missing step and a Copy button for commands.
 // <!-- v5: Reach --> new fragment, interpolated into tpl/ov-settings.tpl.js under "Global hotkeys". dc-lite dialect only: dotted paths, !, ===;
-// everything arrives finished from vals/reach.js (rows computed main-side by dashboard/reach.js). Read-only: nothing here changes a setting.
+// everything arrives finished from vals/reach.js (rows computed main-side by dashboard/reach.js). Read-only apart from a row's own action buttons (batch 6: r.actions, e.g. the phone brief file's Pick folder / Turn off).
 const HEAD = 'font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--faint);margin-top:18px';
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
@@ -23,6 +23,8 @@ export default String.raw`        <!-- v5: Reach — which doors to the assistan
                       <sc-if value="{{ r.hasNext }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--orange)">{{ r.next }}</div></sc-if>
                     </div>
                     <sc-if value="{{ r.hasCopy }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ r.copy }}" aria-label="{{ r.copyAria }}" style="${BTN}" ${BTN_HOVER}>{{ r.copyLabel }}</button></sc-if>
+                    <!-- v5: Reach row actions — one generic button loop on a row (main sends r.actions, vals/reach.js maps each id to a handler on the row object); a row with no actions renders exactly as before -->
+                    <sc-if value="{{ r.hasActions }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ r.actions }}" as="ra" hint-placeholder-count="2"><button type="button" onClick="{{ ra.run }}" disabled="{{ ra.busy }}" aria-label="{{ ra.aria }}" style="${BTN}" ${BTN_HOVER}>{{ ra.label }}</button></sc-for></span></sc-if>
                   </div>
                 </sc-for>
               </div>

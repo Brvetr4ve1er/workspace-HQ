@@ -5,6 +5,7 @@ const LABEL = {
   'phone-door': 'Phone door · Claude remote control',
   'user-scope': 'Tools in every Claude session',
   bridge: 'Browser extension paired',
+  'brief-file': 'Phone brief file',
   'tray-icon': 'Tray icon visible',
   calls: 'Assistant calls this week',
   'breach-check': 'Breach check',
@@ -15,6 +16,12 @@ const STATE = {
   unknown: { text: 'unknown', color: 'var(--muted)' },
 };
 const WHO = { owner: 'you', app: 'the app' };
+// Row actions (batch 6): main sends r.actions = [{ id, label }] on a row; an id becomes a button only when it is in this table, and its handler
+// sits on the row object (no top-level vals key). { api, arg } = hq.reach[api](arg), run by logic/use-log.js rchAct. Unknown ids render nothing.
+const ACTIONS = new Map([
+  ['brief-file-pick', { api: 'briefFile', arg: 'pick' }],
+  ['brief-file-clear', { api: 'briefFile', arg: 'clear' }],
+]);
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (iso) => { const t = Date.parse(iso); if (!Number.isFinite(t)) return ''; const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 
@@ -38,6 +45,9 @@ export function reachVals(ctx) {
     rchRows: items.map((r) => {
       const st = r.ok === true ? STATE.open : r.ok === false ? STATE.closed : STATE.unknown;
       const next = r.ok === false && r.step ? 'Next: ' + r.step + ' · ' + (WHO[r.who] ? 'by ' + WHO[r.who] : 'by you') : '';
+      const acts = (Array.isArray(r.actions) ? r.actions : [])
+        .filter((a) => a && typeof a.id === 'string' && ACTIONS.has(a.id) && typeof a.label === 'string' && a.label)
+        .map((a) => ({ id: a.id, label: a.label.slice(0, 40), aria: a.label.slice(0, 40) + ': ' + (LABEL[r.id] || r.id), busy: !!S.rchBusy, run: () => this.rchAct(ACTIONS.get(a.id)) }));
       return {
         id: r.id, label: LABEL[r.id] || String(r.id),
         stateText: st.text,
@@ -45,6 +55,7 @@ export function reachVals(ctx) {
         detail: r.detail || '',
         hasNext: !!next, next,
         hasCopy: !!r.copy, copy: () => this.rchCopy(r.copy), copyLabel: 'Copy command', copyAria: 'Copy: ' + (LABEL[r.id] || r.id),
+        hasActions: acts.length > 0, actions: acts,
       };
     }),
     rchSummary: items.length ? open + ' of ' + items.length + ' open' + (S.rchAt && hhmm(S.rchAt) ? ' · checked ' + hhmm(S.rchAt) : '') : '',
