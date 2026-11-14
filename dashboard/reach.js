@@ -143,7 +143,7 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
   function userScope() {
     const base = { id: 'user-scope', who: 'owner' };
     const copy = server ? `claude mcp add --scope user workspacehq -- node "${String(server).replace(/\\/g, '/')}"` : undefined;
-    const off = (detail) => ({ ...base, ok: false, detail, step: 'Register it once the structure lane has isolated the nightly runs', ...(copy ? { copy } : {}) });
+    const off = (detail) => ({ ...base, ok: false, detail, step: 'Register it: paste this line in your own terminal (the nightly runs load no tools)', ...(copy ? { copy } : {}) });
     let raw;
     try { raw = fs.readFileSync(path.join(home, '.claude.json'), 'utf8'); }
     catch (e) {

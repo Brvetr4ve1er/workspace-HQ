@@ -28,9 +28,8 @@ releases nothing); any other fresh holder makes the run wait up to 10 minutes (`
 `skipped` line and exit 0.
 
 `tools/empty-mcp.json` is an empty MCP config (`{"mcpServers":{}}`) for the unattended `claude -p` runs in
-`collector/`. They SHOULD pass `--strict-mcp-config --mcp-config <abs path>` so they never load the owner's
-user-scope tools, but today they do NOT: the two collector lines are a struct ask in HANDOFF and have not landed.
-`tools/nightly-isolation.test.mjs` is a todo until they do.
+`collector/`. Both pass `--strict-mcp-config --mcp-config <abs path>` (`collector/enrich.mjs`, `collector/weekly-narrator.mjs`),
+so they never load the owner's user-scope tools. `tools/nightly-isolation.test.mjs` checks both lines.
 
 ## Two commands you paste yourself
 
@@ -41,9 +40,9 @@ owner to run or paste once, in their own terminal and settings. Replace `<repo p
 
        claude mcp add --scope user workspacehq -- node "<repo path>/mcp/workspacehq/server.mjs"
 
-   Until the two collector lines in HANDOFF land, the nightly `claude -p` runs are not isolated from this registration;
-   do not expect isolation. Once registered, those runs can load this server, hq_scan_trigger and the social tools
-   included. Settings > Reach says the same ("Register it once the structure lane has isolated the nightly runs").
+   The nightly `claude -p` runs are isolated from this registration: they pass `--strict-mcp-config` with an empty
+   config, so registering here never gives an unattended run this server, hq_scan_trigger or the social tools.
+   Settings > Reach prints the same line ("Register it: paste this line in your own terminal").
 
    This is the same line Settings > Reach prints (`dashboard/reach.js`). The Reach "calls" row (MCP calls this week)
    is the honest check afterwards: the audit log stores the door, tool, tier and result, never a folder.

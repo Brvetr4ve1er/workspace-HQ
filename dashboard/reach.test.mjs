@@ -102,7 +102,8 @@ test('user scope: key presence only; ~/.claude.json values never appear in any o
     const rOff = row(off, 'user-scope');
     assert.equal(rOff.ok, false);
     assert.match(rOff.copy, /^claude mcp add --scope user workspacehq -- node ".*server\.mjs"$/);
-    assert.match(rOff.step, /after|once the structure lane has isolated the nightly runs/i);
+    assert.match(rOff.step, /paste this line in your own terminal/i);
+    assert.match(rOff.step, /nightly runs load no tools/i);
     fs.writeFileSync(cfgFile, JSON.stringify({ mcpServers: { workspacehq: { command: 'node', env: { API_KEY: secret } }, other: {} } }));
     const on = await mk(e).read();
     assert.equal(row(on, 'user-scope').ok, true);
