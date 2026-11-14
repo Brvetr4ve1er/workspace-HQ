@@ -109,6 +109,8 @@ data/cosmos/
 # batch 3 (2026-11-11): Today ribbon, Brief history ledger, Machine drift history and the session intent inbox - owner data, patterns for temp files too
 data/today.json*
 data/brief-ledger.json*
+# batch 6 (2026-11-14): the phone brief file's own state (the chosen folder name and the last write time) - owner data, a pattern for the temp name
+data/.brief-file.json*
 data/disk-history.json*
 data/intents/
 # Security space (batch 4, 2026-11-11): the account map, the owner's edits, status and snapshots - owner data, never committed
