@@ -58,7 +58,8 @@ let narrative = staticRecap;
 let ai = false;
 if (claude) {
   const prompt = `You're the hype-narrator for a gamified workspace dashboard. Read this week's data and write a SHORT, ENERGETIC weekly recap (markdown, ~150 words). Lead with the biggest win, name specific projects, use 2-3 emojis, end with a "next week" line. No filler.\n\n${JSON.stringify(week, null, 2)}`;
-  const r = spawnSync(claude, ['-p'], { input: prompt, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 90000 });
+  // Unattended run: load NO MCP tools (not even a user-scope registration).
+  const r = spawnSync(claude, ['-p', '--strict-mcp-config', '--mcp-config', path.join(__dirname, '..', 'tools', 'empty-mcp.json')], { input: prompt, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 90000 });
   if (r.status === 0 && (r.stdout || '').trim()) { narrative = r.stdout.trim(); ai = true; }
   else console.log('[narrator] claude failed, using static recap');
 }

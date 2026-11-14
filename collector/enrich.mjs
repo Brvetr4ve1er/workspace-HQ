@@ -55,7 +55,9 @@ const prompt = fs.readFileSync(path.join(__dirname, '..', 'scan-prompt.md'), 'ut
 console.log(`[enrich] calling ${MODEL} via ${claude.cmd} …`);
 // Hard cap: an interactive auth prompt / network stall in `claude -p` must never
 // freeze the pipeline (a hung spawnSync here is exactly what left latest.json stale).
-const r = spawnSync(claude.shell ? JSON.stringify(claude.cmd) : claude.cmd, ['-p', '--model', MODEL], { input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 480_000, killSignal: 'SIGKILL', shell: claude.shell });
+// Unattended run: load NO MCP tools (not even a user-scope registration). A file, not inline JSON; quoted when it goes through cmd.exe.
+const EMPTY_MCP = path.join(__dirname, '..', 'tools', 'empty-mcp.json');
+const r = spawnSync(claude.shell ? JSON.stringify(claude.cmd) : claude.cmd, ['-p', '--model', MODEL, '--strict-mcp-config', '--mcp-config', claude.shell ? '"' + EMPTY_MCP + '"' : EMPTY_MCP], { input: prompt, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 480_000, killSignal: 'SIGKILL', shell: claude.shell });
 if (r.error && r.error.code === 'ETIMEDOUT') { console.error('[enrich] claude timed out after 8min — skipping enrichment (deterministic fields carry forward).'); process.exit(0); }
 if (r.status !== 0) { console.error('[enrich] claude failed:', (r.stderr || '').slice(0, 400)); process.exit(0); }
 
