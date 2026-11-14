@@ -13,7 +13,7 @@ import { TOOL_TIERS, tierOf, untiered, describe, createInflight } from './guard.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DASH = path.join(HERE, '..', '..', 'dashboard');
-const FILES = ['assist-core.mjs', 'assist-audit.mjs', 'refresh-lock.js', 'reach.js'];
+const FILES = ['assist-core.mjs', 'assist-audit.mjs', 'refresh-lock.js', 'reach.js', 'brief-file-row.mjs'];
 
 const HARNESS = `
 import fs from 'node:fs';
@@ -312,8 +312,11 @@ test('hq_activity: counts, recent, last scan trigger, skipped lines and the door
     assert.equal(a.skippedLines, 1);
     assert.equal(a.lastScanTrigger.ok, true);
     assert.ok(Array.isArray(a.recent) && a.recent.length === 3);
-    assert.deepEqual(a.doors.map((d) => d.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check']);
-    assert.ok(a.doors.every((d) => !('copy' in d)), 'no install command or absolute path in an MCP answer');
+    assert.deepEqual(a.doors.map((d) => d.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check', 'brief-file']);
+    assert.ok(a.doors.every((d) => !('copy' in d) && !('actions' in d)), 'no install command, absolute path or Settings button in an MCP answer');
+    const phone = a.doors.find((d) => d.id === 'brief-file');
+    assert.equal(phone.ok, false);
+    assert.match(phone.detail, /^off - nothing is written for your phone$/);
     assert.ok(!JSON.stringify(a.doors).includes('server.mjs'));
     const calls = a.doors.find((d) => d.id === 'calls');
     assert.match(calls.detail, /mcp 3/);

@@ -28,17 +28,17 @@ const mk = (e, o = {}) => reach.create({
 });
 const row = (r, id) => r.rows.find((x) => x.id === id);
 
-test('read() returns the six rows in order with the documented shape', async () => {
+test('read() returns the seven rows in order with the documented shape', async () => {
   const e = env();
   try {
     const r = await mk(e).read();
     assert.equal(r.at, new Date(NOW).toISOString());
-    assert.deepEqual(r.rows.map((x) => x.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check']);
+    assert.deepEqual(r.rows.map((x) => x.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check', 'brief-file']);
     for (const x of r.rows) {
       assert.ok(x.ok === true || x.ok === false || x.ok === null, x.id);
       assert.equal(typeof x.detail, 'string');
       assert.ok(['owner', 'app'].includes(x.who));
-      assert.ok(Object.keys(x).every((k) => ['id', 'ok', 'detail', 'step', 'who', 'copy'].includes(k)), JSON.stringify(Object.keys(x)));
+      assert.ok(Object.keys(x).every((k) => ['id', 'ok', 'detail', 'step', 'who', 'copy', 'actions'].includes(k)), JSON.stringify(Object.keys(x)));
       if (x.ok === false) assert.ok(x.step, x.id + ' ends in its one missing step');
     }
   } finally { rm(e.root); }
@@ -229,17 +229,51 @@ test('breach-check: unknown until a refresh has stamped breachCheckedAt, open af
   } finally { rm(e.root); }
 });
 
+test('brief-file: off by default with the step; on with the last folder segment and the time, never the full path; unreadable is unknown; actions only on this row', async () => {
+  const e = env();
+  try {
+    const status = async () => row(await mk(e).read(), 'brief-file');
+    const off = await status();
+    assert.equal(off.ok, false);
+    assert.equal(off.step, 'Pick a folder you already sync to your phone');
+    assert.match(off.detail, /^off - nothing is written for your phone$/);
+    assert.deepEqual(off.actions, [{ id: 'brief-file-pick', label: 'Pick folder' }, { id: 'brief-file-clear', label: 'Turn off' }]);
+    const full = path.join(e.root, 'placeholder-sync-root', 'Phone Notes');
+    const state = { v: 1, folder: full, lastWriteAt: new Date(NOW - 5 * 60e3).toISOString(), lastError: null };
+    fs.writeFileSync(path.join(e.dataDir, '.brief-file.json'), JSON.stringify(state));
+    const on = await status();
+    assert.equal(on.ok, true);
+    assert.match(on.detail, /^folder "Phone Notes" - last written \d\d:\d\d$/);
+    assert.ok(!on.detail.includes('placeholder-sync-root') && !/[\\/]/.test(on.detail), 'the full path never reaches the row');
+    assert.equal(on.step, undefined);
+    assert.ok(on.actions.length === 2, 'both buttons stay: Turn off, and Pick folder to move it');
+    fs.writeFileSync(path.join(e.dataDir, '.brief-file.json'), JSON.stringify({ ...state, lastWriteAt: new Date(NOW - 3 * 24 * 3600e3).toISOString() }));
+    const stale = await status();
+    assert.equal(stale.ok, false);
+    assert.ok(stale.step);
+    fs.writeFileSync(path.join(e.dataDir, '.brief-file.json'), '{ not json');
+    const bad = await status();
+    assert.equal(bad.ok, null);
+    assert.ok(!JSON.stringify(bad).includes('not json'));
+    fs.unlinkSync(path.join(e.dataDir, '.brief-file.json'));
+    const others = (await mk(e).read()).rows.filter((x) => x.id !== 'brief-file');
+    assert.ok(others.every((x) => !('actions' in x)), 'actions appear only on that row');
+    const noData = await reach.create({ home: e.home, now: () => NOW, probes: { processes: async () => null, tray: async () => null } }).read();
+    assert.equal(row(noData, 'brief-file').ok, null);
+  } finally { rm(e.root); }
+});
+
 test('it never throws: a missing data folder, a throwing probe and junk options all give rows', async () => {
   const e = env();
   try {
     const r = await reach.create({ dataDir: path.join(e.root, 'nope'), home: path.join(e.root, 'nohome'), now: () => NOW,
       probes: { processes: () => { throw new Error('x'); }, tray: () => { throw new Error('y'); } } }).read();
-    assert.equal(r.rows.length, 6);
+    assert.equal(r.rows.length, 7);
     const bare = await reach.create({ probes: { processes: async () => null, tray: async () => null } }).read();
-    assert.equal(bare.rows.length, 6);
+    assert.equal(bare.rows.length, 7);
     const handlers = {};
     reach.init({ ipcMain: { handle: (ch, fn) => { handlers[ch] = fn; } }, dataDir: e.dataDir, home: e.home, exePath: EXE, probes: { processes: async () => [], tray: async () => true } });
     const viaIpc = await handlers['hq:reach:read']();
-    assert.equal(viaIpc.rows.length, 6);
+    assert.equal(viaIpc.rows.length, 7);
   } finally { rm(e.root); }
 });

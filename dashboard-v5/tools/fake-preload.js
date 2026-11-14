@@ -37,13 +37,14 @@ const BRIEF = { v: 1, generatedAt: '2026-11-05T09:00:00.000Z', more: 2, errors: 
   { key: 'ci-red:owner/placeholder-repo:2026-11-04T10:00:00Z', rule: 'ci-red', severity: 'med', text: 'CI is failing on placeholder-repo and 1 more repo', why: 'The last push to it did not pass its checks.', source: 'github', age: 'github.json 1 h ago', count: 1, action: { kind: 'go', tab: 'projects', sub: 'github' } },
   { key: 'prod-deploy-error:placeholder-site:2026-11-04T09:00:00Z', rule: 'prod-deploy-error', severity: 'high', text: 'placeholder-site failed to deploy to production', why: 'The live site is still on the last good deploy — open the failed one and read its log.', source: 'vercel', age: 'accounts.json 1 h ago', count: 0, action: { kind: 'go', tab: 'projects', sub: 'accounts' } },
 ] };
-// Reach (Settings) fixture: one closed (with its step and a command to copy), one open, one unknown, and the calls row
+// Reach (Settings) fixture: one closed (with its step and a command to copy), one open, one unknown, the calls row, and the phone brief file row (OFF, with its two action buttons)
 const REACH_ROWS = [
   { id: 'phone-door', ok: false, detail: 'not running since boot at 08:12', step: 'start remote control in a terminal', who: 'owner', copy: 'claude remote-control' },
   { id: 'user-scope', ok: true, detail: 'workspacehq is registered for every session', who: 'owner' },
   { id: 'bridge', ok: null, detail: 'could not tell (selftest placeholder)', who: 'owner' },
   { id: 'calls', ok: true, detail: '12 calls this week (mcp 12)', who: 'app' },
   { id: 'breach-check', ok: null, detail: 'Have I Been Pwned range check: only when you press Refresh; 5 hash characters leave the PC', who: 'owner' },
+  { id: 'brief-file', ok: false, detail: 'off - nothing is written for your phone', step: 'Pick a folder you already sync to your phone', who: 'owner', actions: [{ id: 'brief-file-pick', label: 'Pick folder' }, { id: 'brief-file-clear', label: 'Turn off' }] },
 ];
 // Sessions board fixture (placeholder projects, invented titles): 8 sessions, one per state, 1 nightly run folded, 2 Codex threads, 1 limit stop.
 // Built with dashboard/sessions-core.mjs buildBoard at 2026-11-07T12:00Z, so every card is what the real engine would send; the renderer measures ages from generatedAt.
@@ -670,6 +671,7 @@ function createFake(opts) {
     })],
     ['use', WRITE],   // usage counter (hq:use): recorded, no answer read
     ['reach.read', () => ({ at: '2026-11-07T09:00:00.000Z', rows: REACH_ROWS })],
+    ['reach.briefFile', (action) => (action === 'pick' ? { ok: true, folderName: 'Phone Notes', written: true } : action === 'clear' ? { ok: true, folderName: null, fileLeft: false, note: 'Turned off.' } : { error: 'Unknown action' })],   // the phone brief file (hq:reach:brief-file); the fake never writes anything
     ['logDecision', WRITE], ['learn', WRITE], ['archiveProject', WRITE], ['reviveProject', WRITE], ['markQuestDone', WRITE], ['actedOn', WRITE],
     ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true], ['vaultOpen', (name, how) => ({ ok: true, how })],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],

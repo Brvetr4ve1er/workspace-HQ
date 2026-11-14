@@ -4,7 +4,7 @@
 // and dropped; ~/.claude.json is parsed in memory for key presence only).
 //
 //   create({ dataDir, home?, exePath?, serverPath?, stateFile?, probes?, now?, probeTimeoutMs? }) → { read() }
-//   read() → { at, rows: [{ id: 'phone-door'|'user-scope'|'bridge'|'tray-icon'|'calls'|'breach-check', ok: true|false|null, detail, step?, who: 'owner'|'app', copy? }] }
+//   read() → { at, rows: [{ id: 'phone-door'|'user-scope'|'bridge'|'tray-icon'|'calls'|'breach-check'|'brief-file', ok: true|false|null, detail, step?, who: 'owner'|'app', copy?, actions?: [{ id, label }] }] }
 //   init({ ipcMain, dataDir, exePath, ... }) → the same object; registers ipcMain.handle('hq:reach:read')
 //   parseNotifyIcons(regText, exePath) → true | false | null   (the tray row's registry parser, exported for tests)
 //
@@ -23,6 +23,11 @@ const PHONE_COPY = 'claude remote-control';
 const EXT_ORIGIN = /^(?:chrome|moz)-extension:\/\/[a-z0-9-]{1,64}$/i;   // bridge-pair.js ORIGIN_RE
 
 let mods = null;
+// The phone brief file's row builder is loaded on its own (brief-file-row.mjs imports only node:path): a copied root that has no such file
+// answers an 'unknown' row for it and every other row is untouched.
+let rowMod = null;
+const rowLib = () => rowMod || (rowMod = import(pathToFileURL(path.join(__dirname, 'brief-file-row.mjs')).href));
+
 const lib = () => mods || (mods = Promise.all([
   import(pathToFileURL(path.join(__dirname, 'assist-audit.mjs')).href),
   import(pathToFileURL(path.join(__dirname, 'assist-core.mjs')).href),
@@ -217,6 +222,18 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
     return Number.isFinite(at) ? { ...base, ok: true, detail } : { ...base, ok: null, detail };
   }
 
+  // The phone brief file (batch 6): the state file data/.brief-file.json is read in memory; the row says the folder's LAST segment and the time of the
+  // last write, never the full path (brief-file-row.mjs). ENOENT = off; any other read or parse failure = unreadable (ok null). Carries the row's actions.
+  async function briefFile(t) {
+    const base = { id: 'brief-file', who: 'owner' };
+    if (!dataDir) return { ...base, ok: null, detail: 'unknown - no data folder' };
+    let state = null, unreadable = false;
+    try { state = JSON.parse(fs.readFileSync(path.join(dataDir, '.brief-file.json'), 'utf8')); }
+    catch (e) { if (!(e && e.code === 'ENOENT')) unreadable = true; }
+    const { briefFileRow } = await rowLib();
+    return briefFileRow({ state, unreadable }, t);
+  }
+
   async function read() {
     const t = now();
     const settle = async (id, fn) => { try { return await fn(); } catch { return { id, ok: null, detail: 'unknown — the check failed', who: 'owner' }; } };
@@ -227,6 +244,7 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
       settle('tray-icon', trayIcon),
       settle('calls', () => calls(t)),
       settle('breach-check', breachCheck),
+      settle('brief-file', () => briefFile(t)),
     ]);
     return { at: new Date(t).toISOString(), rows };
   }
