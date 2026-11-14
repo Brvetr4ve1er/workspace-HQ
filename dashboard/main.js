@@ -1251,6 +1251,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./ui-prefs').init({ ipcMain, app, nativeTheme, BrowserWindow });   // v5 clean pass: hq:ui-prefs-*
     claudeHub = require('./claude-hub-host').init({ ipcMain, send: castSend, dataDir: DATA, appLog, vaultDir: VAULT });   // Claude Hub (spec 2026-10-13): index of every Claude Code session
     require('./claude-bridge-routes').setHub(claudeHub);   // claude.ai live sync: the extension's /claude/* bridge routes ask this Hub
+    require('./hub-snapshot').init({ hub: claudeHub, appLog, repoRoot: path.join(DIR, '..') });   // batch 6: one verified daily copy of the chat index (IPC-free; CONTRACT hub op snapshot); off the boot path
   require('./claude-vault').init({ ipcMain, hub: claudeHub, dataDir: DATA, vaultDir: VAULT });   // Claude Hub H5: Save to vault (writes only on the owner's Save)
   require('./day-ribbon').init({ ipcMain, dataDir: DATA, hub: claudeHub, projectsOf: () => studioProjects().map((p) => p.path) });   // Today ribbon (IPC-CONTRACT hq:today:read): read on demand, data/today.json every 10 min
     const claudeChatEngine = require('./claude-chat').init({ ipcMain, send: castSend, app, hub: claudeHub, getProjects: studioProjects, appLog });   // Claude Hub H3 in-app chat (spec 2026-10-13 §8)

@@ -13,6 +13,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from './store.mjs';
 import { guardReset, refusalText } from './index-guard.mjs';
+import { snapshotTo } from './snapshot.mjs';
 import { maskSnippet, maskText } from './redact-more.mjs';
 import { maskSecrets } from './redact.mjs';
 import { contextFor } from './context.mjs';
@@ -479,6 +480,8 @@ function main() {
     // entry) while still answering "true". Queued behind the ingest, the tombstone is in place before any later one starts.
     // The answer therefore waits for the slot in progress (a live append: one file; the first backfill: the whole run).
     forget: (a) => { if (!writer) notOwner(); return serial(() => store.forget(a)).then((ok) => { if (ok) markChanged(a.conversationId ? [a.conversationId] : [], a.projectId ? [a.projectId] : [], a.documentId ? [a.documentId] : []); return ok; }); },
+    // batch 6: a read-only VACUUM INTO copy of the index, verified before it is renamed into place (snapshot.mjs refuses a repo or synced-folder dest). The writer waits its turn behind the in-flight ingest batch; a reader copies directly.
+    snapshot: (a) => { if (!store) throw new Error('the index is not open yet'); const run = () => snapshotTo(store.db, a && a.dest); return writer ? serial(run) : run(); },
   };
 
   // ---- stdin: requests, split on '\n' only (readline also splits on U+2028/U+2029, which a search query may hold)

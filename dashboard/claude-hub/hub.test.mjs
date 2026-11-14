@@ -1083,3 +1083,31 @@ test('masking on read: documents (list, snippet, text, title) and chat / project
     assert.ok(convs.some((c) => c.id === 'code:sess-a1' && c.title.includes('••• secret')));
   } finally { await h.stop(); }
 });
+
+// batch 6: the snapshot op. A verified copy of the live index lands only where the rules allow; the writer and a reader both answer.
+test('snapshot op: the writer and a reader each take a verified copy; a repo or synced-folder destination is refused', async () => {
+  const dir = tmp('hub-snap-');
+  const { home } = makeClaudeHome(dir);
+  const db = path.join(dir, 'hub.sqlite');
+  const env = { HQ_CLAUDE_HOME: home, HQ_HUB_SWEEP_MS: '60000' };
+  const a = startHub(env, db);
+  const b = startHub(env, db);
+  try {
+    await a.healthy(15000);
+    await b.healthy(15000);
+    assert.equal((await a.req('health')).result.role, 'writer');
+    assert.equal((await b.req('health')).result.role, 'reader');
+    const destA = path.join(dir, 'out-a', 'hub-2026-11-14.sqlite'), destB = path.join(dir, 'out-b', 'hub-2026-11-14.sqlite');
+    fs.mkdirSync(path.dirname(destA)); fs.mkdirSync(path.dirname(destB));
+    const ra = await a.req('snapshot', { dest: destA }, 30000), rb = await b.req('snapshot', { dest: destB }, 30000);
+    assert.equal(ra.ok, true); assert.equal(ra.result.ok, true); assert.ok(ra.result.bytes > 0);
+    assert.equal(rb.ok, true); assert.equal(rb.result.ok, true, 'a reader Hub answers it too (VACUUM INTO works on a read-only handle)');
+    assert.ok(fs.existsSync(destA) && fs.existsSync(destB));
+    assert.deepEqual(Object.keys(ra.result).sort(), ['bytes', 'counts', 'ms', 'ok'], 'counts and sizes only');
+    assert.equal(ra.result.counts.conversation, 3, 'the copy holds the same rows as the live index');
+    const bad = await a.req('snapshot', { dest: path.join(dir, 'OneDrive', 'hub-2026-11-14.sqlite') }, 30000);
+    assert.equal(bad.ok, false, 'a synced-folder name is refused by the Hub itself');
+    assert.equal(fs.existsSync(path.join(dir, 'OneDrive')), false, 'nothing was created for a refused destination');
+    assert.equal((await a.req('snapshot', { dest: 'relative.sqlite' }, 30000)).ok, false, 'a non-absolute destination is refused');
+  } finally { await a.stop(); await b.stop(); }
+});
