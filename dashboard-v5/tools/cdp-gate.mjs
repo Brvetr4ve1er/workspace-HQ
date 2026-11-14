@@ -95,6 +95,7 @@ import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
+import { makeConsoleScenarios } from './cdp-console.mjs';
 import { makeHomeOneScenarios, openHomeMore, HOME_MORE_ON, HOME_MORE_OFF } from './cdp-home-one.mjs';
 import { makeFoldScenarios } from './cdp-fold.mjs';
 import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
@@ -2135,6 +2136,7 @@ Object.assign(SCENARIOS, makeBriefQuietScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeActMarksScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makePhoneFileScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeQuietLightScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeConsoleScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

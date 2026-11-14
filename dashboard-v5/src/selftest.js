@@ -131,6 +131,7 @@ export async function run(W = window.WHQ) {
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
+    const { consoleInitState, consoleStates, consoleSeen, consoleProblems } = await import('./selftest-console.mjs');   // Console layer: off (probe zeros), on, skin, scanlines
     const { homeOneStates } = await import('./selftest-home-one.mjs');   // Home as one decision: the card follows the Brief or the fixed rules, More on Home closed and open
     const base = { askHistory: initial.askHistory };
 
@@ -482,6 +483,17 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, row.state, { themePref: theme, snapOffset: 0 }));
             });
           } finally { LV.brief = savedLive.brief; }
+        }
+        // Console layer (src/selftest-console.mjs): the master switch off (probe zeros), on, the skin, the scanlines, and a stored skin with the layer off. consoleInitState puts
+        // the layer back OFF before every row (CLEAR does not cover it) and after the rows, so no later combo runs under the skin.
+        for (const [name, tab, sub, cslState, extra] of consoleStates()) {
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              L.go(tab, sub || null);
+              L.setState(Object.assign({}, CLEAR, base, consoleInitState(), { themePref: theme, snapOffset: 0 }, cslState, extra || {}));
+            });
+            consoleProblems(name, consoleSeen(document, window)).forEach((p) => note('console-layer', [p]));
+          } finally { L.setState(consoleInitState()); }
         }
         // Folded surfaces (src/selftest-fold.mjs): the two fold prefs go straight into state; FOLD_RESET puts them back after the rows (CLEAR does not cover them)
         for (const [name, tab, sub, foldState, extra] of foldStates()) {

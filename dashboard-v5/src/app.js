@@ -49,6 +49,7 @@ import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage
 import { statCardLogic } from './logic/stat-card.js';
 import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
 import { securityLogic } from './logic/security.js';   // Security space (batch 4)
+import { consoleSkinLogic, cslInitState, cslSavePatch } from './logic/console-skin.js';   // batch 7: Console layer (opt-in, off = nothing loads)
 import { driftLogic } from './logic/drift.js';   // batch 3: System › Machine › How the PC changed (dft*)
 import { renderVals } from './vals/index.js';
 import { decide } from './logic/decision.mjs';   // batch 7: Home as one decision (ONE ordering for the card, the rail, F and Tasks)
@@ -84,7 +85,7 @@ export class Component extends DCLogic {
       sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed', security: 'map' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound === true, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
-      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P),
+      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P), ...cslInitState(P),
       vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dlv: {}, dlvBusy: false, brfBusy: false, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
@@ -129,6 +130,7 @@ export class Component extends DCLogic {
   }
 
   componentDidMount() {
+    this.cslSync();
     this._prev = Object.assign({}, this.state, { sub: Object.assign({}, this.state.sub) }); this._prevProps = Object.assign({}, this.props);
     if (this.state.tab === 'cosmos') this.cosArrive();
     if (this.state.tab === 'security') this.secArrive();
@@ -172,12 +174,13 @@ export class Component extends DCLogic {
     // the Ask chat isn't kept here any more: Ask saves it in v3's hq-oracle-chat (contract K-1)
     try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus, ...cosPlaceOf(S) })); } catch (e) {}
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
+    if (ps.consoleLayer !== S.consoleLayer) this.cslSync();
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
-    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed', 'showEverything', 'foldIds'].some((k) => ps[k] !== S[k])) {
+    if (['themePref', 'consoleLayer', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed', 'showEverything', 'foldIds'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
       delete P.notifyMeasured;   // the Notifications switch was cut (Phase 2); drop what older builds saved
-      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, showEverything: S.showEverything, foldIds: S.foldIds, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
+      savePrefs(Object.assign(P, { ...cslSavePatch(S), themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, showEverything: S.showEverything, foldIds: S.foldIds, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
         recapSeen: S.recapDismissed && this.M.weeklyRecap ? this.M.weeklyRecap.week_end : P.recapSeen, sinceSeen: S.sinceDismissed ? this.M.at(0).id : P.sinceSeen }));
     }
     { const pr = this.projectsAt(0), sec = this.sum(pr, (p) => p.secrets), run = this.runningCount() > 0; FX().set({ level: this.M.levelOf(S.xp).l, mood: run ? 'busy' : sec > 0 ? 'nervous' : this.openTasks(0).length === 0 ? 'sleepy' : 'ok' }); }
@@ -341,7 +344,7 @@ export class Component extends DCLogic {
   flushPending() { for (const [k, p] of Object.entries(this._pending)) { clearTimeout(p.timer); delete this._pending[k]; try { p.fn(); } catch (e) { console.error(e); } } }
   // task, claude, run, commit, sheet, journal, ask, palette and onboarding
   // actions: src/logic/*.js, mixed into Component.prototype below
-  toggleTheme() { this.setState(() => ({ themePref: this.themeName() === 'light' ? 'dark' : 'light', paletteOpen: false })); }
+  toggleTheme() { this.setState((s) => ({ themePref: this.themeName() === 'light' ? 'dark' : 'light', paletteOpen: false, ...this.cslLeaveSkin(s) })); }
   themeName() { const p = this.state.themePref; if (p === 'os') return window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; return p === 'light' ? 'light' : 'dark'; }
 
   // ---------- shared UI prefs (theme, reduce motion) ----------
@@ -442,5 +445,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic);
 Component.prototype.renderVals = renderVals;

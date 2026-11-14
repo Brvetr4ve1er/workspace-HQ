@@ -4,6 +4,7 @@
 import { FX } from '../logic/shared.js';
 import { machineIssues, machineVerdict } from '../logic/system.js';
 import { SEC_SUBTITLE } from '../logic/security.js';   // Security's screen subtitle (batch 4)
+import { consoleThemeOpts, consoleSettings } from './console-skin.js';   // batch 7: Console chip + the Console layer rows
 import { isFolded, foldRow } from '../live/foldable.mjs';   // batch 7: folded surfaces and the Show everything row
 
 export function shellVals(ctx) {
@@ -83,6 +84,7 @@ export function shellVals(ctx) {
   // Show everything: only while something is set to fold (live/foldable.mjs foldRow); the default list is empty, so Settings has no such row
   const fr = foldRow(fold);
   if (fr) settings.push(sw(fr.label, fr.desc, fr.on, () => this.setState({ showEverything: !S.showEverything })));
+  settings.push(...consoleSettings.call(this, S, sw));
   // ----- scan state (contract C-2, logic/runs.js scanStatus) -----
   const sc = this.scanStatus();
   const scanTitle = cantWrite ? writeReason
@@ -92,7 +94,7 @@ export function shellVals(ctx) {
   // ----- streak: consecutive days the scanner ran, at the viewed snapshot -----
   const streak = Math.max(0, Math.floor(+snap.account.streak || 0));
   const streakTitle = streak ? streak + (streak === 1 ? ' day' : ' days') + ' in a row the scanner ran' : 'No scan streak right now';   // 0 = no run of consecutive scan days at this snapshot (a broken streak too)
-  const themeOpts = [['dark', 'Dark'], ['light', 'Light'], ['os', 'Follow system']].map(([id, l]) => ({ label: l, go: () => this.setState({ themePref: id }), style: tabStyle(S.themePref === id) }));
+  const themeOpts = consoleThemeOpts.call(this, S, tabStyle);
   return {
     themeName: this.themeName(), L, v, cantWrite, writeReason, isPast: !live, noBridge: ps === 'nobridge' || !this.hq, viewedLabel,
     goHome: () => this.go('home'), backToLive: () => this.setState({ snapOffset: 0, scrubOpen: false }),

@@ -1,0 +1,56 @@
+/* The Console skin: chunky charcoal plastic, a low-poly chamfer on cards and buttons, four original accents.
+   Loaded ONLY by logic/console-layer.mjs attach() (<link id="hq-console-css">); while the layer is off this file is not in the page at all.
+   Every rule is under [data-hq-skin="console"], the attribute the shell root carries while the skin is chosen.
+   Nothing moves: no keyframes, no timed property changes, no position changes on the tab strip or the time machine.
+   The first block remaps the whole token contract (styles/tokens.css); the mono tokens are --term and --px (there is no --mono in v5).
+   Contrast is pinned by styles/console.test.mjs (WCAG AA); change a hex there and in this block together. */
+
+[data-hq-skin="console"]{
+  color-scheme: dark;
+  --bg:#1f2023;--bg2:#26272b;--panel:#292b30;--card:#2c2e33;--card-hi:#363942;--ink:#17181b;
+  --frame:#101113;--frame-hi:#565b68;
+  --text:#eceef2;--muted:#b4b8c2;--faint:#9a9fab;
+  --gold:#8fb8ff;--gold-2:#b4d0ff;--accent-text:#8fb8ff;--link:#8fb8ff;--link-hover:#c6dcff;
+  --green:#7fdc9c;--red:#ff7a70;--orange:#ffbf5e;--yellow:#ffd36b;--blue:#86aef5;--purple:#c9a2ff;--cyan:#7fd9d6;
+  --scrim:rgba(10,11,14,.72);
+  --term:'Cascadia Mono',Consolas,'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --px:'Cascadia Mono',Consolas,'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted);
+}
+
+/* cards: a light top edge and a darker bottom edge (inset shadows, no images), a chamfered outline */
+[data-hq-skin="console"] section{
+  border-radius:0 !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -2px 0 rgba(0,0,0,.40) !important;
+  clip-path:polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px) !important;
+}
+
+/* buttons: the same chamfer, a plastic sheen laid over whatever fill the button has (the fill and the state ring stay the app's) */
+[data-hq-skin="console"] button{
+  border-radius:0 !important;
+  background-image:linear-gradient(to bottom, rgba(255,255,255,.10) 0, rgba(255,255,255,0) 42%, rgba(0,0,0,.14) 100%) !important;
+  clip-path:polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px) !important;
+}
+
+/* the focus ring sits INSIDE the box (negative offset) so the chamfer can never hide it */
+[data-hq-skin="console"] :focus-visible{
+  outline:2px solid var(--gold-2) !important;
+  outline-offset:-3px !important;
+}
+
+[data-hq-skin="console"] ::selection{background:#8fb8ff;color:#10141c}
+[data-hq-skin="console"] ::-webkit-scrollbar-thumb{background:var(--frame-hi)}
+
+/* fog fade: the page edges melt into the background colour over 24px (static; pointer-events none, so clicks land beneath) */
+[data-hq-skin="console"]::before{
+  content:"";position:fixed;left:0;right:0;top:0;bottom:0;pointer-events:none;z-index:2147482999;
+  background:
+    linear-gradient(to bottom, var(--bg) 0, transparent 24px) top left / 100% 24px no-repeat,
+    linear-gradient(to top, var(--bg) 0, transparent 24px) bottom left / 100% 24px no-repeat;
+}
+
+/* optional CRT scanlines: one static overlay, 6% black lines, shown only while Settings > CRT scanlines is on (the layer sets <html data-hq-scan="on">) */
+html[data-hq-scan="on"] [data-hq-skin="console"]::after{
+  content:"";position:fixed;left:0;right:0;top:0;bottom:0;pointer-events:none;z-index:2147483000;
+  background-image:repeating-linear-gradient(to bottom, rgba(0,0,0,.06) 0, rgba(0,0,0,.06) 1px, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 3px);
+}
