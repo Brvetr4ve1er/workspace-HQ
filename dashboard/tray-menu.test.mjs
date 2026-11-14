@@ -259,3 +259,13 @@ test('brief: a standing line (a count and a date) is a disabled line after the r
   assert.deepEqual(labels(withLine.filter((_, n) => n !== i)), labels(without));
   assert.equal(JSON.stringify(trayTemplate({ scan: SCAN, spells: SPELLS, brief: { ...VIEW, standingLine: null } }, actions)), JSON.stringify(without));
 });
+
+test('brief: a quiet line is one disabled row after the standing line; absent changes nothing', () => {
+  const actions = {};
+  const without = trayTemplate({ scan: SCAN, spells: SPELLS, brief: { ...VIEW } }, actions);
+  const withQuiet = trayTemplate({ scan: SCAN, spells: SPELLS, brief: { ...VIEW, standingLine: '2 standing since 5 Nov', quietLine: 'Money has never been opened' } }, actions);
+  const i = withQuiet.findIndex((x) => x.label === 'Money has never been opened');
+  assert.ok(i > 0); assert.equal(withQuiet[i].enabled, false); assert.equal(withQuiet[i].click, undefined);
+  assert.equal(withQuiet[i - 1].label, '2 standing since 5 Nov');
+  assert.equal(JSON.stringify(trayTemplate({ scan: SCAN, spells: SPELLS, brief: { ...VIEW, quietLine: null } }, actions)), JSON.stringify(without));
+});

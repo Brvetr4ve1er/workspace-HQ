@@ -98,7 +98,10 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
     catch (e) { s = { errors: [{ source: 'brief-senses', error: msg(e) }] }; }
     let sessionBoard = null;
     try { sessionBoard = typeof getSessionBoard === 'function' ? getSessionBoard() || null : null; } catch { sessionBoard = null; }
-    return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH, sessionBoard,
+    // the quiet lane's facts (security walkthrough, bridge pairing, Money opened, sensor files gone dark): stat and read only, never throws
+    let quiet = null;
+    try { quiet = require('./brief-quiet-sources').gather({ dataDir }); } catch { quiet = null; }
+    return { scan: scanR.value, liveScan, pc: pcR.value, money: moneyView, moneyMeta, hub: hubH, sessionBoard, quiet,
       github: s.github, vercel: s.vercel, pcDetail: s.pcDetail, security: s.security, sessions: s.sessions, hubProjects: s.hubProjects, sessionTurns: s.sessionTurns, docsRoot: s.docsRoot,
       errors: errors.concat(Array.isArray(s.errors) ? s.errors : []) };
   }
@@ -132,6 +135,8 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
     // then stamp `first` on a key seen for the first time and `last` on every live key (standing ones too, or their clock would be pruned)
     const liveKeys = new Set();
     for (const it of brief.items.concat(brief.overflow || [], brief.standing || [])) { liveKeys.add(it.key); firstSeen[it.key] = { first: firstSeen[it.key] ? firstSeen[it.key].first : iso, last: iso }; }
+    // batch 6: a group row's clock is the stable 'group:<rule>' key (the worst project may rotate under it); stamped like an item key, after the engine ran
+    for (const k of L.groupKeysOf(brief.items.concat(brief.overflow || [], brief.standing || []))) { liveKeys.add(k); firstSeen[k] = { first: firstSeen[k] ? firstSeen[k].first : iso, last: iso }; }
     // a remembered key that is not on this brief: mark when it was first found missing (cleared the moment it is live again)
     for (const [k, v] of Object.entries(seen)) if (!liveKeys.has(k)) firstSeen[k] = { first: v.first, last: v.last, gone: v.gone || iso };
     st.firstSeen = cleanFirstSeen(firstSeen);
@@ -140,7 +145,7 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
     // the ledger (brief-ledger.js) remembers what the Brief noticed and how it ended; after the write, so a failed write's 'brief' error source reaches it (every close is then silent)
     if (ledger && typeof ledger.observe === 'function') { try { await ledger.observe(brief, { dismissedKeys: st.dismissed, errors: brief.errors }); } catch { /* a ledger is a courtesy */ } }
-    const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.errors]);   // generatedAt alone is not a change
+    const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.quiet, brief.errors]);   // generatedAt alone is not a change
     const changed = sig !== lastSig;
     lastSig = sig; last = brief;
     return { brief, changed, state: st, firstSeen: st.firstSeen };

@@ -58,6 +58,15 @@ test('quest-done: applyDone is called once, with the id of the matched record; t
   logsClean(r.calls);
 });
 
+test('batch 6: Mark done works on an aged quest row (a standing row put back in the last slot): the row is in items, the key is the same', async () => {
+  const aged = { ...ITEMS[0], aged: { since: '2026-11-05T12:00:00.000Z' } };
+  const r = rig({ brief: makeBrief([ITEMS[3], ITEMS[1], aged]) });
+  const out = await r.a.act(ask('quest-red:wq:abc', 'quest-done'));
+  assert.equal(out.ok, true);
+  assert.deepEqual(r.calls.applyDone, [['wq:abc']]);
+  assert.equal(out.acted.verb, 'quest-done');
+});
+
 test('a double click calls applyDone once (the in-flight guard), and a click after the marker is refused too', async () => {
   let release; const gate = new Promise((res) => { release = res; });
   const calls = [];

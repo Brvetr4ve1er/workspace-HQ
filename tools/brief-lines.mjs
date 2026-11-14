@@ -37,7 +37,9 @@ export function linesFor(raw, projectBrief, now) {
     }
     const out = p.items.slice(0, MAX_ITEMS).map((it) => it.sevWord + ': ' + it.text);
     if (p.more > 0 && p.overflowLine) out.push(p.overflowLine);
-    return out.length ? out : [LINE_NONE];
+    const body = out.length ? out : [LINE_NONE];
+    if (p.quiet && p.quiet.text) body.push('quiet: ' + p.quiet.text);   // batch 6: the one quiet line of the day, fixed wording, last
+    return body;
   } catch {
     return [LINE_MISSING];
   }

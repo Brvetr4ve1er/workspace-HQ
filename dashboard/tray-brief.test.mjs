@@ -241,3 +241,13 @@ test('standing only: the menu line and the tooltip never say "nothing needs you"
   assert.equal(none.view().statusLine, 'Nothing needs you · from the 14:05 brief');
   assert.equal(none.tooltip(), 'WorkspaceHQ — nothing needs you');
 });
+
+test('batch 6: view() carries quietLine (fixed wording) and it is not counted in total or the status', async () => {
+  const quiet = { key: 'quiet:quiet-bridge-unpaired', rule: 'quiet-bridge-unpaired', kind: null, text: 'RAW C:/work/zorblax', why: 'WHY', source: 'bridge', age: 'not paired', action: { kind: 'go', tab: 'claude', sub: 'chats' } };
+  const { tb } = await make(brief([], { quiet }));
+  const v = tb.view();
+  assert.equal(v.quietLine, 'The browser extension is not paired');
+  assert.equal(v.total, 0); assert.equal(v.status, 'empty'); assert.ok(!v.statusLine.includes('extension'));
+  assert.ok(!JSON.stringify(v).includes('zorblax'));
+  assert.equal((await make(brief([]))).tb.view().quietLine, null);
+});

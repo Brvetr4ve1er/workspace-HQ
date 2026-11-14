@@ -282,8 +282,10 @@ test('standing: a changed value is a new key, so a worse count starts fresh and 
 
 test('standing: secrets are exempt and keep their place, however old', () => {
   const b = runS(fourOf(), seen({ 'secrets:s:1': 30 * D, 'quest-red:q1': 30 * D }));
-  assert.deepEqual(b.items.map((i) => i.rule), ['secrets', 'dirty'], 'secrets stays, the standing quest steps aside');
-  assert.deepEqual(b.standing.map((i) => i.rule), ['quest-red']);
+  // batch 6: with only 2 fresh rows the standing quest may take the LAST slot as an aged row on this UTC day (day index mod 2 == 0 at NOW); it is not in standing that day
+  assert.deepEqual(b.items.map((i) => i.rule), ['secrets', 'dirty', 'quest-red'], 'secrets stays, the fresh dirty row follows, the standing quest is the aged third');
+  assert.deepEqual(b.items.map((i) => !!i.aged), [false, false, true]);
+  assert.deepEqual(b.standing, []);
 });
 
 test('standing: a dismissed key never counts, standing or not', () => {
@@ -308,7 +310,8 @@ test('standing: the brief keeps every other field, and does not mutate firstSeen
   const fs0 = seen({ 'dirty:a:12': 4 * D }), copy = JSON.stringify(fs0);
   const b = runS(base({ scan: { projects: [proj('a', { dirty: 12 })] } }), fs0);
   assert.equal(JSON.stringify(fs0), copy);
-  assert.deepEqual(Object.keys(b), ['v', 'generatedAt', 'items', 'more', 'overflow', 'standing', 'errors']);
+  assert.deepEqual(Object.keys(b), ['v', 'generatedAt', 'items', 'more', 'overflow', 'standing', 'quiet', 'errors']);
+  assert.equal(b.quiet, null, 'no quiet inputs, no quiet line');
   assert.equal(b.v, 1); assert.deepEqual(b.errors, []);
 });
 
@@ -319,4 +322,43 @@ test('standing: toasts are unchanged - the table above is untouched, and a stepp
   const r = shouldToast(b, { toasted: {}, lastTop: 'quest-red:q1' }, new Date(2026, 10, 5, 12, 0, 0));
   assert.equal(r.toast, null, 'a low item on top never toasts');
   assert.equal(r.state.lastTop, 'dirty:a:12');
+});
+
+// ---- batch 6: group rows, the aged slot, the quiet lane (brief-quiet.mjs; every field additive) ----------------------------------------------
+test('batch 6: a collapsed group row gains group{}, a single row does not, and the row keeps its own action', () => {
+  const many = run(base({ scan: { projects: [proj('a', { dirty: 20 }), proj('b', { dirty: 12 }), proj('c', { dirty: 14 })] } }));
+  assert.equal(many.items[0].count, 2);
+  assert.deepEqual(many.items[0].group, { n: 3, sinceAt: null, listAction: { kind: 'go', tab: 'projects', sub: 'grid' } });
+  assert.equal(many.items[0].action.projectId, 'a', 'the Commit verb still reads the worst project');
+  const one = run(base({ scan: { projects: [proj('a', { dirty: 12 })] } }));
+  assert.equal('group' in one.items[0], false);
+});
+
+test('batch 6: group.sinceAt comes from the stable group:<rule> key, not the worst item key', () => {
+  const inputs = base({ scan: { projects: [proj('a', { dirty: 12 }), proj('b', { dirty: 15 })] } });
+  const b = runS(inputs, seen({ 'group:dirty': 2 * D }));
+  assert.equal(b.items[0].group.sinceAt, iso(2 * D));
+});
+
+test('batch 6: the aged slot - never with 3 fresh rows, never a toast, never a second row, and the quiet line is not an item', () => {
+  const three = runS(base({ scan: { projects: [proj('s', {}, { secrets_found: 1 }), proj('u', { ahead: 2, unpushed: true }), proj('a', { dirty: 12 })], quests: [{ id: 'q1', title: 'Placeholder quest', tier: 'red', status: 'open' }] } }), seen({ 'quest-red:q1': 4 * D }));
+  assert.equal(three.items.length, 3); assert.ok(three.items.every((i) => !i.aged));
+  const b = runS(fourOf(), seen({ 'quest-red:q1': 30 * D }));
+  assert.equal(b.items.filter((i) => i.aged).length, 1); assert.ok(b.items.length <= 3);
+  assert.equal(b.items[2].aged.since, iso(30 * D));
+  assert.equal('since' in b.items[2], false);
+  const alone = { ...b, items: [b.items[2]] };
+  assert.equal(shouldToast(alone, { toasted: {}, lastTop: null }, new Date(2026, 10, 5, 12, 0, 0)).toast, null, 'an aged high row never toasts');
+  assert.equal(shouldToast(alone, { toasted: {}, lastTop: null }, new Date(2026, 10, 5, 12, 0, 0)).state.lastTop, null);
+  const plainHigh = { items: [{ ...b.items[2], aged: undefined }] }; delete plainHigh.items[0].aged;
+  assert.ok(shouldToast(plainHigh, { toasted: {}, lastTop: null }, new Date(2026, 10, 5, 12, 0, 0)).toast, 'the same row without aged still toasts');
+});
+
+test('batch 6: the quiet lane comes from inputs.quiet, is one line, and is never an item, overflow, more or a toast', () => {
+  const q = { security: { started: false }, bridge: { paired: true }, moneyOpened: true, sources: [] };
+  const b = run({ ...base(), quiet: q });
+  assert.equal(b.quiet.rule, 'quiet-security-unstarted');
+  assert.deepEqual(b.items, []); assert.deepEqual(b.overflow, []); assert.equal(b.more, 0);
+  assert.equal(shouldToast(b, { toasted: {}, lastTop: null }, new Date(2026, 10, 5, 12, 0, 0)).toast, null);
+  assert.equal(run(base()).quiet, null);
 });

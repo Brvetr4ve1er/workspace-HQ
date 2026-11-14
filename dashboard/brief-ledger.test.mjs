@@ -323,3 +323,18 @@ test('a count in the ledger words the many-form of a rule', () => {
   assert.equal(summarize(ledger, brief([]), { now: at(31) }).entries[0].text, 'Work not pushed in 4 projects');
   assert.deepEqual(HOWS, ['resolved', 'acted', 'dismissed', 'changed', 'silent']);
 });
+
+test('batch 6: an aged row moving between standing and the last slot is never closed, a quiet line is never observed, and a group field changes nothing', () => {
+  const standing = { ...SECRETS, since: at(0).toISOString() };
+  const aged = { ...SECRETS, aged: { since: at(0).toISOString() } };
+  const quiet = { key: 'quiet:quiet-bridge-unpaired', rule: 'quiet-bridge-unpaired', kind: null, text: 'x', why: 'x', source: 'bridge', age: 'x', action: { kind: 'scan' } };
+  const { ledger } = run([
+    [0, brief([UNPUSHED], { standing: [standing] })],
+    [D, brief([UNPUSHED, aged], { standing: [] })],                      // the aged day: the standing row sits in the last slot
+    [2 * D, brief([UNPUSHED], { standing: [standing] })],                // the rest day: back in standing
+    [3 * D, { ...brief([UNPUSHED, { ...aged, group: { n: 2, sinceAt: null, listAction: null } }]), quiet }],
+  ]);
+  assert.deepEqual(ledger.closed, [], 'the move between standing and items is not a close');
+  assert.equal(Object.keys(ledger.open).length, 2, 'the quiet line never opens an entry');
+  assert.ok(!JSON.stringify(ledger).includes('quiet'));
+});

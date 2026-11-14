@@ -29,8 +29,8 @@ const P = () => projectBrief(BRIEF, { now: NOW, firstSeen: FIRST });
 
 test('snapshot of the key set: top level, items and overflow rows', () => {
   const p = P();
-  assert.deepEqual(Object.keys(p), ['v', 'generatedAt', 'ageMinutes', 'stale', 'counts', 'items', 'overflow', 'overflowLine', 'more', 'errorSources', 'standing']);
-  assert.deepEqual(Object.keys(p.items[0]), ['ref', 'rule', 'severity', 'sevWord', 'text', 'count', 'isNew', 'age', 'nav']);
+  assert.deepEqual(Object.keys(p), ['v', 'generatedAt', 'ageMinutes', 'stale', 'counts', 'items', 'overflow', 'overflowLine', 'more', 'errorSources', 'standing', 'quiet']);
+  assert.deepEqual(Object.keys(p.items[0]), ['ref', 'rule', 'severity', 'sevWord', 'text', 'count', 'isNew', 'age', 'nav', 'aged']);
   assert.deepEqual(Object.keys(p.overflow[0]), ['ref', 'rule', 'severity', 'text', 'count', 'isNew']);
   assert.equal(p.v, 1);
 });
@@ -157,4 +157,32 @@ test('standing: none, malformed or undated rows give null; a row that is not a l
   assert.equal(projectBrief({ ...BRIEF, standing: [STD('k', 'garbage'), null, 5, { key: 'x', rule: 'dirty', severity: 'extreme', since: '2026-11-05T12:00:00.000Z' }] }, { now: NOW }).standing, null);
   assert.equal(projectBrief({ ...BRIEF, standing: [STD('k', '2026-11-05T12:00:00.000Z'), STD('j', 'garbage')] }, { now: NOW }).standing.count, 1);
   assert.equal(projectBrief({ ...BRIEF, standing: [STD('k', '2026-11-05T12:00:00.000Z')] }, { now: NOW }).standing.line, '1 standing since 5 Nov');
+});
+
+// ---- batch 6: the quiet lane, an aged row and a group row never leak a name, a path or an amount ----------------------------------------------
+const QUIET_RULES_ALL = ['quiet-security-unstarted', 'quiet-bridge-unpaired', 'quiet-money-unopened', 'quiet-source-dark'];
+test('batch 6: every quiet rule id has a WORDING row', () => { for (const r of QUIET_RULES_ALL) assert.ok(Object.hasOwn(WORDING, r), r); });
+
+test('batch 6: quiet projects as { ref, rule, text } from fixed words, never from the raw text, why or a path', () => {
+  const leak = 'Zorblax Prime C:/work/zorblax-prime $1234.56';
+  const quiet = { key: 'quiet:quiet-source-dark:github', rule: 'quiet-source-dark', kind: 'github', text: leak, why: leak, source: 'github', age: leak, action: { kind: 'go', tab: 'projects', sub: 'github' } };
+  const p = projectBrief({ ...BRIEF, quiet }, { now: NOW, firstSeen: FIRST });
+  assert.deepEqual(Object.keys(p.quiet), ['ref', 'rule', 'text']);
+  assert.equal(p.quiet.ref, refOf(quiet.key)); assert.equal(p.quiet.text, 'The GitHub readings have stopped updating');
+  for (const bad of ['Zorblax', 'C:/work', '1234.56']) assert.ok(!JSON.stringify(p).includes(bad), bad);
+  for (const kind of ['pc-health', 'accounts', 'disk-history']) assert.ok(projectBrief({ ...BRIEF, quiet: { ...quiet, kind } }, { now: NOW }).quiet.text.includes('stopped updating'), kind);
+  assert.equal(projectBrief({ ...BRIEF, quiet: { ...quiet, kind: '../../etc' } }, { now: NOW }).quiet, null, 'an unknown kind gives no line, never free text');
+  assert.equal(projectBrief({ ...BRIEF, quiet: { key: 'k', rule: 'made-up', text: leak } }, { now: NOW }).quiet, null);
+  assert.equal(projectBrief(BRIEF, { now: NOW }).quiet, null);
+  for (const [rule, text] of [['quiet-security-unstarted', 'The Security walkthrough has not been started'], ['quiet-bridge-unpaired', 'The browser extension is not paired'], ['quiet-money-unopened', 'Money has never been opened']]) assert.equal(projectBrief({ ...BRIEF, quiet: { key: 'quiet:' + rule, rule, kind: null } }, { now: NOW }).quiet.text, text);
+});
+
+test('batch 6: an aged row projects as aged:true and a group field projects nothing of its own', () => {
+  const aged = it('quest-red', 'high', 'quest-red:' + QID, { text: QUEST, aged: { since: new Date(NOW - 5 * 24 * H).toISOString() } });
+  const grp = it('dirty', 'low', 'dirty:' + PID + ':12', { count: 2, group: { n: 3, sinceAt: new Date(NOW - 9 * 24 * H).toISOString(), listAction: { kind: 'go', tab: 'projects', sub: 'grid' } } });
+  const p = projectBrief({ ...BRIEF, items: [grp, aged], overflow: [], more: 0 }, { now: NOW });
+  assert.deepEqual(p.items.map((x) => x.aged), [false, true]);
+  assert.deepEqual(Object.keys(p.items[0]), ['ref', 'rule', 'severity', 'sevWord', 'text', 'count', 'isNew', 'age', 'nav', 'aged']);
+  const s = JSON.stringify(p);
+  for (const bad of [QUEST, PID, QID, 'sinceAt', 'listAction', 'group']) assert.ok(!s.includes(bad), bad);
 });

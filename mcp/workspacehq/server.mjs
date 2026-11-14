@@ -152,7 +152,7 @@ async function hubTool(fn, args) {
 const TOOLS = [
   {
     name: 'hq_brief',
-    description: 'The Operator Brief: what needs the owner right now, ranked by the WorkspaceHQ app (deterministic, no LLM) from the scan, quests, money, PC health, CI, deploys, pull requests, the Claude session they left, a Claude session that has waited on a tool for 15 minutes or more, the scan run and claude.ai sync. Each item has severity (high/med/low), text, why, source, age, count (how many more of the same kind it stands for) and the one action that clears it in the app. Default the top 3; limit (1–12) asks for more — items holds up to that many, overflow the ranked rest (at most 12 in all), more counts everything fresh past the top 3. standing lists, ranked as before and each with a since date, the items that stayed unchanged for 3 days and stepped aside so fresh ones take the slots (security items like secrets never do); they are not in more, and limit does not touch them. Read-only — start a session with it to know what matters before anything else. Money rows (they name bills and accounts) are left out while the owner has not turned on Money access in Settings. ageMinutes says how old the brief is; the app rewrites it on every scan, money write and every 15 min while it runs.',
+    description: 'The Operator Brief: what needs the owner right now, ranked by the WorkspaceHQ app (deterministic, no LLM) from the scan, quests, money, PC health, CI, deploys, pull requests, the Claude session they left, a Claude session that has waited on a tool for 15 minutes or more, the scan run and claude.ai sync. Each item has severity (high/med/low), text, why, source, age, count (how many more of the same kind it stands for) and the one action that clears it in the app. Default the top 3; limit (1–12) asks for more — items holds up to that many, overflow the ranked rest (at most 12 in all), more counts everything fresh past the top 3. standing lists, ranked as before and each with a since date, the items that stayed unchanged for 3 days and stepped aside so fresh ones take the slots (security items like secrets never do); they are not in more, and limit does not touch them. An item may carry group (n, sinceAt: when that kind of thing first appeared, listAction) when it stands for several of one kind, or aged (since) when a long-standing row has been put back into the last slot for the day. quiet is one quiet fact of the day (or null), never counted and never urgent. Read-only — start a session with it to know what matters before anything else. Money rows (they name bills and accounts) are left out while the owner has not turned on Money access in Settings. ageMinutes says how old the brief is; the app rewrites it on every scan, money write and every 15 min while it runs.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12, description: 'how many ranked items to return in items (1–12, default 3); the rest of the ranked list comes back in overflow' } }, additionalProperties: false },
     run(args) {
       let limit = 3;
@@ -166,7 +166,7 @@ const TOOLS = [
       const t = Date.parse(b.generatedAt);
       let ranked = b.items.concat(Array.isArray(b.overflow) ? b.overflow : []);
       let standing = Array.isArray(b.standing) ? b.standing : [];
-      let more = b.more, errors = b.errors;
+      let more = b.more, errors = b.errors, quiet = b.quiet;
       // Money rows carry bill and account names: while the owner's Money switch is off they never leave the app through here
       if (!moneyAccessOn()) {
         const keep = (it) => !(it && typeof it === 'object' && it.source === 'money');
@@ -175,10 +175,11 @@ const TOOLS = [
         standing = standing.filter(keep);
         if (typeof more === 'number') more = Math.max(0, more - (before - ranked.length));
         if (Array.isArray(errors)) errors = errors.filter((e) => !(e && typeof e === 'object' && e.source === 'money'));
+        if (quiet && typeof quiet === 'object' && quiet.source === 'money') quiet = null;   // the quiet lane's Money line follows the same switch
       }
       // additive: every row also carries ref (12 hex of its key) so a session can name a row to hq_brief_dismiss without ever sending a key
       const withRef = (it) => (it && typeof it === 'object' && typeof it.key === 'string' ? { ...it, ref: refOf(it.key) } : it);
-      return { ...b, ...(more !== undefined ? { more } : {}), ...(errors !== undefined ? { errors } : {}), items: ranked.slice(0, limit).map(withRef), overflow: ranked.slice(limit).map(withRef), standing: standing.map(withRef), ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
+      return { ...b, ...(quiet !== undefined ? { quiet } : {}), ...(more !== undefined ? { more } : {}), ...(errors !== undefined ? { errors } : {}), items: ranked.slice(0, limit).map(withRef), overflow: ranked.slice(limit).map(withRef), standing: standing.map(withRef), ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
     },
   },
   {

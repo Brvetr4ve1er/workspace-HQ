@@ -160,3 +160,58 @@ test('standing: one item says "since" (it is that item own date); several say wh
   assert.equal(withStanding(STANDING.slice(0, 1)).vals().brfStandingLead, 'Standing since 6 Nov:');
   assert.equal(withStanding(STANDING).vals().brfStandingLead, 'Standing, oldest since 5 Nov:');
 });
+
+// ---- batch 6: group rows, the aged slot and the quiet lane (brief-quiet.mjs). No template change, no new top-level key. ----------------------------
+const QUIET = { key: 'quiet:quiet-security-unstarted', rule: 'quiet-security-unstarted', kind: null, text: 'The Security walkthrough has not been started', why: 'w', source: 'security', age: 'not started', action: { kind: 'go', tab: 'security', sub: 'setup' } };
+const withQuiet = (quiet, extra = {}) => rig({ live: { brief: { ...BRIEF, standing: [], ...extra, quiet }, error: '', loaded: true } });
+
+test('quiet: ALONE the standing line leads "Quiet:" (no "since"), the empty text is unchanged and it is never a card', () => {
+  const v = withQuiet(QUIET, { items: [], more: 0 }).vals();
+  assert.equal(v.brfHasStanding, true); assert.equal(v.brfStandingLead, 'Quiet:');
+  assert.deepEqual(v.brfStanding.map((s) => [s.text, s.sep]), [['The Security walkthrough has not been started', '']]);
+  assert.match(v.brfStanding[0].tip, /Quiet lane/); assert.match(v.brfStanding[0].tip, /changes daily/); assert.doesNotMatch(v.brfStanding[0].tip, /Standing since/);
+  assert.equal(v.brfEmpty, true); assert.equal(v.brfReady, false); assert.deepEqual(v.brfItems, []);
+  assert.match(v.brfEmptyText, /^Nothing needs you right now/, 'brfEmptyText keys off the real standing rows only');
+});
+
+test('quiet PLUS real standing rows: lead and oldest-since come from the real rows only; quiet is appended last with its own tip', () => {
+  const r = withQuiet(QUIET, { standing: STANDING }), v = r.vals();
+  assert.equal(v.brfStandingLead, 'Standing, oldest since 5 Nov:');
+  assert.deepEqual(v.brfStanding.map((s) => s.text), ['CI is failing on placeholder-repo', 'Placeholder project has 12 uncommitted files', QUIET.text]);
+  assert.deepEqual(v.brfStanding.map((s) => s.sep), ['', '·', '·']);
+  assert.match(v.brfStanding[0].tip, /Standing since 6 Nov/); assert.match(v.brfStanding[2].tip, /^Quiet lane · changes daily/);
+  v.brfStanding[2].act();
+  assert.deepEqual(r.calls, [['go', 'security', 'setup']]);
+  assert.equal(r.calls.filter((c) => c[0] === 'dismiss').length, 0);
+});
+
+test('quiet: NEITHER quiet nor standing changes nothing; a quiet with no text, a non-object or a not-ready panel shows no line', () => {
+  for (const q of [null, undefined, 'x', [], { ...QUIET, text: '  ' }, { key: 'k' }]) { const v = withQuiet(q).vals(); assert.equal(v.brfHasStanding, false); assert.equal(v.brfStandingLead, ''); assert.deepEqual(v.brfStanding, []); }
+  assert.equal(rig({ noBridge: true }).vals().brfHasStanding, false);
+  assert.match(withQuiet(QUIET, { standing: STANDING, items: [], more: 0 }).vals().brfEmptyText, /^Nothing new right now/, 'the empty wording follows the REAL standing rows, with or without a quiet line');
+  const plain = rig().vals(), withEmptyQuiet = withQuiet(null).vals();
+  assert.deepEqual(Object.keys(withEmptyQuiet), Object.keys(plain), 'no new top-level key');
+});
+
+test('group rows: meta reads "oldest since <day>", the main button uses group.listAction, the row\'s own action is kept for the Commit verb', () => {
+  const row = { ...item('dirty:p1:12', 'low', { kind: 'go', tab: 'projects', projectId: 'p1' }, 'Placeholder A has 12 uncommitted files and 2 more projects'), count: 2, group: { n: 3, sinceAt: '2026-11-07T12:00:00.000Z', listAction: { kind: 'go', tab: 'projects', sub: 'grid' } } };
+  const r = rig({ live: { brief: { ...BRIEF, items: [row], more: 0 }, error: '', loaded: true } }), v = r.vals();
+  assert.equal(v.brfItems[0].meta, 'from scan 1 h ago · oldest since 7 Nov');
+  assert.equal(v.brfItems[0].actLabel, 'Open Projects');
+  v.brfItems[0].act();
+  assert.deepEqual(r.calls, [['go', 'projects', 'grid']], 'opens the list, not one project');
+  // a group without listAction (ci-red and its kind already open a list) keeps its own action and label; no sinceAt means no "oldest since"
+  const ci = { ...item('ci-red:o/r:d', 'med', { kind: 'go', tab: 'projects', sub: 'github' }), count: 3, group: { n: 4, sinceAt: null, listAction: null } };
+  const v2 = rig({ live: { brief: { ...BRIEF, items: [ci], more: 0 }, error: '', loaded: true } }).vals();
+  assert.equal(v2.brfItems[0].meta, 'from scan 1 h ago'); assert.equal(v2.brfItems[0].actLabel, 'Open GitHub');
+  // no group: byte-identical to before
+  assert.equal(rig().vals().brfItems[0].meta, 'from scan 1 h ago');
+});
+
+test('aged row: says it is a standing row put back, keeps its own action, and is not in the standing line', () => {
+  const aged = { ...item('quest-red:q1', 'high', { kind: 'go', tab: 'tasks' }, 'Placeholder critical quest'), aged: { since: '2026-11-02T09:00:00.000Z' } };
+  const r = rig({ live: { brief: { ...BRIEF, items: [aged], more: 0, standing: [] }, error: '', loaded: true } }), v = r.vals();
+  assert.equal(v.brfItems[0].meta, 'from scan 1 h ago · standing since 2 Nov');
+  assert.equal(v.brfHasStanding, false);
+  v.brfItems[0].act(); assert.deepEqual(r.calls, [['go', 'tasks', undefined]]);
+});

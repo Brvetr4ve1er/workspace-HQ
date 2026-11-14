@@ -80,6 +80,7 @@ function trayTemplate(state, actions) {
     for (const r of (Array.isArray(br.rows) ? br.rows : []).slice(0, 3)) if (r && typeof r.ref === 'string') head.push({ label: String(r.label || ''), click: r.scan ? runScanRow(r.ref) : run('openRef', r.ref) });
     if (br.overflow && br.overflow.label) head.push({ label: String(br.overflow.label), click: run('show') });
     if (br.standingLine) head.push({ label: String(br.standingLine), enabled: false });   // items that stepped aside after 72 h: a count and a date, no names
+    if (br.quietLine) head.push({ label: String(br.quietLine), enabled: false });   // the day's one quiet line (batch 6): fixed wording, never a slot
   } else head.push({ label: statusLine(scan), enabled: false });
 
   const items = [

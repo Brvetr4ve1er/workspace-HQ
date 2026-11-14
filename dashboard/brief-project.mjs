@@ -4,7 +4,8 @@
 //   v:1, generatedAt, ageMinutes, stale, counts:{high,med,low},
 //   items:[{ ref, rule, severity, sevWord, text, count, isNew, age, nav:{kind,tab,sub} }],
 //   overflow:[{ ref, rule, severity, text, count, isNew }], overflowLine, more, errorSources:[source names],
-//   standing: null | { count, since:'YYYY-MM-DD', line:'2 standing since 5 Nov' } }   (the items that stepped aside after 72 h: a count and the date, never a ref or a name)
+//   standing: null | { count, since:'YYYY-MM-DD', line:'2 standing since 5 Nov' },   (the items that stepped aside after 72 h: a count and the date, never a ref or a name)
+//   quiet: null | { ref, rule, text } }   (batch 6: the one quiet line of the day; fixed wording by rule id, a source KIND only; items[] also gain `aged` (bool: a standing row re-admitted to the last slot))
 //
 // This is the ONLY text the tray, the toolbar badge and any later phone door may show. It is built from an allowlist:
 // wording comes from one fixed table keyed by rule id (never from the item's own text, which names projects, bills and
@@ -12,6 +13,7 @@
 // amounts, paths and ids never get in. `count` is the item's additive "and N more" number (0 when none): the wording
 // reads "N repos" as count + 1.
 import { createHash } from 'node:crypto';
+import { QUIET_TEXT, DARK_LABEL } from './brief-quiet.mjs';
 
 export const STALE_MIN = 30;       // a brief older than this says so
 export const NEW_MS = 24 * 3600e3; // "new" = first seen in the last 24 h
@@ -48,6 +50,11 @@ export const WORDING = {
   'passwords-reused': { one: 'An account shares its password with another', many: '{n} accounts share a password with another account', short: 'a reused password', shortMany: '{n} accounts with a reused password' },
   'footprint-stale': { one: 'The Security map is out of date', short: 'the Security map is out of date' },
   'email-2fa-first': { one: 'Your main email still needs two-step sign-in', short: 'main email needs two-step sign-in' },
+  // the quiet lane (brief-quiet.mjs, batch 6): one fixed line a day, never a slot; the per-kind words for a sensor gone dark are DARK_LABEL's, kind-only
+  'quiet-security-unstarted': { one: QUIET_TEXT['quiet-security-unstarted'], short: 'the Security walkthrough has not been started' },
+  'quiet-bridge-unpaired': { one: QUIET_TEXT['quiet-bridge-unpaired'], short: 'the browser extension is not paired' },
+  'quiet-money-unopened': { one: QUIET_TEXT['quiet-money-unopened'], short: 'Money has never been opened' },
+  'quiet-source-dark': { one: 'A reading has stopped updating', short: 'a reading has stopped updating' },
 };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -79,6 +86,15 @@ function navOf(action) {
 }
 const AGE = /^[A-Za-z0-9.\- ]{1,40}$/;   // 'github.json 3 h ago', 'scan 2 h ago', 'live' — never free text
 
+// the quiet line: fixed words by rule id (a dark sensor by its KIND through DARK_LABEL); an unknown rule or kind gives nothing, never free text
+function quietOf(q) {
+  if (!isObj(q) || typeof q.key !== 'string' || typeof q.rule !== 'string') return null;
+  let text = null;
+  if (q.rule === 'quiet-source-dark') text = typeof q.kind === 'string' && own(DARK_LABEL, q.kind) ? DARK_LABEL[q.kind].text : null;
+  else if (own(QUIET_TEXT, q.rule)) text = QUIET_TEXT[q.rule];
+  return text ? { ref: refOf(q.key), rule: q.rule, text } : null;
+}
+
 export function projectBrief(brief, { now, firstSeen } = {}) {
   if (!isObj(brief)) return null;
   const t = nowMs(now);
@@ -88,7 +104,7 @@ export function projectBrief(brief, { now, firstSeen } = {}) {
   const items = arr(brief.items).filter(live).map((it) => ({
     ref: refOf(it.key), rule: own(WORDING, it.rule) ? it.rule : 'unknown', severity: it.severity, sevWord: SEV_WORD[it.severity],
     text: phrase(it.rule, it.count), count: cnt(it.count), isNew: isNew(it.key),
-    age: typeof it.age === 'string' && AGE.test(it.age) ? it.age : '', nav: navOf(it.action),
+    age: typeof it.age === 'string' && AGE.test(it.age) ? it.age : '', nav: navOf(it.action), aged: isObj(it.aged),
   }));
   const overflow = arr(brief.overflow).filter(live).map((it) => ({
     ref: refOf(it.key), rule: own(WORDING, it.rule) ? it.rule : 'unknown', severity: it.severity,
@@ -111,5 +127,5 @@ export function projectBrief(brief, { now, firstSeen } = {}) {
   const ageMinutes = gen === null ? null : Math.max(0, Math.floor((t - gen) / 60e3));
   const sources = [];
   for (const e of arr(brief.errors)) if (isObj(e) && typeof e.source === 'string' && /^[a-z0-9-]{1,24}$/.test(e.source) && !sources.includes(e.source)) sources.push(e.source);
-  return { v: 1, generatedAt: gen === null ? null : new Date(gen).toISOString(), ageMinutes, stale: ageMinutes === null || ageMinutes > STALE_MIN, counts, items, overflow, overflowLine, more, errorSources: sources, standing };
+  return { v: 1, generatedAt: gen === null ? null : new Date(gen).toISOString(), ageMinutes, stale: ageMinutes === null || ageMinutes > STALE_MIN, counts, items, overflow, overflowLine, more, errorSources: sources, standing, quiet: quietOf(brief.quiet) };
 }

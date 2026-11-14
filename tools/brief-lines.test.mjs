@@ -143,3 +143,24 @@ test('it reads only brief.json and the source never writes, spawns or fetches', 
   const src = fs.readFileSync(CLI, 'utf8');
   assert.ok(!/writeFile|appendFile|mkdir|child_process|fetch\(|node:http|node:net/.test(src));
 });
+
+test('batch 6: the quiet line prints last as "quiet: <fixed wording>", within 3 + 1 + 1 lines and 600 chars, never a raw word', () => {
+  const quiet = { key: 'quiet:quiet-source-dark:pc-health', rule: 'quiet-source-dark', kind: 'pc-health', text: FAKE_NAME + ' ' + FAKE_PATH, why: FAKE_AMOUNT, source: 'pc-health', age: 'x', action: { kind: 'go', tab: 'system', sub: 'machine' } };
+  const b = brief({ overflow: [item(4, 'ci-red', 'med')], more: 1, quiet });
+  const r = run(withBrief(b));
+  const l = lines(r.out);
+  assert.equal(r.code, 0);
+  assert.equal(l.length, 5);
+  assert.equal(l[4], 'quiet: The PC health readings have stopped updating');
+  assert.ok(r.out.length < 600);
+  for (const bad of [FAKE_NAME, FAKE_PATH, FAKE_AMOUNT, 'quiet-source-dark', 'pc-health']) assert.ok(!r.out.includes(bad), 'leaked ' + bad);
+  // with nothing else to say the quiet line still follows the "nothing needs you" line
+  const empty = lines(run(withBrief(brief({ items: [], quiet }))).out);
+  assert.deepEqual(empty, ['Brief: nothing needs you', 'quiet: The PC health readings have stopped updating']);
+});
+
+test('batch 6: an out-of-date brief prints only the one stale line (no quiet line)', () => {
+  const quiet = { key: 'quiet:quiet-bridge-unpaired', rule: 'quiet-bridge-unpaired', kind: null };
+  const l = lines(run(withBrief(brief({ generatedAt: ago(600), quiet }))).out);
+  assert.equal(l.length, 1); assert.match(l[0], /out of date/);
+});

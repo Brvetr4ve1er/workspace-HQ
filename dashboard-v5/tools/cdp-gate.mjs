@@ -43,6 +43,8 @@
 //   machine-drift-render · machine-drift-estimate-refuses
 // Security space (batch 4; the 11th destination, no number key; --preload=fake; tools/cdp-security.mjs; the fake's hq.security answers an INVENTED footprint (example.test, acme.test) and accepts one invented passphrase; each scenario ends with hqFake.reset(true) and the page reset):
 //   security-map-render · security-node-edit · security-unlock-clears · security-health · security-setup · security-generate
+// Unclogged Brief (batch 6; --preload=fake; tools/cdp-brief-quiet.mjs; each scenario serves its own placeholder brief with hqFake.set and ends with hqFake.reset(true) and Home shown):
+//   brief-group-row · brief-aged-slot · brief-quiet-lane
 // Phone brief file (batch 6; --preload=fake; tools/cdp-phone-file.mjs; Settings > Reach; each scenario serves its own placeholder rows with hqFake.set, the row is found by its Pick folder button, and each ends with hqFake.reset(true) and Settings closed):
 //   phone-file-off-by-default · phone-file-pick-and-clear
 // Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
@@ -91,6 +93,7 @@ import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
 import { makeVaultTemplateScenarios } from './cdp-vault-template.mjs';
 import { makeMachineDriftScenarios } from './cdp-drift.mjs';
 import { makeSecurityScenarios } from './cdp-security.mjs';
+import { makeBriefQuietScenarios } from './cdp-brief-quiet.mjs';
 import { makeActMarksScenarios } from './cdp-act-marks.mjs';
 import { makePhoneFileScenarios } from './cdp-phone-file.mjs';
 
@@ -2107,6 +2110,7 @@ Object.assign(SCENARIOS, makeBriefHistoryScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultTemplateScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMachineDriftScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
+Object.assign(SCENARIOS, makeBriefQuietScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeActMarksScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makePhoneFileScenarios({ fresh, sleep }));
 

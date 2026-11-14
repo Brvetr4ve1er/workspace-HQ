@@ -537,3 +537,46 @@ test('computes are serialized: a slow compute and a fast one that overlap never 
   await Promise.all([first, second]);
   assert.deepEqual(log, ['hub1 start', 'hub1 end', 'observe', 'hub2 start', 'hub2 end', 'observe'], 'the older compute is observed first, and the second does not start until the first has finished');
 });
+
+// ---- batch 6: the group clock (a stable group:<rule> key in firstSeen) and the quiet lane's inputs -------------------------------------------------
+test('group clock: group:<rule> is stamped in firstSeen, sinceAt appears from the next compute and survives the worst project changing', async () => {
+  const handlers = new Map();
+  let t = new Date(NOW.getTime());
+  const dataDir = tmp();
+  const write = (a, b) => fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('a', a), proj('b', b)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  write(12, 15);
+  const api = brief.init({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, dataDir, ...fakes(), notify: () => {}, getWins: () => [], intervalMs: 0, watch: false, now: () => t });
+  const read = async () => (await handlers.get('hq:brief:read')()).brief;
+  let b = await read();
+  assert.equal(b.items[0].count, 1); assert.equal(b.items[0].group.sinceAt, null, 'the first compute that sees the group has no clock yet');
+  assert.equal(api._brief.loadState().firstSeen['group:dirty'].first, NOW.toISOString());
+  t = new Date(NOW.getTime() + 5 * 3600e3);
+  write(30, 12);   // a different worst project and a different exact key
+  b = await read();
+  assert.equal(b.items[0].key, 'dirty:a:30');
+  assert.deepEqual(b.items[0].group, { n: 2, sinceAt: NOW.toISOString(), listAction: { kind: 'go', tab: 'projects', sub: 'grid' } }, 'the group clock outlived the worst project');
+  assert.equal(api._brief.loadState().firstSeen['dirty:a:30'].first, new Date(NOW.getTime() + 5 * 3600e3).toISOString(), 'the item key still starts fresh');
+  api.stop();
+});
+
+test('quiet lane: brief.json carries one quiet line from the stat-only sources, and a change in it is a change (the push signature)', async () => {
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const b = brief.create({ dataDir, ...fakes(), now: () => NOW });
+  const r1 = await b.compute();
+  assert.ok(r1.brief.quiet && /^quiet-/.test(r1.brief.quiet.rule), 'a fresh data folder has a true quiet fact (no security status, no pairing)');
+  assert.deepEqual(r1.brief.items, []); assert.equal(r1.brief.more, 0);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'brief.json'), 'utf8')).quiet.key, r1.brief.quiet.key);
+  assert.equal((await b.compute()).changed, false, 'the same quiet line is not a change');
+  fs.mkdirSync(path.join(dataDir, 'security'), { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'security', 'status.json'), JSON.stringify({ walkthroughStarted: true }));
+  fs.writeFileSync(path.join(dataDir, '.bridge-token'), 'x');
+  fs.writeFileSync(path.join(dataDir, '.bridge-pairing.json'), JSON.stringify({ v: 1, origin: 'chrome-extension://abcdefghijklmnop' }));
+  const old = new Date(NOW.getTime() - 5 * 86400e3);
+  fs.utimesSync(path.join(dataDir, 'pc-health.json'), old, old);
+  const r2 = await b.compute();
+  assert.equal(r2.changed, true, 'the quiet line moved');
+  assert.equal(r2.brief.quiet.rule, 'quiet-source-dark'); assert.equal(r2.brief.quiet.kind, 'pc-health'); assert.ok(!JSON.stringify(r2.brief.quiet).includes(dataDir), 'no path in the quiet line');
+});

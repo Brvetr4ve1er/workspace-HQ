@@ -46,7 +46,7 @@ before(() => {
   fs.copyFileSync(path.join(path.dirname(SERVER), 'footprint-read.mjs'), path.join(root, 'mcp', 'workspacehq', 'footprint-read.mjs'));
   // Brief mailbox (hq_brief_dismiss, and the ref on hq_brief rows): the door, its rules and the ref function, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'app-door.mjs'), path.join(root, 'mcp', 'workspacehq', 'app-door.mjs'));
-  for (const f of ['intent-core.mjs', 'brief-project.mjs']) fs.copyFileSync(path.join(dash, f), path.join(root, 'dashboard', f));
+  for (const f of ['intent-core.mjs', 'brief-project.mjs', 'brief-quiet.mjs']) fs.copyFileSync(path.join(dash, f), path.join(root, 'dashboard', f));
   // Today ribbon (hq_today): the reader and the pure day core it imports, in the same relative shape
   fs.copyFileSync(path.join(path.dirname(SERVER), 'today-tool.mjs'), path.join(root, 'mcp', 'workspacehq', 'today-tool.mjs'));
   fs.copyFileSync(path.join(dash, 'day-core.mjs'), path.join(root, 'dashboard', 'day-core.mjs'));
@@ -264,6 +264,29 @@ test('hq_brief drops Money rows (they carry bill and account names) while the Mo
     const on = toolResult((await rpc([{ id: 92, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 12 } } }]))[92]);
     assert.deepEqual([...on.items, ...on.overflow].map((i) => i.key), ['k1', 'k2', 'k3', 'k4', 'k5']);
     assert.equal(on.standing.length, 2);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('hq_brief passes the quiet line, group and aged fields through, and drops a money-sourced quiet while the Money switch is off', async () => {
+  const row = (n, extra = {}) => ({ key: 'k' + n, rule: 'ci-red', severity: 'med', text: 'CI is failing on repo' + n, why: 'x', source: 'github', age: 'live', count: 0, action: { kind: 'go', tab: 'projects' }, ...extra });
+  const group = { n: 3, sinceAt: '2026-11-01T00:00:00.000Z', listAction: null };
+  const quietMoney = { key: 'quiet:quiet-money-unopened', rule: 'quiet-money-unopened', kind: null, text: 'Money has never been opened', why: 'x', source: 'money', age: 'never opened', action: { kind: 'go', tab: 'money', sub: 'today' } };
+  const quietSec = { key: 'quiet:quiet-security-unstarted', rule: 'quiet-security-unstarted', kind: null, text: 'The Security walkthrough has not been started', why: 'x', source: 'security', age: 'not started', action: { kind: 'go', tab: 'security', sub: 'setup' } };
+  const write = (quiet) => fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify({ v: 1, generatedAt: new Date().toISOString(), more: 0, errors: [], items: [row(1, { count: 2, group }), row(2, { aged: { since: '2026-11-01T00:00:00.000Z' } })], overflow: [], standing: [], quiet }));
+  const dir = path.join(root, 'data', 'money');
+  fs.rmSync(dir, { recursive: true, force: true });
+  write(quietSec);
+  const sec = toolResult((await rpc([{ id: 93, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]))[93]);
+  assert.equal(sec.quiet.rule, 'quiet-security-unstarted', 'a non-money quiet line passes through');
+  assert.deepEqual(sec.items[0].group, group); assert.equal(sec.items[1].aged.since, '2026-11-01T00:00:00.000Z');
+  write(quietMoney);
+  const off = toolResult((await rpc([{ id: 94, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]))[94]);
+  assert.equal(off.quiet, null, 'a money-sourced quiet is dropped while the switch is off');
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    fs.writeFileSync(path.join(dir, 'access.json'), JSON.stringify({ v: 1, on: true, at: '2026-11-11T08:00:00.000Z' }));
+    const on = toolResult((await rpc([{ id: 95, method: 'tools/call', params: { name: 'hq_brief', arguments: {} } }]))[95]);
+    assert.equal(on.quiet.rule, 'quiet-money-unopened');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

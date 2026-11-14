@@ -11,13 +11,18 @@
 //              + the senses' sources (brief-sources.js): github, vercel, pcDetail, sessions, sessionTurns, hubProjects, docsRoot } — any may be null
 //   an item = { key, rule, severity, text, why, source, age, action, count }; count = the rule's "and N more" number (0 when none); key = rule:subject:value, so a changed
 //   value is a new key and a dismissal only holds while the fact it hid is unchanged.
+//   batch 6 (brief-quiet.mjs, additive; every existing field and key unchanged): a collapsed row of a collapsing rule gains group:{n, sinceAt, listAction}; with fewer than 3 fresh rows ONE standing high/med row
+//   may take the last slot as an item carrying aged:{since} (never two days running; it leaves `standing` that day; it never toasts); brief.quiet = one fixed fourth line (a quiet fact true now) | null,
+//   never a slot, never toasted, never in overflow, `more` or the counts. inputs.quiet = brief-quiet-sources.js's { security, bridge, moneyOpened, sources }.
 // shouldToast(brief, state, now) → { toast: item | null, state } — P2's change-only toast decision.
 
 import { SENSE_FNS, sessionDirtyProjectIds, sessionNamedProjectId } from './brief-senses.mjs';
 import { KEYS } from './brief-act-core.mjs';
 import { SESSION_WAITING_FN } from './brief-session-waiting.mjs';
 import { BRIEF_SECURITY_FNS } from './brief-security.mjs';
+import { shape, isToastable } from './brief-quiet.mjs';
 
+export { groupKeysOf } from './brief-quiet.mjs';   // brief.js stamps the stable group:<rule> keys it names
 export { KEYS };   // the one place a key is built: the rules below and brief-act.js (which rebuilds keys, never parses them) share it
 
 export const RULES = ['scan-failed', 'secrets', 'plain-export-found', 'vault-conflict', 'prod-deploy-error', 'money-late', 'pc-blood', 'quest-red', 'accounts-breached', 'scan-stale', 'unpushed', 'ci-red', 'session-left-dirty', 'session-waiting', 'money-stale', 'pc-ember', 'dirty', 'money-backup', 'review-waiting', 'reboot-pending', 'money-empty', 'passwords-reused', 'footprint-stale', 'email-2fa-first', 'claude-sync'];
@@ -183,7 +188,9 @@ export function computeBrief(inputs, opts) {
     const f = STANDING_EXEMPT.includes(it.rule) || !isObj(seen[it.key]) ? null : msOf(seen[it.key].first);
     if (f !== null && now - f >= STANDING_MS) standing.push({ ...it, since: new Date(f).toISOString() }); else fresh.push(it);
   }
-  return { v: 1, generatedAt: nowD.toISOString(), items: fresh.slice(0, CAP), more: Math.max(0, fresh.length - CAP), overflow: fresh.slice(CAP, OVERFLOW_MAX), standing, errors };
+  // batch 6: group fields, the cap-one aged slot and the quiet lane (brief-quiet.mjs); fresh keeps its length and order
+  const q = shape({ fresh, standing, now, firstSeen: seen, quietInputs: i.quiet, money: i.money, cap: CAP });
+  return { v: 1, generatedAt: nowD.toISOString(), items: q.fresh.slice(0, CAP).concat(q.aged ? [q.aged] : []), more: Math.max(0, q.fresh.length - CAP), overflow: q.fresh.slice(CAP, OVERFLOW_MAX), standing: q.standing, quiet: q.quiet, errors };
 }
 
 export function shouldToast(brief, state, now) {
@@ -197,10 +204,12 @@ export function shouldToast(brief, state, now) {
   const hour = now.getHours();
   // quiet hours: nothing, and nothing recorded — a high item that appears at 23:30 is still "new" at 08:00
   if (hour >= QUIET_FROM || hour < QUIET_TO) return { toast: null, state: next };
-  next.lastTop = isObj(top) ? top.key : null;
-  if (!isObj(top) || top.severity !== 'high') return { toast: null, state: next };
+  // an aged row (re-admitted from standing, batch 6) is never the top that can toast or set lastTop: it counts as no top
+  const head = isObj(top) && isToastable(top) ? top : null;
+  next.lastTop = head ? head.key : null;
+  if (!head || head.severity !== 'high') return { toast: null, state: next };
   // change-only: the same thing staying on top never re-toasts (no daily nag); a flapping pair toasts once each per 24 h
-  if (top.key === prevTop || toasted[top.key]) return { toast: null, state: next };
-  toasted[top.key] = now.toISOString();
-  return { toast: top, state: next };
+  if (head.key === prevTop || toasted[head.key]) return { toast: null, state: next };
+  toasted[head.key] = now.toISOString();
+  return { toast: head, state: next };
 }
