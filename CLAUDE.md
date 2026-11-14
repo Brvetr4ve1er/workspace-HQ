@@ -1,5 +1,7 @@
 # WorkspaceHQ — session contract
 
+WorkspaceHQ says what needs the owner, where they are, then lets them act in place. FREEZE RULE: no new space, no new MCP tool; new views live inside existing spaces or Settings; each batch ends with a use report (`node tools/use-report.mjs`) that decides the next.
+
 Two Claude sessions work this repo in parallel. **Read `docs/sync/HANDOFF.md` before
 editing anything; append an entry there when you finish a work block.**
 
@@ -62,5 +64,5 @@ edits gated on in-flight work landing (new main-side features go in NEW files).
 - Theme system invariants: never override `position` on `#tabs`/`.timemachine`;
   new themes must remap `--active`/`--active-arrow`/`--divider`/`--mono`.
 - Archive sources (H6): hub.sqlite schema 2 (`document`/`document_fts`, `prompt_use`; migrated in place — an older app refuses it; the tables stay though their writers are gone); docs ingest reads `HQ_CLAUDE_HOME` memory/CLAUDE.md/history.jsonl and `HQ_VAULT_DIR/40_Resources/Prompts` (prompt notes stay searchable in Chats; `dashboard/claude-prompt-note.js` parses them for the Hub store). The ChatGPT import and the drop folder were removed 2026-10-28.
-- Prompt library, harvest, runs and packs (P1–P3): removed 2026-10-28 (Claude › Prompts, harvest.mjs, claude-prompts.js, claude-prompt-pack.js, Hub ops promptUse/promptStats/promptCandidates/hideCandidate) — restore from tag `cleanup-base-2026-10-28`. store.mjs keeps its harvestPool / prompt_use / candidate-tombstone methods (dead, still tested) so the schema stays 2.
+- Prompt library, harvest, runs and packs (P1–P3): removed 2026-10-28 (Claude › Prompts, harvest.mjs, claude-prompts.js, claude-prompt-pack.js, Hub ops promptUse/promptStats/promptCandidates/hideCandidate) — restore from tag `cleanup-base-2026-10-28`. the dead store methods (harvestPool, hideCandidate, hiddenCandidates, addPromptUse, promptStats, promptBodies and their prepared statements) were deleted 2026-11-14 once `node tools/dead-callers.mjs` showed no non-test caller; store.mjs keeps the prompt_use and tombstone TABLES (CREATE statements) so the schema stays 2.
 - Social tab: removed 2026-10-28 (Accounts / Inbox / Archive / Vault, dashboard/social-tab.js, hq:social-read / -vault:* / -open-site / -cancel, Hub op socialSummary, Ask's Instagram & Facebook chip, MCP hq_social_status/feed/mentions/metrics) — restore from tag `cleanup-base-2026-10-28`. KEPT: the outbox approval gate — dashboard/social-bridge.js (stage → claim → the owner approves in the extension popup → publish; cancelStaged), browser-bridge/social.js (its send half publishes; its read-only scrape still writes data/social/*.json, which nothing in the app reads now), MCP hq_social_post/reply/outbox/cancel. Tests: node --test dashboard/social-cancel.test.mjs dashboard/social-claim.test.mjs dashboard/popup-approval.test.mjs.

@@ -1,10 +1,15 @@
 # WorkspaceHQ
 
-A local desktop console for the code on one Windows machine. A scan reads every project folder (git
-state, uncommitted and unpushed work, file and line counts, TODO/FIXME, secrets left in plain sight,
+WorkspaceHQ says what needs the owner, where they are, then lets them act in place. It is a local
+desktop console for the code on one Windows machine, a personal tool. A scan reads every project folder
+(git state, uncommitted and unpushed work, file and line counts, to-do and fix-me markers, secrets left in plain sight,
 recent activity). An Electron app turns that into one screen: what changed since the last scan, the
 next thing that needs you, and where the risks are. It has a light game layer on top: levels, XP and a
 pixel mascot called Bit.
+
+**Freeze rule:** no new space, no new MCP tool. New views live inside existing spaces or Settings, and
+each batch ends with a use report (`node tools/use-report.mjs`) that decides the next. Anything nobody
+opens for 14 days can be folded behind Settings > Show everything; nothing is deleted without a yes.
 
 [![WorkspaceHQ trailer: the wordmark](dashboard-v5/media/hq-trailer-1.jpg)](dashboard-v5/media/hq-trailer-1.webm)
 
