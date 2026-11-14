@@ -2,12 +2,13 @@
 // Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
 import { SCAN_TIP, SCAN_OFF, OPEN_OFF, machineIssues } from '../logic/system.js';
 import { hubCard } from '../logic/claude-hub.js';
+import { isFolded, canMark } from '../live/foldable.mjs';
 
 // a clutter group lists at most this many items; the rest is counted, not hidden silently
 const CLUTTER_ROWS = 12;
 
 export function systemVals(ctx) {
-  const { S, H, LIVE, sub, ro } = ctx;
+  const { S, H, LIVE, sub, ro, fold } = ctx;
   const fixed = S.fixed || [];
   // ---- system ----
   const all = machineIssues(H.ISSUES, LIVE.llm);
@@ -50,6 +51,9 @@ export function systemVals(ctx) {
   const unconfirmed = !verdictBad && fixedN > 0;
   const when = H.pcScannedAt ? new Date(Date.parse(H.pcScannedAt)).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
   const hub = hubCard(LIVE.claudeHub, !!this.hq);
+  // the Claude Hub panel (System > Machine): marked once per arrival while it is drawn, never while it is folded (live/foldable.mjs)
+  const hubShow = hub.show && !isFolded(fold, 'system/hub-panel');
+  if (S.tab === 'system' && sub === 'machine' && hubShow && canMark(fold, 'system/hub-panel') && typeof this.useMark === 'function') this.useMark('system-hub-panel');
   // ---- machine detail panels (pc-health `detail` + `trends`; empty on an older sidecar) ----
   const D = H.MACHINE || {}, list = (x) => (Array.isArray(x) ? x : []);
   const tone = (bad) => (bad ? 'var(--orange)' : 'var(--text)');
@@ -76,6 +80,6 @@ export function systemVals(ctx) {
     mdTrends: list(D.trends).map((t) => ({ ...t, color: t.bad ? 'var(--orange)' : 'var(--muted)' })), mdHasTrends: list(D.trends).length > 0,
     mdStartup: list(D.startup).join(' · '), mdHasStartup: list(D.startup).length > 0,
     mdUnreadable: list(D.unreadable).join(' · '), mdHasUnreadable: list(D.unreadable).length > 0,
-    hubShow: hub.show, hubState: hub.state, hubColor: hub.color, hubDetail: hub.detail, hubSize: hub.size, hubHasSize: !!hub.size, hubBar: hub.bar, hubBarW: hub.barW,
+    hubShow, hubState: hub.state, hubColor: hub.color, hubDetail: hub.detail, hubSize: hub.size, hubHasSize: !!hub.size, hubBar: hub.bar, hubBarW: hub.barW,
   };
 }

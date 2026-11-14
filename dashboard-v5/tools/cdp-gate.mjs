@@ -38,6 +38,8 @@
 //   today-render · today-step-back · today-partial
 // Home as one decision (batch 7; --preload=fake; tools/cdp-home-one.mjs; Home = greeting, Brief, ONE next-action card (or All clear), then a remembered More on Home button holding the rest; each scenario serves its own placeholder Brief and ends with hqFake.reset(true), the flag cleared and Home shown). Scenarios that read a block INSIDE the disclosure (the ribbon, the strip, Portfolio, Changes, the aside) open it first with openHomeMore(t):
 //   home-one-render · home-one-more-persist · home-one-follows-brief · home-one-allclear · home-one-done-xp · home-one-no-motion · home-one-use-marks
+// Subtraction pass (batch 7; --preload=fake; tools/cdp-fold.mjs; a surface nobody opened in 14 days folds behind Settings > Show everything; the shipped measured-zero list is empty, so each scenario sets the foldIds pref before load and clears it at the end):
+//   fold-default-shows-everything · fold-hides-and-reveals · fold-number-keys-stable · fold-use-marks · fold-no-motion · fold-reload-persists
 // Save to vault with no local model (batch 3; --preload=fake; tools/cdp-vault-template.mjs): vault-template-preview (the fake preview answers the template fallback; banner, no redraft button, one plain-id call, exactly one save of exactly the draft)
 // Brief history (batch 3; --preload=fake; tools/cdp-brief-history.mjs; the fake's hq.briefHistory answers nothing remembered and no card due; each scenario serves its own placeholder answers with hqFake.set and ends with hqFake.reset(true) and Home shown):
 //   brief-history-render · brief-history-all-clear
@@ -94,6 +96,7 @@ import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
 import { makeHomeOneScenarios, openHomeMore, HOME_MORE_ON, HOME_MORE_OFF } from './cdp-home-one.mjs';
+import { makeFoldScenarios } from './cdp-fold.mjs';
 import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
 import { makeVaultTemplateScenarios } from './cdp-vault-template.mjs';
 import { makeMachineDriftScenarios } from './cdp-drift.mjs';
@@ -2123,6 +2126,7 @@ Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeHomeOneScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeFoldScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefHistoryScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultTemplateScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMachineDriftScenarios({ fresh, sleep }));

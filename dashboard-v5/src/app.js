@@ -52,6 +52,7 @@ import { securityLogic } from './logic/security.js';   // Security space (batch 
 import { driftLogic } from './logic/drift.js';   // batch 3: System › Machine › How the PC changed (dft*)
 import { renderVals } from './vals/index.js';
 import { decide } from './logic/decision.mjs';   // batch 7: Home as one decision (ONE ordering for the card, the rail, F and Tasks)
+import { normalizeFoldPrefs } from './live/foldable.mjs';   // batch 7: the two fold prefs (showEverything, foldIds)
 import { read as homeMoreRead, write as homeMoreWrite } from './logic/home-more.mjs';   // batch 7: the per-viewer 'More on Home' flag
 
 export class Component extends DCLogic {
@@ -83,7 +84,7 @@ export class Component extends DCLogic {
       sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed', security: 'map' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound === true, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
-      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
+      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P),
       vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dlv: {}, dlvBusy: false, brfBusy: false, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
@@ -173,10 +174,10 @@ export class Component extends DCLogic {
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
-    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed'].some((k) => ps[k] !== S[k])) {
+    if (['themePref', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed', 'showEverything', 'foldIds'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
       delete P.notifyMeasured;   // the Notifications switch was cut (Phase 2); drop what older builds saved
-      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
+      savePrefs(Object.assign(P, { themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, showEverything: S.showEverything, foldIds: S.foldIds, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
         recapSeen: S.recapDismissed && this.M.weeklyRecap ? this.M.weeklyRecap.week_end : P.recapSeen, sinceSeen: S.sinceDismissed ? this.M.at(0).id : P.sinceSeen }));
     }
     { const pr = this.projectsAt(0), sec = this.sum(pr, (p) => p.secrets), run = this.runningCount() > 0; FX().set({ level: this.M.levelOf(S.xp).l, mood: run ? 'busy' : sec > 0 ? 'nervous' : this.openTasks(0).length === 0 ? 'sleepy' : 'ok' }); }

@@ -103,6 +103,7 @@ test('never-used list is exactly the allowlist minus the surfaces seen in that w
   assert.deepEqual(rep.windows[1].never, all.filter((s) => s !== 'brief-panel' && s !== 'cosmos'));
   assert.deepEqual(surfaceList(), all);
   assert.ok(rep.windows[0].never.includes('home-more'), 'home-more (More on Home, batch 7) is on the allowlist and shows in the never-seen list until it is opened');
+  for (const s of ['projects-archived', 'system-hub-panel', 'automations-library']) assert.ok(rep.windows[0].never.includes(s), s + ' (the subtraction pass, batch 7) shows as never seen until it is marked');
   assert.deepEqual(actionList(), [...useLog.ACTIONS]);
 });
 

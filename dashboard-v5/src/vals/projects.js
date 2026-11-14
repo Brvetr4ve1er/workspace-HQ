@@ -1,5 +1,6 @@
 // Projects render values: grid (sorts, cards), the iso map, archived.
 import { FX } from '../logic/shared.js';
+import { canMark } from '../live/foldable.mjs';
 
 // P7: the grid's search (name or stack, case-insensitive) and status chip. Session
 // state only (projSearch, projStatus; undefined = '' / 'all'). Pure, for the tests.
@@ -13,7 +14,9 @@ export function projMatches(p, q, st) {
 }
 
 export function projectsVals(ctx) {
-  const { S, H, snap, projects, sub, tabStyle, rows, rowOf } = ctx;
+  const { S, H, snap, projects, sub, tabStyle, rows, rowOf, live, fold } = ctx;
+  // usage counter (hq.use): Archived is opened once per arrival, only inside its own guard and never while it is folded (live/foldable.mjs)
+  if (S.tab === 'projects' && sub === 'archived' && live && canMark(fold, 'projects/archived') && typeof this.useMark === 'function') this.useMark('projects-archived');
   // ----- projects -----
   const sorters = { worst: (a, b) => H.ST[a.st].rank - H.ST[b.st].rank || b.pct - a.pct, recent: (a, b) => (a.lastDays == null ? 999 : a.lastDays) - (b.lastDays == null ? 999 : b.lastDays), dirty: (a, b) => (b.dirty || 0) - (a.dirty || 0), name: (a, b) => a.name.localeCompare(b.name) };
   const pq = S.projSearch || '', pst = PROJ_STATUSES.includes(S.projStatus) ? S.projStatus : 'all';

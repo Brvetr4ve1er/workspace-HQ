@@ -1,5 +1,6 @@
 // Automations render values: runnable list, pinned shelf, library, scheduled.
 // Moved from moreVals() in app-more.js (pre-split, a8e0bf1).
+import { canMark } from '../live/foldable.mjs';
 import { libFilters, libView, libCountText, LIB_PAGE, LIB_MORE, usesQuota } from '../logic/library.js';
 
 export const PIN_MAX = 8;   // the shelf copy promises "Pin up to 8"
@@ -10,7 +11,9 @@ const LIB_SOURCE = { 'Claude skills': 'skill', 'Claude commands': 'command', Plu
 const chipStyle = (on) => ({ height: 26, padding: '0 10px', cursor: 'pointer', fontFamily: 'var(--term)', fontSize: 12, borderRadius: 999, whiteSpace: 'nowrap', background: on ? 'color-mix(in oklab, var(--gold) 14%, transparent)' : 'transparent', color: on ? 'var(--accent-text)' : 'var(--muted)', border: '1px solid ' + (on ? 'color-mix(in oklab, var(--gold) 55%, transparent)' : 'var(--frame)'), transition: 'background .15s, color .15s, border-color .15s' });
 
 export function automationsVals(ctx) {
-  const { S, H, sub, cantWrite, writeReason } = ctx;
+  const { S, H, sub, cantWrite, writeReason, live, fold } = ctx;
+  // usage counter (hq.use): the Library is opened once per arrival, only inside its own guard and never while it is folded (live/foldable.mjs)
+  if (S.tab === 'automations' && sub === 'library' && live && canMark(fold, 'automations/library') && typeof this.useMark === 'function') this.useMark('automations-library');
   // ---- automations ----
   const INTER = H.INTERACTIVE || [];
   const autoRow = (a) => {

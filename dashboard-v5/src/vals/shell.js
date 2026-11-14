@@ -4,16 +4,18 @@
 import { FX } from '../logic/shared.js';
 import { machineIssues, machineVerdict } from '../logic/system.js';
 import { SEC_SUBTITLE } from '../logic/security.js';   // Security's screen subtitle (batch 4)
+import { isFolded, foldRow } from '../live/foldable.mjs';   // batch 7: folded surfaces and the Show everything row
 
 export function shellVals(ctx) {
-  const { S, H, LIVE, off, live, ps, cantWrite, writeReason, snap, viewedLabel, projects, open, unc, unp, sec, level, L, ambientDocked, v, ok, onPage, sub, subs, tabStyle, TR, rows, top, tierCount, TK } = ctx;
-  const subTabs = subs.map(([id, label]) => ({ label, go: () => this.setSub(id), style: tabStyle(sub === id), sel: sub === id }));
+  const { S, H, LIVE, off, live, ps, cantWrite, writeReason, snap, viewedLabel, projects, open, unc, unp, sec, level, L, ambientDocked, v, ok, onPage, sub, shownSubs, fold, tabStyle, TR, rows, top, tierCount, TK } = ctx;
+  const subTabs = shownSubs.map(([id, label]) => ({ label, go: () => this.setSub(id), style: tabStyle(sub === id), sel: sub === id }));
   const runningSessions = LIVE.sessions.filter((x) => x.status === 'running').length;
   const navBadge = { tasks: open.length ? [open.length, 'var(--red)'] : null, claude: runningSessions ? [runningSessions, 'var(--gold)'] : null };
   const GRP = { home: 'work', automations: 'automate', history: 'insight', life: 'life' };
   // current: null (not undefined) on the other tabs: an attribute bound to undefined counts as a
   // never-resolved hole (dc/runtime.js compileAttr); null just removes aria-current
-  const nav = H.NAV.map((n, i) => {
+  // digits are assigned from the ORIGINAL index, the fold filter runs after (so a folded space never shifts another's number key); the number keys read M.NAV directly
+  const navAll = H.NAV.map((n, i) => {
     const a = S.tab === n.id && !onPage, b = navBadge[n.id];
     return Object.assign({}, n, {
       digit: i < 10 ? String((i + 1) % 10) : '' /* v5: only the first ten destinations have a number key; Security (the 11th) has none */, delay: String(i * 45), group: GRP[n.id] || '', showGroup: !!GRP[n.id] && L.railLabels, showDivider: !!GRP[n.id] && !L.railLabels && i > 0, go: () => this.go(n.id), current: a ? 'page' : null, title: n.label + (i < 10 ? ' (' + ((i + 1) % 10) + ')' : ''), hasBadge: !!b, badge: b ? b[0] : '',
@@ -21,8 +23,9 @@ export function shellVals(ctx) {
       style: { position: 'relative', display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: L.railLabels ? '0 12px 0 8px' : '0 6px', minWidth: L.railLabels ? 176 : 48, background: a ? 'var(--card)' : 'transparent', border: '1px solid ' + (a ? 'var(--frame)' : 'transparent'), boxShadow: a ? 'inset 4px 0 0 var(--gold), 0 0 0 2px var(--frame)' : 'none', color: a ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', fontFamily: 'var(--term)', fontSize: 14, textAlign: 'left', transition: 'background .12s, color .12s, transform .12s' },
     });
   });
-  const bottomNav = H.NAV.slice(0, 4).map((n) => ({ icon: n.id, glyph: n.glyph, label: n.label, go: () => this.go(n.id), color: S.tab === n.id && !onPage ? 'var(--accent-text)' : 'var(--muted)' })).concat([{ icon: 'status', glyph: '⋯', label: 'More', go: () => this.setState({ moreOpen: !S.moreOpen }), color: S.moreOpen ? 'var(--accent-text)' : 'var(--muted)' }]);
-  const moreNav = nav.slice(4);
+  const nav = navAll.filter((n) => !isFolded(fold, n.id));
+  const bottomNav = H.NAV.slice(0, 4).filter((n) => !isFolded(fold, n.id)).map((n) => ({ icon: n.id, glyph: n.glyph, label: n.label, go: () => this.go(n.id), color: S.tab === n.id && !onPage ? 'var(--accent-text)' : 'var(--muted)' })).concat([{ icon: 'status', glyph: '⋯', label: 'More', go: () => this.setState({ moreOpen: !S.moreOpen }), color: S.moreOpen ? 'var(--accent-text)' : 'var(--muted)' }]);
+  const moreNav = navAll.slice(4).filter((n) => !isFolded(fold, n.id));
   const sig = (glyph, value, label, title, color, goFn) => ({ glyph, value, label, title, go: goFn, style: { height: 34, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', background: 'var(--ink)', border: '1px solid var(--frame)', borderRadius: 8, color, fontFamily: 'var(--term)', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' } });
   const signals = [
     sig('⚿', sec, sec === 1 ? 'secret' : 'secrets', sec + ' likely secrets · regex match, check before acting', sec ? 'var(--red)' : 'var(--muted)', () => this.go('tasks', 'ideas')),
@@ -77,6 +80,9 @@ export function shellVals(ctx) {
     sw('Reduce motion', 'Turns off bursts, coin flights, hops and transitions.', S.reduceMotion, () => this.setState({ reduceMotion: !S.reduceMotion })),
     // (the prototype's "Notifications" switch was cut: nothing reads it)
   ];
+  // Show everything: only while something is set to fold (live/foldable.mjs foldRow); the default list is empty, so Settings has no such row
+  const fr = foldRow(fold);
+  if (fr) settings.push(sw(fr.label, fr.desc, fr.on, () => this.setState({ showEverything: !S.showEverything })));
   // ----- scan state (contract C-2, logic/runs.js scanStatus) -----
   const sc = this.scanStatus();
   const scanTitle = cantWrite ? writeReason

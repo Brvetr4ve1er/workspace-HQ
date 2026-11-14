@@ -11,7 +11,7 @@ const useLog = require('./use-log.js');
 const fakeLog = () => { const lines = []; return { lines, event: (name, f) => { lines.push([name, f]); return true; } }; };
 
 test('every allowlisted surface and action passes, and writes exactly appLog.event("use", {surface, action})', () => {
-  assert.deepEqual([...useLog.SURFACES], ['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh', 'claude-vault', 'security-recycle', 'home-more', 'space-home', 'space-projects', 'space-tasks', 'space-automations', 'space-claude', 'space-history', 'space-system', 'space-life', 'space-money', 'space-cosmos', 'space-security']);
+  assert.deepEqual([...useLog.SURFACES], ['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh', 'claude-vault', 'security-recycle', 'home-more', 'projects-archived', 'system-hub-panel', 'automations-library', 'space-home', 'space-projects', 'space-tasks', 'space-automations', 'space-claude', 'space-history', 'space-system', 'space-life', 'space-money', 'space-cosmos', 'space-security']);
   assert.deepEqual([...useLog.ACTIONS], ['open', 'act', 'resume', 'copy', 'log']);
   // spaced out so the per-minute cap never interferes: every surface x every action is accepted
   const log = fakeLog();
@@ -21,6 +21,7 @@ test('every allowlisted surface and action passes, and writes exactly appLog.eve
   assert.equal(log.lines.length, useLog.SURFACES.length * useLog.ACTIONS.length);
   for (const s of ['claude-vault', 'security-recycle']) assert.ok(useLog.SURFACES.includes(s), s + ' is allowed (act marks, batch 6)');
   assert.ok(useLog.SURFACES.includes('home-more'), 'home-more is allowed (More on Home, batch 7)');
+  for (const s of ['projects-archived', 'system-hub-panel', 'automations-library']) assert.ok(useLog.SURFACES.includes(s), s + ' is allowed (the subtraction pass measures what it could fold, batch 7)');
   assert.deepEqual(useLog.create({ appLog: fakeLog(), now: () => 1 }).mark('home-more-typo', 'open'), { error: 'unknown surface or action' }, 'an unknown id is still refused');
   const log2 = fakeLog();
   let t = 0;

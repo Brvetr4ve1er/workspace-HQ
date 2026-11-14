@@ -3,6 +3,7 @@
 // local of the same name from the pre-split renderVals() in app-vals.js; `ro` is
 // from moreVals() in app-more.js (both removed in the split; see a8e0bf1).
 import { sourceOf } from '../logic/decision.mjs';
+import { decideFold, MEASURED_ZERO_14D, foldSubs } from '../live/foldable.mjs';   // batch 7: surfaces nobody opened in 14 days fold behind Settings > Show everything
 export function makeCtx() {
   const S = this.state, H = this.M, LIVE = this.LIVE;
   const w = document.documentElement.clientWidth || window.innerWidth; this._lastW = w;
@@ -26,6 +27,9 @@ export function makeCtx() {
   v.stdHeader = ok && !onPage && S.tab !== 'home';
   const sub = S.sub[S.tab];
   const subs = H.SUBS[S.tab] || [];
+  // what is folded, decided ONCE per render (live/foldable.mjs): the shipped list is empty, so nothing folds until a 14-day zero is measured or the viewer pref foldIds names one
+  const fold = decideFold({ measuredZero: MEASURED_ZERO_14D, ownerFolded: S.foldIds, showEverything: S.showEverything });
+  const shownSubs = foldSubs(S.tab, subs, fold);
   const tabStyle = (a) => ({ height: 30, padding: '0 12px', cursor: 'pointer', fontFamily: 'var(--term)', fontSize: 13, borderRadius: 8, background: a ? 'color-mix(in oklab, var(--gold) 14%, transparent)' : 'transparent', color: a ? 'var(--accent-text)' : 'var(--muted)', border: '1px solid ' + (a ? 'color-mix(in oklab, var(--gold) 55%, transparent)' : 'transparent'), transition: 'background .15s, color .15s, border-color .15s' });
   // row builders shared by home, projects, tasks, focus, the status rail and the project page
   const TR = H.TIER;
@@ -56,6 +60,6 @@ export function makeCtx() {
   const ro = () => { if (!this.canWrite()) { this.denied(); return true; } return false; };
   return {
     S, H, LIVE, w, off, live, ps, cantWrite, writeReason, snap, viewed, viewedLabel, projects, tasks, open, unc, unp, sec, level, L, ambientDocked,
-    v, ok, onPage, sub, subs, tabStyle, TR, tk, rows, chipsOf, actText, devOn, rowOf, plural, top, dec, order, topSource, tierCount, TK, ro,
+    v, ok, onPage, sub, subs, fold, shownSubs, tabStyle, TR, tk, rows, chipsOf, actText, devOn, rowOf, plural, top, dec, order, topSource, tierCount, TK, ro,
   };
 }

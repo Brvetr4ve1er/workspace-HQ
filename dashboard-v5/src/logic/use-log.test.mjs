@@ -220,3 +220,19 @@ test('useSpace sends nothing without a bridge', () => {
   assert.equal(self.useSpace('home'), false);
   assert.deepEqual(sent, []);
 });
+
+test('every foldable surface has a use mark that dashboard/use-log.js allows, and the vals mark it inside a not-folded guard (subtraction, batch 7)', async () => {
+  const { createRequire } = await import('node:module');
+  const fs = await import('node:fs');
+  const { FOLDABLE } = await import('../live/foldable.mjs');
+  const useLogMain = createRequire(import.meta.url)('../../../dashboard/use-log.js');
+  const marked = { 'projects-archived': 'vals/projects.js', 'system-hub-panel': 'vals/system.js', 'automations-library': 'vals/automations.js' };
+  for (const f of FOLDABLE.filter((x) => x.kind !== 'space')) {
+    assert.ok(useLogMain.SURFACES.includes(f.surface), f.surface + ' is allowlisted in main');
+    const src = fs.readFileSync(new URL('../' + marked[f.surface], import.meta.url), 'utf8');
+    assert.ok(src.includes("this.useMark('" + f.surface + "')"), f.surface + ' is marked in ' + marked[f.surface]);
+    assert.ok(src.includes("canMark(fold, '" + f.id + "')"), f.surface + ' is marked only while its surface is not folded');
+  }
+  const spaces = FOLDABLE.filter((x) => x.kind === 'space');
+  for (const f of spaces) assert.ok(useLogMain.SURFACES.includes(f.surface), f.surface + ' (a space mark) is allowlisted in main');
+});

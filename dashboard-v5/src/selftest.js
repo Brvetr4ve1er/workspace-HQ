@@ -130,6 +130,7 @@ export async function run(W = window.WHQ) {
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
+    const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
     const { homeOneStates } = await import('./selftest-home-one.mjs');   // Home as one decision: the card follows the Brief or the fixed rules, More on Home closed and open
     const base = { askHistory: initial.askHistory };
 
@@ -481,6 +482,15 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, row.state, { themePref: theme, snapOffset: 0 }));
             });
           } finally { LV.brief = savedLive.brief; }
+        }
+        // Folded surfaces (src/selftest-fold.mjs): the two fold prefs go straight into state; FOLD_RESET puts them back after the rows (CLEAR does not cover them)
+        for (const [name, tab, sub, foldState, extra] of foldStates()) {
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              L.go(tab, sub || null);
+              L.setState(Object.assign({}, CLEAR, base, FOLD_RESET, { themePref: theme, snapOffset: 0 }, foldState, extra || {}));
+            });
+          } finally { L.setState(Object.assign({}, FOLD_RESET)); }
         }
         // Reach (Settings): every state of the doors block. The rows are put straight into state and the loader is held (_rchAsked), so the
         // fake's own rows don't replace them; rch-offline hides hq.reach for one combo (the store's hq, never window.hq) and puts it back.
