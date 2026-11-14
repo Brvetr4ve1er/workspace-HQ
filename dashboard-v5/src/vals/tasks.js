@@ -1,10 +1,13 @@
 // Tasks render values: tier filters, ranked / by-project rows, ideas & risks, cleared today.
 
 export function tasksVals(ctx) {
-  const { S, H, live, snap, tasks, open, sub, tabStyle, tk, tierCount } = ctx;
+  const { S, H, live, snap, tasks, open, order, sub, tabStyle, tk, tierCount } = ctx;
   // ----- tasks -----
   const taskFilters = [['all', 'All', open.length], ['red', 'Critical', tierCount('red')], ['orange', 'Important', tierCount('orange')], ['yellow', 'Housekeeping', tierCount('yellow')]].map(([id, l, n]) => ({ label: l + ' ' + n, go: () => this.setState({ taskFilter: id }), style: tabStyle(S.taskFilter === id) }));
-  const filt = tasks.filter((t) => S.taskFilter === 'all' || t.tier === S.taskFilter);
+  // the ranked list reads the shared ordering (logic/decision.mjs): the open tasks fill the open slots in `order` (the card's task first); rows done a moment ago keep their place
+  let slot = 0;
+  const ranked = tasks.map((t) => (S.recentDone.includes(t.id) ? t : order[slot++] || t));
+  const filt = ranked.filter((t) => S.taskFilter === 'all' || t.tier === S.taskFilter);
   const trow = (t) => {
     const done = S.recentDone.includes(t.id);
     return Object.assign(tk(t), { isTask: true, isHeader: false, age: t.age + 'd old', isDone: done, isOpen: !done, inProgress: !!t.inProgress, ring: done ? 'var(--green)' : 'var(--frame)', opacity: done ? 0.7 : 1, claude: () => this.sendClaude(t.title, t.proj) });

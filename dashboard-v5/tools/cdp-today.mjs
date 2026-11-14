@@ -32,8 +32,9 @@ export const PAGE = Object.freeze({
   twinItems: `(${SEC} ? ${SEC}.querySelectorAll('ul[aria-label="Where today went, in words"] li').length : 0)`,
   reads: `JSON.stringify(hqFake.calls('today.read').map((c) => c.args))`,
   writes: `hqFake.calls('today.write').length`,
-  open: `(() => { const L = WHQ.app.logic; hqFake.reset(true); if (L.tdyRearm) L.tdyRearm(); const T = L.LIVE && L.LIVE.today; if (T) { T.loaded = false; T.days = {}; T.errors = {}; T.revision = 0; } L.setState({ tab: 'home', route: null, tdyOffset: 0 }); return true; })()`,
-  reset: `(() => { const L = WHQ.app.logic; if (L.tdyRearm) L.tdyRearm(); hqFake.reset(true); L.setState({ tdyOffset: 0, toasts: [] }); return true; })()`,
+  // the ribbon sits behind More on Home (batch 7): open it (the flag AND the live state) with the page
+  open: `(() => { const L = WHQ.app.logic; hqFake.reset(true); if (L.tdyRearm) L.tdyRearm(); const T = L.LIVE && L.LIVE.today; if (T) { T.loaded = false; T.days = {}; T.errors = {}; T.revision = 0; } try { localStorage.setItem('hq.homeMore', '1'); } catch (e) {} L.setState({ tab: 'home', route: null, tdyOffset: 0, homeMore: true }); return true; })()`,
+  reset: `(() => { const L = WHQ.app.logic; if (L.tdyRearm) L.tdyRearm(); hqFake.reset(true); try { localStorage.removeItem('hq.homeMore'); } catch (e) {} L.setState({ tdyOffset: 0, toasts: [], homeMore: false }); return true; })()`,
 });
 
 export const WANT_TEXT = Object.freeze(['Where today went', 'five-minute block', 'with Claude', 'commit', 'PC', 'Claude (5-minute blocks)', 'browser focus', 'PC asleep']);

@@ -9,8 +9,11 @@ const T = (id, tier) => ({ id, tier, title: 'Task ' + id, why: '', proj: null, a
 
 // the ctx slice tasksVals reads (vals/ctx.js), with a snapshot view (live=false) so
 // ideaRows / cleared take their simple branches
-function vals(tasks, { taskFilter = 'all', recentDone = [] } = {}) {
+function vals(tasks, { taskFilter = 'all', recentDone = [], first = null, sub = 'ranked' } = {}) {
   const open = tasks.filter((t) => !recentDone.includes(t.id));
+  // vals/ctx.js builds `order` with logic/decision.mjs: the card's task first, the rest in ranker order
+  const lead = first ? open.find((t) => t.id === first) : null;
+  const order = lead ? [lead].concat(open.filter((t) => t !== lead)) : open;
   const self = {
     patched: null,
     setState(p) { this.patched = p; },
@@ -19,7 +22,7 @@ function vals(tasks, { taskFilter = 'all', recentDone = [] } = {}) {
   };
   const ctx = {
     S: { taskFilter, recentDone, completed: [] }, H: { KIND: {}, T0: [] },
-    live: false, snap: { IDEAS: [] }, tasks, open, sub: 'ranked',
+    live: false, snap: { IDEAS: [] }, tasks, open, order, sub,
     tabStyle: () => ({}), tk: (t) => ({ title: t.title }),
     tierCount: (k) => open.filter((t) => t.tier === k).length,
   };
@@ -31,6 +34,18 @@ test('an empty tier filter is noFilterMatch, never "Board clear"', () => {
   assert.equal(v.taskRows.length, 0);
   assert.equal(v.noTasks, false, 'the board has 2 open tasks — it is not clear');
   assert.equal(v.noFilterMatch, true);
+});
+
+test('the ranked list reads the shared ordering: the card task is first, the rest keep the ranker order, a task done a moment ago keeps its row', () => {
+  const ts = [T('t1', 'red'), T('t2', 'orange'), T('t3', 'orange'), T('t4', 'yellow')];
+  const ids = (v) => v.taskRows.map((r) => r.title);
+  assert.deepEqual(ids(vals(ts).v), ['Task t1', 'Task t2', 'Task t3', 'Task t4'], 'no lead: the ranker own order');
+  assert.deepEqual(ids(vals(ts, { first: 't3' }).v), ['Task t3', 'Task t1', 'Task t2', 'Task t4'], 'the followed task moves to the top');
+  const done = vals(ts, { first: 't3', recentDone: ['t2'] }).v;
+  assert.deepEqual(ids(done), ['Task t3', 'Task t2', 'Task t1', 'Task t4'], 'the done row stays in its slot (slot 2), the open ones fill the other slots in the shared order');
+  assert.equal(done.taskRows.filter((r) => r.isDone).length, 1);
+  const by = vals(ts, { first: 't3', sub: 'byproject' }).v;
+  assert.ok(by.taskRows.length > 0 && by.taskRows.every((r) => r.isHeader || r.isTask), 'by-project still groups');
 });
 
 test('clearTaskFilter goes back to All', () => {

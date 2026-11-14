@@ -129,7 +129,7 @@ function stripVals({ LIVE }) {
     .sort((a, b) => RANK[a.state] - RANK[b.state] || Date.parse(b.lastAt) - Date.parse(a.lastAt))
     .slice(0, 3);
   if (!hot.length) return STRIP_OFF;
-  if (typeof this.useMark === 'function') this.useMark('sessions-strip');   // usage counter: once per arrival on Home, only while the strip can be seen (logic/use-log.js)
+  if (this.state && this.state.homeMore && typeof this.useMark === 'function') this.useMark('sessions-strip');   // usage counter: once per arrival on Home, only while the strip can be seen: it sits behind More on Home, so closed is not seen (logic/use-log.js)
   const stale = board.state !== 'ok';
   return {
     sbdStripShow: true,

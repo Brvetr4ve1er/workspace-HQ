@@ -10,21 +10,14 @@ export default String.raw`        <sc-if value="{{ v.home }}" hint-placeholder-v
               <h1 style="margin:0;font-weight:400;font-size:clamp(26px,3.2vw,37px);line-height:1"><x-import component-from-global-scope="hq-type" text="{{ home.greeting }}" hint-size="auto,1em"></x-import></h1>
               <span style="font-size:14px;color:var(--muted)">{{ home.sub }}</span>
             </div>
-${brief}${sessionsStrip}${today}            <div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
-              <div style="flex:1 1 520px;min-width:0;display:flex;flex-direction:column;gap:36px">
-                <sc-if value="{{ showSince }}" hint-placeholder-val="{{ false }}">
-                  <section ref="{{ popIn }}" style="border:1px dashed var(--frame-hi);border-radius:12px;padding:12px 16px;background:var(--card)">
-                    <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--faint)">› {{ sinceLabel }}</span><span style="flex:1"></span><button onClick="{{ dismissSince }}" style="background:none;border:0;color:var(--faint);font-size:12px;cursor:pointer;font-family:var(--term)">dismiss</button></div>
-                    <div style="display:flex;flex-direction:column;margin-top:6px">
-                      <sc-for list="{{ since }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.open }}" style="display:flex;gap:10px;align-items:center;padding:5px 0;background:none;border:0;color:var(--text);font-family:var(--term);font-size:13px;cursor:pointer;text-align:left" style-hover="color:var(--accent-text)"><span style="width:16px;color:{{ x.c }}">{{ x.g }}</span><span>{{ x.t }}</span></button></sc-for>
-                    </div>
-                  </section>
-                </sc-if>
+${brief}            <!-- v5: Home as one decision (batch 7) - the Brief, then ONE next action (or All clear), then a single More on Home disclosure holding the rest.
+                 No transition or animation on the control or the revealed blocks; closed = those nodes are not rendered. -->
+            <div style="display:flex;flex-direction:column;gap:20px;max-width:900px">
                 <sc-if value="{{ home.hasNext }}" hint-placeholder-val="{{ true }}">
                   <section aria-label="Next action" style="position:relative;background:var(--card);border:1px solid var(--gold);border-radius:12px;box-shadow:0 10px 0 -4px var(--ink);padding:22px 24px 20px">
                     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
                       <span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--accent-text)">Next action</span>
-                      <span style="font-size:12px;color:var(--faint)">picked by fixed rules · not AI</span>
+                      <!-- v5: batch 7 - says why this card (the lead Brief row's project, or the fixed ranker) --><span style="font-size:12px;color:var(--faint)">{{ home.next.source }}</span>
                       <span style="flex:1"></span>
                       <!-- v5: in_progress quests are on the board too; say which ones are already started --><sc-if value="{{ home.next.inProgress }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:11px;white-space:nowrap;color:var(--tone-blue);border:1px solid color-mix(in oklab,var(--tone-blue) 45%,transparent);background:color-mix(in oklab,var(--tone-blue) 10%,transparent)">in progress</span></sc-if>
                       <span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:{{ home.next.color }}">{{ home.next.tier }}</span>
@@ -66,6 +59,20 @@ ${brief}${sessionsStrip}${today}            <div style="display:flex;flex-wrap:w
                     </div>
                   </section>
                 </sc-if>
+              <button type="button" onClick="{{ home.toggleMore }}" aria-expanded="{{ home.moreExpanded }}" aria-controls="home-more-region" style="display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;height:34px;padding:0 14px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer" style-hover="border-color:var(--frame-hi)">{{ home.moreLabel }}</button>
+            </div>
+            <sc-if value="{{ home.moreOpen }}" hint-placeholder-val="{{ false }}">
+              <div id="home-more-region" style="margin-top:26px">
+                <sc-if value="{{ showSince }}" hint-placeholder-val="{{ false }}">
+                  <section ref="{{ popIn }}" style="margin-bottom:26px;border:1px dashed var(--frame-hi);border-radius:12px;padding:12px 16px;background:var(--card)">
+                    <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--faint)">› {{ sinceLabel }}</span><span style="flex:1"></span><button onClick="{{ dismissSince }}" style="background:none;border:0;color:var(--faint);font-size:12px;cursor:pointer;font-family:var(--term)">dismiss</button></div>
+                    <div style="display:flex;flex-direction:column;margin-top:6px">
+                      <sc-for list="{{ since }}" as="x" hint-placeholder-count="4"><button onClick="{{ x.open }}" style="display:flex;gap:10px;align-items:center;padding:5px 0;background:none;border:0;color:var(--text);font-family:var(--term);font-size:13px;cursor:pointer;text-align:left" style-hover="color:var(--accent-text)"><span style="width:16px;color:{{ x.c }}">{{ x.g }}</span><span>{{ x.t }}</span></button></sc-for>
+                    </div>
+                  </section>
+                </sc-if>
+${sessionsStrip}${today}            <div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
+              <div style="flex:1 1 520px;min-width:0;display:flex;flex-direction:column;gap:36px">
 
                 <section aria-label="Portfolio">
                   <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px">
@@ -139,7 +146,9 @@ ${brief}${sessionsStrip}${today}            <div style="display:flex;flex-wrap:w
                   </section>
                 </sc-if>
               </aside>
-            </div>
+              </div>
+              </div>
+            </sc-if>
           </div>
         </sc-if>
 

@@ -26,7 +26,7 @@ const EIGHT = ['running', 'waiting-tool', 'stopped-mid-tool', 'no-reply', 'limit
 function rig(o = {}) {
   const calls = [], toasts = [], copies = [], marks = [];
   const self = Object.assign(Object.create(sessionsBoardLogic), {
-    state: { tab: 'claude', sub: { claude: 'sessions' }, route: null, reduceMotion: false, sbdBusy: [], ...(o.state || {}) },
+    state: { tab: 'claude', sub: { claude: 'sessions' }, route: null, reduceMotion: false, sbdBusy: [], homeMore: true, ...(o.state || {}) },   // the strip sits behind More on Home (batch 7)
     setState(p) { this.state = { ...this.state, ...(typeof p === 'function' ? p(this.state) : p) }; },
     toast: (k, t) => toasts.push([k, t]),
     copy: (text, msg) => copies.push([text, msg]),
@@ -124,6 +124,18 @@ test('arriving marks the board open and refreshes; the strip is marked only wher
   assert.deepEqual(quiet.marks, [], 'no strip, no mark');
   const none = rig({ noMark: true });
   assert.doesNotThrow(() => none.self.sbdArrive('board'));
+});
+
+test('the strip mark waits for More on Home: closed sends nothing, open sends it once per render path', () => {
+  const closed = rig({ state: { tab: 'home', sub: {}, route: null, homeMore: false } });
+  assert.equal(closed.vals().sbdStripShow, true, 'the strip vals are built while closed');
+  assert.deepEqual(closed.marks, [], 'but a collapsed block is not counted as opened');
+  const unset = rig({ state: { tab: 'home', sub: {}, route: null, homeMore: undefined } });
+  unset.vals();
+  assert.deepEqual(unset.marks, [], 'a missing flag reads as closed');
+  closed.self.setState({ homeMore: true });
+  closed.vals();
+  assert.deepEqual(closed.marks, ['sessions-strip']);
 });
 
 test('Chats: a Code chat resumes; a missing transcript is remembered and the caller falls back to a fresh session', async () => {

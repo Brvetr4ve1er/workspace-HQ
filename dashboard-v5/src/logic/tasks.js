@@ -68,6 +68,6 @@ export const tasksLogic = {
   },
   toggleFocus() {
     if (this.state.focus) return this.endFocus(false);
-    const t = this.openTasks(this.state.snapOffset)[0]; this.startFocus(t ? t.id : null);
+    const t = this.decideFor(this.state.snapOffset).next; this.startFocus(t ? t.id : null);   // the card's task (logic/decision.mjs)
   },
 };

@@ -1,7 +1,8 @@
 // Home render values: next task, portfolio rows, momentum, changes, weekly recap.
+import { label as homeMoreLabel } from '../logic/home-more.mjs';
 
 export function homeVals(ctx) {
-  const { S, H, LIVE, off, live, snap, viewedLabel, projects, open, tk, rows, rowOf, plural, top } = ctx;
+  const { S, H, LIVE, off, live, snap, viewedLabel, projects, open, tk, rows, rowOf, plural, top, order, topSource } = ctx;
   // ----- home -----
   const momSpan = this.span(14, off), momVals = momSpan.map((o) => this.series(S.momentum === 'xp' ? 'xp' : 'unc', o));
   const md = momVals[momVals.length - 1] - momVals[0];
@@ -17,7 +18,9 @@ export function homeVals(ctx) {
     greeting: live ? 'Today' : viewedLabel,
     sub: live ? this.greet() + ' · ' + H.DOW[new Date().getDay()] + ', ' + H.fmtD(new Date()) + ' · ' + (open.filter((t) => t.tier === 'red').length ? open.filter((t) => t.tier === 'red').length + ' critical' : 'nothing critical') : 'Read-only snapshot · the next action as it stood that day',
     hasNext: open.length > 0, isRest: open.length === 0,
-    next: top ? Object.assign(tk(top), { inProgress: !!top.inProgress }) : { inProgress: false }, alts: open.slice(1, 3).map(tk), hasAlts: open.length > 1,
+    next: top ? Object.assign(tk(top), { inProgress: !!top.inProgress, source: topSource }) : { inProgress: false, source: '' }, alts: order.slice(1, 3).map(tk), hasAlts: order.length > 1,
+    // More on Home (batch 7): the disclosure under the card; closed, nothing below it is rendered
+    moreOpen: !!S.homeMore, moreExpanded: S.homeMore ? 'true' : 'false', moreLabel: homeMoreLabel(!!S.homeMore), toggleMore: () => this.toggleHomeMore(),
     restSub: live ? (S.completed.length ? 'You cleared ' + S.completed.length + ' task' + (S.completed.length > 1 ? 's' : '') + ' this session. Everything else can wait.' : 'No open tasks in the latest scan. Ideas & risks are there if you want them.') : 'Nothing was open on ' + viewedLabel + '.',
     rows: rows.map(rowOf),
     kpiLine: projects.length + ' projects · ' + projects.filter((p) => p.st === 'risk').length + ' at risk · ' + projects.filter((p) => p.st === 'care').length + ' need care',

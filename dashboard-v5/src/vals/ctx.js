@@ -2,6 +2,7 @@
 // (src/vals/index.js) and passed to every src/vals/<surface>.js. Each value is the
 // local of the same name from the pre-split renderVals() in app-vals.js; `ro` is
 // from moreVals() in app-more.js (both removed in the split; see a8e0bf1).
+import { sourceOf } from '../logic/decision.mjs';
 export function makeCtx() {
   const S = this.state, H = this.M, LIVE = this.LIVE;
   const w = document.documentElement.clientWidth || window.innerWidth; this._lastW = w;
@@ -44,7 +45,9 @@ export function makeCtx() {
   const devOn = (id) => live && !!LIVE.dev[id];
   const rowOf = (p) => ({ id: p.id, name: p.name, reason: p.reason, reasonColor: p.st === 'ok' ? 'var(--muted)' : H.ST[p.st].color, color: H.ST[p.st].color, tag: H.ST[p.st].label, tone: H.ST[p.st].tone, chips: chipsOf(p), pct: p.pct, stack: p.stack.join(' · '), activity: actText(p), devOn: devOn(p.id), alive: live && p.activity === 'active', port: p.port || '', open: () => this.openProject(p.id) });
   const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
-  const top = open[0];
+  // ONE ordering (batch 7, logic/decision.mjs): top = the card's task, order = it first then the rest; the Home card and alternatives, the Status rail,
+  // promptHints and the Tasks ranked list all read these two
+  const dec = this.decideFor(off, open), top = dec.next, order = dec.order, topSource = sourceOf(dec.mode);
   // tasks filters + the Tasks screen header
   const tierCount = (k) => open.filter((t) => t.tier === k).length;
   // toast colours, also used by the notifications list
@@ -53,6 +56,6 @@ export function makeCtx() {
   const ro = () => { if (!this.canWrite()) { this.denied(); return true; } return false; };
   return {
     S, H, LIVE, w, off, live, ps, cantWrite, writeReason, snap, viewed, viewedLabel, projects, tasks, open, unc, unp, sec, level, L, ambientDocked,
-    v, ok, onPage, sub, subs, tabStyle, TR, tk, rows, chipsOf, actText, devOn, rowOf, plural, top, tierCount, TK, ro,
+    v, ok, onPage, sub, subs, tabStyle, TR, tk, rows, chipsOf, actText, devOn, rowOf, plural, top, dec, order, topSource, tierCount, TK, ro,
   };
 }

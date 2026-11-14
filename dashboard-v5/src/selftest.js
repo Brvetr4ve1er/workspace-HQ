@@ -16,9 +16,9 @@ import { gapsOf } from './live/adapter.mjs';
 import { cosInitState } from './logic/cosmos.js';
 
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
-const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib'], SESSION_KEYS = ['whq3-place'];
+const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib', 'hq.homeMore'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
+const CLEAR = { homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
@@ -130,6 +130,7 @@ export async function run(W = window.WHQ) {
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
+    const { homeOneStates } = await import('./selftest-home-one.mjs');   // Home as one decision: the card follows the Brief or the fixed rules, More on Home closed and open
     const base = { askHistory: initial.askHistory };
 
     for (const theme of ['dark', 'light']) {
@@ -469,6 +470,17 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, row.hist));
             });
           } finally { W.store.hq = hq5; L._bhsHold = false; LV.brief = savedLive.brief; }
+        }
+        // Home as one decision (src/selftest-home-one.mjs): the Brief's lead row names a project with an open task (the card follows it), names none (fixed rules), a group row,
+        // and the empty Brief, each with More on Home closed or open. The row's state is spread AFTER CLEAR so a row never inherits the previous disclosure.
+        for (const row of homeOneStates({ projectId: String(((L.openTasks(0).find((t) => t.proj) || {}).proj) || '') || undefined })) {
+          try {
+            await combo([theme, 'p3:' + row.name].join(' '), () => {
+              LV.brief = row.brief;
+              L.go(row.tab, row.sub || null);
+              L.setState(Object.assign({}, CLEAR, base, row.state, { themePref: theme, snapOffset: 0 }));
+            });
+          } finally { LV.brief = savedLive.brief; }
         }
         // Reach (Settings): every state of the doors block. The rows are put straight into state and the loader is held (_rchAsked), so the
         // fake's own rows don't replace them; rch-offline hides hq.reach for one combo (the store's hq, never window.hq) and puts it back.

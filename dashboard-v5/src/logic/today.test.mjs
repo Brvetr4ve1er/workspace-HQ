@@ -44,7 +44,7 @@ function rig(o = {}) {
   Object.assign(today.errors, o.errors || {});
   today.revision = 1;
   const self = Object.assign(Object.create(todayLogic), {
-    state: { tab: 'home', route: null, ...(o.state || {}) },
+    state: { tab: 'home', route: null, homeMore: true, ...(o.state || {}) },   // the ribbon sits behind More on Home (batch 7): open unless a test says otherwise
     LIVE: { today },
     setState(p) { this.state = { ...this.state, ...(typeof p === 'function' ? p(this.state) : p) }; },
     useMark: (id, a) => marks.push([id, a]),
@@ -232,6 +232,21 @@ test('the usage mark: one today-ribbon mark per render while a ribbon shows, non
     r.done();
   }
   shown.done();
+});
+
+test('the usage mark is not sent while More on Home is closed (a collapsed block is not an opened one), and once it opens the next render sends it', () => {
+  const r = rig({ days: { 0: MODEL() }, state: { homeMore: false } });
+  const closed = r.vals();
+  assert.deepEqual(r.marks, [], 'the vals are built while closed, the mark is not sent');
+  assert.equal(closed.tdyv.tdyReady, true, 'the ribbon vals still exist');
+  r.self.setState({ homeMore: true });
+  r.vals();
+  assert.deepEqual(r.marks, [['today-ribbon', undefined]]);
+  const bare = rig({ days: { 0: MODEL() } });
+  bare.self.state = { tab: 'home', route: null };
+  assert.doesNotThrow(() => bare.vals());
+  assert.deepEqual(bare.marks, [], 'no homeMore in the state reads as closed');
+  for (const x of [r, bare]) x.done();
 });
 
 test('the layout is memoized on the slice revision, the day, the width and the names: a second render is the same objects', () => {

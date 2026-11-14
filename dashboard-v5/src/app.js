@@ -51,6 +51,8 @@ import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
 import { securityLogic } from './logic/security.js';   // Security space (batch 4)
 import { driftLogic } from './logic/drift.js';   // batch 3: System › Machine › How the PC changed (dft*)
 import { renderVals } from './vals/index.js';
+import { decide } from './logic/decision.mjs';   // batch 7: Home as one decision (ONE ordering for the card, the rail, F and Tasks)
+import { read as homeMoreRead, write as homeMoreWrite } from './logic/home-more.mjs';   // batch 7: the per-viewer 'More on Home' flag
 
 export class Component extends DCLogic {
   state = this.initState();
@@ -118,6 +120,8 @@ export class Component extends DCLogic {
       ...cosInitState(P, saved),
       // Home › Where today went (logic/today.js): 0 = today; bumped when project names arrive from the Hub
       tdyOffset: 0, tdyNamesAt: 0,
+      // Home › More on Home (logic/home-more.mjs): per-viewer, read from localStorage once at mount, closed by default (batch 7)
+      homeMore: homeMoreRead(),
         // Brief history (logic/brief-history.js): the ledger answer as main last said it
         bhsLoaded: false, bhsData: null, bhsErr: '', bhsBusy: false,
     };
@@ -246,6 +250,19 @@ export class Component extends DCLogic {
     return t.sort((a, b) => TR[a.tier].rank - TR[b.tier].rank || b.xp - a.xp || b.age - a.age);
   }
   openTasks(off) { return this.tasksAt(off).filter((t) => !this.state.recentDone.includes(t.id)); }
+  // ONE ordering of the open tasks (batch 7, logic/decision.mjs): the Brief's lead project first when it has an open task, else the ranker's own order.
+  // The Brief is live-only, so a snapshot (off != 0) is always the ranker. Pass `open` when the caller already has it.
+  decideFor(off, open) {
+    const items = off === 0 ? (((this.LIVE || {}).brief || {}).brief || {}).items : [];
+    return decide({ briefItems: items, open: open || this.openTasks(off) });
+  }
+  // the More on Home disclosure (Home): flag in this viewer's localStorage, never in prefs; opening it is one 'home-more' usage mark
+  toggleHomeMore() {
+    const o = !this.state.homeMore;
+    this.setState({ homeMore: o });
+    homeMoreWrite(undefined, o);
+    if (o && typeof this.useMark === 'function') this.useMark('home-more');
+  }
   ideasAt() { return this.M.IDEAS.filter((i) => !this.state.dismissed.includes(i.id) && !this.state.completed.includes(i.id)); }
   pname(id) { const s = this.M.at(0), p = s.P0.concat(s.archived).find((x) => x.id === id); return p ? p.name : (id ? '' : 'Workspace'); }
   proj(id) { const s = this.M.at(0); return s.P0.concat(s.archived).find((x) => x.id === id) || null; }

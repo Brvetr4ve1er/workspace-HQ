@@ -75,7 +75,7 @@ export function twinLines(model, labelOf) {
 }
 
 export const todayLogic = {
-  _tdyMark() { try { if (typeof this.useMark === 'function') this.useMark('today-ribbon'); } catch { /* a usage mark is a bonus, never a failure */ } },
+  _tdyMark() { try { if (!(this.state && this.state.homeMore)) return; /* the ribbon sits behind More on Home: a collapsed block is not an opened one */ if (typeof this.useMark === 'function') this.useMark('today-ribbon'); } catch { /* a usage mark is a bonus, never a failure */ } },
   tdyMark() { this._tdyMark(); },
 
   /** Read once per arrival on Home (deferred), and every 10 minutes while Home stays open. */

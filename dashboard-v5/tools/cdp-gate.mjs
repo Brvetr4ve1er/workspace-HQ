@@ -36,6 +36,8 @@
 //   money-access-off-by-default · money-access-toggle
 // Today ribbon (batch 3; --preload=fake; tools/cdp-today.mjs; the fake's hq.today.read answers invented days: offsets 0..3 full, 4..6 partial, others refused; each scenario ends with hqFake.reset(true) and day 0 shown):
 //   today-render · today-step-back · today-partial
+// Home as one decision (batch 7; --preload=fake; tools/cdp-home-one.mjs; Home = greeting, Brief, ONE next-action card (or All clear), then a remembered More on Home button holding the rest; each scenario serves its own placeholder Brief and ends with hqFake.reset(true), the flag cleared and Home shown). Scenarios that read a block INSIDE the disclosure (the ribbon, the strip, Portfolio, Changes, the aside) open it first with openHomeMore(t):
+//   home-one-render · home-one-more-persist · home-one-follows-brief · home-one-allclear · home-one-done-xp · home-one-no-motion · home-one-use-marks
 // Save to vault with no local model (batch 3; --preload=fake; tools/cdp-vault-template.mjs): vault-template-preview (the fake preview answers the template fallback; banner, no redraft button, one plain-id call, exactly one save of exactly the draft)
 // Brief history (batch 3; --preload=fake; tools/cdp-brief-history.mjs; the fake's hq.briefHistory answers nothing remembered and no card due; each scenario serves its own placeholder answers with hqFake.set and ends with hqFake.reset(true) and Home shown):
 //   brief-history-render · brief-history-all-clear
@@ -91,6 +93,7 @@ import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
+import { makeHomeOneScenarios, openHomeMore, HOME_MORE_ON, HOME_MORE_OFF } from './cdp-home-one.mjs';
 import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
 import { makeVaultTemplateScenarios } from './cdp-vault-template.mjs';
 import { makeMachineDriftScenarios } from './cdp-drift.mjs';
@@ -1285,6 +1288,7 @@ const SCENARIOS = {
   // The clipboard and window.open are stubbed for the run; project names are masked in what it prints.
   async 'button-sweep'(t) {
     const pre = await fresh(t); if (pre) return pre;
+    await openHomeMore(t);   // batch 7: Home is swept with More on Home OPEN (Portfolio, Changes, the aside); the closed state and the toggle belong to the home-one scenarios
     const KNOWN_CUTS = [];   // none left
     const views = await t.evaluate(`(() => { const M = WHQ.app.logic.M, v = [];
       const p = (M.P0[0] || {}).id; if (p) v.push({ name: 'project-page', tab: 'projects', sub: 'grid', project: p });   // first: the global buttons are tried away from Home
@@ -1380,6 +1384,7 @@ const SCENARIOS = {
       if (gone.length) { await reloadReady(t); await install(); }
     }
     await fresh(t);
+    await t.evaluate(HOME_MORE_OFF);
     const line = (f) => f.cls.padEnd(9) + ' ' + f.view.padEnd(22) + ' ' + f.key.replace(/^(main|global):/, '') + (f.toasts && f.toasts.length ? '  → ' + f.toasts.join(' | ') : '') + (f.errs && f.errs.length ? '  ! ' + f.errs.join(' | ') : '');
     console.log('[button-sweep] ' + clicked + ' buttons clicked across ' + views.length + ' screens · ' + retried + ' retried on a fresh page · ' + skipped + ' disabled seen');
     for (const f of findings) console.log('  ' + line(f));
@@ -1764,6 +1769,7 @@ Object.assign(SCENARIOS, {
     const out = [];
     const STRIP = `document.querySelector('section[aria-label="Claude sessions that need a look"]')`;
     try {
+      await t.evaluate(HOME_MORE_ON);   // the strip sits behind More on Home (batch 7)
       await t.evaluate(`(() => { const L = WHQ.app.logic; L.go('tasks'); return true; })()`); await t.sleep(150);
       await t.evaluate(`(() => { const L = WHQ.app.logic; L.store.refreshBoard(); L.go('home'); return true; })()`);
       if (!await t.waitFor(`!!${STRIP}`, 8000)) return ['Home showed no sessions strip for the fake board'];
@@ -1778,7 +1784,7 @@ Object.assign(SCENARIOS, {
       await t.evaluate(`(async () => { const b = await ${SBD_BOARD_READ}; b.sessions = b.sessions.filter((s) => s.state === 'finished' || s.state === 'quiet'); hqFake.set('sessionsBoard.read', { board: b }); const L = WHQ.app.logic; await L.store.refreshBoard(); L.go('home'); return true; })()`);
       await t.sleep(600);
       if (await t.evaluate(`!!${STRIP}`)) out.push('Home still shows the strip when no session is running, waiting or stopped');
-    } finally { await t.evaluate(SBD_RESET); }
+    } finally { await t.evaluate(SBD_RESET); await t.evaluate(HOME_MORE_OFF); }
     return out.concat(t.errors());
   },
 
@@ -2116,6 +2122,7 @@ Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeHomeOneScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefHistoryScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultTemplateScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMachineDriftScenarios({ fresh, sleep }));

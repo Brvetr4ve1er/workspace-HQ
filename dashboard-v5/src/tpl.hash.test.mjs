@@ -74,9 +74,10 @@ import tpl from './app.tpl.js';
 // 2026-11-13 Cosmos polish (batch 5): the two Cosmos fragments only (tpl/cosmos.tpl.js, tpl/cosmos-overlays.tpl.js), +3977 chars / +3977 bytes: sort and group become <select>s (their <option>s written out once, because the HTML parser drops an <sc-for> inside a <select>), the drop host gains the drag outline hooks, a failed card shows its title and the words, the lightbox gains the size toggle and the failed-original note, the index overlay gains one row per phase; each with its <!-- v5: --> marker; nothing outside the Cosmos fragments moved
 // 2026-11-13 free renderVals keys (batch 5): one fragment (tpl/today.tpl.js), the Today ribbon binds tdyv.<name> instead of the flat tdy<name> (39 bindings x 5 chars = +195) and its <!-- v5: --> marker says why (+66) = +261 chars / +261 bytes; no markup, label or handler moved
 // 2026-11-14 Reach row actions (batch 6, phone-file): one fragment (tpl/reach.tpl.js), ONE generic button loop on a Reach row (sc-if r.hasActions around an sc-for r.actions as ra, its <!-- v5: --> marker), +1052 chars / +1054 bytes - exactly the block and its marker; a row with no actions renders as before; nothing else moved
-const SHA256 = 'd1504dab7b656273846f7f3e0142a097846571764d4194b71d2af83fadface21';
-const LENGTH = 474682;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 475345;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-14 Home as one decision (batch 7, dish 1): one fragment (tpl/home.tpl.js) restructured - the Brief, then ONE Next action card (or All clear), then a single More on Home button (aria-expanded, aria-controls) and, only while it is open, a region holding the since banner, the sessions strip, the Today ribbon, Portfolio, Changes and the aside; the Next action and All clear sections are byte-for-byte except the grey source span, which now binds {{ home.next.source }} (+1195 chars / +1194 bytes: the span lost its two-byte middle dot); every move attributed with tools/golden-diff.mjs (only home.* paths)
+const SHA256 = 'a9f351ef397deab2d406d27135919c02d9c5bcec71059eaf14d7e028cbf349a0';
+const LENGTH = 475877;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 476539;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
