@@ -75,3 +75,17 @@ the earliest day file still kept, never "ever": the header says how many day fil
 Read-only: it never writes, never touches the network, never starts a process, and always exits 0 (a missing or empty log folder prints one
 honest line). The output holds only surface ids, action words, counts and dates: no names, ids, text or paths. Each batch-done HANDOFF entry
 quotes it.
+
+## gates.mjs
+
+One command for the whole gate, in order, one step at a time (the tree is shared): main, hub, money, cosmos, renderer, tools, Electron selftest, CDP gate (`--native` adds the bridge tests and the two native checks). Each step gets its own timeout, its own `HQ_V5_PROFILE` and, for the CDP step, a free debugging port; the runner starts ONE dev-main electron child of its own, never touches any other `electron.exe`, and always stops it. It prints one table (step, result, counts, seconds, total) and the first failing lines of each failed step; exit 0 only when every step passed.
+
+```powershell
+node tools/gates.mjs                      # everything
+node tools/gates.mjs --only main,money    # or --skip a,b ; --bail stops at the first failure ; --list
+node tools/gates.mjs --budget 360         # warns (never fails) when the total goes over 360 s
+node tools/gates.mjs --settle             # the CDP button sweeps wait for a quiet page instead of fixed sleeps (EXPERIMENTAL)
+node tools/gates.mjs --sweep-compare      # the four button sweeps, old then settled, fresh profile each: prints "SWEEP old=<n> settled=<n> same=<true|false>"
+```
+
+The OLD fixed-sleep sweep stays the default. `dashboard-v5/tools/cdp-gate.mjs --settle` swaps only the waits (`cdp-settle.mjs`: no DOM mutation for 100 ms and nothing outstanding, hard cap 800 ms; cap hits are counted in a `[settle]` line, never an error). No assertion, finding class or KNOWN_CUTS entry changes. The default flips only after three consecutive `--sweep-compare` runs with `same=true` are recorded in docs/sync/HANDOFF.md.

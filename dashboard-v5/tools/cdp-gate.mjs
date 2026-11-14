@@ -99,9 +99,14 @@ import { makeBriefQuietScenarios } from './cdp-brief-quiet.mjs';
 import { makeActMarksScenarios } from './cdp-act-marks.mjs';
 import { makePhoneFileScenarios } from './cdp-phone-file.mjs';
 import { makeQuietLightScenarios } from './cdp-quiet-light.mjs';
+import { inPageWaitExpr, makeWaiter, createSettleStats, settleSummaryLine } from './cdp-settle.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// --settle (batch 6): the button-sweep family waits for the page to go quiet instead of sleeping a fixed time. OFF by default: the old sweep is the gate.
+const SETTLE = process.argv.includes('--settle');
+const settleStats = createSettleStats();
+const settleWait = (t, ms) => makeWaiter(t, { settle: SETTLE, stats: settleStats })(ms);
 const within = (p, ms, what) => Promise.race([p, sleep(ms).then(() => { throw new Error(what + ' timed out after ' + ms + ' ms'); })]);
 
 // ---- CDP plumbing ------------------------------------------------------------
@@ -1300,7 +1305,7 @@ const SCENARIOS = {
     let clicked = 0, skipped = 0, retried = 0;
     // one screen: enumerate its buttons (or just `only`) and click each from a clean screen
     const sweepView = (view, only) => t.evaluate(`(async (view, seenGlobal, only) => {
-        const L = WHQ.app.logic, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const L = WHQ.app.logic, sleep = ${inPageWaitExpr({ settle: SETTLE })};
         const names = [...L.M.P0, ...(L.M.at(0).archived || [])].map((p) => p.name).filter((n) => n && n.length > 2).sort((a, b) => b.length - a.length);
         const mask = (s) => { let o = s; for (const n of names) o = o.split(n).join('‹project›'); return o; };
         const CLOSED = { confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null,
@@ -1353,6 +1358,7 @@ const SCENARIOS = {
       })(${JSON.stringify(view)}, ${JSON.stringify([...seenGlobal])}, ${JSON.stringify(only || null)})`);
     for (const view of views) {
       const r = await sweepView(view);
+      if (SETTLE) await settleStats.collect((e) => t.evaluate(e));
       skipped += r.off;
       const gone = [];
       for (const o of r.out) {
@@ -1367,6 +1373,7 @@ const SCENARIOS = {
         retried++;
         await reloadReady(t); await install();
         const o = (await sweepView(view, [k])).out[0];
+        if (SETTLE) await settleStats.collect((e) => t.evaluate(e));
         clicked++;
         if (o.cls !== 'ok') findings.push({ view: view.name, ...o });
       }
@@ -1504,9 +1511,9 @@ const SCENARIOS = {
       const pre = await moneyAt(t, sub); if (pre) return pre;
       const n = await t.evaluate(`${MNY}.root().querySelectorAll('button').length`);
       for (let i = 0; i < n; i++) {
-        const r = await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ mny: {} }); L.go('money', ${JSON.stringify(sub)}); return true; })()`).then(() => t.sleep(40))
+        const r = await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ mny: {} }); L.go('money', ${JSON.stringify(sub)}); return true; })()`).then(() => settleWait(t, 40))
           .then(() => t.evaluate(`(() => { const b = ${MNY}.root().querySelectorAll('button')[${i}]; if (!b) return null; const label = b.textContent.trim(); b.click(); return label; })()`));
-        await t.sleep(60);
+        await settleWait(t, 60);
         if (r === null) break;
       }
       await t.evaluate(`(() => { WHQ.app.logic.setState({ mny: {}, toasts: [] }); return true; })()`);
@@ -2102,9 +2109,9 @@ Object.assign(SCENARIOS, {
 });
 
 // scenarios that need more than the default 90 s
-Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
+Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep, settleWait }));
 Object.assign(SCENARIOS, makeCosmosPolishScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
-Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep, settleWait }));
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
@@ -2145,6 +2152,7 @@ for (const name of names) {
   if (out.length) { failed++; console.log('FAIL ' + name + ' (' + ms + ' ms)\n  ' + out.join('\n  ')); }
   else console.log('PASS ' + name + ' (' + ms + ' ms)');
 }
+if (SETTLE) console.log(settleSummaryLine(settleStats.snapshot(), {}));
 cdp.close();
 console.log('[cdp-gate] ' + (names.length - failed) + '/' + names.length + ' passed');
 process.exit(failed ? 1 : 0);

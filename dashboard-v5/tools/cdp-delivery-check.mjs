@@ -33,8 +33,10 @@ export const CLIENT_VIEW = Object.freeze({
 });
 export const READY = Object.freeze({ state: 'ready', startedHere: false, candidates: [{ origin: 'http://127.0.0.1:5173', title: 'Acme Studio' }], hasCommand: true });
 
-export function makeDeliveryCheckScenarios({ fresh, sleep }) {
+export function makeDeliveryCheckScenarios({ fresh, sleep, settleWait }) {
   const pause = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  // the button sweep only: with --settle a wait is a settle; without it, the old fixed sleep
+  const sweepPause = (t, ms) => (typeof settleWait === 'function' ? settleWait(t, ms) : pause(ms));
   const leave = (t) => t.evaluate(PAGE.reset).catch(() => {});
   async function open(t, { ready }) {
     await t.evaluate(PAGE.reset);
@@ -138,7 +140,7 @@ export function makeDeliveryCheckScenarios({ fresh, sleep }) {
           const before = await t.evaluate(`hqFake.calls().length`);   // (hqFake.reset also re-seeds the fake's reports, so the log is counted, not cleared)
           t.clearErrors();
           const r = await t.evaluate(`(() => { const bs = [...${CARD}.querySelectorAll('button')]; const b = bs[${i}]; if (!b) return { gone: true }; const label = ((b.getAttribute('aria-label') || '') + ' ' + b.textContent).replace(/\\s+/g, ' ').trim(); const before = ${CARD}.innerHTML.length + ':' + b.disabled; const wasOff = b.disabled; b.click(); return { label, wasOff, before }; })()`);
-          await pause(150);
+          await sweepPause(t, 150);
           if (r && r.gone) { out.push('button #' + i + ' vanished'); continue; }
           if (!r.label) out.push('button #' + i + ' has no label');
           if (!r.wasOff) {

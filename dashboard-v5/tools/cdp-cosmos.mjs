@@ -192,8 +192,10 @@ export const PAGE = {
 const brief = (v) => JSON.stringify(v);
 
 // ---- the scenarios ----------------------------------------------------------------------------------------------
-export function makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } = {}) {
+export function makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep, settleWait } = {}) {
   const pause = typeof sleep === 'function' ? sleep : (ms) => new Promise((r) => setTimeout(r, ms));
+  // the button sweep only: with --settle a wait is a settle (cdp-settle.mjs); without it, exactly the old fixed sleep
+  const sweepPause = (t, ms) => (typeof settleWait === 'function' ? settleWait(t, ms) : pause(ms));
 
   // A known page with the library at `count` works (null = the fake's default). cold = reload first, so the slice starts empty and
   // the arrival is a real first load. Returns failure strings, or null when ready.
@@ -434,7 +436,7 @@ export function makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } = 
         const pre = await boot(t, null, false); if (pre) return pre;
         for (const sc of scopes) {
           if ('need' in sc && !sc.need) { out.push(sc.name + ': the 40-element library has no such element to open'); continue; }
-          const setup = async () => { await t.evaluate(PAGE.sweepReset(sc.state)); if (sc.report) await t.evaluate(PAGE.sweepSetReport); await pause(sc.name === 'Feed' ? 150 : 120); };
+          const setup = async () => { await t.evaluate(PAGE.sweepReset(sc.state)); if (sc.report) await t.evaluate(PAGE.sweepSetReport); await sweepPause(t, sc.name === 'Feed' ? 150 : 120); };
           await setup();
           const n = await t.evaluate(PAGE.sweepCount(sc.root));
           if (n < 0) { out.push(sc.name + ': the scope never rendered (' + sc.root + ')'); continue; }
@@ -443,7 +445,7 @@ export function makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } = 
             await setup();
             t.clearErrors();
             const r = await t.evaluate(PAGE.sweepClick(sc.root, i));
-            await pause(70);
+            await sweepPause(t, 70);
             if (r && r.gone) { if (i < n - 1) findings.push(sc.name + ' #' + i + ': the button vanished (' + r.gone + ')'); continue; }
             if (r && r.skipped) { skipped++; continue; }
             clicked++;
@@ -455,7 +457,7 @@ export function makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } = 
         }
         // the dropped-in file: arm the Recycle Bin bar, then say No: nothing may reach main
         if (dropped) {
-          await t.evaluate(PAGE.sweepReset(`cosLb: { id: ${JSON.stringify(dropped.id)}, edit: null, trashAsk: false }`)); await pause(220);
+          await t.evaluate(PAGE.sweepReset(`cosLb: { id: ${JSON.stringify(dropped.id)}, edit: null, trashAsk: false }`)); await sweepPause(t, 220);
           const root = DLG('Cosmos element');
           if (!await t.evaluate(PAGE.buttonByText(root, '/Recycle Bin/i'))) out.push('the dropped-in file offers no "Move to Recycle Bin" button');
           else if (!await t.waitFor(PAGE.trashAsk, 2000)) out.push('the Recycle Bin button did not arm the confirm bar');
@@ -466,7 +468,7 @@ export function makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep } = 
           }
         }
         if (plain) {   // and a normal element offers no Recycle Bin button at all
-          await t.evaluate(PAGE.sweepReset(`cosLb: { id: ${JSON.stringify(plain.id)}, edit: null, trashAsk: false }`)); await pause(220);
+          await t.evaluate(PAGE.sweepReset(`cosLb: { id: ${JSON.stringify(plain.id)}, edit: null, trashAsk: false }`)); await sweepPause(t, 220);
           if (await t.evaluate(`[...(${DLG('Cosmos element')} || document).querySelectorAll('button')].some((b) => /Recycle Bin/i.test(b.textContent + ' ' + (b.getAttribute('aria-label') || '')))`)) out.push('a file from the pictures folder offers "Move to Recycle Bin"');
         }
         if (trashed) out.push('the sweep reached hq.cosmos.trash ' + trashed + ' time(s)');

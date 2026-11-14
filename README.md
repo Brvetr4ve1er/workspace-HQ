@@ -73,6 +73,8 @@ and restarts the app.
 
 Tests (Node 25; the Claude Hub tests need Node 22.13 or newer for `node:sqlite`):
 
+One command runs every gate in order and prints one summary table (`node tools/gates.mjs`; `--list`, `--only a,b`, `--skip`, `--bail`, `--native`, `--budget 360`; usage in `tools/README.md`). The lines below are the by-hand fallback:
+
 ```powershell
 node --test dashboard/*.test.mjs
 node --test dashboard/claude-hub/*.test.mjs
