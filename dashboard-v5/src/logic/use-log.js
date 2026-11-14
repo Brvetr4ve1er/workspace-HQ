@@ -107,9 +107,11 @@ export const useLogLogic = {
     if (ok) {
       if (typeof r.note === 'string' && r.note) this.toast('success', r.note.slice(0, 160));
       else if (typeof r.folderName === 'string' && r.folderName) this.toast('success', 'Saved: ' + r.folderName.slice(0, 80));
+      else if (typeof spec.done === 'string' && spec.done) this.toast('success', spec.done.slice(0, 160));
       try { this.useMark('reach', 'act'); } catch { /* a usage mark is a bonus */ }
       await this.rchLoad();
     } else if (threw || (r && r.error && !r.canceled)) this.toast('error', (threw || String(r.error)).slice(0, 160));
+    else if (r && r.ok === false && typeof r.reason === 'string' && r.reason) this.toast('info', 'Nothing was sent · ' + r.reason.slice(0, 120));   // e.g. notifications are not supported on this PC: said, not a mark
     return ok;
   },
   rchCopy(text) {

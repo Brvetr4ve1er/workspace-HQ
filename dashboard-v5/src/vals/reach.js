@@ -6,6 +6,7 @@ const LABEL = {
   'user-scope': 'Tools in every Claude session',
   bridge: 'Browser extension paired',
   'brief-file': 'Phone brief file',
+  'notify-test': 'Test notification',
   'tray-icon': 'Tray icon visible',
   calls: 'Assistant calls this week',
   'breach-check': 'Breach check',
@@ -21,6 +22,7 @@ const WHO = { owner: 'you', app: 'the app' };
 const ACTIONS = new Map([
   ['brief-file-pick', { api: 'briefFile', arg: 'pick' }],
   ['brief-file-clear', { api: 'briefFile', arg: 'clear' }],
+  ['notify-test', { api: 'notifyTest', done: 'Sent - did you see it?' }],   // done: the honest toast for an answer that took effect; a refusal says its reason (use-log.js rchAct)
 ]);
 const pad = (n) => String(n).padStart(2, '0');
 const hhmm = (iso) => { const t = Date.parse(iso); if (!Number.isFinite(t)) return ''; const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };

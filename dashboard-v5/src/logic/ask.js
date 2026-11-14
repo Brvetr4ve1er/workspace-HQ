@@ -35,7 +35,6 @@ export const askLogic = {
     if (!AS.SOURCES.some((s) => s.id === id)) return;
     const inc = Object.assign({}, this.askIncl(), { [id]: !this.askIncl()[id] });
     this.setState({ askInclude: AS.saveInclude(LS(), inc) });
-    FX().sfx('tab');
   },
   // the panel without a new question (today's chat, or the starter prompts)
   openAskPanel() { this.setState({ askOpen: true, paletteOpen: false, runsOpen: false }); this.warmModel(); },

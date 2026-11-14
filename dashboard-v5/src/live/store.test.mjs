@@ -799,3 +799,34 @@ test('Cosmos: a store built with hq.cosmos absent reports loaded:false, resolves
   assert.ok((await bare.refreshCosmos()).error);
   bare.stop();
 });
+
+// Quiet and light (batch 6): the periodic machine push re-renders only while the window is visible. live.machine keeps the LATEST sample either way
+// (nothing accumulates in the renderer; the history file is written main-side, never from this push).
+test('the machine push stores every sample but re-renders only while visible; one render owed on show; listener removed on stop()', async () => {
+  const listeners = new Set();
+  const doc = { visibilityState: 'visible', addEventListener: (n, f) => { if (n === 'visibilitychange') listeners.add(f); }, removeEventListener: (n, f) => { listeners.delete(f); } };
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', { value: doc, configurable: true, writable: true });
+  try {
+    const { hq, push } = fakeHq({ liveState: LIVE_STATE });
+    const st = createStore(DATA(), hq);
+    await st.start();
+    assert.equal(listeners.size, 1, 'one visibilitychange listener');
+    let emits = 0; st.on(() => emits++);
+    push.machine({ n: 1 });
+    assert.equal(emits, 1, 'visible: one render per sample, as before');
+    doc.visibilityState = 'hidden';
+    push.machine({ n: 2 }); push.machine({ n: 3 });
+    assert.equal(emits, 1, 'hidden: no render');
+    assert.equal(st.live.machine.n, 3, 'hidden: the latest sample is still stored');
+    doc.visibilityState = 'visible';
+    listeners.forEach((f) => f());
+    assert.equal(emits, 2, 'showing renders once, however many samples were skipped');
+    listeners.forEach((f) => f());
+    assert.equal(emits, 2, 'and not again');
+    st.stop();
+    assert.equal(listeners.size, 0, 'the listener is released with the store');
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'document', had); else delete globalThis.document;
+  }
+});

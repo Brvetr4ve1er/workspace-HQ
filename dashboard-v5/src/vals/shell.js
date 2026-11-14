@@ -71,7 +71,7 @@ export function shellVals(ctx) {
   // ----- settings -----
   const sw = (label, desc, on, toggle) => ({ label, desc, state: on ? 'On' : 'Off', toggle, style: { width: 64, height: 32, flex: '0 0 auto', cursor: 'pointer', fontFamily: 'var(--px)', fontSize: 10, border: '1px solid var(--frame)', borderRadius: 10, boxShadow: '0 0 0 1px ' + (on ? 'var(--gold)' : 'var(--frame)'), background: on ? 'var(--gold)' : 'var(--ink)', color: on ? '#3a2a00' : 'var(--muted)' } });
   const settings = [
-    sw('Sound', 'Tiny chiptune blips on clicks, completions and level-ups.', S.sound, () => this.setState({ sound: !S.sound })),
+    sw('Sound', 'A short sound when something finishes (a scan, a save, a level-up).', S.sound, () => this.setState({ sound: !S.sound })),
     sw('Bit the pet', 'A small companion that roams the bottom edge. Click or drag it.', S.petOn, () => this.setState({ petOn: !S.petOn })),
     sw('Status rail', 'Do now · running · machine · Claude · screen time, on the right.', S.ambientPref, () => this.setState({ ambientPref: !S.ambientPref })),
     sw('Reduce motion', 'Turns off bursts, coin flights, hops and transitions.', S.reduceMotion, () => this.setState({ reduceMotion: !S.reduceMotion })),

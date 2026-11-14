@@ -137,3 +137,37 @@ test('a second click while one is running is ignored; with no hq.reach method no
   assert.equal(await self.rchAct({ api: 'nonexistent', arg: 'x' }), false);
   assert.equal(await self.rchAct(null), false);
 });
+
+// the test notification row (batch 6, quiet-light): its button rides the same loop; the toast is honest in both directions
+const NOTIFY = { id: 'notify-test', ok: null, detail: 'Press the button: one notification appears; nothing is sent anywhere', who: 'owner', actions: [{ id: 'notify-test', label: 'Send a test notification' }] };
+const notifyRig = (answer) => {
+  const r = rig({ rows: [NOTIFY] });
+  r.self.hq.reach.notifyTest = async () => { r.calls.push(['notifyTest']); return answer(); };
+  return r;
+};
+
+test('notify-test: the row is labelled, has its one button, and a shown notification toasts "Sent - did you see it?" and marks one act', async () => {
+  const r = notifyRig(() => ({ ok: true }));
+  const row = r.vals().rchRows[0];
+  assert.equal(row.label, 'Test notification');
+  assert.equal(row.stateText, 'unknown');
+  assert.deepEqual(row.actions.map((a) => [a.id, a.label, a.aria]), [['notify-test', 'Send a test notification', 'Send a test notification: Test notification']]);
+  row.actions[0].run();
+  await tick();
+  assert.deepEqual(r.calls.filter((c) => c[0] === 'notifyTest').length, 1);
+  assert.deepEqual(r.toasts, [['success', 'Sent - did you see it?']]);
+  assert.deepEqual(r.sent, [['reach', 'act']]);
+});
+
+test('notify-test: "not supported" says why and marks nothing; a refused press toasts the sentence and marks nothing', async () => {
+  const u = notifyRig(() => ({ ok: false, reason: 'not supported' }));
+  u.vals().rchRows[0].actions[0].run();
+  await tick();
+  assert.deepEqual(u.toasts, [['info', 'Nothing was sent · not supported']]);
+  assert.deepEqual(u.sent, []);
+  const f = notifyRig(() => ({ error: 'one test at a time — wait a few seconds.' }));
+  f.vals().rchRows[0].actions[0].run();
+  await tick();
+  assert.deepEqual(f.toasts, [['error', 'one test at a time — wait a few seconds.']]);
+  assert.deepEqual(f.sent, []);
+});

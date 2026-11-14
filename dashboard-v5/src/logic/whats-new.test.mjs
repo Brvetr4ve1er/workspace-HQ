@@ -107,7 +107,7 @@ test('first launch with focus: opens once and marks this version seen', () => {
   assert.equal(c.state.whatsNewOpen, false, 'initState never opens it');
   assert.equal(c.maybeShowWhatsNew(), true);
   assert.equal(c.state.whatsNewOpen, true);
-  assert.deepEqual(prefs(), { uiPrefsSeeded: true, whatsNewSeen: '2026-10' });
+  assert.deepEqual(prefs(), { uiPrefsSeeded: true, whatsNewSeen: '2026-10', sound: false, soundV: 2 });   // sound:false + soundV:2 is the one-time quiet-light migration (logic/sound-pref.mjs), saved at once
   const again = make();   // the next launch
   assert.equal(again.maybeShowWhatsNew(), false);
   assert.equal(again.state.whatsNewOpen, false);

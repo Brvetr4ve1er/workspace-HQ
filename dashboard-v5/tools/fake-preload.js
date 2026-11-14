@@ -45,6 +45,7 @@ const REACH_ROWS = [
   { id: 'calls', ok: true, detail: '12 calls this week (mcp 12)', who: 'app' },
   { id: 'breach-check', ok: null, detail: 'Have I Been Pwned range check: only when you press Refresh; 5 hash characters leave the PC', who: 'owner' },
   { id: 'brief-file', ok: false, detail: 'off - nothing is written for your phone', step: 'Pick a folder you already sync to your phone', who: 'owner', actions: [{ id: 'brief-file-pick', label: 'Pick folder' }, { id: 'brief-file-clear', label: 'Turn off' }] },
+  { id: 'notify-test', ok: null, detail: 'Press the button: one notification appears; nothing is sent anywhere', who: 'owner', actions: [{ id: 'notify-test', label: 'Send a test notification' }] },
 ];
 // Sessions board fixture (placeholder projects, invented titles): 8 sessions, one per state, 1 nightly run folded, 2 Codex threads, 1 limit stop.
 // Built with dashboard/sessions-core.mjs buildBoard at 2026-11-07T12:00Z, so every card is what the real engine would send; the renderer measures ages from generatedAt.
@@ -671,6 +672,7 @@ function createFake(opts) {
     })],
     ['use', WRITE],   // usage counter (hq:use): recorded, no answer read
     ['reach.read', () => ({ at: '2026-11-07T09:00:00.000Z', rows: REACH_ROWS })],
+    ['reach.notifyTest', () => ({ ok: true })],   // the test notification (hqFake.set('reach.notifyTest', { ok:false, reason:'not supported' }) answers the refusal)
     ['reach.briefFile', (action) => (action === 'pick' ? { ok: true, folderName: 'Phone Notes', written: true } : action === 'clear' ? { ok: true, folderName: null, fileLeft: false, note: 'Turned off.' } : { error: 'Unknown action' })],   // the phone brief file (hq:reach:brief-file); the fake never writes anything
     ['logDecision', WRITE], ['learn', WRITE], ['archiveProject', WRITE], ['reviveProject', WRITE], ['markQuestDone', WRITE], ['actedOn', WRITE],
     ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true], ['vaultOpen', (name, how) => ({ ok: true, how })],

@@ -28,12 +28,12 @@ const mk = (e, o = {}) => reach.create({
 });
 const row = (r, id) => r.rows.find((x) => x.id === id);
 
-test('read() returns the seven rows in order with the documented shape', async () => {
+test('read() returns the eight rows in order with the documented shape', async () => {
   const e = env();
   try {
     const r = await mk(e).read();
     assert.equal(r.at, new Date(NOW).toISOString());
-    assert.deepEqual(r.rows.map((x) => x.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check', 'brief-file']);
+    assert.deepEqual(r.rows.map((x) => x.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check', 'brief-file', 'notify-test']);
     for (const x of r.rows) {
       assert.ok(x.ok === true || x.ok === false || x.ok === null, x.id);
       assert.equal(typeof x.detail, 'string');
@@ -256,10 +256,25 @@ test('brief-file: off by default with the step; on with the last folder segment 
     assert.equal(bad.ok, null);
     assert.ok(!JSON.stringify(bad).includes('not json'));
     fs.unlinkSync(path.join(e.dataDir, '.brief-file.json'));
-    const others = (await mk(e).read()).rows.filter((x) => x.id !== 'brief-file');
+    const others = (await mk(e).read()).rows.filter((x) => x.id !== 'brief-file' && x.id !== 'notify-test');
     assert.ok(others.every((x) => !('actions' in x)), 'actions appear only on that row');
     const noData = await reach.create({ home: e.home, now: () => NOW, probes: { processes: async () => null, tray: async () => null } }).read();
     assert.equal(row(noData, 'brief-file').ok, null);
+  } finally { rm(e.root); }
+});
+
+test('notify-test: a button row that is never open or closed, promises nothing leaves the PC, carries its one action, and reads no settings', async () => {
+  const e = env();
+  try {
+    const r = row(await mk(e).read(), 'notify-test');
+    assert.equal(r.ok, null);
+    assert.equal(r.who, 'owner');
+    assert.equal(r.detail, 'Press the button: one notification appears; nothing is sent anywhere');
+    assert.deepEqual(r.actions, [{ id: 'notify-test', label: 'Send a test notification' }]);
+    assert.ok(!('step' in r) && !('copy' in r));
+    // the same row with no data folder at all: it needs nothing from disk
+    const bare = row(await reach.create({ home: e.home, now: () => NOW, probes: { processes: async () => null, tray: async () => null } }).read(), 'notify-test');
+    assert.deepEqual(bare, r);
   } finally { rm(e.root); }
 });
 
@@ -268,12 +283,12 @@ test('it never throws: a missing data folder, a throwing probe and junk options 
   try {
     const r = await reach.create({ dataDir: path.join(e.root, 'nope'), home: path.join(e.root, 'nohome'), now: () => NOW,
       probes: { processes: () => { throw new Error('x'); }, tray: () => { throw new Error('y'); } } }).read();
-    assert.equal(r.rows.length, 7);
+    assert.equal(r.rows.length, 8);
     const bare = await reach.create({ probes: { processes: async () => null, tray: async () => null } }).read();
-    assert.equal(bare.rows.length, 7);
+    assert.equal(bare.rows.length, 8);
     const handlers = {};
     reach.init({ ipcMain: { handle: (ch, fn) => { handlers[ch] = fn; } }, dataDir: e.dataDir, home: e.home, exePath: EXE, probes: { processes: async () => [], tray: async () => true } });
     const viaIpc = await handlers['hq:reach:read']();
-    assert.equal(viaIpc.rows.length, 7);
+    assert.equal(viaIpc.rows.length, 8);
   } finally { rm(e.root); }
 });

@@ -4,7 +4,7 @@
 // and dropped; ~/.claude.json is parsed in memory for key presence only).
 //
 //   create({ dataDir, home?, exePath?, serverPath?, stateFile?, probes?, now?, probeTimeoutMs? }) → { read() }
-//   read() → { at, rows: [{ id: 'phone-door'|'user-scope'|'bridge'|'tray-icon'|'calls'|'breach-check'|'brief-file', ok: true|false|null, detail, step?, who: 'owner'|'app', copy?, actions?: [{ id, label }] }] }
+//   read() → { at, rows: [{ id: 'phone-door'|'user-scope'|'bridge'|'tray-icon'|'calls'|'breach-check'|'brief-file'|'notify-test', ok: true|false|null, detail, step?, who: 'owner'|'app', copy?, actions?: [{ id, label }] }] }
 //   init({ ipcMain, dataDir, exePath, ... }) → the same object; registers ipcMain.handle('hq:reach:read')
 //   parseNotifyIcons(regText, exePath) → true | false | null   (the tray row's registry parser, exported for tests)
 //
@@ -26,6 +26,9 @@ let mods = null;
 // The phone brief file's row builder is loaded on its own (brief-file-row.mjs imports only node:path): a copied root that has no such file
 // answers an 'unknown' row for it and every other row is untouched.
 let rowMod = null;
+// The test notification row (batch 6): never green or red, it is a button. The text promises nothing leaves the PC; the action is the renderer's
+// handler for hq:reach:notify-test (dashboard/notify-test.js).
+const NOTIFY_ROW = Object.freeze({ id: 'notify-test', ok: null, who: 'owner', detail: 'Press the button: one notification appears; nothing is sent anywhere', actions: Object.freeze([Object.freeze({ id: 'notify-test', label: 'Send a test notification' })]) });
 const rowLib = () => rowMod || (rowMod = import(pathToFileURL(path.join(__dirname, 'brief-file-row.mjs')).href));
 
 const lib = () => mods || (mods = Promise.all([
@@ -245,6 +248,7 @@ function create({ dataDir, home = os.homedir(), exePath = null, serverPath = nul
       settle('calls', () => calls(t)),
       settle('breach-check', breachCheck),
       settle('brief-file', () => briefFile(t)),
+      settle('notify-test', async () => NOTIFY_ROW),
     ]);
     return { at: new Date(t).toISOString(), rows };
   }

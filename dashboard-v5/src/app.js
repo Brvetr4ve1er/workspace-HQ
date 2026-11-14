@@ -13,6 +13,7 @@
 // are Component.prototype mixins in src/logic/*.js, renderVals() is built in
 // src/vals/*.js and the markup is src/tpl/*.tpl.js (joined by app.tpl.js).
 import { DCLogic, createRef } from './dc/runtime.js';
+import { migrateSound, SOUND_PATCH } from './logic/sound-pref.mjs';
 import { FX, loadPrefs, savePrefs, hhmm, WRITE_DELAY, THEMES, readV3Prefs, mirrorV3Theme, setReduceFlag, planUiSeed, placeSnapId, restoreSnapOffset, validSubs } from './logic/shared.js';
 import { tasksLogic } from './logic/tasks.js';
 import { claudeLogic } from './logic/claude.js';
@@ -66,7 +67,10 @@ export class Component extends DCLogic {
   initState() {
     let saved = {};
     try { saved = JSON.parse(sessionStorage.getItem('whq3-place') || '{}'); } catch (e) {}
-    const P = loadPrefs(), M = this.props.store.model, a = M.at(0).account;
+    const P0 = loadPrefs(), M = this.props.store.model, a = M.at(0).account;
+    // sound is OFF unless the owner chose it after this build (logic/sound-pref.mjs); the reset is saved at once so a later choice sticks
+    const ms = migrateSound(P0), P = ms.prefs;
+    if (ms.changed) { try { savePrefs(Object.assign(loadPrefs(), SOUND_PATCH)); } catch (e) {} }
     const scanAt = M.at(0).at ? new Date(Date.parse(M.at(0).at)) : null;
     // a past scan is remembered by id (gone → back to live); live stays live (logic/shared.js)
     const snapOffset = restoreSnapOffset(saved, M);
@@ -76,7 +80,7 @@ export class Component extends DCLogic {
       tab: saved.tab || this.props.startTab || 'home',
       sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed', security: 'map' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
-      themePref: P.themePref || this.props.theme || 'dark', sound: P.sound !== false, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
+      themePref: P.themePref || this.props.theme || 'dark', sound: P.sound === true, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
       ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion,
       vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dlv: {}, dlvBusy: false, brfBusy: false, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
@@ -300,10 +304,9 @@ export class Component extends DCLogic {
 
   go(tab, sub) {
     this.setState((s) => ({ tab, route: null, sub: sub ? Object.assign({}, s.sub, { [tab]: sub }) : s.sub, moreOpen: false, ambientOverlay: false, paletteOpen: false, cosLb: null, cosIdx: false, cosReportOpen: false }));
-    FX().sfx('tab');
   }
   openProject(id) { if (!id) return; this.setState({ route: { type: 'project', id }, diagTab: 'git', pageMore: false, paletteOpen: false, ambientOverlay: false, journalDraft: '' }); FX().sfx('open'); }
-  setSub(sub) { this.setState((s) => ({ sub: Object.assign({}, s.sub, { [s.tab]: sub }) })); FX().sfx('tab'); }
+  setSub(sub) { this.setState((s) => ({ sub: Object.assign({}, s.sub, { [s.tab]: sub }) })); }
   denied(why) { this.toast('error', why || this.writeReason()); FX().sfx('error'); FX().event('look', 'Can’t do that here.'); }
   notWired(what) { this.toast('info', what + ' isn’t wired in this version yet'); }
   async call(fn, fail) {

@@ -145,6 +145,8 @@ export function createGuard({ root, dataDir, collectorPath, cwd = process.cwd(),
     try {
       const exe = reach.exePath || path.join(root, 'dashboard', 'node_modules', 'electron', 'dist', 'electron.exe');
       doors = (await require('../../dashboard/reach.js').create({ dataDir, now, exePath: exe, ...reach }).read()).rows
+        // the test-notification row is a Settings button, not a door: an MCP answer never lists it
+        .filter((row) => row.id !== 'notify-test')
         // `copy` is the Settings Copy button's command (it carries the install path) and `actions` are the Settings buttons: an MCP answer keeps the words only,
         // and the phone brief file's row says "a folder" where the Settings row names the owner's folder (its last segment)
         .map(({ copy, actions, ...row }) => (row.id === 'brief-file' && typeof row.detail === 'string' ? { ...row, detail: row.detail.replace(/folder "[^"]*"/, 'a folder') } : row));

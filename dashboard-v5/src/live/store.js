@@ -15,6 +15,7 @@
 import * as A from './adapter.mjs';
 import { createCosmosSlice, emptyCosmos } from './cosmos-slice.mjs';
 import { createSecuritySlice, emptySecurity } from './security-slice.mjs';   // Security space (batch 4): read on arrival, never at boot
+import { createVisibilityGate } from './visibility-gate.mjs';
 import { createTodaySlice, emptyToday } from './today-slice.mjs';   // Home › Where today went: read once per arrival, no push
 import * as C from './catalog.mjs';
 
@@ -311,7 +312,8 @@ export function createStore(DATA, hq) {
       emitSoon();   // chunks arrive one IPC task each; a full render per chunk is jank (same coalescer as chat deltas)
     }));
     if (hq.onDevStatus) sub(() => hq.onDevStatus((d) => { if (d && d.id) { live.dev = { ...live.dev, [d.id]: d.running ? { since: msOf(d.since) || Date.now() } : null }; emit(); } }));
-    if (hq.onMachine) sub(() => hq.onMachine((m) => { live.machine = m || null; emit(); }));
+    // the periodic machine push re-renders only while the window is visible (live/visibility-gate.mjs); history is read by main, never from this push
+    if (hq.onMachine) sub(() => { const gate = createVisibilityGate({ emit }); const off = hq.onMachine((m) => { live.machine = m || null; gate.tick(); }); return () => { try { if (typeof off === 'function') off(); } finally { gate.dispose(); } }; });
     if (hq.getBrowserLive) reads.push(pull(() => hq.getBrowserLive(), (b) => { live.browserNow = b || null; }));
     if (hq.onBrowserTab) sub(() => hq.onBrowserTab((b) => { live.browserNow = b || null; emit(); }));
     if (hq.onCastOutput) sub(() => hq.onCastOutput((d) => {

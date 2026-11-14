@@ -13,7 +13,7 @@ window.HQFx = (function () {
     held: sh(pf({ 6: '.ooooddoooo.' })),
     look: sh(pf({ 3: '.oeoooooeoo.', 4: '.oooooooooo.' })),
   };
-  let px = -1, layer, pet, opts = { sound: true, pet: true, reduce: false, floor: () => 6, facts: () => ['Hi.'] }, ac, raf, lastInteract = performance.now();
+  let px = -1, layer, pet, opts = { sound: false, pet: true, reduce: false, floor: () => 6, facts: () => ['Hi.'] }, ac, raf, lastInteract = performance.now();
 
   function sfx(kind) {
     if (!opts.sound) return;
@@ -169,7 +169,7 @@ window.HQFx = (function () {
   function onDown(e) {
     lastInteract = performance.now();
     const b = e.target.closest && e.target.closest('button,a,[role=button],[role=tab],input[type=checkbox]');
-    if (b && !b.disabled && b.getAttribute('aria-disabled') !== 'true') { burst(e.clientX, e.clientY); sfx('click'); }
+    if (b && !b.disabled && b.getAttribute('aria-disabled') !== 'true') { burst(e.clientX, e.clientY); }
   }
   function asciiBurst(x, y, text) {
     if (!layer || opts.reduce) return;

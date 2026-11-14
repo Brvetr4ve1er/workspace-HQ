@@ -313,6 +313,7 @@ test('hq_activity: counts, recent, last scan trigger, skipped lines and the door
     assert.equal(a.lastScanTrigger.ok, true);
     assert.ok(Array.isArray(a.recent) && a.recent.length === 3);
     assert.deepEqual(a.doors.map((d) => d.id), ['phone-door', 'user-scope', 'bridge', 'tray-icon', 'calls', 'breach-check', 'brief-file']);
+    assert.ok(!a.doors.some((d) => d.id === 'notify-test'), 'the Settings test-notification button is not a door and is never listed for Claude');
     assert.ok(a.doors.every((d) => !('copy' in d) && !('actions' in d)), 'no install command, absolute path or Settings button in an MCP answer');
     const phone = a.doors.find((d) => d.id === 'brief-file');
     assert.equal(phone.ok, false);

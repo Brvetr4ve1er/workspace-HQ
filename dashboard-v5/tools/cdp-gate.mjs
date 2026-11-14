@@ -47,6 +47,8 @@
 //   brief-group-row · brief-aged-slot · brief-quiet-lane
 // Phone brief file (batch 6; --preload=fake; tools/cdp-phone-file.mjs; Settings > Reach; each scenario serves its own placeholder rows with hqFake.set, the row is found by its Pick folder button, and each ends with hqFake.reset(true) and Settings closed):
 //   phone-file-off-by-default · phone-file-pick-and-clear
+// Quiet and light (batch 6; --preload=fake; tools/cdp-quiet-light.mjs; each scenario puts back what it touched and ends with hqFake.reset(true)):
+//   quiet-hidden-no-rerender · quiet-sound-default-off · reach-notify-test
 // Cosmos space (key 0; --preload=fake; tools/cdp-cosmos.mjs; the fake's cosmos.read answers an invented library whose size the scenarios set with
 //   sessionStorage 'hqFake:cosmosCount', 1,000 where they need it; each scenario puts it back and ends with hqFake.reset(true)):
 //   cosmos-open-key0 · cosmos-search-narrows · cosmos-lightbox-arrows · cosmos-no-bridge-readonly · cosmos-button-sweep · cosmos-render-budget ·
@@ -96,6 +98,7 @@ import { makeSecurityScenarios } from './cdp-security.mjs';
 import { makeBriefQuietScenarios } from './cdp-brief-quiet.mjs';
 import { makeActMarksScenarios } from './cdp-act-marks.mjs';
 import { makePhoneFileScenarios } from './cdp-phone-file.mjs';
+import { makeQuietLightScenarios } from './cdp-quiet-light.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); if (i > 0 && process.argv[i + 1]) return process.argv[i + 1]; const eq = process.argv.find((a) => a.startsWith('--' + k + '=')); return eq ? eq.slice(k.length + 3) : d; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1652,11 +1655,11 @@ const SCENARIOS = {
     await t.evaluate(`(() => { window.__copied = []; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (x) => { window.__copied.push(String(x)); }, readText: async () => '' }, configurable: true });
       const L = WHQ.app.logic; hqFake.reset(); L._rchAsked = false; L.setState({ rchRows: null, rchAt: null, rchError: '', rchBusy: false, settingsOpen: true }); return true; })()`);
     const SEC = `document.querySelector('section[aria-label="Reach: which doors to the assistant are open"]')`;
-    if (!await t.waitFor(`!!${SEC} && ${SEC}.querySelectorAll('[role="listitem"]').length === 6`, 5000)) return ['Settings never showed the 6 Reach rows (got ' + await t.evaluate(`${SEC} ? ${SEC}.querySelectorAll('[role="listitem"]').length : -1`) + ')'];
+    if (!await t.waitFor(`!!${SEC} && ${SEC}.querySelectorAll('[role="listitem"]').length === 7`, 5000)) return ['Settings never showed the 7 Reach rows (got ' + await t.evaluate(`${SEC} ? ${SEC}.querySelectorAll('[role="listitem"]').length : -1`) + ')'];
     const rows = await t.evaluate(`[...${SEC}.querySelectorAll('[role="listitem"]')].map((r) => r.textContent.replace(/\\s+/g, ' ').trim())`);
-    const want = [['closed', 'Phone door', 'Next: start remote control in a terminal', 'Copy command'], ['open', 'Tools in every Claude session'], ['unknown', 'Browser extension paired'], ['open', 'Assistant calls this week'], ['unknown', 'Breach check'], ['closed', 'Phone brief file', 'Next: Pick a folder you already sync to your phone', 'Pick folder', 'Turn off']];   // the phone brief file row (batch 6) carries its two buttons
+    const want = [['closed', 'Phone door', 'Next: start remote control in a terminal', 'Copy command'], ['open', 'Tools in every Claude session'], ['unknown', 'Browser extension paired'], ['open', 'Assistant calls this week'], ['unknown', 'Breach check'], ['closed', 'Phone brief file', 'Next: Pick a folder you already sync to your phone', 'Pick folder', 'Turn off'], ['unknown', 'Test notification', 'nothing is sent anywhere', 'Send a test notification']];   // the phone brief file row (batch 6) carries its two buttons
     want.forEach((w, i) => { for (const part of w) if (!(rows[i] || '').includes(part)) out.push('row ' + (i + 1) + ' lacks "' + part + '": ' + rows[i]); });
-    if (!await t.evaluate(`${SEC}.textContent.includes('2 of 6 open')`)) out.push('no "2 of 6 open" summary');
+    if (!await t.evaluate(`${SEC}.textContent.includes('2 of 7 open')`)) out.push('no "2 of 7 open" summary');
     if ((await t.evaluate(`hqFake.calls('reach.read').length`)) !== 1) out.push('Settings read the rows ' + await t.evaluate(`hqFake.calls('reach.read').length`) + ' times, want exactly 1');
     if (await t.evaluate(`[...${SEC}.querySelectorAll('[role="listitem"]')].filter((r) => [...r.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Copy command')).length`) !== 1) out.push('only the closed phone-door row should have a Copy button');
     await t.evaluate(`[...${SEC}.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Copy command').click()`);
@@ -2113,6 +2116,7 @@ Object.assign(SCENARIOS, makeSecurityScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS,
 Object.assign(SCENARIOS, makeBriefQuietScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeActMarksScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makePhoneFileScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeQuietLightScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 
