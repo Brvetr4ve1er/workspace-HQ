@@ -1,6 +1,6 @@
 // data/.refresh.lock — keeps the app's own Scan and a Claude session's raw collector pass from running at once.
 // The collector writes raw-metrics.json with a plain writeFileSync, so two passes together could hand assemble a half-written file.
-// Lock content: { pid, by: 'app' | 'mcp', startedAt }. A lock is STALE when its pid is gone or it is older than 15 minutes
+// Lock content: { pid, by: 'app' | 'mcp' | 'nightly', startedAt }. A lock is STALE when its pid is gone or it is older than 15 minutes
 // (Windows reuses pids, so the age is the ceiling). Both sides are best-effort: a lock that can't be written never blocks anyone.
 //
 // create({ dataDir, now?, pid?, isAlive?, staleMs? }) →
@@ -16,7 +16,7 @@ const path = require('path');
 
 const LOCK_NAME = '.refresh.lock';
 const STALE_MS = 15 * 60e3;
-const HOLDERS = ['app', 'mcp'];
+const HOLDERS = ['app', 'mcp', 'nightly'];
 
 function defaultIsAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -25,6 +25,7 @@ function defaultIsAlive(pid) {
 
 function refusalText(h) {
   if (h && h.by === 'mcp') return 'a raw pass started from a Claude session is still running — try again in a minute';
+  if (h && h.by === 'nightly') return 'the nightly scan is running - try again in a few minutes';
   if (h && h.by === 'app') return 'a scan is already running';
   return 'another pass is running — try again in a minute';
 }

@@ -189,3 +189,33 @@ test('main.js: the post-commit rescan takes the refresh lock before its scan gua
   assert.match(block, /const end = \(code, err\) => \{[^\n]*refreshLock\.release\('app'\)/, 'end() releases it');
   assert.match(block, /!liveState\.scanBegin\(\)\) \{ refreshLock\.release\('app'\)/, 'a refused scan guard gives the lock back');
 });
+
+test('the nightly is a third holder: fresh, reclaimed when stale, released only by its own name; an unknown holder is still refused', () => {
+  const d = tmp();
+  try {
+    const { clock, alive, make } = rig(d);
+    const night = make(3333), app = make(1111), mcp = make(2222);
+    assert.equal(night.take('nightly'), true);
+    const rec = JSON.parse(fs.readFileSync(path.join(d, '.refresh.lock'), 'utf8'));
+    assert.deepEqual(Object.keys(rec), ['pid', 'by', 'startedAt']);
+    assert.equal(rec.by, 'nightly');
+    assert.deepEqual({ by: app.held().by, pid: app.held().pid }, { by: 'nightly', pid: 3333 }, 'held() while fresh');
+    assert.equal(app.take('app'), false, 'the app is refused while the nightly holds it');
+    assert.equal(mcp.take('mcp'), false, 'and so is a session');
+    assert.equal(app.release('app'), false, 'only the same holder name releases');
+    assert.equal(mcp.release('mcp'), false);
+    assert.equal(app.held().by, 'nightly', 'still held');
+    clock.t += STALE_MS + 1000;                                // past the ceiling
+    assert.equal(app.held(), null, 'a 15 minute old nightly lock is no holder');
+    assert.equal(app.take('app'), true, 'reclaimed when stale');
+    assert.equal(app.release('app'), true);
+    assert.equal(night.take('nightly'), true);
+    alive.delete(3333);                                        // the pid is gone
+    assert.equal(mcp.take('mcp'), true, 'a dead nightly lock is reclaimed');
+    assert.equal(night.take('bogus'), false, 'an unknown holder is still refused');
+  } finally { rm(d); }
+});
+
+test('refusal wording names the nightly scan', () => {
+  assert.equal(refusalText({ by: 'nightly' }), 'the nightly scan is running - try again in a few minutes');
+});
