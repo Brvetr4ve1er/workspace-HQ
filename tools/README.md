@@ -9,7 +9,8 @@ Claude Code SessionStart hook so a session opens already knowing what needs the 
 
     node tools/brief-lines.mjs
 
-Output is at most three item lines (`urgent: ...`, `soon: ...`, `when you can: ...`) and one `+N more` line, under 600
+Output is at most three item lines (`urgent: ...`, `soon: ...`, `when you can: ...`), one `+N more` line and, last, one
+`quiet: ...` line (the day's one quiet fact, for example a source that stopped updating; fixed wording, never a slot), under 600
 characters. Every word comes from the Brief's fixed wording table (the same projection the tray uses), so no project
 name, path, amount, id or rule id is printed. A missing or unreadable file prints one `not available yet` line; a
 Brief older than 30 minutes prints one `out of date` line and no items, so an old list is never shown as current. The
@@ -27,8 +28,9 @@ releases nothing); any other fresh holder makes the run wait up to 10 minutes (`
 `skipped` line and exit 0.
 
 `tools/empty-mcp.json` is an empty MCP config (`{"mcpServers":{}}`) for the unattended `claude -p` runs in
-`collector/` (they should pass `--strict-mcp-config --mcp-config <abs path>` so they never load the owner's
-user-scope tools; the ask is in HANDOFF). `tools/nightly-isolation.test.mjs` guards that.
+`collector/`. They SHOULD pass `--strict-mcp-config --mcp-config <abs path>` so they never load the owner's
+user-scope tools, but today they do NOT: the two collector lines are a struct ask in HANDOFF and have not landed.
+`tools/nightly-isolation.test.mjs` is a todo until they do.
 
 ## Two commands you paste yourself
 
@@ -38,6 +40,10 @@ owner to run or paste once, in their own terminal and settings. Replace `<repo p
 1. Register the workspacehq tools for every Claude session (user scope; `-s` is the short flag for `--scope`):
 
        claude mcp add --scope user workspacehq -- node "<repo path>/mcp/workspacehq/server.mjs"
+
+   Until the two collector lines in HANDOFF land, the nightly `claude -p` runs are not isolated from this registration;
+   do not expect isolation. Once registered, those runs can load this server, hq_scan_trigger and the social tools
+   included. Settings > Reach says the same ("Register it once the structure lane has isolated the nightly runs").
 
    This is the same line Settings > Reach prints (`dashboard/reach.js`). The Reach "calls" row (MCP calls this week)
    is the honest check afterwards: the audit log stores the door, tool, tier and result, never a folder.
