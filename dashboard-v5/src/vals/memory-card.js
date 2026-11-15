@@ -47,6 +47,7 @@ const OFF = Object.freeze({
   mcdRefresh: () => false, mcdRefreshOff: true, mcdRefreshLabel: 'Refresh', mcdRefreshAria: 'Refresh the memory card',
   mcdLoading: false, mcdLoadingText: '', mcdHasErr: false, mcdErrText: '', mcdReady: false, mcdBlocks: [], mcdCapped: false, mcdCappedText: '',
   mcdEmptySlotText: EMPTY_SLOT_TEXT, mcdNote: MCD_NOTE,
+  mcdEmptyOpen: () => false,   // small delights: the Empty slot is a door to the back room (live group only)
 });
 
 /** One kind of data as a block: big line (size), small line (files and age), the bar, and the sentence a screen reader gets. */
@@ -111,6 +112,7 @@ function memoryFlat(ctx) {
     ...OFF,
     mcdShow: true, mcdHasBody: true,
     mcdSummary: held ? held.length + (held.length === 1 ? ' kind' : ' kinds') + (at !== null ? ' · read ' + hhmm(at) : '') : '',
+    mcdEmptyOpen: () => (typeof this.dlxOpenRoom === 'function' ? this.dlxOpenRoom() : false),
     mcdRefresh: () => this.mcdLoad(), mcdRefreshOff: busy, mcdRefreshLabel: busy ? 'Reading…' : 'Refresh',
     mcdLoading: !held && !err, mcdLoadingText: 'Looking at what the app keeps…',
     mcdHasErr: !!err, mcdErrText: held ? 'Couldn’t refresh the memory card · ' + err + ' · the last answer stays on screen' : 'Couldn’t look at what the app keeps · ' + err,

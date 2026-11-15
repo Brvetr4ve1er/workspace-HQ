@@ -53,6 +53,7 @@ import { normaliseFound } from './logic/cheats.mjs';
 import { versionCardLogic, bindVersionCardLayer } from './logic/version-card.mjs';   // batch 7: the 1.2 s 'New version inserted' card (Console layer only; with the layer off it only records the stamp)
 import * as consoleLayerApi from './logic/console-layer.mjs';
 import { memoryCardLogic } from './logic/memory-card.js';   // batch 7: Settings > Memory card (Console layer only)
+import { delightsLogic, delightsInitState } from './logic/delights.mjs';   // batch 7: small delights (seasonal ornament, idle attract scene, back room; Console layer only)
 import { shelfLogic } from './logic/shelf.js';   // batch 7: the cartridge shelf (Console layer only)
 import { securityLogic } from './logic/security.js';   // Security space (batch 4)
 import { consoleSkinLogic, cslInitState, cslSavePatch } from './logic/console-skin.js';   // batch 7: Console layer (opt-in, off = nothing loads)
@@ -91,7 +92,7 @@ export class Component extends DCLogic {
       sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed', security: 'map' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound === true, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
-      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P), ...cslInitState(P), cheatsFound: normaliseFound(P.cheatsFound),
+      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P), ...cslInitState(P), ...delightsInitState(), cheatsFound: normaliseFound(P.cheatsFound),
       vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dlv: {}, dlvBusy: false, brfBusy: false, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
@@ -152,6 +153,7 @@ export class Component extends DCLogic {
     this._mq = [480, 560, 720, 880, 900, 1000, 1020, 1100, 1120, 1160, 1240, 1320, 1400, 1440].map((px) => { const m = matchMedia('(min-width:' + px + 'px)'), h = () => this.forceUpdate(); m.addEventListener('change', h); return [m, h]; });
     this._wT = setInterval(() => { const w = document.documentElement.clientWidth || window.innerWidth; if (w !== this._lastW) this.forceUpdate(); }, 300);
     if (window.ResizeObserver) { this._ro = new ResizeObserver(() => this.forceUpdate()); this._ro.observe(document.body); this._ro.observe(document.documentElement); }
+    this.dlxBind(consoleLayerApi);   // batch 7 small delights: the idle attract scene registers only through the Console layer
     this.cheatsMount();   // batch 7: the legacy keydown listener moved here from hq-fx.js (net window keydown count unchanged)
     FX().init({ sound: this.state.sound, pet: this.state.petOn, reduce: this.state.reduceMotion, floor: () => (window.innerWidth < 720 ? 70 : 6), facts: () => this.petFacts() });
     setTimeout(() => FX().say('Hi, I’m Bit.', 2200), 900);
@@ -169,7 +171,7 @@ export class Component extends DCLogic {
   }
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
-    clearInterval(this._focusT); this.cheatsUnmount(); this.vcStop(); FX().destroy(); this.stopWhatsNewWait();
+    clearInterval(this._focusT); this.cheatsUnmount(); this.vcStop(); this.dlxCleanup(); FX().destroy(); this.stopWhatsNewWait();
     if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); if (this._offNav) this._offNav(); this.store.stop();
     this.flushPending(); window.removeEventListener('pagehide', this._onHide);
     if (typeof this.cosCleanup === 'function') this.cosCleanup();   // Cosmos: stop the failed-picture batch
@@ -415,6 +417,7 @@ export class Component extends DCLogic {
   }
   closeTop() {
     const S = this.state;
+    if (typeof this.dlxEscape === 'function' && this.dlxEscape()) return;   // batch 7 small delights: the back room sits over everything, Escape closes it first
     if (typeof this.secEscape === 'function' && this.secEscape()) return;   // Security's unlock dialog / emergency sheet sit over everything and may not be focused
     if (typeof this.cosEscape === 'function' && this.cosEscape()) return;   // a half-typed title or tag in the topmost lightbox: Escape drops the draft first
     // What's new sits over Settings (it opens from there), so it closes first
@@ -455,5 +458,5 @@ export class Component extends DCLogic {
 }
 bindVersionCardLayer(consoleLayerApi);   // batch 7: the New-version card registers its listeners and timer through the Console layer, and only through it
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic, versionCardLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic, versionCardLogic, delightsLogic);
 Component.prototype.renderVals = renderVals;

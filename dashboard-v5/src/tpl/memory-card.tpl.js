@@ -5,7 +5,7 @@
 // dc-lite dialect only: dotted paths, !, ===; everything arrives finished from vals/memory-card.js. Tokens only (var(--...)); nothing animates
 // (no transition, no animation): the section is the same with reduced motion on or off. Each block is an SVG with role="img" and an aria-label; the
 // visually hidden list under the strip says the same thing in words. Two hooks for later work, both inert here: an empty element slot for the
-// discovered-codes list (data-mcd="codes-slot") and a last "Empty slot" block (data-mcd="empty-slot") that is a plain block with no handler.
+// discovered-codes list (data-mcd="codes-slot") and a last "Empty slot" block (data-mcd="empty-slot"); small delights turned it into the one door to the back room (a button labelled Empty slot).
 const HEAD = 'font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--faint);margin-top:18px';
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi)"';
@@ -35,7 +35,7 @@ export default String.raw`        <!-- v5: Memory card — what the app keeps on
                       </sc-if>
                     </svg>
                   </sc-for>
-                  <div data-mcd="empty-slot" aria-hidden="true" style="aspect-ratio:160/72;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:1px dashed var(--frame);border-radius:6px;font-family:var(--term);font-size:10px;color:var(--faint);opacity:.6">{{ mcdv.mcdEmptySlotText }}</div>
+                  <button type="button" data-mcd="empty-slot" aria-label="{{ mcdv.mcdEmptySlotText }}" onClick="{{ mcdv.mcdEmptyOpen }}" style="cursor:pointer;padding:0;background:none;aspect-ratio:160/72;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:1px dashed var(--frame);border-radius:6px;font-family:var(--term);font-size:10px;color:var(--faint);opacity:.6">{{ mcdv.mcdEmptySlotText }}</button>
                 </div>
                 <ul data-mcd="twin" aria-label="What the app keeps, in words" style="${HIDDEN}">
                   <sc-for list="{{ mcdv.mcdBlocks }}" as="w" hint-placeholder-count="11"><li>{{ w.twin }}</li></sc-for>

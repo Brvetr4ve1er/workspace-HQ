@@ -294,9 +294,10 @@ test('state: the card holds ONE state object (mcd) and never writes any other ke
 // ---- the template -----------------------------------------------------------------------------------------------------------------
 const ready = async () => { const r = rig(); r.vals(); await tick(); return r.vals(); };
 
-test('the template has exactly one button (Refresh, bound to mcdRefresh), no link or input, and nothing that could forget, delete, clear or export', () => {
-  assert.equal((tpl.match(/<button\b/g) || []).length, 1);
-  assert.equal((tpl.match(/\bonClick=/g) || []).length, 1);
+test('the template has exactly two buttons (Refresh, bound to mcdRefresh, and the Empty slot door to the back room), no link or input, and nothing that could forget, delete, clear or export', () => {
+  assert.equal((tpl.match(/<button\b/g) || []).length, 2);
+  assert.equal((tpl.match(/\bonClick=/g) || []).length, 2);
+  assert.match(tpl, /<button type="button" data-mcd="empty-slot" aria-label="{{ mcdv.mcdEmptySlotText }}" onClick="{{ mcdv.mcdEmptyOpen }}"/);
   assert.match(tpl, /<button type="button" data-mcd="refresh" onClick="\{\{ mcdv\.mcdRefresh \}\}"/);
   for (const re of [/<a\b/, /<input\b/, /<select\b/, /<textarea\b/, /\bonChange=/, /\bonInput=/, /\bonKey/, /role="button"/, /<form\b/]) assert.ok(!re.test(tpl), 'template has ' + re);
   const labels = (tpl.match(/>([^<>]*)<\/button>/g) || []).concat(tpl.match(/aria-label="[^"]*"/g) || []);
@@ -337,9 +338,10 @@ test('each block is an img with its own label; the hidden list says the same in 
   assert.ok(slot, 'the codes slot is in the markup');
   assert.ok(!/onClick|<button|<a\b|tabindex/i.test(slot[1]), 'the codes slot has no handler');
   assert.ok(/chtv\.chtShowFound/.test(slot[1]) && !/mcdv\./.test(slot[1]));
-  assert.match(tpl, /<div data-mcd="empty-slot" aria-hidden="true"/);
-  const empty = /<div data-mcd="empty-slot"[^>]*>/.exec(tpl)[0];
-  assert.ok(!/onClick|tabindex|role=/i.test(empty), 'the empty slot has no handler');
+  // small delights turned the empty slot into the ONE door to the back room: a labelled button whose only handler is mcdEmptyOpen
+  const empty = /<button type="button" data-mcd="empty-slot"[^>]*>/.exec(tpl);
+  assert.ok(empty, 'the empty slot is a button');
+  assert.ok(/onClick="{{ mcdv.mcdEmptyOpen }}"/.test(empty[0]) && !/tabindex|role=/i.test(empty[0]));
   assert.ok(!/onClick|tabindex/i.test(/<div data-mcd="codes-slot"[^>]*>/.exec(tpl)[0]));
 });
 

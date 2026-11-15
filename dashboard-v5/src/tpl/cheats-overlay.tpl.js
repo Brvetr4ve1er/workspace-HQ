@@ -26,7 +26,7 @@ export default String.raw`            <!-- v5: cheats — frame timing overlay (
             </sc-if>
 `;
 
-// Settings > Memory card: "Codes found: 2 of 7" and the NAMES of the codes found so far, a dash for each one not found yet (never a
+// Settings > Memory card: "Codes found: 2 of 8" and the NAMES of the codes found so far, a dash for each one not found yet (never a
 // sequence). Only while the layer is on (the Memory card itself is). The list is an ordinary list; the sentence under it says the same
 // in words for a screen reader.
 export const foundFragment = String.raw`            <!-- v5: cheats — codes found (Memory card) -->

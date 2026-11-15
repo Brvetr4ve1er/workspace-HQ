@@ -28,7 +28,7 @@ export function cheatsStates() {
     row('cheats-off-found-two', { cheatsFound: ['bit', 'dance'] }),
     row('cheats-on-nothing-found', { consoleLayer: on(), settingsOpen: true }),
     row('cheats-on-found-two', { consoleLayer: on(), cheatsFound: ['cartridge', 'bit'], settingsOpen: true }),
-    row('cheats-on-found-all', { consoleLayer: on(), cheatsFound: ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance'], settingsOpen: true }),
+    row('cheats-on-found-all', { consoleLayer: on(), cheatsFound: ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance', 'backroom'], settingsOpen: true }),
     row('cheats-ember', { consoleLayer: on({ palette: 'ember' }), cheatsFound: ['cartridge', 'ember'] }),
     row('cheats-tide', { consoleLayer: on({ palette: 'tide' }), cheatsFound: ['cartridge', 'tide'] }),
     row('cheats-ember-skin', { consoleLayer: on({ skin: true, palette: 'ember' }), cheatsFound: ['cartridge', 'plastic', 'ember'] }),

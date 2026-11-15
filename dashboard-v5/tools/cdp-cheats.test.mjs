@@ -83,8 +83,8 @@ test('the wording the scenarios expect is what the registry says and what the ov
   assert.ok(foundFragment.includes('data-hq-console="found"'));
   assert.ok(tpl.includes('data-hq-console="timing"'));
   const { foundSummary } = await import('../src/logic/cheats.mjs');
-  assert.equal(foundSummary(['cartridge', 'plastic', 'ember', 'tide', 'timing']).title, 'Codes found: 5 of 7');
-  assert.equal(foundSummary(['cartridge', 'ember', 'bit']).title, 'Codes found: 3 of 7');
+  assert.equal(foundSummary(['cartridge', 'plastic', 'ember', 'tide', 'timing']).title, 'Codes found: 5 of 8');
+  assert.equal(foundSummary(['cartridge', 'ember', 'bit']).title, 'Codes found: 3 of 8');
 });
 
 test('typeKeys sends a keyDown with text then a keyUp per letter, and ArrowUp is a raw key', async () => {

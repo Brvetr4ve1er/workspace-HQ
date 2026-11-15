@@ -14,7 +14,7 @@
 //                           with the layer on while Settings is closed
 //   memory-render           layer on, Settings open: one block per kind with its size, file count and age, the snapshot slot, the bars scaled to the
 //                           largest kind, the text twin, the read-only note, the two inert hooks; read exactly once per opening of Settings; no file names
-//   memory-read-only        the section has no button whose label matches forget|delete|clear|erase|export|reset (its only button is Refresh), no input
+//   memory-read-only        the section has no button whose label matches forget|delete|clear|erase|export|reset (its buttons are Refresh and the Empty slot door to the back room), no input
 //                           or link, and nothing but hq.memory.read was ever called
 //   memory-no-bridge        hq.memory absent: the section says only that the memory card needs the desktop app, has no button, reads nothing, logs no error
 //   memory-reduced-motion   with reduceMotion set and prefers-reduced-motion: reduce emulated, nothing inside the section animates or transitions
@@ -164,7 +164,7 @@ export function makeMemoryCardScenarios({ fresh, sleep }) {
       try {
         if (!await opened(t, out)) return out;
         const controls = await t.evaluate(PAGE.buttons);
-        if (!Array.isArray(controls) || controls.length !== 1) out.push('the section has controls ' + JSON.stringify(controls) + ', want exactly one (Refresh)');
+        if (!Array.isArray(controls) || controls.length !== 2 || !controls.includes('Empty slot')) out.push('the section has controls ' + JSON.stringify(controls) + ', want exactly two (Refresh, and the Empty slot door to the back room)');
         for (const c of controls || []) if (NO_FORGET.test(String(c))) out.push('a control reads "' + c + '": nothing here may forget, delete, clear, erase, export or reset');
         if (await t.evaluate(PAGE.refreshText) !== 'Refresh') out.push('the one button is not Refresh');
         const methods = await t.evaluate(PAGE.memoryCalls);

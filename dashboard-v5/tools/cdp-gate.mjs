@@ -98,6 +98,7 @@ import { makeTodayScenarios } from './cdp-today.mjs';
 import { makeConsoleScenarios } from './cdp-console.mjs';
 import { makeCheatsScenarios } from './cdp-cheats.mjs';   // batch 7 dish 6: cheats-legacy-still-work, cheats-typing-guard, cheats-unlock-chain, cheats-off-zero-cost, cheats-debug-overlay, cheats-reduced-motion, cheats-found-persist
 import { makeVersionCardScenarios } from './cdp-version-card.mjs';   // batch 7 dish 7: version-card-plays-once, -skip, -hidden-launch, -layer-off-hidden, -reduced-motion, -new-stamp
+import { makeDelightsScenarios } from './cdp-delights.mjs';   // batch 7 dish 8: delights-off-nothing, delights-attract-idle, -attract-blockers, -attract-reduced-motion, delights-season, delights-room
 import { makeMemoryCardScenarios } from './cdp-memory-card.mjs';   // batch 7 dish 5: memory-off-no-call, memory-render, memory-read-only, memory-no-bridge, memory-reduced-motion, memory-refresh
 import { makeShelfScenarios } from './cdp-shelf.mjs';   // batch 7 dish 4: shelf-off-no-dom, shelf-render, shelf-render-budget, shelf-hover-click, shelf-reduced-motion, shelf-more-and-search, shelf-keyboard
 import { makeHomeOneScenarios, openHomeMore, HOME_MORE_ON, HOME_MORE_OFF } from './cdp-home-one.mjs';
@@ -2145,6 +2146,7 @@ Object.assign(SCENARIOS, makeShelfScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sl
 Object.assign(SCENARIOS, makeMemoryCardScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeCheatsScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVersionCardScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeDelightsScenarios({ fresh, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

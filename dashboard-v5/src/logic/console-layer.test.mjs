@@ -473,12 +473,12 @@ test('cslSync: on attaches the link, off detaches it, scanlines follow skin + sc
     assert.deepEqual(win.__hqLayerProbe(), ZERO, 'the probe exists even while the layer is off, and says zeros');
     c.state.consoleLayer = { on: true };
     assert.equal(c.cslSync(env), true);
-    assert.equal(f.head.children.length, 1);
+    assert.equal(f.head.children.length, 2, 'the layer link and the delights link');
     assert.equal('data-hq-scan' in f.attrs, false);
     c.state.consoleLayer = { on: true, skin: true, scan: true };
     c.cslSync(env);
     assert.equal(f.attrs['data-hq-scan'], 'on');
-    assert.equal(f.head.children.length, 1, 'syncing again does not add a second link');
+    assert.equal(f.head.children.length, 2, 'syncing again does not add a second link');
     c.state.consoleLayer = { on: true, skin: false, scan: true };
     c.cslSync(env);
     assert.equal('data-hq-scan' in f.attrs, false, 'scanlines only under the skin');
@@ -503,7 +503,7 @@ test('cslSync: the accent palettes stylesheet exists only while the layer is on 
     c.state.consoleLayer = { on: true, palette: 'ember' };
     c.cslSync(env);
     assert.equal(has(), true);
-    assert.equal(env.win.__hqLayerProbe().links, 2);
+    assert.equal(env.win.__hqLayerProbe().links, 3);
     c.state.consoleLayer = { on: true, palette: 'tide' };
     c.cslSync(env);
     assert.equal(f.head.children.filter((n) => n.attrs.id === 'hq-palettes-css').length, 1, 'a second palette does not add a second link');
@@ -557,8 +557,8 @@ test('selftest rows against a faked page: the layer driven by each row passes co
   assert.match(consoleProblems('console-off', { ...off, scan: 'on' }).join('|'), /data-hq-scan/);
   assert.match(consoleProblems('console-off', { ...off, probe: null }).join('|'), /__hqLayerProbe/);
   assert.match(consoleProblems('console-skin', off).join('|'), /want 1/);
-  assert.deepEqual(consoleProblems('console-skin', { skin: 'console', scan: null, links: 1, nodes: 1, probe: { links: 1, listeners: 2, timers: 0, frames: 0 } }, { listeners: 2 }), [], 'a later dish raises the expected registrations with its own');
-  assert.match(consoleProblems('console-skin-scan', { skin: 'console', scan: null, links: 1, nodes: 1, probe: { links: 1, listeners: 0, timers: 0, frames: 0 } }).join('|'), /scanlines should be on/);
+  assert.deepEqual(consoleProblems('console-skin', { skin: 'console', scan: null, links: 1, nodes: 1, probe: { links: 2, listeners: 2, timers: 0, frames: 0 } }, { listeners: 2 }), [], 'a later dish raises the expected registrations with its own');
+  assert.match(consoleProblems('console-skin-scan', { skin: 'console', scan: null, links: 1, nodes: 1, probe: { links: 2, listeners: 0, timers: 0, frames: 0 } }).join('|'), /scanlines should be on/);
   assert.match(consoleProblems('nope', off).join('|'), /no expectation/);
 });
 

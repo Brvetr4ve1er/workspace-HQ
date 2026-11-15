@@ -65,7 +65,7 @@ export function consoleProblems(name, seen, registered = {}) {
   for (const k of ['links', 'listeners', 'timers', 'frames']) if (typeof p[k] !== 'number' || !Number.isFinite(p[k])) out.push('the probe field ' + k + ' is not a number');
   if (out.length) return out;
   const exp = want.on
-    ? { links: 1, listeners: registered.listeners | 0, timers: registered.timers | 0, frames: registered.frames | 0 }
+    ? { links: 2, listeners: registered.listeners | 0, timers: registered.timers | 0, frames: registered.frames | 0 }
     : ZERO;
   for (const k of Object.keys(exp)) if (p[k] !== exp[k]) out.push('probe.' + k + ' is ' + p[k] + ', want ' + exp[k]);
   if (s.links !== (want.on ? 1 : 0)) out.push('the page holds ' + s.links + ' #' + CONSOLE_LINK_ID + ' link(s), want ' + (want.on ? 1 : 0));

@@ -1,0 +1,39 @@
+/* Small delights (batch 7): the only motion of the idle attract scene and the back room's lamp.
+ * Loaded by logic/console-layer.mjs ONLY while the Console layer is on (a <link> it adds and removes), never from index.html.
+ * Every animation and every @keyframes rule sits inside ONE media query, prefers-reduced-motion: no-preference, and every rule in it is
+ * also scoped to :root:not([data-hq-reduce]): app.js setReduceFlag writes data-hq-reduce on the root while the Reduce motion pref is on.
+ * So with the OS setting OR the app pref set, nothing here moves (the styles/delights.test.mjs test pins both).
+ * Outside the media query there is no animation, no transition and no keyframes: the resting scenes are static pictures.
+ * One loop of the attract scene is --dlx-loop long (6 s, set inline by vals/delights.js) and plays --dlx-loops times (at most 3), then rests. */
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-hq-reduce]) .dlx-attract .dlx-cart {
+    animation: dlx-cart-in var(--dlx-loop, 6s) cubic-bezier(.3, .7, .3, 1) var(--dlx-loops, 3) both;
+  }
+  :root:not([data-hq-reduce]) .dlx-attract .dlx-cursor {
+    animation: dlx-cursor-blink var(--dlx-loop, 6s) steps(1, end) var(--dlx-loops, 3) both;
+  }
+  :root:not([data-hq-reduce]) .dlx-lamp-glow {
+    animation: dlx-lamp-flicker 7s ease-in-out infinite;
+  }
+  @keyframes dlx-cart-in {
+    0% { transform: translateX(-52px); opacity: 0; }
+    8% { opacity: 1; }
+    42% { transform: translateX(0); }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes dlx-cursor-blink {
+    0%, 48% { opacity: 0; }
+    52%, 62% { opacity: 1; }
+    66%, 76% { opacity: 0; }
+    80%, 90% { opacity: 1; }
+    94%, 100% { opacity: 0; }
+  }
+  @keyframes dlx-lamp-flicker {
+    0%, 100% { opacity: .1; }
+    38% { opacity: .08; }
+    46% { opacity: .13; }
+    52% { opacity: .09; }
+    70% { opacity: .12; }
+  }
+}

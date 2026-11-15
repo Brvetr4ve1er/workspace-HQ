@@ -30,8 +30,8 @@
 export const EXPECT_KEYDOWN = 2;
 export const PREFS_KEY = 'whq3-prefs';
 export const LAYER_DEFAULT = Object.freeze({ on: false, skin: false, scan: false, palette: '', debug: false, shelf: false });
-export const ALL_CODES = Object.freeze(['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance']);
-export const FOUND_NAMES = Object.freeze({ cartridge: 'Power on', plastic: 'Chunky skin', ember: 'Warm accent', tide: 'Cool accent', timing: 'Stopwatch', bit: 'Hide and seek', dance: 'Little jig' });
+export const ALL_CODES = Object.freeze(['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance', 'backroom']);
+export const FOUND_NAMES = Object.freeze({ cartridge: 'Power on', plastic: 'Chunky skin', ember: 'Warm accent', tide: 'Cool accent', timing: 'Stopwatch', bit: 'Hide and seek', dance: 'Little jig', backroom: 'Workshop' });
 
 // installed with Page.addScriptToEvaluateOnNewDocument BEFORE a reload, so it wraps window.addEventListener before any app code runs
 export const KD_HOOK = `(() => {
@@ -158,7 +158,7 @@ export function makeCheatsScenarios({ fresh, sleep }) {
         await t.evaluate(PAGE.focusAsk);
         if (!await t.waitFor(PAGE.focusAskInput, 4000)) return out.concat('the Ask field never took focus');
         const toasts0 = await t.evaluate(PAGE.toastCount);
-        for (const code of ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance']) { if (!await t.evaluate(PAGE.focusAskInput)) { out.push('focus left the Ask field'); break; } await typeKeys(t, code); }
+        for (const code of ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance', 'backroom']) { if (!await t.evaluate(PAGE.focusAskInput)) { out.push('focus left the Ask field'); break; } await typeKeys(t, code); }
         await pause(200);
         const layer = await json(t, PAGE.layer);
         if (layer && (layer.on || layer.palette || layer.debug || layer.skin)) out.push('a code fired while the Ask field was focused: ' + JSON.stringify(layer));
@@ -207,9 +207,9 @@ export function makeCheatsScenarios({ fresh, sleep }) {
         const txt = String(await t.evaluate(PAGE.foundText));
         if (!txt || txt === 'null') out.push('Settings has no codes-found list (the Memory card fragment)');
         else {
-          if (!txt.includes('Codes found: 5 of 7')) out.push('the found list says: ' + txt.slice(0, 120));
+          if (!txt.includes('Codes found: 5 of 8')) out.push('the found list says: ' + txt.slice(0, 120));
           for (const id of ['cartridge', 'plastic', 'ember', 'tide', 'timing']) if (!txt.includes(FOUND_NAMES[id])) out.push('the found list lacks the name ' + FOUND_NAMES[id]);
-          for (const id of ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance']) if (new RegExp('\\b' + id + '\\b', 'i').test(txt)) out.push('the found list shows a sequence: ' + id);
+          for (const id of ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance', 'backroom']) if (new RegExp('\\b' + id + '\\b', 'i').test(txt)) out.push('the found list shows a sequence: ' + id);
         }
         out.push(...t.errors());
       } finally { await leave(t, prefs); }
@@ -341,7 +341,7 @@ export function makeCheatsScenarios({ fresh, sleep }) {
         if (!await t.waitFor(`${PAGE.foundText} !== null`, 5000)) out.push('Settings has no codes-found list after the reload (layer pref lost, or no Memory card fragment)');
         else {
           const txt = String(await t.evaluate(PAGE.foundText));
-          if (!txt.includes('Codes found: 3 of 7')) out.push('the found list says: ' + txt.slice(0, 120));
+          if (!txt.includes('Codes found: 3 of 8')) out.push('the found list says: ' + txt.slice(0, 120));
           for (const id of ['cartridge', 'ember', 'bit']) if (!txt.includes(FOUND_NAMES[id])) out.push('the name ' + FOUND_NAMES[id] + ' is missing');
           for (const id of ALL_CODES) if (new RegExp('\\b' + id + '\\b', 'i').test(txt)) out.push('the list shows a sequence: ' + id);
         }

@@ -154,7 +154,7 @@ export function makeConsoleScenarios({ fresh, sleep }) {
           if (got !== String(tokens[k] || '').toLowerCase()) out.push(k + ' resolves to ' + JSON.stringify(got) + ', the sheet says ' + JSON.stringify(tokens[k]));
         }
         const p = await json(t, PAGE.probe);
-        if (!p || p.links !== 1 || p.listeners !== 0 || p.timers !== 0 || p.frames !== 0) out.push('the probe shows ' + JSON.stringify(p) + ', want exactly the layer\'s registrations (one link and, in this build, nothing else)');
+        if (!p || p.links !== 2 || p.listeners !== 0 || p.timers !== 0 || p.frames !== 0) out.push('the probe shows ' + JSON.stringify(p) + ', want exactly the layer\'s registrations (two links, the layer sheet and the small delights sheet, and in this build nothing else)');
         await t.evaluate(PAGE.clickSwitch('Console layer'));
         if (!await t.waitFor(`${PAGE.links} === 0 && ${PAGE.skinAttr} === ''`, 4000)) out.push('switching the layer off did not remove the link and empty the skin');
         await zero(t, out, 'after switching off');
@@ -260,7 +260,7 @@ export function makeConsoleScenarios({ fresh, sleep }) {
         if (!await reload(t)) return out.concat('the app never came back after the reload');
         await skinOn(t, out, 'after the reload');
         const p = await json(t, PAGE.probe);
-        if (!p || p.links !== 1) out.push('after the reload the probe shows ' + JSON.stringify(p) + ', want the layer attached');
+        if (!p || p.links !== 2) out.push('after the reload the probe shows ' + JSON.stringify(p) + ', want the layer attached');
         await t.evaluate(PAGE.setLayer(LAYER_OFF));
         if (!await t.waitFor(`(() => { const p = ${PAGE.prefs}; return !!(p.consoleLayer && p.consoleLayer.on === false); })()`, 4000)) return out.concat('the off state was not saved to the prefs');
         if (!await reload(t)) return out.concat('the app never came back after the second reload');

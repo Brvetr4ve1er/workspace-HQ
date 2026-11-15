@@ -151,11 +151,11 @@ test('off-no-call: a healthy page reports nothing; a section with the layer off,
   assert.ok(first.evals.includes(PAGE.open(false)) && first.evals.includes(PAGE.layerOnClosed), 'both ways of not reading are driven');
 });
 
-test('read-only: one Refresh button passes; a forget-like control, a second control or another call is reported', async () => {
-  const healthy = { [PAGE.buttons]: ['Refresh the memory card'], [PAGE.refreshText]: 'Refresh', [PAGE.memoryCalls]: ['memory.read'] };
+test('read-only: the Refresh button and the Empty slot door pass; a forget-like control, a second control or another call is reported', async () => {
+  const healthy = { [PAGE.buttons]: ['Refresh the memory card', 'Empty slot'], [PAGE.refreshText]: 'Refresh', [PAGE.memoryCalls]: ['memory.read'] };
   assert.deepEqual(await make()['memory-read-only'](stub(healthy).t), []);
-  const bad = await make()['memory-read-only'](stub({ ...healthy, [PAGE.buttons]: ['Refresh the memory card', 'Forget everything'], [PAGE.memoryCalls]: ['memory.read', 'memory.forget'] }).t);
-  assert.ok(bad.some((m) => /want exactly one/.test(m)));
+  const bad = await make()['memory-read-only'](stub({ ...healthy, [PAGE.buttons]: ['Refresh the memory card', 'Empty slot', 'Forget everything'], [PAGE.memoryCalls]: ['memory.read', 'memory.forget'] }).t);
+  assert.ok(bad.some((m) => /want exactly two/.test(m)));
   assert.ok(bad.some((m) => /Forget everything/.test(m)));
   assert.ok(bad.some((m) => /other than memory\.read/.test(m)));
   const odd = await make()['memory-read-only'](stub({ ...healthy, [PAGE.refreshText]: 'Wipe' }).t);
@@ -214,7 +214,7 @@ test('render: a healthy page passes; a wrong size, a missing bar scale, a name l
       [PAGE.twinCount]: 11,
       [PAGE.note]: 'Read-only: this only counts what the app keeps (by kind, never by name). Nothing here can erase or export anything.',
       [PAGE.summary]: '10 kinds · read 12:00',
-      [PAGE.emptySlot]: 'Empty slot', [PAGE.codesSlot]: '1|Codes found: 0 of 7 None found yet.',
+      [PAGE.emptySlot]: 'Empty slot', [PAGE.codesSlot]: '1|Codes found: 0 of 8 None found yet.',
       [PAGE.text]: 'Memory card · what the app keeps on this PC Scans and history 12 MB 34 files · 3 h ago',
       [PAGE.calls]: () => (reopened ? 2 : 1),
       [PAGE.reopen]: () => { reopened = true; return true; },

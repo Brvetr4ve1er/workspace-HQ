@@ -19,7 +19,7 @@ import { shelfStates, shelfInitState, swapProjects } from './selftest-shelf.mjs'
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib', 'hq.homeMore'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { vcShow: false, /* batch 7: the New-version card is not showing */ homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
+const CLEAR = { dlxRoom: false, dlxRun: false, /* batch 7: the back room is shut and the attract scene is not playing */ vcShow: false, /* batch 7: the New-version card is not showing */ homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
@@ -134,6 +134,7 @@ export async function run(W = window.WHQ) {
     const { memoryStates, MEMORY_OFFLINE_ROWS } = await import('./selftest-memory-card.mjs');   // batch 7: Settings > Memory card (Console layer only): invented kinds and sizes
     const { cheatsStates, cheatsInitState } = await import('./selftest-cheats.mjs');   // batch 7: cheat codes (timing overlay, accent palettes, found list): invented durations
     const { versionCardStates, checkRow: vcdCheckRow } = await import('./selftest-version-card.mjs');   // batch 7: the New-version-inserted card (Console layer only): idle, showing, layer off, reduced, over a dialog
+    const { delightsStates, delightsInitState: dlxInit, DLX_FIXED_MS } = await import('./selftest-delights.mjs');   // batch 7: small delights (ornament, attract scene, back room; Console layer only)
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
@@ -469,6 +470,18 @@ export async function run(W = window.WHQ) {
             const vcard = document.querySelector('[data-vcd="card"]');
             vcdCheckRow(vrow, { present: !!vcard, text: vcard ? vcard.textContent : '' }).forEach((p) => note('version-card', [p]));
           } finally { L.setState({ vcShow: false, consoleLayer: cl8, reduceMotion: rm8, settingsOpen: false }); }
+        }
+        // Small delights (batch 7; src/selftest-delights.mjs): off, armed, the attract scene playing, a busy Brief, the back room, a stale room flag with the layer off. The Brief on
+        // screen is set through LV.brief (the empty one is what lets the attract slot exist); _dlxHold keeps the controller from replacing a row's own state; the clock is fixed so the month is too.
+        for (const [name, sub, dBrief, dlx, extra] of delightsStates()) {
+          const cl9 = L.state.consoleLayer, rm9 = L.state.reduceMotion, brief9 = LV.brief;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              LV.brief = dBrief; L._dlxHold = true; L._dlxClock = () => DLX_FIXED_MS;
+              L.go('home', null);
+              L.setState(Object.assign({}, CLEAR, base, dlxInit(), { themePref: theme, snapOffset: 0 }, dlx, extra || {}));
+            });
+          } finally { delete L._dlxHold; delete L._dlxClock; LV.brief = brief9; L.setState(Object.assign({}, dlxInit(), { consoleLayer: cl9, reduceMotion: rm9 })); }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

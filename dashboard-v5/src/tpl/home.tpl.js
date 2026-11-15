@@ -1,6 +1,7 @@
 // Home screen (v.home).
 // Cut verbatim from lines 124-264 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import { dlxSeason } from './delights.tpl.js';   // v5: small delights - the month's ornament in the greeting row (Console layer only)
 import brief from './brief.tpl.js';   // 2026-11-05 Operator Brief, under the greeting
 import sessionsStrip from './sessions-strip.tpl.js';   // 2026-11-07 sessions strip, right after the Brief
 import today from './today.tpl.js';   // v5: 2026-11-11 Today ribbon (where today went), under the Brief and the sessions strip
@@ -8,7 +9,7 @@ export default String.raw`        <sc-if value="{{ v.home }}" hint-placeholder-v
           <div>
             <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:22px">
               <h1 style="margin:0;font-weight:400;font-size:clamp(26px,3.2vw,37px);line-height:1"><x-import component-from-global-scope="hq-type" text="{{ home.greeting }}" hint-size="auto,1em"></x-import></h1>
-              <span style="font-size:14px;color:var(--muted)">{{ home.sub }}</span>
+              ${dlxSeason}<span style="font-size:14px;color:var(--muted)">{{ home.sub }}</span>
             </div>
 ${brief}            <!-- v5: Home as one decision (batch 7) - the Brief, then ONE next action (or All clear), then a single More on Home disclosure holding the rest.
                  No transition or animation on the control or the revealed blocks; closed = those nodes are not rendered. -->

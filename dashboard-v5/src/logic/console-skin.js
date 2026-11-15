@@ -12,7 +12,7 @@
 //   cslToggleOn() · cslToggleScan() · cslChooseSkin() · cslChooseBase(id)   the Settings actions
 //
 // Nothing here touches the DOM except cslSync, and cslSync goes through the layer (logic/console-layer.mjs), the only file allowed to attach.
-import { attach, detach, layerAttr, layerSheet, exposeProbe, normaliseConsoleLayer, consoleEffective, withConsoleLayer, withSkin, CONSOLE_SCAN_ATTR, CONSOLE_PALETTES_HREF } from './console-layer.mjs';
+import { attach, detach, layerAttr, layerSheet, exposeProbe, normaliseConsoleLayer, consoleEffective, withConsoleLayer, withSkin, CONSOLE_SCAN_ATTR, CONSOLE_PALETTES_HREF, CONSOLE_DELIGHTS_HREF } from './console-layer.mjs';
 
 export const CSL_TITLE = 'Console layer';
 export const CSL_LINE = 'Opt-in look and a few extras. Off = nothing loads.';
@@ -34,6 +34,7 @@ export const consoleSkinLogic = {
     if (!cl.on) { detach(); return false; }
     if (!attach(e)) return false;
     layerAttr(CONSOLE_SCAN_ATTR, cl.scan ? 'on' : null);
+    layerSheet('delights', CONSOLE_DELIGHTS_HREF);   // small delights: its one stylesheet rides with the layer (counted in the probe's links); detach() removes it
     layerSheet('palettes', cl.palette ? CONSOLE_PALETTES_HREF : null);   // the accent palettes' stylesheet exists only while a palette is chosen (cheat codes)
     return true;
   },

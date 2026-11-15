@@ -38,10 +38,10 @@ test('CHEATS is frozen, every entry has the documented shape, and the codes are 
     assert.equal(typeof c.worksWhenOff, 'boolean');
     assert.equal(typeof c.effect, 'string');
   }
-  assert.deepEqual(CHEATS.map((c) => c.id), ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance']);
+  assert.deepEqual(CHEATS.map((c) => c.id), ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance', 'backroom']);
   assert.deepEqual(CHEATS.filter((c) => c.legacy).map((c) => c.id), ['bit', 'dance']);
   assert.deepEqual(CHEATS.filter((c) => c.worksWhenOff && !c.legacy).map((c) => c.id), ['cartridge']);
-  assert.deepEqual(CHEATS.map((c) => c.effect), ['console-layer-on', 'console-skin', 'palette-ember', 'palette-tide', 'debug-overlay', 'egg-bit', 'egg-dance']);
+  assert.deepEqual(CHEATS.map((c) => c.effect), ['console-layer-on', 'console-skin', 'palette-ember', 'palette-tide', 'debug-overlay', 'egg-bit', 'egg-dance', 'room-open']);
   assert.ok(Object.isFrozen(byId('dance').alt) && Object.isFrozen(byId('dance').alt[0]));
 });
 
@@ -418,15 +418,15 @@ test('normaliseFound keeps known ids once each, in order, and never throws on ga
 
 test('foundSummary: a count and the NAME of each found code, a dash for the rest, never an id or a sequence', () => {
   const none = foundSummary([]);
-  assert.equal(none.title, 'Codes found: 0 of 7');
+  assert.equal(none.title, 'Codes found: 0 of 8');
   assert.equal(none.sr, 'None found yet.');
   assert.ok(none.rows.every((r) => r.label === '–' && r.found === false));
   const two = foundSummary(['cartridge', 'bit', 'bogus']);
-  assert.equal(two.title, 'Codes found: 2 of 7');
+  assert.equal(two.title, 'Codes found: 2 of 8');
   assert.equal(two.count, 2);
   assert.deepEqual(two.rows.filter((r) => r.found).map((r) => r.label), ['Power on', 'Hide and seek']);
-  assert.equal(two.rows.length, 7);
-  assert.equal(two.sr, 'Found so far: Power on, Hide and seek. 5 not found yet.');
+  assert.equal(two.rows.length, 8);
+  assert.equal(two.sr, 'Found so far: Power on, Hide and seek. 6 not found yet.');
   const dump = JSON.stringify(two).toLowerCase();
   for (const c of CHEATS) {
     assert.ok(!dump.includes(String(c.seq).toLowerCase()), 'the summary leaked the sequence of ' + c.id);
@@ -456,8 +456,8 @@ test('layer on: the accent is the palette (only ember or tide), the found list s
   const v = valsOf({ consoleLayer: { on: true, palette: 'tide' }, cheatsFound: ['cartridge', 'bit', 'nonsense'] }).chtv;
   assert.equal(v.chtAccent, 'tide');
   assert.equal(v.chtShowFound, true);
-  assert.equal(v.chtFoundTitle, 'Codes found: 2 of 7');
-  assert.deepEqual(v.chtFound.map((r) => r.label), ['Power on', '–', '–', '–', '–', 'Hide and seek', '–']);
+  assert.equal(v.chtFoundTitle, 'Codes found: 2 of 8');
+  assert.deepEqual(v.chtFound.map((r) => r.label), ['Power on', '–', '–', '–', '–', 'Hide and seek', '–', '–']);
   assert.ok(v.chtFound.every((r) => typeof r.color === 'string' && r.color.startsWith('var(--')));
   assert.equal(v.chtDebug, false);
   assert.equal(valsOf({ consoleLayer: { on: true, palette: 'ember' } }).chtv.chtAccent, 'ember');
@@ -469,7 +469,7 @@ test('layer on: the accent is the palette (only ember or tide), the found list s
 
 test('the found list never carries a sequence or an id, whatever is found', () => {
   const v = valsOf({ consoleLayer: { on: true }, cheatsFound: CHEATS.map((c) => c.id) }).chtv;
-  assert.equal(v.chtFoundTitle, 'Codes found: 7 of 7');
+  assert.equal(v.chtFoundTitle, 'Codes found: 8 of 8');
   const dump = JSON.stringify(v).toLowerCase();
   for (const c of CHEATS) {
     assert.ok(!dump.includes(String(c.seq).toLowerCase()), c.id + ' sequence in the vals');
@@ -607,7 +607,7 @@ test('host: the whole unlock chain (cartridge, plastic, ember, tide, ember again
   assert.deepEqual(calls.toasts.map((t) => t[1]), ['Console layer on', 'Console skin on', 'Ember accent on', 'Tide accent on', 'Ember accent on', 'Ember accent off', 'Timing overlay on']);
   assert.deepEqual(self.state.cheatsFound, ['cartridge', 'plastic', 'ember', 'tide', 'timing']);
   const v = cheatsVals.call(self).chtv;
-  assert.equal(v.chtFoundTitle, 'Codes found: 5 of 7');
+  assert.equal(v.chtFoundTitle, 'Codes found: 5 of 8');
   assert.deepEqual(v.chtFound.filter((r) => r.found).map((r) => r.label), ['Power on', 'Chunky skin', 'Warm accent', 'Cool accent', 'Stopwatch']);
   assert.equal(self.state.consoleLayer.on, true, 'earlier settings are kept when a code patches one field');
 });
@@ -616,7 +616,7 @@ test('host: nothing fires while a typing target is focused, the tail is reset, a
   eggs.length = 0;
   const input = { tagName: 'INPUT' };
   const { self, calls } = rig({ consoleLayer: { on: true } });
-  for (const word of ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance']) keys(self, word, input);
+  for (const word of ['cartridge', 'plastic', 'ember', 'tide', 'timing', 'bit', 'dance', 'backroom']) keys(self, word, input);
   self.cheatKey({ key: 'ArrowUp', target: input }); self.cheatKey({ key: 'ArrowUp', target: input });
   assert.deepEqual(calls.toasts, []);
   assert.deepEqual(eggs, []);

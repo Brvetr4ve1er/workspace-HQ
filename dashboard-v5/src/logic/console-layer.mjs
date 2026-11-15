@@ -37,6 +37,7 @@ const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const flag = (x) => x === true;
 export const CONSOLE_PALETTES = Object.freeze(['ember', 'tide']);   // the two hidden accent palettes (cheat codes); anything else is none
 export const CONSOLE_PALETTES_HREF = './styles/palettes.css';
+export const CONSOLE_DELIGHTS_HREF = './styles/delights.css';   // small delights: the attract scene's and the back room lamp's only motion, attached with the layer (a second counted link)
 const paletteId = (x) => { const s = typeof x === 'string' ? x.trim().toLowerCase() : ''; return CONSOLE_PALETTES.includes(s) ? s : ''; };
 
 export function normaliseConsoleLayer(raw) {

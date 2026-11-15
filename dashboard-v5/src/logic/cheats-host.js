@@ -63,6 +63,7 @@ export const cheatsLogic = {
       if (Object.keys(next).length) this.setState(next);
     }
     if (r.toast) this.toast(r.toast.kind, r.toast.text);
+    if (r.ok && r.effect === 'room-open' && typeof this.dlxOpenRoom === 'function') this.dlxOpenRoom();   // small delights: the back room (needs the layer on; records its name itself)
     if (r.egg) { const fx = FX(); if (fx && typeof fx.egg === 'function') fx.egg(r.egg); }
     return r;
   },

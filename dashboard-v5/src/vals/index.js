@@ -41,6 +41,7 @@ import { deliveryVals } from './delivery.js';   // Client delivery card on the p
 import { cheatsVals } from './cheats.js';   // batch 7: cheat codes (timing overlay, accent palette, found list): ONE top-level key chtv
 import { versionCardVals } from './version-card.js';   // batch 7: the 1.2 s New-version card (Console layer only): ONE top-level key vcdv
 import { memoryCardVals } from './memory-card.js';   // batch 7: Settings > Memory card (Console layer only): ONE top-level key mcdv
+import { delightsVals } from './delights.js';   // batch 7: small delights (ornament, attract scene, back room; Console layer only): ONE top-level key dlxv
 import { shelfVals } from './shelf.js';   // batch 7: the cartridge shelf in Projects: ONE top-level key shfv
 import { consoleSkinVals } from './console-skin.js';   // batch 7: Console layer: ONE top-level key cslv
 import { securityVals } from './security.js';   // Security space (batch 4): ONE top-level key secv (the 1015 ceiling)
@@ -51,7 +52,7 @@ import { moneyStartVals } from './money-start.js';   // Money in one minute: the
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, versionCardVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, consoleSkinVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, versionCardVals, delightsVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, consoleSkinVals,
 ];
 
 export function renderVals() {

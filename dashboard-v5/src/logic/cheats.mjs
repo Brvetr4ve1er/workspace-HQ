@@ -41,6 +41,7 @@ export const CHEATS = Object.freeze([
   entry({ id: 'timing', name: 'Stopwatch', kind: 'typed', seq: 'timing', legacy: false, worksWhenOff: false, effect: 'debug-overlay' }),
   entry({ id: 'bit', name: 'Hide and seek', kind: 'typed', seq: 'bit', legacy: true, worksWhenOff: true, effect: 'egg-bit' }),
   entry({ id: 'dance', name: 'Little jig', kind: 'typed', seq: 'dance', alt: [['ArrowUp', 'ArrowUp']], legacy: true, worksWhenOff: true, effect: 'egg-dance' }),
+  entry({ id: 'backroom', name: 'Workshop', kind: 'typed', seq: 'backroom', legacy: false, worksWhenOff: false, effect: 'room-open' }),
 ]);
 
 const lowerKey = (k) => String(k == null ? '' : k).toLowerCase();
@@ -214,6 +215,7 @@ export function runCheat(id, state = {}, codes = CHEATS) {
   if (c.effect === 'egg-bit') return done({}, null, 'bit');
   if (c.effect === 'egg-dance') return done({}, null, 'dance');
   if (!layerOn) return blocked(c.effect === 'console-skin' ? 'The Console skin needs the Console layer: ' + NEEDS_LAYER : 'That needs the Console layer: ' + NEEDS_LAYER);
+  if (c.effect === 'room-open') return done({}, info('Back room open'));
   if (c.effect === 'console-skin') return state.skin ? done({}, info('Console skin is already on')) : done({ skin: true }, info('Console skin on'));
   if (PALETTES[c.effect]) {
     const p = PALETTES[c.effect];
