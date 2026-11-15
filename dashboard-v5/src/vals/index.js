@@ -38,6 +38,7 @@ import { sessionsBoardVals } from './sessions-board.js';
 import { deliveryCheckVals } from './delivery-check.js';   // batch 2: the phone-and-language check under the delivery card (dck*)
 import { clientsVals } from './clients-list.js';   // batch 2: Projects › Clients (cls*)
 import { deliveryVals } from './delivery.js';   // Client delivery card on the project page (dlv*)
+import { shelfVals } from './shelf.js';   // batch 7: the cartridge shelf in Projects: ONE top-level key shfv
 import { consoleSkinVals } from './console-skin.js';   // batch 7: Console layer: ONE top-level key cslv
 import { securityVals } from './security.js';   // Security space (batch 4): ONE top-level key secv (the 1015 ceiling)
 import { cosmosVals } from './cosmos.js';   // Cosmos space (key 0): the Feed, lightbox, index overlay and import report (cos*)
@@ -47,7 +48,7 @@ import { moneyStartVals } from './money-start.js';   // Money in one minute: the
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, consoleSkinVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, consoleSkinVals,
 ];
 
 export function renderVals() {

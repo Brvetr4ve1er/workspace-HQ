@@ -96,6 +96,7 @@ import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
 import { makeConsoleScenarios } from './cdp-console.mjs';
+import { makeShelfScenarios } from './cdp-shelf.mjs';   // batch 7 dish 4: shelf-off-no-dom, shelf-render, shelf-render-budget, shelf-hover-click, shelf-reduced-motion, shelf-more-and-search, shelf-keyboard
 import { makeHomeOneScenarios, openHomeMore, HOME_MORE_ON, HOME_MORE_OFF } from './cdp-home-one.mjs';
 import { makeFoldScenarios } from './cdp-fold.mjs';
 import { makeBriefHistoryScenarios } from './cdp-brief-history.mjs';
@@ -2137,6 +2138,7 @@ Object.assign(SCENARIOS, makeActMarksScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makePhoneFileScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeQuietLightScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeConsoleScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeShelfScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
 
 const TIMEOUT = { 'button-sweep': 900000, 'cosmos-render-budget': 180000, 'cosmos-button-sweep': 180000, 'delivery-check-button-sweep': 120000 };
 

@@ -14,6 +14,7 @@ import { NAV, SUBS } from './live/catalog.mjs';
 import { TRAILERS } from './logic/whats-new.js';
 import { gapsOf } from './live/adapter.mjs';
 import { cosInitState } from './logic/cosmos.js';
+import { shelfStates, shelfInitState, swapProjects } from './selftest-shelf.mjs';   // batch 7: Projects > Shelf (the Console layer's cartridge view)
 
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib', 'hq.homeMore'], SESSION_KEYS = ['whq3-place'];
@@ -125,6 +126,8 @@ export async function run(W = window.WHQ) {
     // the Cosmos states (src/selftest-cosmos.mjs) run on the invented library generator (tools/cosmos-fixture.mjs): the readable copy, no JSON file
     const { cosmosStates, COSMOS_OFFLINE_ROWS, COSMOS_SCRUBBED_ROWS } = await import('./selftest-cosmos.mjs');
     const { fakeCosmos } = await import('../tools/cosmos-fixture.mjs');
+    const { fakeShelfProjects: fakeShelf } = await import('../tools/console-fixture.mjs');   // batch 7: invented projects for the Shelf rows
+    const { toProject: toProj } = await import('./live/adapter.mjs');
     const { securityStates, passphraseLeaks, FAKE_PASSPHRASE, WRONG_PASSPHRASE_ERROR, SECURITY_OFFLINE_ROWS } = await import('./selftest-security.mjs');   // Security space: invented footprint, never a vault
     const { secInit } = await import('./logic/security.js');
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
@@ -329,6 +332,18 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, cosInitState(), { themePref: theme, snapOffset: 0 }, cs, extra || {}));
             });
           } finally { W.store.hq = hq3; W.store.refreshCosmos = rc0; }
+        }
+        // Projects > Shelf (batch 7; src/selftest-shelf.mjs): the Console layer's cartridge view on 3, 48 and 83 INVENTED projects (tools/console-fixture.mjs), never the owner's.
+        // The model's own P0 array is swapped in place and restored in a finally; the Console layer pref and the shelf's paging go back to what they were.
+        for (const [name, count, sp] of shelfStates()) {
+          const cl0 = L.state.consoleLayer;
+          const restore = swapProjects(M.at(0).P0, fakeShelf({ count }), toProj);
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              L.go('projects', 'grid');
+              L.setState(Object.assign({}, CLEAR, base, shelfInitState(), { themePref: theme, snapOffset: 0 }, sp));
+            });
+          } finally { restore(); L.setState({ consoleLayer: cl0, shelfMore: null }); }
         }
         // Security (the 11th destination; src/selftest-security.mjs): every state of the Map, Health, Setup and Generator on the invented footprint, never a vault.
         // The slice is put straight into the store and the arrival read and the export scan are held (the fake's own answer would replace it); security-offline hides

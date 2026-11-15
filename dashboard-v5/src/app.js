@@ -48,6 +48,7 @@ import { moneyAccessLogic } from './logic/money-access.js';   // batch 2: Settin
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
 import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
+import { shelfLogic } from './logic/shelf.js';   // batch 7: the cartridge shelf (Console layer only)
 import { securityLogic } from './logic/security.js';   // Security space (batch 4)
 import { consoleSkinLogic, cslInitState, cslSavePatch } from './logic/console-skin.js';   // batch 7: Console layer (opt-in, off = nothing loads)
 import { driftLogic } from './logic/drift.js';   // batch 3: System › Machine › How the PC changed (dft*)
@@ -445,5 +446,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic);
 Component.prototype.renderVals = renderVals;
