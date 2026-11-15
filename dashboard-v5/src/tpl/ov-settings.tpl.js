@@ -4,6 +4,7 @@
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 import reach from './reach.tpl.js';   // 2026-11-07 Reach: which doors to the assistant are open
 import moneyAccess from './money-access.tpl.js';   // 2026-11-11 Money for Claude sessions: one switch, off by default
+import memoryCard from './memory-card.tpl.js';   // 2026-11-15 Memory card (Console layer only): what the app keeps, read-only
 
 export default String.raw`  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeSettings }}" style="position:fixed;inset:0;z-index:1050;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px">
@@ -22,7 +23,8 @@ export default String.raw`  <sc-if value="{{ settingsOpen }}" hint-placeholder-v
         <div style="display:flex;flex-direction:column;margin-top:6px">
           <sc-for list="{{ hotkeys }}" as="h" hint-placeholder-count="7"><div style="display:flex;gap:12px;padding:6px 0;font-size:13px"><span style="width:150px;flex:0 0 auto;color:var(--text)">{{ h.k }}</span><span style="flex:1;color:var(--muted)">{{ h.d }}</span><span style="color:{{ h.color }}">{{ h.st }}</span></div></sc-for>
         </div>
-${reach}${moneyAccess}      </div>
+${reach}${moneyAccess}<!-- v5: Memory card (batch 7 dish 5): Console layer only; read-only counts by kind -->
+<sc-if value="{{ cslv.cslOn }}" hint-placeholder-val="{{ false }}">${memoryCard}</sc-if>      </div>
     </div>
   </sc-if>
 

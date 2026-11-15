@@ -624,6 +624,39 @@ function createFake(opts) {
   })();
   // END cosmos-rows
 
+  // Settings > Memory card (hq.memory.read): the INVENTED answer below is pasted from src/selftest-memory-card.mjs (tools/cdp-memory-card.mjs fakeMemorySource(); a test fails on drift).
+  // Fixed numbers, read-only: reset(true) needs no state.
+  const inventedMemoryRead = function inventedMemoryRead(opts) {
+  const o = opts || {};
+  const AT = Date.parse('2026-11-14T12:00:00.000Z');
+  const H = 3600e3, M = 60e3;
+  const rows = [
+    ['scans', 'Scans and history', 34, 12400000, 3 * H],
+    ['brief', 'Brief', 5, 48000, 20 * M],
+    ['money', 'Money (counts only)', 2, 9800, 26 * H],
+    ['cosmos', 'Cosmos library', 812, 5100000000, 5 * 24 * H],
+    ['security', 'Security map (sizes only)', 3, 21000, 2 * 24 * H],
+    ['delivery', 'Delivery', 0, 0, null],
+    ['chat-index', 'Claude chat index', 4, 880000000, 45e3],
+    ['logs', 'Logs', 30, 3200000, 59 * M],
+    ['today-drift', 'Today and drift', 6, 160000, 90 * M],
+    ['other', 'Other', 2, 100, 10 * 24 * H],
+  ];
+  const slots = rows.map((r) => ({ kind: r[0], label: r[1], files: r[2], bytes: r[3], newestMs: r[4] === null ? null : AT - r[4], partial: false }));
+  if (o.fresher) slots[0].newestMs = AT - M;
+  if (o.empty) for (const s of slots) { s.files = 0; s.bytes = 0; s.newestMs = null; }
+  if (o.huge) { slots[3].bytes = 1023.9 * 1024 * 1024 * 1024; slots[0].bytes = 1048575; slots[1].bytes = 1023; }
+  if (o.partial) {
+    slots[3].partial = true; slots[3].files = 5000;
+    slots[4].files = null; slots[4].bytes = null; slots[4].newestMs = null;
+    slots[8].partial = true;
+  }
+  const snapshot = o.noSnapshot ? { newestMs: null, kept: 0, max: 7, ok: true }
+    : o.snapshotUnreadable ? { newestMs: null, kept: null, max: 7, ok: false }
+      : { newestMs: AT - 7 * H, kept: 3, max: 7, ok: true };
+  return { at: new Date(AT).toISOString(), capped: !!o.partial, slots, snapshot };
+};
+
   // System › Machine › How the PC changed (hq.machineHistory.read): 40 INVENTED checks, 6 h apart (under 10 days, so the disk Estimate refuses), CPU/RAM missing
   // on checks 17-19 (a gap), a ping of 0 every 9th check (unknown), one partial disk reading and no folder lines. Same data as inventedAnswer() in
   // src/selftest-drift.mjs (a classic script cannot import it; src/logic/drift.test.mjs pins what it must contain). Read-only: reset(true) needs no state.
@@ -765,6 +798,7 @@ function createFake(opts) {
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
     ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
+    ['memory.read', () => inventedMemoryRead()],   // Settings > Memory card (Console layer): invented kinds, sizes and ages, read-only
     ['machineHistory.read', machineHistoryRead],   // System › Machine › How the PC changed: invented checks, read-only
     // Security space (hq:security:*): an INVENTED footprint (the paste block above createFake); refresh answers ok only for the invented passphrase. Nothing here ever holds a real secret.
     ['security.read', (...a) => SECF.read(...a)], ['security.refresh', (...a) => SECF.refresh(...a)], ['security.settings', (...a) => SECF.settings(...a)], ['security.edit', (...a) => SECF.edit(...a)],

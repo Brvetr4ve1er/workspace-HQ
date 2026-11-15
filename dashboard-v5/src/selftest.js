@@ -131,6 +131,7 @@ export async function run(W = window.WHQ) {
     const { securityStates, passphraseLeaks, FAKE_PASSPHRASE, WRONG_PASSPHRASE_ERROR, SECURITY_OFFLINE_ROWS } = await import('./selftest-security.mjs');   // Security space: invented footprint, never a vault
     const { secInit } = await import('./logic/security.js');
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
+    const { memoryStates, MEMORY_OFFLINE_ROWS } = await import('./selftest-memory-card.mjs');   // batch 7: Settings > Memory card (Console layer only): invented kinds and sizes
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
@@ -427,6 +428,20 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, dft }, extra || {}));
             });
           } finally { W.store.hq = hq6; L._dftAsked = false; L._dftExam = false; }
+        }
+        // Settings > Memory card (batch 7; src/selftest-memory-card.mjs): every state of the card on invented kinds. row[3] IS the whole `mcd` state and row[4] opens Settings
+        // with the Console layer on; the arrival read is held (_mcdAsked) so the fake's own answer never replaces the preset state; memory-offline hides hq.memory for one
+        // combo (the store's hq, never window.hq). The layer pref and the Settings overlay go back to what they were afterwards.
+        for (const [name, , , mcd, extra] of memoryStates()) {
+          const hq7 = W.store.hq, cl1 = L.state.consoleLayer;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              if (MEMORY_OFFLINE_ROWS.includes(name) && hq7) W.store.hq = Object.assign({}, hq7, { memory: undefined });
+              L._mcdAsked = true;
+              L.go('home', null);
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, mcd }, extra || {}));
+            });
+          } finally { W.store.hq = hq7; L._mcdAsked = false; L.setState({ consoleLayer: cl1, settingsOpen: false, mcd: null }); }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

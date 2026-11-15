@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld('hq', {
   logDecision: (projId, text) => ipcRenderer.invoke('hq:log-decision', projId, text),
   use: (surface, action) => ipcRenderer.invoke('hq:use', surface, action),   // usage counter (allowlisted ids only)
   reach: { read: () => ipcRenderer.invoke('hq:reach:read'), briefFile: (action) => ipcRenderer.invoke('hq:reach:brief-file', action), notifyTest: () => ipcRenderer.invoke('hq:reach:notify-test') },   // Settings › Reach rows; briefFile('pick'|'clear') is the phone brief file
+  memory: { read: () => ipcRenderer.invoke('hq:memory:read') },   // Settings > Memory card (Console layer): read-only counts by kind, never a file name (see IPC-CONTRACT, main window only)
   learn: (projId, text) => ipcRenderer.invoke('hq:learn', projId, text),
   archiveProject: (id) => ipcRenderer.invoke('hq:archive-project', id),
   reviveProject: (id) => ipcRenderer.invoke('hq:revive-project', id),

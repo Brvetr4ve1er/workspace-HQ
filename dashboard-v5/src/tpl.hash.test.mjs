@@ -77,9 +77,10 @@ import tpl from './app.tpl.js';
 // 2026-11-14 Home as one decision (batch 7, dish 1): one fragment (tpl/home.tpl.js) restructured - the Brief, then ONE Next action card (or All clear), then a single More on Home button (aria-expanded, aria-controls) and, only while it is open, a region holding the since banner, the sessions strip, the Today ribbon, Portfolio, Changes and the aside; the Next action and All clear sections are byte-for-byte except the grey source span, which now binds {{ home.next.source }} (+1195 chars / +1194 bytes: the span lost its two-byte middle dot); every move attributed with tools/golden-diff.mjs (only home.* paths)
 // 2026-11-15 Console layer (batch 7, dish 3): one fragment (tpl/shell.tpl.js), the root div gains data-hq-skin="{{ cslv.cslSkin }}" (an EMPTY attribute unless the owner turned the opt-in Console skin on) and one <!-- v5: --> marker line after it, +209 chars / +209 bytes; nothing else moved
 // 2026-11-15 Cartridge shelf (batch 7, dish 4): two fragments (tpl/shelf.tpl.js, 9254 + 539 chars, exactly the Shelf view and the List|Shelf toggle) interpolated into tpl/projects.tpl.js, plus one <!-- v5: --> marker line and the sc-if shfv.listOn wrapper round the List grid (+345 chars); +10138 chars / +10138 bytes in all. With the Console layer off the toggle and the Shelf render nothing and listOn is true, so the Projects DOM is unchanged
-const SHA256 = 'c281bde2ecb62d3fa2e54cf237d77540b3ba3b0063a932b61c5a7b61bfef8378';
-const LENGTH = 486224;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 486886;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-15 Memory card (batch 7, dish 5): one fragment (tpl/memory-card.tpl.js, 4474 chars, exactly the card) interpolated into tpl/ov-settings.tpl.js after the Money block under an sc-if on cslv.cslOn, plus one <!-- v5: --> marker line; +4637 chars / +4639 bytes in all; with the Console layer off the section does not render; nothing else moved
+const SHA256 = '2671b259b4dd6b4a68af5bd8e8ff13175397bb52e8ed6e87ea7c2a51cb820ef4';
+const LENGTH = 490861;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 491525;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
