@@ -40,7 +40,7 @@ export const cheatsLogic = {
 
   /** One key press: both tails are fed; each may fire one code. */
   cheatKey(e) {
-    if (!e) return;
+    if (!e || e.repeat) return;   // a held key (auto-repeat) is one press, never a code: holding ArrowUp must not make Bit dance again and again
     const legacy = this._chtLegacy || (this._chtLegacy = createLegacyMatcher());
     const strict = this._chtStrict || (this._chtStrict = createMatcher());
     const hitLegacy = legacy.feed(e.key, e.target);

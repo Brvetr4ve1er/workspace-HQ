@@ -314,8 +314,8 @@ test('legacy FINDING: the double ArrowUp can never match a 12-character tail, an
   // bit and dance behave the same at both lengths
   for (const tail of [12, 14]) {
     const m = createLegacyMatcher({ tail });
-    for (const ch of 'xxxxxxxxxxxxxxxxbit') m.feed(ch);
-    assert.equal(m.tailText().endsWith('bit'), true);
+    for (const ch of 'xxxxxxxxxxxxxxxxbi') m.feed(ch);
+    assert.deepEqual(m.feed('t'), { id: 'bit' });   // (a hit then clears the tail)
     const d = createLegacyMatcher({ tail });
     for (const ch of 'dance') d.feed(ch);
     assert.deepEqual(d.feed('x'), null);
@@ -802,4 +802,33 @@ test('selftest states: every row is [name, tab, patch, extra], names are unique,
   }
   assert.ok(rows.some((r) => r[2].consoleLayer && r[2].consoleLayer.debug && !r[2].consoleLayer.on), 'a row with the flag on and the layer off');
   assert.ok(rows.some((r) => r[3].reduce === true));
+});
+
+// ---- repeat re-fire (taster finding): a hit clears the legacy tail, and a held key never counts -------------------------------------------
+
+test('legacy: a hit clears the tail, so ArrowUp x4 fires dance twice (every second press), not on every press after the second', () => {
+  const m = createLegacyMatcher();
+  const out = [1, 2, 3, 4].map(() => m.feed('ArrowUp'));
+  assert.deepEqual(out, [null, { id: 'dance' }, null, { id: 'dance' }]);
+  assert.equal(m.tailText(), '', 'the tail is empty right after a hit');
+  // a word typed after a hit still works from scratch
+  for (const ch of 'bi') m.feed(ch);
+  assert.deepEqual(m.feed('t'), { id: 'bit' });
+  assert.equal(m.tailText(), '');
+});
+
+test('host: an auto-repeated ArrowUp (e.repeat) never fires dance, and a held key adds nothing to either tail', () => {
+  eggs.length = 0;
+  const { self } = rig();
+  self.cheatKey({ key: 'ArrowUp', target: body });
+  for (let i = 0; i < 8; i++) self.cheatKey({ key: 'ArrowUp', target: body, repeat: true });
+  assert.deepEqual(eggs, [], 'one real press plus eight repeats is not a double press');
+  self.cheatKey({ key: 'ArrowUp', target: body });
+  assert.deepEqual(eggs, ['dance'], 'a second real press still fires it');
+  // repeats do not build a typed code either
+  eggs.length = 0;
+  self.cheatKey({ key: 'b', target: body }); self.cheatKey({ key: 'i', target: body });
+  self.cheatKey({ key: 'i', target: body, repeat: true });
+  self.cheatKey({ key: 't', target: body });
+  assert.deepEqual(eggs, ['bit'], 'a repeated i is ignored, bit still completes');
 });

@@ -21,7 +21,7 @@ export const paletteLogic = {
       if (verb === 'commit' || verb === 'open') this.projectsAt(0).filter((p) => p.name.toLowerCase().includes(arg) || p.id === arg).forEach((p) => doItems.push({ glyph: '›', label: (verb === 'commit' ? 'Commit ' : 'Open ') + p.name, hint: verb === 'commit' ? (p.dirty || 0) + ' files' : 'project page', run: () => (verb === 'commit' ? this.openCommit(p.id) : this.openProject(p.id)) }));
       if (verb === 'run') runPool.filter((a) => a.name.toLowerCase().includes(arg)).forEach((a) => doItems.push({ glyph: '›', label: 'Run ' + a.name, hint: termHint(a, 'confirm first'), run: () => this.askRun(a) }));
       if (verb === 'focus') this.openTasks(0).filter((t) => t.title.toLowerCase().includes(arg)).forEach((t) => doItems.push({ glyph: '›', label: 'Focus · ' + t.title, hint: 'F', run: () => this.startFocus(t.id) }));
-      if (verb === 'theme') ['dark', 'light', 'os'].filter((x) => x.startsWith(arg)).forEach((x) => doItems.push({ glyph: '›', label: 'Theme · ' + x, hint: '', run: () => this.setState({ themePref: x }) }));
+      if (verb === 'theme') ['dark', 'light', 'os'].filter((x) => x.startsWith(arg)).forEach((x) => doItems.push({ glyph: '›', label: 'Theme · ' + x, hint: '', run: () => this.cslChooseBase(x) }));   // v5: a base theme leaves the Console skin (logic/console-skin.js), like the Appearance chips and toggleTheme
       if (verb === 'go') NAV.filter((n) => n.label.toLowerCase().startsWith(arg)).forEach((n) => doItems.push({ glyph: '›', label: 'Go to ' + n.label, hint: '', run: () => this.go(n.id) }));
     }
     // <!-- v5: a number at the start or end of the query offers to log it as a spend (money-quicklog); the year rule lives in money-line.js -->

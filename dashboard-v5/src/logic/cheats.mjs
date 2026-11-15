@@ -12,6 +12,7 @@
 //           end with it and the double ArrowUp has NEVER fired in the shipped app. 'bit' and 'dance' behave identically at 12 and at 14
 //           (both are shorter than either); only the double ArrowUp changes (it now works, as the owner-facing line says it does).
 //           createLegacyMatcher({ tail: 12 }) is today's exact behaviour, pinned by the tests.
+//           A hit clears the legacy tail (else the 14-character needle re-fires on every later ArrowUp), and cheats-host ignores e.repeat.
 //   STRICT  every new code: a 12-KEY tail (key names, not characters), a 3 s gap clears it, ctrl / meta / alt held clears it, a typing
 //           target (isTypingTarget) clears it and never fires, a code fires once and the tail is cleared.
 //
@@ -169,7 +170,7 @@ export function createLegacyMatcher({ codes = CHEATS, tail = LEGACY_TAIL_CHARS }
     const tg = String((el && el.tagName) || '').toLowerCase();
     if (tg === 'input' || tg === 'textarea') return null;   // skipped, tail untouched (as before)
     keys = (keys + lowerKey(ev.key)).slice(-tail);
-    for (const c of legacy) if (legacyNeedles(c).some((n) => keys.endsWith(n))) return { id: c.id };
+    for (const c of legacy) if (legacyNeedles(c).some((n) => keys.endsWith(n))) { keys = ''; return { id: c.id }; }   // a hit clears the tail: the 14-character ArrowUp needle would otherwise re-fire on every later ArrowUp
     return null;
   }
   return { feed, reset() { keys = ''; }, tailText: () => keys };
