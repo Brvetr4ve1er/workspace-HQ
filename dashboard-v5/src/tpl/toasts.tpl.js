@@ -1,7 +1,8 @@
 // Toast stack, then the root </div> opened in shell.tpl.js.
 // Cut verbatim from lines 1122-1133 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
-export default String.raw`  <div aria-live="polite" style="position:fixed;right:16px;bottom:84px;z-index:1300;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:min(420px,calc(100vw - 32px));pointer-events:none">
+import versionCard from './version-card.tpl.js';   // batch 7: the New-version card (a sibling inside the root, before the toast stack)
+export default String.raw`${versionCard}  <div aria-live="polite" style="position:fixed;right:16px;bottom:84px;z-index:1300;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:min(420px,calc(100vw - 32px));pointer-events:none">
     <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
       <div ref="{{ t.ref }}" style="pointer-events:auto;display:flex;align-items:center;gap:10px;padding:10px 12px 10px 16px;background:var(--card);border:1px solid var(--frame);border-radius:12px;box-shadow:inset 5px 0 0 {{ t.color }}, 0 12px 30px rgba(0,0,0,.35);font-size:13px">
         <sc-if value="{{ t.isProgress }}" hint-placeholder-val="{{ false }}"><span ref="{{ pulse }}" style="width:8px;height:8px;background:var(--gold);flex:0 0 auto"></span></sc-if>

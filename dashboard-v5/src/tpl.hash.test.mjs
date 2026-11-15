@@ -79,9 +79,10 @@ import tpl from './app.tpl.js';
 // 2026-11-15 Cartridge shelf (batch 7, dish 4): two fragments (tpl/shelf.tpl.js, 9254 + 539 chars, exactly the Shelf view and the List|Shelf toggle) interpolated into tpl/projects.tpl.js, plus one <!-- v5: --> marker line and the sc-if shfv.listOn wrapper round the List grid (+345 chars); +10138 chars / +10138 bytes in all. With the Console layer off the toggle and the Shelf render nothing and listOn is true, so the Projects DOM is unchanged
 // 2026-11-15 Memory card (batch 7, dish 5): one fragment (tpl/memory-card.tpl.js, 4474 chars, exactly the card) interpolated into tpl/ov-settings.tpl.js after the Money block under an sc-if on cslv.cslOn, plus one <!-- v5: --> marker line; +4637 chars / +4639 bytes in all; with the Console layer off the section does not render; nothing else moved
 // 2026-11-15 Cheat codes (batch 7, dish 6): the shell root div gains data-hq-accent="{{ chtv.chtAccent }}" (an EMPTY attribute unless the owner found the ember or tide code) and one <!-- v5: --> marker line, and tpl/memory-card.tpl.js interpolates the codes-found list (tpl/cheats-overlay.tpl.js foundFragment, 1008 chars, under an sc-if on chtv.chtShowFound) into its codes slot. The frame-timing overlay (the default export of tpl/cheats-overlay.tpl.js, 2880 chars) joins the root before the toasts, under an sc-if on chtv.chtDebug (no DOM unless the timing code is on); +4092 chars in all
-const SHA256 = 'ed8606d58b6b0c865c6f457e3565324cfae8a9fd3a3cad86a2642da417e12237';
-const LENGTH = 494953;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 495622;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-15 New version inserted card (batch 7, dish 7): one new fragment (tpl/version-card.tpl.js, 2196 chars, exactly the card: an sc-if on vcdv.vcdShow round a centred overlay, an original cartridge-and-slot SVG, its two static keyframes and its <!-- v5: --> marker) interpolated at the head of tpl/toasts.tpl.js, a sibling inside the root before the toast stack; +2196 chars / +2198 bytes; with the Console layer off, or after the card was seen, there is NO node
+const SHA256 = '2617de99ab9a11e0704b97668692b0d7b035cfcd579c0bf87659111f2c8a1626';
+const LENGTH = 497149;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 497820;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

@@ -19,7 +19,7 @@ import { shelfStates, shelfInitState, swapProjects } from './selftest-shelf.mjs'
 // + Ask's chat and sources (v3's keys, contract K-1): Ask saves them itself, so a combo must not leave its sample behind
 const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-chat', 'hq-oracle-include', 'hq-claude-lib', 'hq.homeMore'], SESSION_KEYS = ['whq3-place'];
 // every overlay closed; applied before each combo so combos never stack
-const CLEAR = { homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
+const CLEAR = { vcShow: false, /* batch 7: the New-version card is not showing */ homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
   projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
@@ -133,6 +133,7 @@ export async function run(W = window.WHQ) {
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
     const { memoryStates, MEMORY_OFFLINE_ROWS } = await import('./selftest-memory-card.mjs');   // batch 7: Settings > Memory card (Console layer only): invented kinds and sizes
     const { cheatsStates, cheatsInitState } = await import('./selftest-cheats.mjs');   // batch 7: cheat codes (timing overlay, accent palettes, found list): invented durations
+    const { versionCardStates, checkRow: vcdCheckRow } = await import('./selftest-version-card.mjs');   // batch 7: the New-version-inserted card (Console layer only): idle, showing, layer off, reduced, over a dialog
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
@@ -455,6 +456,19 @@ export async function run(W = window.WHQ) {
               if (extra && extra.ring) L.cheatsSeedRing(extra.ring);
             });
           } finally { L.setState(Object.assign(cheatsInitState(), { reduceMotion: rm0, mcd: null })); }
+        }
+        // New version inserted card (batch 7; src/selftest-version-card.mjs): idle, showing (also over the skin), layer off, reduced motion, over a dialog. Every row sets vcShow,
+        // consoleLayer, reduceMotion and settingsOpen; the four go back afterwards. One render, no read to hold.
+        for (const vrow of versionCardStates()) {
+          const cl8 = L.state.consoleLayer, rm8 = L.state.reduceMotion;
+          try {
+            await combo([theme, 'p3:' + vrow.name].join(' '), () => {
+              L.go(vrow.tab, null);
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, vrow.patch));
+            });
+            const vcard = document.querySelector('[data-vcd="card"]');
+            vcdCheckRow(vrow, { present: !!vcard, text: vcard ? vcard.textContent : '' }).forEach((p) => note('version-card', [p]));
+          } finally { L.setState({ vcShow: false, consoleLayer: cl8, reduceMotion: rm8, settingsOpen: false }); }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

@@ -50,6 +50,8 @@ import { statCardLogic } from './logic/stat-card.js';
 import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
 import { cheatsLogic } from './logic/cheats-host.js';   // batch 7: cheat codes (the one permanent keydown listener, the timing overlay)
 import { normaliseFound } from './logic/cheats.mjs';
+import { versionCardLogic, bindVersionCardLayer } from './logic/version-card.mjs';   // batch 7: the 1.2 s 'New version inserted' card (Console layer only; with the layer off it only records the stamp)
+import * as consoleLayerApi from './logic/console-layer.mjs';
 import { memoryCardLogic } from './logic/memory-card.js';   // batch 7: Settings > Memory card (Console layer only)
 import { shelfLogic } from './logic/shelf.js';   // batch 7: the cartridge shelf (Console layer only)
 import { securityLogic } from './logic/security.js';   // Security space (batch 4)
@@ -163,11 +165,11 @@ export class Component extends DCLogic {
     this._onHide = () => this.flushPending(); window.addEventListener('pagehide', this._onHide);
     if (this.hq && this.hq.llm && this.hq.llm.onDelta) this._offDelta = this.hq.llm.onDelta((d) => this.onAskDelta(d));
     this.maybeLevelUp();
-    this.maybeShowWhatsNew();   // once per version, when the window has focus (logic/whats-new.js)
+    { const wn = this.maybeShowWhatsNew(); this.vcStart(wn); }   // once per version, when the window has focus (logic/whats-new.js); then the New-version card decides (it yields to What's-new; after cslSync, so the layer is attached)
   }
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
-    clearInterval(this._focusT); this.cheatsUnmount(); FX().destroy(); this.stopWhatsNewWait();
+    clearInterval(this._focusT); this.cheatsUnmount(); this.vcStop(); FX().destroy(); this.stopWhatsNewWait();
     if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); if (this._offNav) this._offNav(); this.store.stop();
     this.flushPending(); window.removeEventListener('pagehide', this._onHide);
     if (typeof this.cosCleanup === 'function') this.cosCleanup();   // Cosmos: stop the failed-picture batch
@@ -181,6 +183,7 @@ export class Component extends DCLogic {
     try { sessionStorage.setItem('whq3-place', JSON.stringify({ tab: S.tab, sub: S.sub, route: S.route, snapOffset: S.snapOffset, snapId: placeSnapId(this.M, S.snapOffset), focus: S.focus, ...cosPlaceOf(S) })); } catch (e) {}
     if (ps.reduceMotion !== S.reduceMotion) setReduceFlag(S.reduceMotion);
     if (ps.consoleLayer !== S.consoleLayer) this.cslSync();
+    if (ps.consoleLayer && ps.consoleLayer.on && !(S.consoleLayer && S.consoleLayer.on)) this.vcStop();   // the layer went off: drop the New-version card and its wait (detach already removed the layer's listeners and timers)
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
     if (['themePref', 'consoleLayer', 'cheatsFound', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed', 'showEverything', 'foldIds'].some((k) => ps[k] !== S[k])) {
@@ -450,6 +453,7 @@ export class Component extends DCLogic {
     try { navigator.clipboard.writeText(String(text || '')).then(done, () => this.toast('error', 'Clipboard unavailable')); } catch { this.toast('error', 'Clipboard unavailable'); }
   }
 }
+bindVersionCardLayer(consoleLayerApi);   // batch 7: the New-version card registers its listeners and timer through the Console layer, and only through it
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic, versionCardLogic);
 Component.prototype.renderVals = renderVals;
