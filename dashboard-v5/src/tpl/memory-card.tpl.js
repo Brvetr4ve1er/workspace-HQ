@@ -11,6 +11,8 @@ const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi)"';
 const HIDDEN = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
 
+import { foundFragment } from './cheats-overlay.tpl.js';   // batch 7: the codes-found list (names only)
+
 export default String.raw`        <!-- v5: Memory card — what the app keeps on this PC, by kind; read-only (its values nest under ONE key, mcdv) -->
         <sc-if value="{{ mcdv.mcdShow }}" hint-placeholder-val="{{ false }}">
           <section data-mcd="section" aria-label="Memory card: what the app keeps on this PC" style="display:flex;flex-direction:column;gap:8px">
@@ -40,7 +42,8 @@ export default String.raw`        <!-- v5: Memory card — what the app keeps on
                 </ul>
                 <sc-if value="{{ mcdv.mcdCapped }}" hint-placeholder-val="{{ false }}"><div data-mcd="capped" style="font-size:12px;color:var(--orange)">{{ mcdv.mcdCappedText }}</div></sc-if>
               </sc-if>
-              <div data-mcd="codes-slot" id="mcd-codes-slot"></div>
+              <div data-mcd="codes-slot" id="mcd-codes-slot">
+${foundFragment}</div>
               <div data-mcd="note" style="font-size:12px;color:var(--faint)">{{ mcdv.mcdNote }}</div>
             </sc-if>
           </section>

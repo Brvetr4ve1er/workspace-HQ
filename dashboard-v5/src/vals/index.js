@@ -38,6 +38,7 @@ import { sessionsBoardVals } from './sessions-board.js';
 import { deliveryCheckVals } from './delivery-check.js';   // batch 2: the phone-and-language check under the delivery card (dck*)
 import { clientsVals } from './clients-list.js';   // batch 2: Projects › Clients (cls*)
 import { deliveryVals } from './delivery.js';   // Client delivery card on the project page (dlv*)
+import { cheatsVals } from './cheats.js';   // batch 7: cheat codes (timing overlay, accent palette, found list): ONE top-level key chtv
 import { memoryCardVals } from './memory-card.js';   // batch 7: Settings > Memory card (Console layer only): ONE top-level key mcdv
 import { shelfVals } from './shelf.js';   // batch 7: the cartridge shelf in Projects: ONE top-level key shfv
 import { consoleSkinVals } from './console-skin.js';   // batch 7: Console layer: ONE top-level key cslv
@@ -49,7 +50,7 @@ import { moneyStartVals } from './money-start.js';   // Money in one minute: the
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, consoleSkinVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, consoleSkinVals,
 ];
 
 export function renderVals() {

@@ -48,6 +48,8 @@ import { moneyAccessLogic } from './logic/money-access.js';   // batch 2: Settin
 import { useLogLogic } from './logic/use-log.js';   // assistant rulebook: usage marks (hq.use) + the Settings › Reach loader
 import { statCardLogic } from './logic/stat-card.js';
 import { cosmosLogic, cosInitState, cosPlaceOf } from './logic/cosmos.js';
+import { cheatsLogic } from './logic/cheats-host.js';   // batch 7: cheat codes (the one permanent keydown listener, the timing overlay)
+import { normaliseFound } from './logic/cheats.mjs';
 import { memoryCardLogic } from './logic/memory-card.js';   // batch 7: Settings > Memory card (Console layer only)
 import { shelfLogic } from './logic/shelf.js';   // batch 7: the cartridge shelf (Console layer only)
 import { securityLogic } from './logic/security.js';   // Security space (batch 4)
@@ -87,7 +89,7 @@ export class Component extends DCLogic {
       sub: validSubs(M, Object.assign({ projects: 'grid', tasks: 'ranked', automations: 'runnable', claude: 'chats', history: 'trends', system: 'machine', life: 'screen', money: 'today', cosmos: 'feed', security: 'map' }, saved.sub || {})),
       route: saved.route || null, snapOffset,
       themePref: P.themePref || this.props.theme || 'dark', sound: P.sound === true, petOn: P.petOn != null ? P.petOn : this.props.pet !== false,
-      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P), ...cslInitState(P),
+      ambientPref: P.ambientPref !== false, reduceMotion: !!P.reduceMotion, ...normalizeFoldPrefs(P), ...cslInitState(P), cheatsFound: normaliseFound(P.cheatsFound),
       vw: window.innerWidth, completed: [], recentDone: [], mny: {}, dlv: {}, dlvBusy: false, brfBusy: false, dismissed: P.dismissed || [], xp: a.xp, displayXp: a.xp, committed: {},
       trusted: P.trusted || [], pinned: P.pinned || M.AUTOS.slice(0, 3).map((x) => x.id),
       // askHistory's real value comes from askInitState() below (v3's hq-oracle-chat, contract K-1)
@@ -148,6 +150,7 @@ export class Component extends DCLogic {
     this._mq = [480, 560, 720, 880, 900, 1000, 1020, 1100, 1120, 1160, 1240, 1320, 1400, 1440].map((px) => { const m = matchMedia('(min-width:' + px + 'px)'), h = () => this.forceUpdate(); m.addEventListener('change', h); return [m, h]; });
     this._wT = setInterval(() => { const w = document.documentElement.clientWidth || window.innerWidth; if (w !== this._lastW) this.forceUpdate(); }, 300);
     if (window.ResizeObserver) { this._ro = new ResizeObserver(() => this.forceUpdate()); this._ro.observe(document.body); this._ro.observe(document.documentElement); }
+    this.cheatsMount();   // batch 7: the legacy keydown listener moved here from hq-fx.js (net window keydown count unchanged)
     FX().init({ sound: this.state.sound, pet: this.state.petOn, reduce: this.state.reduceMotion, floor: () => (window.innerWidth < 720 ? 70 : 6), facts: () => this.petFacts() });
     setTimeout(() => FX().say('Hi, I’m Bit.', 2200), 900);
     setTimeout(() => window.HQAlive && window.HQAlive.stagger(), 300);
@@ -164,12 +167,13 @@ export class Component extends DCLogic {
   }
   componentWillUnmount() {
     window.removeEventListener('keydown', this._onKey); window.removeEventListener('resize', this._onResize); if (this._ro) this._ro.disconnect(); clearInterval(this._wT); (this._mq || []).forEach(([m, h]) => m.removeEventListener('change', h));
-    clearInterval(this._focusT); FX().destroy(); this.stopWhatsNewWait();
+    clearInterval(this._focusT); this.cheatsUnmount(); FX().destroy(); this.stopWhatsNewWait();
     if (this._offStore) this._offStore(); if (this._offRealm) this._offRealm(); if (this._offDelta) this._offDelta(); if (this._offNav) this._offNav(); this.store.stop();
     this.flushPending(); window.removeEventListener('pagehide', this._onHide);
     if (typeof this.cosCleanup === 'function') this.cosCleanup();   // Cosmos: stop the failed-picture batch
   }
   componentDidUpdate() {
+    this.cheatsAfterRender();   // batch 7: ends the timing of the render that just finished (only while the timing overlay is on)
     const S = this.state;
     const ps = this._prev || S;
     this._prev = Object.assign({}, S, { sub: Object.assign({}, S.sub) }); this._prevProps = Object.assign({}, this.props);
@@ -179,10 +183,10 @@ export class Component extends DCLogic {
     if (ps.consoleLayer !== S.consoleLayer) this.cslSync();
     if (ps.themePref !== S.themePref) mirrorV3Theme(S.themePref);
     if (ps.themePref !== S.themePref || ps.reduceMotion !== S.reduceMotion) this.pushUiPrefs();
-    if (['themePref', 'consoleLayer', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed', 'showEverything', 'foldIds'].some((k) => ps[k] !== S[k])) {
+    if (['themePref', 'consoleLayer', 'cheatsFound', 'sound', 'petOn', 'ambientPref', 'reduceMotion', 'pinned', 'trusted', 'dismissed', 'recapDismissed', 'sinceDismissed', 'showEverything', 'foldIds'].some((k) => ps[k] !== S[k])) {
       const P = loadPrefs();
       delete P.notifyMeasured;   // the Notifications switch was cut (Phase 2); drop what older builds saved
-      savePrefs(Object.assign(P, { ...cslSavePatch(S), themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, showEverything: S.showEverything, foldIds: S.foldIds, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
+      savePrefs(Object.assign(P, { ...cslSavePatch(S), cheatsFound: normaliseFound(S.cheatsFound), themePref: S.themePref, sound: S.sound, petOn: S.petOn, ambientPref: S.ambientPref, reduceMotion: S.reduceMotion, showEverything: S.showEverything, foldIds: S.foldIds, pinned: S.pinned, trusted: S.trusted, dismissed: S.dismissed.slice(-200),
         recapSeen: S.recapDismissed && this.M.weeklyRecap ? this.M.weeklyRecap.week_end : P.recapSeen, sinceSeen: S.sinceDismissed ? this.M.at(0).id : P.sinceSeen }));
     }
     { const pr = this.projectsAt(0), sec = this.sum(pr, (p) => p.secrets), run = this.runningCount() > 0; FX().set({ level: this.M.levelOf(S.xp).l, mood: run ? 'busy' : sec > 0 ? 'nervous' : this.openTasks(0).length === 0 ? 'sleepy' : 'ok' }); }
@@ -447,5 +451,5 @@ export class Component extends DCLogic {
   }
 }
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic);
 Component.prototype.renderVals = renderVals;

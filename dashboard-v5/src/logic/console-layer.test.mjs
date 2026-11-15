@@ -70,8 +70,10 @@ test('missing, garbage and partial values normalise to defaults with every flag 
   assert.deepEqual(normaliseConsoleLayer({ on: 'true', skin: 1, scan: 'yes', debug: {}, shelf: [] }), { ...CONSOLE_DEFAULTS }, 'only a strict true turns a flag on');
   assert.deepEqual(normaliseConsoleLayer({ on: true }), { ...CONSOLE_DEFAULTS, on: true });
   assert.deepEqual(normaliseConsoleLayer({ skin: true, junk: 1 }), { ...CONSOLE_DEFAULTS, skin: true }, 'unknown keys are dropped, a partial object keeps what it says');
-  assert.equal(normaliseConsoleLayer({ palette: 'Warm-2' }).palette, 'warm-2');
-  for (const bad of ['has space', 'x'.repeat(40), '<b>', 5, null, {}]) assert.equal(normaliseConsoleLayer({ palette: bad }).palette, '', JSON.stringify(bad));
+  assert.equal(normaliseConsoleLayer({ palette: 'Ember' }).palette, 'ember');
+  assert.equal(normaliseConsoleLayer({ palette: ' tide ' }).palette, 'tide');
+  // the palette is one of the two hidden accent palettes (cheat codes) or none: an unknown id is dropped
+  for (const bad of ['warm-2', 'plum', 'has space', 'x'.repeat(40), '<b>', 5, null, {}]) assert.equal(normaliseConsoleLayer({ palette: bad }).palette, '', JSON.stringify(bad));
 });
 
 test('normalising is pure: a fresh object every time, the input is never touched, and it is idempotent', () => {
@@ -125,6 +127,27 @@ test('attach injects exactly one stylesheet link with the documented id, href an
   assert.equal(CONSOLE_CSS_HREF, './styles/console.css');
   assert.deepEqual({ ...L.layerProbe() }, { ...ZERO, links: 1 });
   assert.equal(L.isAttached(), true);
+});
+
+test('layerSheet: one extra counted stylesheet, only while attached; href null removes it; detach removes it; the same href twice is one link', () => {
+  const L = createConsoleLayer(), f = fakeEnv();
+  assert.equal(L.layerSheet('palettes', './styles/palettes.css'), false, 'detached: nothing is created');
+  assert.equal(f.head.children.length, 0);
+  L.attach(f.env);
+  assert.equal(L.layerSheet('palettes', './styles/palettes.css'), true);
+  assert.equal(L.layerSheet('palettes', './styles/palettes.css'), true);
+  const links = f.head.children.filter((n) => n.attrs.id === 'hq-palettes-css');
+  assert.equal(links.length, 1);
+  assert.deepEqual(links[0].attrs, { rel: 'stylesheet', id: 'hq-palettes-css', href: './styles/palettes.css', 'data-hq-console': 'css' });
+  assert.deepEqual({ ...L.layerProbe() }, { ...ZERO, links: 2 });
+  assert.equal(L.layerSheet('palettes', null), true);
+  assert.equal(f.head.children.some((n) => n.attrs.id === 'hq-palettes-css'), false);
+  assert.deepEqual({ ...L.layerProbe() }, { ...ZERO, links: 1 });
+  L.layerSheet('palettes', './styles/palettes.css');
+  L.detach();
+  assert.equal(f.head.children.length, 0, 'detach takes every link with it');
+  assert.deepEqual({ ...L.layerProbe() }, ZERO);
+  assert.equal(L.layerSheet('Bad Name', 'x.css'), false);
 });
 
 test('a double attach is idempotent: one link, same answer, nothing doubled', () => {
@@ -466,6 +489,33 @@ test('cslSync: on attaches the link, off detaches it, scanlines follow skin + sc
     assert.equal(f.head.children.length, 0);
     assert.equal('data-hq-scan' in f.attrs, false);
     assert.equal(isAttached(), false);
+  } finally { detachDefault(); }
+});
+
+test('cslSync: the accent palettes stylesheet exists only while the layer is on AND a palette is chosen (the probe counts it)', () => {
+  const f = fakeEnv();
+  const env = { ...f.env, win: {} };
+  const c = comp({ consoleLayer: { on: true } });
+  const has = () => f.head.children.some((n) => n.attrs.id === 'hq-palettes-css');
+  try {
+    c.cslSync(env);
+    assert.equal(has(), false, 'no palette, no link');
+    c.state.consoleLayer = { on: true, palette: 'ember' };
+    c.cslSync(env);
+    assert.equal(has(), true);
+    assert.equal(env.win.__hqLayerProbe().links, 2);
+    c.state.consoleLayer = { on: true, palette: 'tide' };
+    c.cslSync(env);
+    assert.equal(f.head.children.filter((n) => n.attrs.id === 'hq-palettes-css').length, 1, 'a second palette does not add a second link');
+    c.state.consoleLayer = { on: true, palette: '' };
+    c.cslSync(env);
+    assert.equal(has(), false, 'clearing the palette removes the link');
+    c.state.consoleLayer = { on: true, palette: 'tide' };
+    c.cslSync(env);
+    c.state.consoleLayer = { on: false, palette: 'tide' };
+    c.cslSync(env);
+    assert.equal(f.head.children.length, 0, 'the layer going off takes the palette link with it');
+    assert.deepEqual(env.win.__hqLayerProbe(), ZERO);
   } finally { detachDefault(); }
 });
 

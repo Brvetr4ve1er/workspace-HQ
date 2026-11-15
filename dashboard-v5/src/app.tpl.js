@@ -36,10 +36,11 @@ import ovMisc from './tpl/ov-misc.tpl.js';
 import ovOnboard from './tpl/ov-onboard.tpl.js';
 import cosmosOverlays from './tpl/cosmos-overlays.tpl.js';   // Cosmos lightbox, index overlay, import report, 2026-11-09
 import extras from './tpl/extras.tpl.js';   // v5 additions (no design slice); empty until Phase 3 P8
+import cheatsOverlay from './tpl/cheats-overlay.tpl.js';   // batch 7 cheat codes: the frame-timing overlay (inside an sc-if: no DOM unless the timing code is on)
 import toasts from './tpl/toasts.tpl.js';
 
 export default [
   shell, home, projects, projectPage, tasks, automations, claude, history, system, life, money, cosmos, security,
   prompt, ambient, navBottom, ovScrub, ovRuns, ovAsk, ovPalette, ovFocus,
-  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, cosmosOverlays, securityOverlays, extras, toasts,
+  ovConfirm, ovCommit, ovSheet, ovSettings, ovMisc, ovOnboard, cosmosOverlays, securityOverlays, extras, cheatsOverlay, toasts,
 ].join('');

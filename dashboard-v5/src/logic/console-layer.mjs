@@ -15,6 +15,7 @@
 //       layerTimer(fn, ms, { once })      a repeating timer (once:true = one shot)   -> off()
 //       layerFrame(fn)                    one animation frame                        -> off()
 //       layerAttr(name, value)            an attribute on <html> (data-hq-* only; null removes it)
+//       layerSheet(name, href)            one extra stylesheet link (id hq-<name>-css) while attached, counted in the probe's links; href null removes it
 //   Each counts what it creates. While the layer is DETACHED every one of them registers nothing and returns a no-op, so OFF is
 //   structurally zero. attach(env) injects <link id="hq-console-css" data-hq-console="css" href="./styles/console.css">; detach()
 //   removes the link, every listener, timer and frame and every attribute, without a reload. Both are idempotent.
@@ -34,7 +35,9 @@ export const CONSOLE_SCAN_ATTR = 'data-hq-scan';
 
 const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const flag = (x) => x === true;
-const paletteId = (x) => (typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x.trim().toLowerCase()) ? x.trim().toLowerCase() : '');
+export const CONSOLE_PALETTES = Object.freeze(['ember', 'tide']);   // the two hidden accent palettes (cheat codes); anything else is none
+export const CONSOLE_PALETTES_HREF = './styles/palettes.css';
+const paletteId = (x) => { const s = typeof x === 'string' ? x.trim().toLowerCase() : ''; return CONSOLE_PALETTES.includes(s) ? s : ''; };
 
 export function normaliseConsoleLayer(raw) {
   const s = isObj(raw) ? raw : {};
@@ -56,6 +59,7 @@ const noop = () => {};
 export function createConsoleLayer() {
   let env = null, link = null, attached = false;
   let listeners = [], timers = [], frames = [], attrs = [];
+  const sheets = new Map();   // name -> { el, href }: the extra stylesheets (the accent palettes' one)
 
   const fn = (name) => (env && typeof env[name] === 'function' ? env[name] : (env && env.win && typeof env.win[name] === 'function' ? env.win[name].bind(env.win) : (typeof globalThis[name] === 'function' ? globalThis[name].bind(globalThis) : null)));
   const rootEl = () => (env && env.doc ? env.doc.documentElement : null);
@@ -89,6 +93,8 @@ export function createConsoleLayer() {
     for (const t of timers) { try { (t.once ? clearO : clearT)(t.id); } catch (e) { /* already gone */ } }
     for (const f of frames) { try { cancelF(f.id); } catch (e) { /* already gone */ } }
     listeners = []; timers = []; frames = []; attrs = [];
+    for (const sh of sheets.values()) { try { if (typeof sh.el.remove === 'function') sh.el.remove(); else if (sh.el.parentNode) sh.el.parentNode.removeChild(sh.el); } catch (e) { /* already gone */ } }
+    sheets.clear();
     if (link) { try { if (typeof link.remove === 'function') link.remove(); else if (link.parentNode) link.parentNode.removeChild(link); } catch (e) { /* already gone */ } }
     link = null; env = null;
     return was;
@@ -141,8 +147,30 @@ export function createConsoleLayer() {
     return true;
   }
 
-  const probe = () => Object.freeze({ links: link ? 1 : 0, listeners: listeners.length, timers: timers.length, frames: frames.length });
-  return { attach, detach, layerOn, layerTimer, layerFrame, layerAttr, layerProbe: probe, isAttached: () => attached };
+  // one extra stylesheet link, counted like the main one; href null/'' removes it. Only while attached (a detached layer creates nothing).
+  function layerSheet(name, href) {
+    if (!attached || typeof name !== 'string' || !/^[a-z0-9-]{1,24}$/.test(name) || !env || !env.doc || typeof env.doc.createElement !== 'function') return false;
+    const old = sheets.get(name);
+    if (!href) {
+      if (old) { try { if (typeof old.el.remove === 'function') old.el.remove(); else if (old.el.parentNode) old.el.parentNode.removeChild(old.el); } catch (e) { /* already gone */ } sheets.delete(name); }
+      return true;
+    }
+    if (old && old.href === String(href)) return true;
+    if (old) { try { if (typeof old.el.remove === 'function') old.el.remove(); } catch (e) { /* already gone */ } sheets.delete(name); }
+    try {
+      const el = env.doc.createElement('link');
+      el.setAttribute('rel', 'stylesheet');
+      el.setAttribute('id', 'hq-' + name + '-css');
+      el.setAttribute('href', String(href));
+      el.setAttribute('data-hq-console', 'css');
+      (env.doc.head || env.doc.documentElement).appendChild(el);
+      sheets.set(name, { el, href: String(href) });
+    } catch (e) { return false; }
+    return true;
+  }
+
+  const probe = () => Object.freeze({ links: (link ? 1 : 0) + sheets.size, listeners: listeners.length, timers: timers.length, frames: frames.length });
+  return { attach, detach, layerOn, layerTimer, layerFrame, layerAttr, layerSheet, layerProbe: probe, isAttached: () => attached };
 }
 
 // the app's one layer
@@ -153,6 +181,7 @@ export const layerOn = layer.layerOn;
 export const layerTimer = layer.layerTimer;
 export const layerFrame = layer.layerFrame;
 export const layerAttr = layer.layerAttr;
+export const layerSheet = layer.layerSheet;
 export const layerProbe = layer.layerProbe;
 export const isAttached = layer.isAttached;
 

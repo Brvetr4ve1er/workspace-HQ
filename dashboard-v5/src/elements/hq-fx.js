@@ -183,13 +183,13 @@ window.HQFx = (function () {
     }
     if (text && text.length > 1) { const w = document.createElement('div'); w.textContent = text; w.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;font:600 22px "IBM Plex Mono",monospace;color:#e8916f;pointer-events:none;transform:translate(-50%,-50%);letter-spacing:.1em;white-space:nowrap'; layer.appendChild(w); w.animate([{ opacity: 0, transform: 'translate(-50%,-30%)', letterSpacing: '.6em' }, { opacity: 1, offset: .25, letterSpacing: '.12em' }, { opacity: 0, transform: 'translate(-50%,-120%)' }], { duration: 1600, easing: 'ease-out' }).onfinish = () => w.remove(); }
   }
-  let keys = '', lastCareful = 0;
-  addEventListener('keydown', e => {
-    const tg = (e.target.tagName || '').toLowerCase(); if (tg === 'input' || tg === 'textarea') return;
-    keys = (keys + e.key.toLowerCase()).slice(-12);
-    if (keys.endsWith('bit') && pet) { pet.mode = 'cheer'; pet.t0 = performance.now(); pet.until = pet.t0 + 2400; say('you found me ✻', 2200); sfx('level'); const r = pet.el.getBoundingClientRect(); asciiBurst(r.left + 18, r.top, '♥'); }
-    if (keys.endsWith('arrowuparrowup') || keys.endsWith('dance')) { if (pet) { pet.mode = 'cheer'; pet.t0 = performance.now(); pet.until = pet.t0 + 4000; say('♪ ♫ ♪', 3000); } }
-  });
+  let lastCareful = 0;
+  // the two legacy eggs ('bit', 'dance' / ArrowUp twice): the keydown listener that used to live here moved to logic/cheats-host.js (cheat codes, batch 7), which calls egg(id); the effect bodies are unchanged
+  function egg(id) {
+    if (!pet) return;
+    if (id === 'bit') { pet.mode = 'cheer'; pet.t0 = performance.now(); pet.until = pet.t0 + 2400; say('you found me ✻', 2200); sfx('level'); const r = pet.el.getBoundingClientRect(); asciiBurst(r.left + 18, r.top, '♥'); }
+    else if (id === 'dance') { pet.mode = 'cheer'; pet.t0 = performance.now(); pet.until = pet.t0 + 4000; say('♪ ♫ ♪', 3000); }
+  }
   document.addEventListener('mouseover', e => {
     const b = e.target.closest && e.target.closest('button'); if (!b || !pet || !opts.pet) return;
     const st = b.getAttribute('style') || '';
@@ -207,5 +207,5 @@ window.HQFx = (function () {
   }
   function set(o) { Object.assign(opts, o); }
   function destroy() { cancelAnimationFrame(raf); document.removeEventListener('pointerdown', onDown); if (layer) layer.remove(); layer = null; pet = null; }
-  return { init, set, sfx, burst, coinFly, floatText, event, say, destroy, asciiBurst };
+  return { init, set, sfx, burst, coinFly, floatText, event, say, destroy, asciiBurst, egg };
 })();

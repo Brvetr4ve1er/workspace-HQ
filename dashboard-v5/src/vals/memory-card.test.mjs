@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { memoryCardLogic, mcdInit, mcdLayerOn, cleanRead, MCD_OFFLINE, MCD_NOTE } from '../logic/memory-card.js';
+import { cheatsVals } from './cheats.js';   // batch 7 (cheat codes): the codes slot now holds the found list, bound to chtv
 import { memoryCardVals, humanBytes, humanAge, buildBlocks, slotBlock, snapshotBlock, BAR_W } from './memory-card.js';
 import { inventedMemoryRead, memoryStates, MEMORY_OFFLINE_ROWS } from '../selftest-memory-card.mjs';
 import { EXPECT, SNAPSHOT_EXPECT, FILL_EXPECT } from '../../tools/cdp-memory-card.mjs';
@@ -308,7 +309,8 @@ test('nothing animates: no transition, animation, keyframes or motion style in t
 
 test('every binding in the template resolves against the ready vals; every handler is a function; control flow is balanced; no backticks', async () => {
   const v = await ready();
-  const scope = { mcdv: v, b: v.mcdBlocks[0], w: v.mcdBlocks[0] };
+  const chtv = cheatsVals.call({ state: { consoleLayer: { on: true }, cheatsFound: ['cartridge'] } }).chtv;   // the codes slot: the found list (the cheat codes dish)
+  const scope = { mcdv: v, b: v.mcdBlocks[0], w: v.mcdBlocks[0], chtv, c: chtv.chtFound[0] };
   const bindings = [...new Set([...tpl.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1]))].filter((x) => !/^(true|false)$/.test(x));
   assert.ok(bindings.length > 15);
   for (const b of bindings) assert.notEqual(resolve(scope, b), undefined, 'unbound ' + b);
@@ -319,7 +321,7 @@ test('every binding in the template resolves against the ready vals; every handl
   assert.ok(!/\{\{[^}]*(&&|\|\||\?)/.test(tpl), 'dc-lite dialect: no operators other than !');
   // top-level names it reads: only the one nested key (and the loop variables)
   const roots = new Set(bindings.map((b) => b.replace(/^!/, '').split('.')[0]));
-  assert.deepEqual([...roots].sort(), ['b', 'mcdv', 'w']);
+  assert.deepEqual([...roots].sort(), ['b', 'c', 'chtv', 'mcdv', 'w']);
 });
 
 test('the template is tokens only: no literal colour anywhere', () => {
@@ -330,7 +332,11 @@ test('the template is tokens only: no literal colour anywhere', () => {
 test('each block is an img with its own label; the hidden list says the same in words; both hooks are in the markup and inert', () => {
   assert.match(tpl, /<svg data-mcd="slot" data-mcd-kind="\{\{ b\.kind \}\}" viewBox="0 0 160 72" role="img" aria-label="\{\{ b\.twin \}\}"/);
   assert.match(tpl, /<ul data-mcd="twin"[^>]*>\s*<sc-for list="\{\{ mcdv\.mcdBlocks \}\}" as="w"[^>]*><li>\{\{ w\.twin \}\}<\/li>/);
-  assert.match(tpl, /<div data-mcd="codes-slot" id="mcd-codes-slot"><\/div>/);
+  // the slot was empty in the Memory card dish; the cheat codes dish puts the found list (names only, no handler) in it, bound to chtv only
+  const slot = /<div data-mcd="codes-slot" id="mcd-codes-slot">([\s\S]*?)<div data-mcd="note"/.exec(tpl);
+  assert.ok(slot, 'the codes slot is in the markup');
+  assert.ok(!/onClick|<button|<a\b|tabindex/i.test(slot[1]), 'the codes slot has no handler');
+  assert.ok(/chtv\.chtShowFound/.test(slot[1]) && !/mcdv\./.test(slot[1]));
   assert.match(tpl, /<div data-mcd="empty-slot" aria-hidden="true"/);
   const empty = /<div data-mcd="empty-slot"[^>]*>/.exec(tpl)[0];
   assert.ok(!/onClick|tabindex|role=/i.test(empty), 'the empty slot has no handler');

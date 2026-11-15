@@ -132,6 +132,7 @@ export async function run(W = window.WHQ) {
     const { secInit } = await import('./logic/security.js');
     const { todayStates, todayInitState, TODAY_OFFLINE_ROWS } = await import('./selftest-today.mjs');   // Home › Where today went: invented days
     const { memoryStates, MEMORY_OFFLINE_ROWS } = await import('./selftest-memory-card.mjs');   // batch 7: Settings > Memory card (Console layer only): invented kinds and sizes
+    const { cheatsStates, cheatsInitState } = await import('./selftest-cheats.mjs');   // batch 7: cheat codes (timing overlay, accent palettes, found list): invented durations
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
@@ -442,6 +443,18 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, mcd }, extra || {}));
             });
           } finally { W.store.hq = hq7; L._mcdAsked = false; L.setState({ consoleLayer: cl1, settingsOpen: false, mcd: null }); }
+        }
+        // Cheat codes (batch 7; src/selftest-cheats.mjs): the timing overlay empty and measured (invented durations through cheatsSeedRing), the two accent palettes, the found list in
+        // Settings > Memory card, and the layer-off rows. cheatsInitState puts the layer, the found list and Settings back before every row and after the rows; the reduce row restores reduceMotion.
+        for (const [name, tab, cp, extra] of cheatsStates()) {
+          const rm0 = L.state.reduceMotion;
+          try {
+            await combo([theme, 'p3:' + name].join(' '), () => {
+              L.go(tab, null);
+              L.setState(Object.assign({}, CLEAR, base, cheatsInitState(), { themePref: theme, snapOffset: 0 }, cp));
+              if (extra && extra.ring) L.cheatsSeedRing(extra.ring);
+            });
+          } finally { L.setState(Object.assign(cheatsInitState(), { reduceMotion: rm0, mcd: null })); }
         }
         // Operator Brief (heads Home): every load state, 1-3 items of each severity, +more, source errors, busy
         const bItem = (key, severity, action) => ({ key, rule: key.split(':')[0], severity, text: 'Selftest ' + severity + ' item', why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action });

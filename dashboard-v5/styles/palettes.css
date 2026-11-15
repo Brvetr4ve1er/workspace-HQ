@@ -1,0 +1,24 @@
+/* Two hidden alternate ACCENT palettes (batch 7, the cheat codes 'ember' and 'tide').
+   Attached ONLY while a palette is chosen: logic/console-layer.mjs adds <link id="hq-palettes-css"> when consoleLayer.palette is not
+   empty and removes it when it is cleared or the layer goes off. The root carries data-hq-accent="ember" | "tide" (an attribute, empty
+   by default, bound from vals/cheats.js chtv.chtAccent).
+
+   These rules remap ONLY the accent family (--gold, --gold-2, --accent-text, --link, --link-hover, --tone-gold) over whatever theme or
+   skin is active: one block for the dark base, one for light, one for the Console skin. Every selector is two attributes, so it beats the
+   one-attribute theme blocks in tokens.css whatever the link order; the light block comes after the dark one, the Console block after
+   both (later wins at equal weight). No @keyframes, no transition, no layout, no other token: palettes.test.mjs pins that and the AA
+   contrast of each accent text token on --card for dark, light and Console. */
+
+/* ember: warm amber. dark base */
+[data-hq-theme][data-hq-accent="ember"] { --gold: #e8902c; --gold-2: #ffb86b; --accent-text: #ffa94d; --link: #ffa94d; --link-hover: #ffd2a0; --tone-gold: var(--gold); }
+/* ember: light base (deep amber, so the text tokens stay readable on the light card) */
+[data-hq-theme="light"][data-hq-accent="ember"] { --gold: #b26200; --gold-2: #8f4a00; --accent-text: #8f4a00; --link: #8f4a00; --link-hover: #5e3000; --tone-gold: var(--gold); }
+/* ember: Console skin */
+[data-hq-skin="console"][data-hq-accent="ember"] { --gold: #ffa94d; --gold-2: #ffb86b; --accent-text: #ffa94d; --link: #ffa94d; --link-hover: #ffd2a0; --tone-gold: var(--gold); }
+
+/* tide: cool teal. dark base */
+[data-hq-theme][data-hq-accent="tide"] { --gold: #3fb8b0; --gold-2: #5fd0c8; --accent-text: #5fd0c8; --link: #5fd0c8; --link-hover: #9be6df; --tone-gold: var(--gold); }
+/* tide: light base */
+[data-hq-theme="light"][data-hq-accent="tide"] { --gold: #1f7f7a; --gold-2: #17615d; --accent-text: #17615d; --link: #17615d; --link-hover: #0e3f3c; --tone-gold: var(--gold); }
+/* tide: Console skin */
+[data-hq-skin="console"][data-hq-accent="tide"] { --gold: #6fe0d6; --gold-2: #6fe0d6; --accent-text: #6fe0d6; --link: #6fe0d6; --link-hover: #b0f0ea; --tone-gold: var(--gold); }

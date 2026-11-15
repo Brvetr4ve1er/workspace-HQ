@@ -141,7 +141,8 @@ export function makeMemoryCardScenarios({ fresh, sleep }) {
         if (!/^Read-only/.test(String(await t.evaluate(PAGE.note)))) out.push('the read-only note is missing: "' + String(await t.evaluate(PAGE.note)).slice(0, 120) + '"');
         if (!/read \d\d:\d\d/.test(String(await t.evaluate(PAGE.summary)))) out.push('the summary does not say when it was read: "' + String(await t.evaluate(PAGE.summary)) + '"');
         if (await t.evaluate(PAGE.emptySlot) !== 'Empty slot') out.push('the final empty slot block is missing');
-        if (await t.evaluate(PAGE.codesSlot) !== '0|') out.push('the codes slot hook is missing or not empty: ' + String(await t.evaluate(PAGE.codesSlot)));
+        // the slot was empty in the Memory card dish; the cheat codes dish puts the codes-found list in it (one block, "Codes found: N of M", names only)
+        if (!/^1\|Codes found: \d+ of \d+/.test(String(await t.evaluate(PAGE.codesSlot)))) out.push('the codes slot hook is missing or does not hold the found list: ' + String(await t.evaluate(PAGE.codesSlot)));
         const txt = String(await t.evaluate(PAGE.text));
         if (NO_TEXT.test(txt)) out.push('an unresolved binding reached the section text');
         if (NO_NAMES.test(txt)) out.push('something that looks like a file name reached the section: ' + txt.slice(0, 160));

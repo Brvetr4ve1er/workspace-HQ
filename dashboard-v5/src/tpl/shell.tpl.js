@@ -4,7 +4,8 @@
 // column, <main>, body row) and toasts.tpl.js (root <div>).
 // Cut verbatim from lines 5-123 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
-export default String.raw`<div data-hq-theme="{{ themeName }}" data-hq-skin="{{ cslv.cslSkin }}" style="position:relative;height:100vh;width:100%;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--term);font-size:13px;line-height:1.25">
+export default String.raw`<div data-hq-theme="{{ themeName }}" data-hq-skin="{{ cslv.cslSkin }}" data-hq-accent="{{ chtv.chtAccent }}" style="position:relative;height:100vh;width:100%;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--term);font-size:13px;line-height:1.25">
+  <!-- v5: cheat codes (batch 7): data-hq-accent is an EMPTY attribute unless the owner found the ember or tide code; the palettes stylesheet attaches only then -->
   <!-- v5: Console layer (batch 7): data-hq-skin is an EMPTY attribute unless the owner turned the opt-in Console skin on; the layer attaches its own stylesheet only then -->
   <x-import component-from-global-scope="hq-ascii-bg" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
   <header style="flex:0 0 auto;height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--frame);backdrop-filter:blur(10px);position:relative;z-index:30">

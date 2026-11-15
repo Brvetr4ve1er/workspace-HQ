@@ -214,7 +214,7 @@ test('render: a healthy page passes; a wrong size, a missing bar scale, a name l
       [PAGE.twinCount]: 11,
       [PAGE.note]: 'Read-only: this only counts what the app keeps (by kind, never by name). Nothing here can erase or export anything.',
       [PAGE.summary]: '10 kinds · read 12:00',
-      [PAGE.emptySlot]: 'Empty slot', [PAGE.codesSlot]: '0|',
+      [PAGE.emptySlot]: 'Empty slot', [PAGE.codesSlot]: '1|Codes found: 0 of 7 None found yet.',
       [PAGE.text]: 'Memory card · what the app keeps on this PC Scans and history 12 MB 34 files · 3 h ago',
       [PAGE.calls]: () => (reopened ? 2 : 1),
       [PAGE.reopen]: () => { reopened = true; return true; },
