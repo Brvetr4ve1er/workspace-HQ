@@ -74,6 +74,18 @@ test('normalizeLine: a capture can never read as a ticked box, a quest id or a b
   assert.equal(normalizeLine('wq :abc').line, '- wq :abc', 'already broken stays as it is');
 });
 
+test('normalizeLine: a code fence or an HTML comment opener is broken so it cannot swallow later lines', () => {
+  const bs = String.fromCharCode(92);
+  for (const raw of ['```js', '~~~', '````', 'see ```x``` here', '<!-- hidden', 'a <!--b']) {
+    const { line } = normalizeLine(raw);
+    assert.equal(/(^|[^\\])`{3}/.test(line.replace(/\\`/g, '')), false, line);
+    assert.equal(/`{3,}|~{3,}|<!--/.test(line), false, line);
+  }
+  assert.equal(normalizeLine('```js').line, '- ' + bs + '`' + bs + '`' + bs + '`js');
+  assert.equal(normalizeLine('<!-- x').line, '- <' + bs + '!-- x');
+  assert.equal(normalizeLine('two `` ticks and ~ one').line, '- two `` ticks and ~ one', 'short runs stay as they are');
+});
+
 test('planAppend: a newline first when missing, a Captured heading only when the last heading is not Captured', () => {
   assert.equal(planAppend('', '- a').add, '## Captured\n\n- a\n');
   assert.equal(planAppend('# Day\n', '- a').add, '\n## Captured\n\n- a\n');

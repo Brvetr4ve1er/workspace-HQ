@@ -93,6 +93,8 @@ export function normalizeLine(raw) {
   if (!s) return { error: 'empty' };
   if ([...s].length > LINE_MAX) return { error: 'long' };
   s = s.replace(/wq\s*:/gi, 'wq :').replace(/%%/g, '% %');
+  // a code fence (three or more ` or ~) and an HTML comment opener would swallow every later line of the note: break them with a backslash
+  s = s.replace(/`{3,}|~{3,}/g, (m) => [...m].map((c) => String.fromCharCode(92) + c).join('')).replace(/<!--/g, '<' + String.fromCharCode(92) + '!--');
   if (/^[\[>*-]/.test(s)) s = String.fromCharCode(92) + s;   // a leading [ > - or * can never start a task marker
   return { line: '- ' + s };
 }

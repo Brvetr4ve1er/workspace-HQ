@@ -9,7 +9,7 @@ import { vdkWhere, vdkStateWords, vdkLineInfo, VDK_OFF } from '../logic/vault-de
 
 const BLANK = Object.freeze({
   on: false, offline: false, offlineText: '', loading: false, error: false, errorText: '', ready: false, where: '', stateWords: '', hasStateWords: false,
-  hasNote: false, noteTitle: '', noteText: '', truncated: false, truncatedText: '', hasRecent: false, recent: [], recentLabel: '',
+  hasNote: false, emptyNote: false, emptyNoteText: '', noteTitle: '', noteText: '', truncated: false, truncatedText: '', hasRecent: false, recent: [], recentLabel: '',
   line: '', canType: false, canSend: false, sending: false, sendLabel: 'Add', lineNote: '', onLine: null, onKey: null, send: null,
   canOpen: false, open: null, refresh: null, refreshLabel: 'Refresh', refreshOff: true,
 });
@@ -39,7 +39,7 @@ export function vaultDeskVals(ctx) {
   return {
     vdkv: {
       ...base, ready: true, error: !!err, errorText: err, where: vdkWhere(held), stateWords: words, hasStateWords: !!words,
-      hasNote: writable, noteTitle: held.noteName ? 'Today · ' + held.noteName : 'Today', noteText: held.text,
+      hasNote: writable && held.text.length > 0, emptyNote: writable && held.text.length === 0, emptyNoteText: 'Today’s note is empty. A line you add goes in it.', noteTitle: held.noteName ? 'Today · ' + held.noteName : 'Today', noteText: held.text,
       truncated: held.truncated, truncatedText: 'The note is longer than 20 KB; only the start is shown here.',
       recent: held.recent.map((name, i) => ({ key: i + '|' + name, name })), hasRecent: held.recent.length > 0,
       recentLabel: held.recent.length === 1 ? 'Most recent note' : 'The ' + held.recent.length + ' most recent notes',

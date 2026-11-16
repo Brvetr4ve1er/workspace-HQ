@@ -272,7 +272,7 @@ test('the selftest rows render what they claim, with no unresolved binding', () 
   assert.equal(by['bhs-all-clear'].bhs.bhsCardShow, true);
   assert.equal(by['bhs-all-clear-busy'].bhs.bhsCardBusy, true);
   for (const n of ['bhs-clear-no-card', 'bhs-clear-with-standing', 'bhs-clear-source-error', 'bhs-card-stale-guard', 'bhs-footer']) assert.equal(by[n].bhs.bhsCardShow, false, n);
-  assert.equal(by['bhs-strip-week-one'].bhs.bhsStripLines[0].text, '0 cleared this week · 0 held');
+  assert.equal(by['bhs-strip-week-one'].bhs.bhsStripLines[0].text, '0 cleared this week · 0 still gone after 72 hours');
   assert.equal(by['bhs-strip-busy'].bhs.bhsStripShow, true);
   assert.match(by["bhs-clean-since"].bhs.bhsCleanTitle, /^Board clean since [A-Z][a-z]{2} [0-9]{2}:[0-9]{2}$/);
   assert.equal(by['bhs-clean-set-aside'].bhs.bhsCleanTitle, 'Nothing new needs you, 2 set aside');

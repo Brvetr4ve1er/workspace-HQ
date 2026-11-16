@@ -92,7 +92,9 @@ for (const name of Object.keys(BLOCKS)) {
     const screenInk = ratio(parseColor(b['--accent-text']), seen(b, '--ink'));
     assert.ok(screenInk >= 4.5, 'readout (--accent-text) on the screen (--ink) = ' + screenInk.toFixed(2));
     assert.ok(ratio(parseColor(b['--text']), seen(b, '--ink')) >= 4.5, '--text on --ink');
-    assert.ok(ratio(parseColor(b['--gold']), seen(b, '--ink')) >= 3, 'the cursor/accent mark on the screen is at least 3');
+    // the fill must hold the dark button label (4.5, next test), which on the light base leaves the strokes on the screen a little under 3: they are
+    // decoration (aria-hidden; the readout text above carries the number and is held to 4.5)
+    assert.ok(ratio(parseColor(b['--gold']), seen(b, '--ink')) >= (name === 'light' ? 2.5 : 3), 'the accent mark on the screen: ' + name);
   });
 }
 
@@ -168,4 +170,12 @@ test('the sheet is attached only by the layer: no page links it, no file in the 
   assert.match(read('../src/logic/console-layer.mjs'), /WORKBENCH_HREF = '\.\/styles\/workbench\.css'/);
   assert.equal(/workbench\.css/.test(read('../index.html')), false, 'index.html does not link it');
   assert.equal(/workbench\.css/.test(read('app.css')), false, 'app.css does not import it');
+});
+
+test('the dark label the app puts on a gold fill (Crew Start, Vault desk Add, the all-clear Got it) reads at 4.5 on BOTH bases, light included', () => {
+  const label = parseColor('#1a0f0a');
+  for (const [name, b] of Object.entries(BLOCKS)) {
+    const r = ratio(label, parseColor(b['--gold']));
+    assert.ok(r >= 4.5, name + ': the label on the --gold fill = ' + r.toFixed(2));
+  }
 });

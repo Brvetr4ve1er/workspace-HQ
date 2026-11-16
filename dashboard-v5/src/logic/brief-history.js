@@ -100,12 +100,12 @@ export function entryLine(e) {
 
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
-/** The strip's lines, plain counts only (never a score or a total). Week one reads "0 held". Needs a normalized answer with a strip; [] otherwise. */
+/** The strip's lines, plain counts only (never a score or a total). Week one reads "0 still gone after 72 hours". Needs a normalized answer with a strip; [] otherwise. */
 export function stripLines(D) {
   const S = D && D.strip;
   if (!S) return [];
   const lines = [];
-  lines.push((D.clearedThisWeek || 0) + ' cleared this week · ' + S.held + ' held' + (S.pending > 0 ? ' · ' + S.pending + ' waiting out the hold' : '') + (S.cameBack > 0 ? ' · ' + S.cameBack + ' came back' : ''));
+  lines.push((D.clearedThisWeek || 0) + ' cleared this week · ' + S.held + ' still gone after 72 hours' + (S.pending > 0 ? ' · ' + S.pending + ' waiting out the hold' : '') + (S.cameBack > 0 ? ' · ' + S.cameBack + ' came back' : ''));
   const kinds = [[S.clears.inPlace, 'in place'], [S.clears.markedDone, 'marked done'], [S.clears.scanConfirmed, 'confirmed by a scan'], [S.clears.unknown, 'source cannot confirm']].filter(([n]) => n > 0).map(([n, w]) => n + ' ' + w);
   if (kinds.length) lines.push('Of those: ' + kinds.join(' · '));
   lines.push(S.open > 0 && S.oldestOpen ? S.open + ' open · oldest ' + S.oldestOpen.after + ' (since the app first noticed it)' : S.open > 0 ? S.open + ' open' : 'Nothing open');
@@ -140,7 +140,8 @@ export function cleanCardOf(D, clearNow) {
   const exempt = S.setAside.items.some((x) => CLEAN_EXEMPT.includes(x.rule));
   if (S.outside.count === 0 && S.setAside.count === 0 && !exempt) {
     let latest = 0;
-    for (const e of D.entries || []) if (e.how !== 'open' && e.how !== 'dismissed' && e.ended) latest = Math.max(latest, Date.parse(e.ended) || 0);
+    // the date is the last real clear (resolved or acted, not one that came back); a row that only went quiet or changed value is not one
+    for (const e of D.entries || []) if ((e.how === 'resolved' || e.how === 'acted') && e.hold !== 'came-back' && e.ended) latest = Math.max(latest, Date.parse(e.ended) || 0);
     const when = latest ? dayClock(new Date(latest).toISOString()) : '';
     return { title: when ? 'Board clean since ' + when : 'Board clean', lines: [] };
   }

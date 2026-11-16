@@ -30,7 +30,7 @@
 //   scan-failed row is live. Residual, stated honestly: a senses row (github, vercel, claude-code) whose data file went old WITHOUT an error is not detectable here.
 // BATCH 8 (additive; a file or caller without subjects behaves exactly as before):
 //   a live row may carry `subject` (in memory only: brief.js strips it before data/brief.json is written and hands it to observe as opts.subjects[key]).
-//   The ledger stores only subjectRef = refOf of rule + subject (one-way); the subject itself is never persisted.
+//   The ledger stores only subjectRef = refOf of rule + subject (a plain hash: the subject is not stored, but anyone who holds the file and the id list can recompute it, so the file stays on this machine).
 //   open entry   + subjectRef, actedVerb. Age (first) carries across a value change for the same rule and subject, and from a set-aside row that returns.
 //   closed entry + subjectRef, label (in-place | marked-done | scan-confirmed | unknown), hold (pending | held | came-back | never), heldUntil, heldAt, cameBackAt, setAside.
 //   ledger       + obsAt (the last observation, for gap detection).
@@ -81,7 +81,7 @@ const sevOf = (s) => (typeof s === 'string' && own(SEV_WORD, s) ? s : 'low');
 
 export const emptyLedger = () => ({ v: LEDGER_V, open: {}, closed: [], busyFrom: null, lastClearShownAt: null, obsAt: null });
 const VERB = /^[a-z][a-z-]{0,23}$/;
-/** subjectRef: a one-way hash of rule and subject only. The subject is never kept. */
+/** subjectRef: a plain hash of rule and subject only. The subject is never stored, but the ids are guessable: the file must stay on this machine. */
 export const subjectRefOf = (rule, subject) => (typeof subject === 'string' ? refOf('subject|' + ruleOf(rule) + '|' + [...subject].slice(0, 200).join('')) : undefined);
 const isoOrNull = (t) => { const n = msOf(t); return n === null ? null : isoOf(n); };
 
@@ -121,6 +121,8 @@ export function cleanLedger(x, now) {
     if (CLEAR_LABELS.includes(c.label)) k.label = c.label;
     if (HOLDS.includes(c.hold)) k.hold = c.hold;
     for (const name of ['heldUntil', 'heldAt', 'cameBackAt']) { const v = isoOrNull(c[name]); if (v !== null) k[name] = v; }
+    // a pending clear with no readable wait gets the full wait from when it ended: a damaged file never mints a held clear early
+    if (k.hold === 'pending' && !k.heldUntil) k.heldUntil = isoOf(e + HOLD_MS);
     if (c.setAside === true) k.setAside = true;
     closed.push(k);
   }
@@ -225,7 +227,7 @@ export function observe(ledger, brief, opts) {
     const back = c.subjectRef ? liveByRule.has(c.rule + '|' + c.subjectRef) : liveRules.has(c.rule);
     if (back) { c.hold = 'came-back'; c.cameBackAt = iso; delete c.heldUntil; }
     else if (gap) c.heldUntil = isoOf(t + HOLD_MS);
-    else if (t >= msOf(c.heldUntil)) { c.hold = 'held'; c.heldAt = iso; delete c.heldUntil; }
+    else if (msOf(c.heldUntil) !== null && t >= msOf(c.heldUntil)) { c.hold = 'held'; c.heldAt = iso; delete c.heldUntil; }
   }
   const ended = [];
   if (!o.coldStart) {
@@ -235,10 +237,10 @@ export function observe(ledger, brief, opts) {
     for (const [ref, e] of Object.entries(open)) {
       if (liveRefs.has(ref)) continue;
       let how;
-      const sameSubjectLive = () => { const set = liveSubj.get(e.rule); return set === null || !e.subjectRef || (set && set.has(e.subjectRef)); };
       if (dismissedRefs.has(ref)) how = 'dismissed';
       else if (hidden > 0) { if (t - msOf(e.last) >= OPEN_SILENT_MS) how = 'silent'; else continue; }
-      else if (liveRules.has(e.rule) && sameSubjectLive()) how = 'changed';
+      // a rule shows only its worst subject, so a row that leaves while the rule is still live may have been overtaken, not fixed: no clear is claimed
+      else if (liveRules.has(e.rule)) how = 'changed';
       else if (e.acted) how = 'acted';
       else if (!trusted(e.source)) how = 'silent';
       else how = 'resolved';
@@ -325,7 +327,7 @@ export function summarize(ledger, brief, opts) {
   // batch 8: plain counts, derived from the ledger each time and never stored. No total, no score, no comparison with a past week.
   const labelled = onePerSubject(week.filter((c) => isClear(c) && c.label));
   const count = (label) => labelled.filter((c) => c.label === label).length;
-  const heldWeek = onePerSubject(L.closed.filter((c) => c.hold === 'held' && c.heldAt && t - msOf(c.heldAt) < WEEK_MS));
+  const heldWeek = onePerSubject(week.filter((c) => isClear(c) && c.hold === 'held'));   // held is a subset of cleared this week
   const inApp = openRows.filter((e) => !OUTSIDE_RULES.includes(e.rule));
   const outside = openRows.filter((e) => OUTSIDE_RULES.includes(e.rule));
   const aside = L.closed.filter((c) => c.setAside && t - msOf(c.ended) < SET_ASIDE_MAX * DAY).sort((a, b) => msOf(a.first) - msOf(b.first));
@@ -333,7 +335,7 @@ export function summarize(ledger, brief, opts) {
   const oldestOpen = inApp.length ? inApp.reduce((a, b) => (msOf(b.first) < msOf(a.first) ? b : a)) : null;
   return {
     entries: entries.slice(0, ENTRIES_MAX),
-    clearedThisWeek: week.filter(isClear).length,
+    clearedThisWeek: onePerSubject(week.filter(isClear)).length,   // one per subject, the same basis as the breakdown below
     dismissedThisWeek: week.filter((c) => c.how === 'dismissed').length,
     allClear: allClearOf(L, brief, o),
     // clears this week by label, held clears (72 h of observation, no gap over a day), clears still waiting out the hold, returns inside the hold

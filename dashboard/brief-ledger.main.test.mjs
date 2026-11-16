@@ -254,6 +254,8 @@ test('batch 8: subjects handed to observe reach the file only as subjectRef, the
   await warm(m);
   m.at(1);
   await m.L.observe(m.view([A]), { subjects });
+  m.at(20);
+  await m.L.observe(m.view([]), { subjects });
   m.at(30);
   await m.L.observe(m.view([B]), { subjects });
   const j = m.json();

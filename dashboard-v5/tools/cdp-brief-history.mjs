@@ -12,7 +12,7 @@
 //                            as resolved or fixed; nothing is written just by looking
 //   brief-history-all-clear  the card is hidden while the brief on screen has an item; with the brief empty it shows what got resolved plus the
 //                            "cleared this week" footer; "Got it" sends ONE ack and the card goes; a later read (a new brief) does not bring it back
-//   brief-history-strip      (batch 8) the strip on the Brief panel shows plain counts (week one reads "0 held"; a busy week shows held, kinds, oldest open, set aside, outside),
+//   brief-history-strip      (batch 8) the strip on the Brief panel shows plain counts (week one reads "0 still gone after 72 hours"; a busy week shows held, kinds, oldest open, set aside, outside),
 //                            in History too with the set-aside rows and their age; no score or total; looking sends no ack
 //   brief-history-clean-card (batch 8) an empty Brief says "Board clean since ..." only with nothing open, outside or set aside; set-aside rows make it "Nothing new needs you,
 //                            N set aside" and name the high-severity ones; a Brief with a row shows no card; the card has no button and sends nothing
@@ -162,14 +162,14 @@ export function makeBriefHistoryScenarios({ fresh, sleep }) {
         await t.evaluate(PAGE.go('home'));
         if (!await t.waitFor(PAGE.stripText + '.length > 0', 8000)) return out.concat('the strip never showed on Home: ' + String(await t.evaluate(PAGE.panelText)).slice(-200));
         const one = String(await t.evaluate(PAGE.stripText));
-        if (!one.includes('0 cleared this week · 0 held')) out.push('week one does not read "0 held": ' + one);
+        if (!one.includes('0 cleared this week · 0 still gone after 72 hours')) out.push('week one does not read "0 still gone after 72 hours": ' + one);
         // a busy week: every count in plain words, no score
         await t.evaluate(PAGE.serve(withCounts(BUSY_COUNTS), briefOf([itemRow])));
         await t.evaluate(PAGE.go('system')); await pause(150);
         await t.evaluate(PAGE.go('home'));
         if (!await t.waitFor(PAGE.stripText + ".includes('5 cleared this week')", 8000)) return out.concat('the strip never showed the busy week: ' + String(await t.evaluate(PAGE.stripText)));
         const busy = String(await t.evaluate(PAGE.stripText));
-        for (const w of ['5 cleared this week · 2 held', '1 waiting out the hold', '1 came back', '2 in place', '1 marked done', '1 confirmed by a scan', '1 source cannot confirm', '2 open · oldest 4 d (since the app first noticed it)', '2 set aside, the oldest 9 d', 'waiting on something outside the app']) if (!busy.includes(w)) out.push('the strip lacks "' + w + '": ' + busy);
+        for (const w of ['5 cleared this week · 2 still gone after 72 hours', '1 waiting out the hold', '1 came back', '2 in place', '1 marked done', '1 confirmed by a scan', '1 source cannot confirm', '2 open · oldest 4 d (since the app first noticed it)', '2 set aside, the oldest 9 d', 'waiting on something outside the app']) if (!busy.includes(w)) out.push('the strip lacks "' + w + '": ' + busy);
         if (/score|total|level|xp|streak|%|undefined|\[object|NaN/i.test(busy)) out.push('the strip reads like a score or leaks a binding: ' + busy);
         if (/ dismissed/.test(String(await t.evaluate(PAGE.panelText)))) out.push('the old footer line still shows beside the strip');
         // History > Timeline: the same counts, and the set-aside rows with their age

@@ -18,7 +18,7 @@ const SKILL = String.raw`<div role="listitem" data-crw="row" style="${ROW}">
                                 <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span data-crw="name" style="font-size:14px;color:var(--text);word-break:break-word">{{ r.name }}</span><sc-if value="{{ r.hasPlugin }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--faint)">{{ r.plugin }}</span></sc-if></div>
                                 <sc-if value="{{ r.hasDesc }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;color:var(--muted);word-break:break-word">{{ r.description }}</div></sc-if>
                               </div>
-                              <sc-if value="{{ r.canStart }}" hint-placeholder-val="{{ true }}"><button type="button" data-crw="start" onClick="{{ r.start }}" disabled="{{ r.startOff }}" title="{{ r.startTip }}" style="${GOLD}" ${GOLD_HOVER}>{{ r.startLabel }}</button></sc-if>
+                              <sc-if value="{{ r.canStart }}" hint-placeholder-val="{{ true }}"><button type="button" data-crw="start" onClick="{{ r.start }}" disabled="{{ r.startOff }}" title="{{ r.startTip }}" aria-label="{{ r.startTip }}" style="${GOLD}" ${GOLD_HOVER}>{{ r.startLabel }}</button></sc-if>
                               <sc-if value="{{ !r.canStart }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--faint)">{{ r.noStartText }}</span></sc-if>
                             </div>`;
 

@@ -12,6 +12,9 @@ import { securityLogic } from './security.js';
 import { claudeVaultLogic } from './claude-vault.js';
 import { briefActLogic, VERB_MARKS, RULE_VERB } from './brief-act.js';
 import { tasksLogic } from './tasks.js';
+import { journalLogic } from './journal.js';
+import { crewLogic } from './crew.js';
+import { vaultDeskLogic } from './vault-desk.js';
 import { VERBS } from '../../../dashboard/brief-act-core.mjs';
 
 process.env.TZ = 'UTC';
@@ -20,7 +23,7 @@ const useLogMain = createRequire(import.meta.url)('../../../dashboard/use-log.js
 
 function rig(o = {}) {
   const sent = [], calls = [], toasts = [];
-  const mixins = Object.assign({}, useLogLogic, briefLogic, cosmosLogic, securityLogic, claudeVaultLogic, briefActLogic, tasksLogic);
+  const mixins = Object.assign({}, useLogLogic, briefLogic, cosmosLogic, securityLogic, claudeVaultLogic, briefActLogic, tasksLogic, journalLogic);
   const self = Object.assign(Object.create(mixins), {
     state: { tab: 'home', route: null, sub: {}, brfBusy: false, cosLb: { id: 'e1' }, vault: null, ...(o.state || {}) },
     setState(p) { this.state = { ...this.state, ...(typeof p === 'function' ? p(this.state) : p) }; },
@@ -235,7 +238,7 @@ test('anti-farming: one effect, one mark; the same click again inside a minute a
   } finally { Date.now = realNow; }
 });
 
-test('a task Done sends one (tasks-board, act) when the write goes out; Undo inside the window sends none', () => {
+test('a task Done sends one (tasks-board, act) only when the save took effect; Undo, a failure and an already-done answer send none', async () => {
   const mk = () => {
     const r = rig();
     r.self.M = { T0: [{ id: 'task-1', title: 'Sample task', xp: 10, proj: 'p1' }, { id: 'task-2', title: 'Other task', xp: 10, proj: 'p1' }], IDEAS: [] };
@@ -244,8 +247,8 @@ test('a task Done sends one (tasks-board, act) when the write goes out; Undo ins
     r.pending = {};
     r.self._pending = r.pending;
     r.self.defer = (key, fn) => { r.pending[key] = { fn }; };
-    r.self.call = (f) => f();
-    r.self.hq.markQuestDone = () => ({ ok: true });
+    r.self.call = async (f) => { try { const x = await f(); return x && x.error ? null : x; } catch { return null; } };
+    r.self.hq.markQuestDone = () => (r.answer === undefined ? true : r.answer);
     r.self.hq.actedOn = () => {};
     r.self.state = { ...r.self.state, completed: [], recentDone: [], focus: null, toasts: [], xp: 0 };
     r.self.gainXp = () => {};
@@ -257,12 +260,30 @@ test('a task Done sends one (tasks-board, act) when the write goes out; Undo ins
     const a = mk();
     a.self.completeTask('task-1');
     assert.deepEqual(a.sent, [], 'nothing is marked while the write is still waiting (Undo can cancel it)');
-    a.pending['done:task-1'].fn();
+    await a.pending['done:task-1'].fn();
     assert.deepEqual(a.sent, [['tasks-board', 'act']]);
     const b = mk();
     b.self.completeTask('task-2');
     delete b.pending['done:task-2'];   // what undoTask does to the waiting write
     assert.deepEqual(b.sent, []);
+    // a write that fails or was already done is not an act
+    for (const answer of [{ error: 'disk full' }, false, null]) {
+      const c = mk();
+      c.answer = answer;
+      c.self.completeTask('task-1');
+      await c.pending['done:task-1'].fn();
+      assert.deepEqual(c.sent, [], 'no mark for an answer of ' + JSON.stringify(answer));
+    }
+    // the Journal's Done on an idea counts the same way
+    const d = mk();
+    d.self.doIdea({ id: 'idea-1', title: 'An idea', proj: 'p1', purge: false });
+    await d.pending['done:idea-1'].fn();
+    assert.deepEqual(d.sent, [['tasks-board', 'act']]);
+    const e = mk();
+    e.answer = { error: 'nope' };
+    e.self.doIdea({ id: 'idea-2', title: 'An idea', proj: 'p1', purge: false });
+    await e.pending['done:idea-2'].fn();
+    assert.deepEqual(e.sent, []);
   } finally { window.HQFx = fxSaved; }
 });
 
@@ -282,4 +303,37 @@ test('allowlist: every mark these paths send is exactly (surface, action), both 
   for (const s of ['crew', 'crew-start', 'vault-desk', 'vault-desk-capture']) {
     if (useLogMain.SURFACES.includes(s)) assert.equal(typeof main.mark(s, 'example-skill-name').error, 'string', s);
   }
+});
+
+test('the Crew Start and the Vault desk capture send exactly (surface, action): a skill id and a note line with sentinel words never reach the mark', async () => {
+  const SKILL = 'zzsentinel-skill', LINE = 'qqsentinel note line';
+  const calls = [];
+  const self = Object.assign(Object.create(Object.assign({}, useLogLogic, crewLogic, vaultDeskLogic)), {
+    state: { tab: 'life', sub: { life: 'notes' }, route: null, crw: {}, vdk: {} },
+    setState(p) { this.state = { ...this.state, ...(typeof p === 'function' ? p(this.state) : p) }; },
+    ps: () => 'live',
+    toast() {},
+    hq: {
+      use: (...args) => { calls.push(args); return { ok: true }; },
+      crew: { read: async () => ({}), start: async () => ({ ok: true }) },
+      vaultDesk: { capture: async () => ({ ok: true }), read: async () => ({ state: 'ready', vaultName: 'Example Vault', text: '', recent: [] }) },
+    },
+  });
+  assert.equal(await self.crwStart({ id: SKILL, name: SKILL, canStart: true }), true);
+  assert.equal(await self.vdkCapture(LINE), true);
+  const marks = calls.filter((a) => a[0] === 'crew-start' || a[0] === 'vault-desk-capture');
+  assert.deepEqual(marks.map((a) => a.join('/')), ['crew-start/act', 'vault-desk-capture/act']);
+  for (const args of calls) {
+    assert.equal(args.length, 2, 'two arguments, nothing else');
+    assert.ok(useLogMain.SURFACES.includes(args[0]) && useLogMain.ACTIONS.includes(args[1]), args.join('/'));
+    assert.equal(JSON.stringify(args).includes('sentinel'), false, 'no id, name or line in a mark');
+  }
+  // a refused start or capture marks nothing
+  const before = calls.length;
+  self.hq.crew.start = async () => ({ error: 'no' });
+  self.hq.vaultDesk.capture = async () => ({ error: 'no' });
+  self._crwStarting = null;
+  assert.equal(await self.crwStart({ id: SKILL, name: SKILL, canStart: true }), false);
+  assert.equal(await self.vdkCapture(LINE), false);
+  assert.equal(calls.length, before);
 });

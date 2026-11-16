@@ -245,6 +245,24 @@ test('capture: a junction or symlink as the note is refused and its target is un
   w.untouched();
 });
 
+test('capture: a hard link planted as the note is refused, and a note swapped after the check is refused', async () => {
+  const w = world({ note: null });
+  const outFile = path.join(w.outside, 'other.md');
+  fs.writeFileSync(outFile, 'not a note\n');
+  try { fs.linkSync(outFile, w.noteFile); } catch { return; }   // a file system without hard links has nothing to test
+  w.resnap();
+  assert.deepEqual(await w.make().capture('through the hard link'), { error: WORDS.unsafe });
+  assert.equal(fs.readFileSync(outFile, 'utf8'), 'not a note\n');
+  w.untouched();
+  // a plain note whose lstat result no longer matches what gets opened (swapped between the check and the open)
+  const w2 = world();
+  const before = fs.readFileSync(w2.noteFile, 'utf8');
+  const swapped = { ...fs, lstatSync: (f, ...a) => { const st = fs.lstatSync(f, ...a); return path.resolve(String(f)) === path.resolve(w2.noteFile) ? { isFile: () => true, isSymbolicLink: () => false, size: st.size, ino: 1, dev: 1 } : st; } };
+  assert.deepEqual(await w2.make({ fsApi: swapped }).capture('swapped'), { error: WORDS.unsafe });
+  assert.equal(fs.readFileSync(w2.noteFile, 'utf8'), before);
+  w2.untouched();
+});
+
 test('capture: a symlinked daily FOLDER that leaves the vault is refused', async () => {
   const w = world({ daily: false });
   const elsewhere = path.join(w.outside, 'journal');

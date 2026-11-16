@@ -76,8 +76,8 @@ test('the render scenario reports a silent close worded as resolved', async () =
 test('batch 8: the words the strip, clean-card and settings scenarios wait for are the logic module’s own', () => {
   const busy = normalizeAnswer(withCounts(BUSY_COUNTS));
   const strip = stripLines(busy).join(' | ');
-  for (const w of ['5 cleared this week · 2 held', '1 waiting out the hold', '1 came back', '2 in place', '1 marked done', '1 confirmed by a scan', '1 source cannot confirm', '2 open · oldest 4 d (since the app first noticed it)', '2 set aside, the oldest 9 d', 'waiting on something outside the app']) assert.ok(strip.includes(w), w + ' in ' + strip);
-  assert.ok(stripLines(normalizeAnswer(withCounts(ZERO_COUNTS))).join(' | ').includes('0 cleared this week · 0 held'));
+  for (const w of ['5 cleared this week · 2 still gone after 72 hours', '1 waiting out the hold', '1 came back', '2 in place', '1 marked done', '1 confirmed by a scan', '1 source cannot confirm', '2 open · oldest 4 d (since the app first noticed it)', '2 set aside, the oldest 9 d', 'waiting on something outside the app']) assert.ok(strip.includes(w), w + ' in ' + strip);
+  assert.ok(stripLines(normalizeAnswer(withCounts(ZERO_COUNTS))).join(' | ').includes('0 cleared this week · 0 still gone after 72 hours'));
   const aside = asideLines(busy).join(' | ');
   for (const w of ['A bill is late · set aside 9 d', 'Work not pushed · set aside 7 d']) assert.ok(aside.includes(w), w);
   const card = cleanCardOf(normalizeAnswer(withCounts({ entries: [], setAside: BUSY_COUNTS.setAside })), true);

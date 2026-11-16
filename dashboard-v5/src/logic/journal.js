@@ -31,6 +31,9 @@ export const journalLogic = {
     }
     const pt = this.pt(e); FX().floatText(pt.x, pt.y - 10, 'done');
     this.setState((s) => ({ completed: s.completed.concat([i.id]) })); this.toast('success', 'Marked done · ' + i.title, { ms: 3000, undo: i.id }); FX().sfx('done');
-    this.defer('done:' + i.id, () => this.call(() => this.hq.markQuestDone(i.id), 'Couldn’t save'));
+    this.defer('done:' + i.id, async () => {
+      const r = await this.call(() => this.hq.markQuestDone(i.id), 'Couldn’t save');
+      try { if (r === true && typeof this.useActOnce === 'function') this.useActOnce('tasks-board', i.id); } catch { /* a usage mark is a bonus */ }   // same effect as Done on the board: counted under the same surface
+    });
   },
 };

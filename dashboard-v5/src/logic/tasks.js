@@ -16,10 +16,11 @@ export const tasksLogic = {
     FX().sfx('done'); FX().floatText(p.x, p.y - 10, '+' + t.xp + ' xp'); FX().asciiBurst && FX().asciiBurst(p.x, p.y, '✓');
     FX().event('cheer', 'Nice. +' + t.xp + ' xp');
     this.toast('success', 'Done · ' + t.title, { undo: id });
-    this.defer('done:' + id, () => {
-      try { if (typeof this.useActOnce === 'function') this.useActOnce('tasks-board', id); } catch { /* a usage mark is a bonus */ }   // the write is going out (Undo did not cancel it): one act
+    this.defer('done:' + id, async () => {
       this.hq.actedOn && this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, resolved: true, marked_done: true, via: focused ? 'focus' : 'board', seconds: secs });
-      this.call(() => this.hq.markQuestDone(id), 'Couldn’t save');   // main re-assembles today and reloads
+      const r = await this.call(() => this.hq.markQuestDone(id), 'Couldn’t save');   // main re-assembles today and reloads
+      // an act is a click that took effect: main answers true only for a task it newly marked (false = already done, an error = not saved)
+      try { if (r === true && typeof this.useActOnce === 'function') this.useActOnce('tasks-board', id); } catch { /* a usage mark is a bonus */ }
     });
     const pend = this._pending['done:' + id];
     if (focused) pend.focusSecs = secs;   // Undo still keeps the time that was spent

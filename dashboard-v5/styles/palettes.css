@@ -26,9 +26,9 @@
 /* signal: warm red (batch 8). Chosen from the Settings chip "Warm red accent", not a cheat code. Different in hue from ember (orange). dark base */
 [data-hq-theme][data-hq-accent="signal"] { --gold: #e0584a; --gold-2: #ff7c6d; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
 /* signal: light base */
-[data-hq-theme="light"][data-hq-accent="signal"] { --gold: #b3261e; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }
+[data-hq-theme="light"][data-hq-accent="signal"] { --gold: #d9544a; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }
 /* signal: Console skin */
 [data-hq-skin="console"][data-hq-accent="signal"] { --gold: #ff7c6d; --gold-2: #ff9c8e; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
 /* signal: Workbench look, dark then light (three attributes: they beat the look's own two-attribute token blocks whatever the link order) */
 [data-hq-look="workbench"][data-hq-theme][data-hq-accent="signal"] { --gold: #e0584a; --gold-2: #ff7c6d; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
-[data-hq-look="workbench"][data-hq-theme="light"][data-hq-accent="signal"] { --gold: #b3261e; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }
+[data-hq-look="workbench"][data-hq-theme="light"][data-hq-accent="signal"] { --gold: #d9544a; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }

@@ -19,6 +19,7 @@ const V5 = resolve(HERE, '../..');
 const read = (rel) => readFileSync(resolve(V5, rel), 'utf8');
 
 const EXPECT = { cleared: 'CLEARED', skills: 'SKILLS', notes: 'NOTES', needyou: 'NEED YOU', projects: 'PROJECTS' };
+const ONE = { cleared: 'CLEARED', skills: 'SKILL', notes: 'NOTE', needyou: 'NEED YOU', projects: 'PROJECT' };   // one of a thing reads singular
 const ON = { on: true, look: 'workbench' };
 const valsOn = (S = {}, ctx = {}) => workbenchVals.call({ state: {} }, { S: { consoleLayer: ON, ...S }, rows: [], ...ctx }).wbnv;
 
@@ -26,7 +27,10 @@ const valsOn = (S = {}, ctx = {}) => workbenchVals.call({ state: {} }, { S: { co
 test('exactly five readouts exist, and each label is "<number> <word>" with the documented word', () => {
   assert.deepEqual([...WBN_KINDS], ['cleared', 'skills', 'notes', 'needyou', 'projects']);
   assert.deepEqual(Object.keys(READOUTS).sort(), [...WBN_KINDS].sort());
-  for (const k of WBN_KINDS) for (const n of [0, 1, 7, 42, 99999]) assert.equal(workbenchArt(k, n).label, n + ' ' + EXPECT[k], k + ' ' + n);
+  for (const k of WBN_KINDS) for (const n of [0, 1, 7, 42, 99999]) assert.equal(workbenchArt(k, n).label, n + ' ' + (n === 1 ? ONE[k] : EXPECT[k]), k + ' ' + n);
+  assert.equal(workbenchArt('skills', 1).aria, '1 skill', 'the spoken name is singular too');
+  assert.equal(workbenchArt('notes', 1).aria, '1 note');
+  assert.equal(workbenchArt('projects', 1).aria, '1 project');
   assert.equal(workbenchArt('needyou', 0).label, '0 NEED YOU');
   assert.equal(workbenchArt('cleared', 3).label, '3 CLEARED');
 });
@@ -128,10 +132,14 @@ test('wbnv: each readout shows a real number the app already holds (and 0 for th
   assert.equal(on.needyou.label, '0 NEED YOU');
   assert.equal(on.projects.label, '2 PROJECTS');
   assert.deepEqual(workbenchNumbers(S, { rows: [{}, {}] }), { cleared: 7, skills: 5, notes: 3, needyou: 0, projects: 2 });
-  // nothing read yet: zero, never a missing number
-  assert.deepEqual(workbenchNumbers({}, {}), { cleared: 0, skills: 0, notes: 0, needyou: 0, projects: 0 });
-  assert.deepEqual(workbenchNumbers({ bhsData: { clearedThisWeek: -3 }, crw: { rows: 'x' }, vdk: { data: { recent: null } } }, { rows: 5 }), { cleared: 0, skills: 0, notes: 0, needyou: 0, projects: 0 });
-  assert.equal(valsOn({}).cleared.label, '0 CLEARED');
+  // nothing read yet: the number is unknown (null), so no picture is drawn and no false 0 is shown
+  assert.deepEqual(workbenchNumbers({}, {}), { cleared: null, skills: null, notes: null, needyou: 0, projects: null });
+  assert.deepEqual(workbenchNumbers({ bhsData: { clearedThisWeek: -3 }, crw: { rows: 'x' }, vdk: { data: { state: 'no-note', recent: null } } }, { rows: 5 }), { cleared: 0, skills: null, notes: null, needyou: 0, projects: null });
+  const none = valsOn({}, { rows: undefined });
+  for (const k of ['cleared', 'skills', 'notes', 'projects']) assert.equal(none[k].show, false, k + ' is not drawn before its number is read');
+  assert.equal(none.needyou.show, true, 'the empty Brief line is always a real 0');
+  assert.equal(valsOn({ bhsData: { clearedThisWeek: 0 } }).cleared.label, '0 CLEARED', 'a real 0 is shown');
+  assert.equal(valsOn({ crw: { rows: [] } }).skills.show, true, 'a roster that was read and is empty is a real 0');
 });
 
 test('the cleared number is the one the Brief strip says: both read clearedThisWeek of the same answer', () => {
@@ -165,10 +173,10 @@ test('bindArt: the readout box is a percentage of the picture, so it stays on th
 const bindings = (text) => [...text.matchAll(/\{\{\s*(.*?)\s*\}\}/g)].map((m) => m[1]);
 const dig = (obj, path) => path.split('.').reduce((o, k) => (o !== null && o !== undefined && typeof o === 'object' && k in o ? o[k] : undefined), obj);
 
-test('template: each fragment wraps itself in wbnv.wbnOn (no node while the look is off), balances its tags and names the picture for a screen reader', () => {
+test('template: each fragment wraps itself in wbnv.<kind>.show (no node while the look is off), balances its tags and names the picture for a screen reader', () => {
   for (const k of WBN_KINDS) {
     const t = wbnArt(k);
-    assert.match(t, /^<sc-if value="\{\{ wbnv\.wbnOn \}\}"/);
+    assert.ok(t.startsWith(String.raw`<sc-if value="{{ wbnv.` + k + String.raw`.show }}"`), "wrapped in the picture's own show flag");
     assert.match(t, /<\/sc-if>$/);
     assert.equal((t.match(/<sc-if/g) || []).length, 1);
     for (const tag of ['span', 'svg', 'sc-for']) assert.equal((t.match(new RegExp('<' + tag + '[ >]', 'g')) || []).length, (t.match(new RegExp('</' + tag + '>', 'g')) || []).length, k + ' ' + tag + ' balanced');
@@ -182,7 +190,7 @@ test('template: each fragment wraps itself in wbnv.wbnOn (no node while the look
 });
 
 test('template: every binding is a dotted path that resolves against the real vals (so the unresolved-path counter stays 0), on and off', () => {
-  const on = valsOn({ bhsData: { clearedThisWeek: 2 } });
+  const on = valsOn({ bhsData: { clearedThisWeek: 2 }, crw: { rows: [{}] }, vdk: { data: { state: 'ready', recent: [{}] } } });
   for (const k of WBN_KINDS) {
     const seen = [];
     for (const raw of bindings(wbnArt(k))) {

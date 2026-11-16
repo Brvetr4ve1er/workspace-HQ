@@ -85,7 +85,15 @@ function create({ env = process.env, cwd, launchTools, launchFn = launchClaudeTe
     return out;
   }
 
-  function skillFolders(dir) {
+  // a skills folder is read only when its real path stays inside the Claude home (a junction or symlink out of it is refused)
+  function dirInside(dir, homeDir) {
+    const realHome = realOf(homeDir);
+    const realDir = realOf(dir);
+    return !!realHome && !!realDir && within(norm(realDir), norm(realHome));
+  }
+
+  function skillFolders(dir, homeDir) {
+    if (!dirInside(dir, homeDir)) return [];
     let ents;
     try { ents = fsApi.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
     return ents.filter((e) => e && typeof e.name === 'string' && !e.name.startsWith('.') && e.isDirectory()).map((e) => e.name).sort();
@@ -95,7 +103,9 @@ function create({ env = process.env, cwd, launchTools, launchFn = launchClaudeTe
   function readHead(file, bytes) {
     let fd = null;
     try {
+      if (typeof fsApi.lstatSync === 'function') { const l = fsApi.lstatSync(file); if (l.isSymbolicLink() || !l.isFile()) return null; }
       fd = fsApi.openSync(file, 'r');
+      if (typeof fsApi.fstatSync === 'function' && !fsApi.fstatSync(fd).isFile()) return null;
       const buf = Buffer.alloc(bytes);
       const n = fsApi.readSync(fd, buf, 0, bytes, 0);
       return buf.toString('utf8', 0, n);
@@ -130,8 +140,8 @@ function create({ env = process.env, cwd, launchTools, launchFn = launchClaudeTe
         plugin: pluginName ? core.plainText(pluginName, 60) : '', canStart,
       });
     };
-    for (const f of skillFolders(path.join(homeDir, 'skills'))) add('', f, path.join(homeDir, 'skills', f, 'SKILL.md'));
-    for (const p of pdirs) for (const f of skillFolders(p.dir)) add(p.pluginName, f, path.join(p.dir, f, 'SKILL.md'));
+    for (const f of skillFolders(path.join(homeDir, 'skills'), homeDir)) add('', f, path.join(homeDir, 'skills', f, 'SKILL.md'));
+    for (const p of pdirs) for (const f of skillFolders(p.dir, homeDir)) add(p.pluginName, f, path.join(p.dir, f, 'SKILL.md'));
     rows.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }) || (a.plugin < b.plugin ? -1 : a.plugin > b.plugin ? 1 : 0));
     const byId = new Map();
     for (const r of rows) if (r.canStart) byId.set(r.id, r);
@@ -164,12 +174,13 @@ function create({ env = process.env, cwd, launchTools, launchFn = launchClaudeTe
       if (startTimes.length >= MAX_STARTS_PER_HOUR) return { error: WORDS.rate };
       const last = lastById.get(id);
       if (last !== undefined && t - last < SAME_ID_MS) return { error: WORDS.soon };
-      startTimes.push(t); lastById.set(id, t);
-      if (lastById.size > 500) { for (const [k, v] of lastById) if (t - v >= HOUR_MS) lastById.delete(k); }
       const prompt = core.buildStartPrompt(id);
       if (!prompt) return { error: WORDS.unknown };
       const ok = launchFn(cwd, prompt, { env, tools: launchTools, toolsHelper, log });
-      return ok ? { ok: true } : { error: WORDS.failed };
+      if (!ok) return { error: WORDS.failed };   // nothing started, so nothing is spent
+      startTimes.push(t); lastById.set(id, t);
+      if (lastById.size > 500) { for (const [k, v] of lastById) if (t - v >= HOUR_MS) lastById.delete(k); }
+      return { ok: true };
     } catch { return { error: WORDS.failed }; }
   }
 

@@ -142,3 +142,15 @@ test('the colour maths agrees with a known pair (white on black is 21, a colour 
   assert.equal(Math.round(ratio(parseColor('#fff'), parseColor('#000'))), 21);
   assert.equal(ratio(parseColor('#8f4a00'), parseColor('#8f4a00')), 1);
 });
+
+// the dark label on a gold fill (Crew Start, Vault desk Add, the all-clear Got it) must read at 4.5 on every base, light ones included
+// Known and open (the default light accent and the two cheat-code palettes on the light base sit at 3.9 to 4.2: a brand-colour decision, listed in the handoff)
+const LABEL_OPEN = ['light/ember', 'light/tide'];
+for (const b of Object.keys(BASES)) {
+  for (const p of PALETTES.filter((x) => basesOf(x).includes(b) && !LABEL_OPEN.includes(b + '/' + x))) {
+    test(`the dark label on the ${p} --gold fill reads at 4.5 on the ${b} base`, () => {
+      const r = ratio(parseColor('#1a0f0a'), accent(b, p)('--gold'));
+      assert.ok(r >= 4.5, `${p}/${b} label on --gold is ${r.toFixed(2)}`);
+    });
+  }
+}

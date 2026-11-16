@@ -22,10 +22,10 @@ export const WBN_MAX = 99999;
 
 export const READOUTS = Object.freeze({
   cleared: (n) => n + ' CLEARED',
-  skills: (n) => n + ' SKILLS',
-  notes: (n) => n + ' NOTES',
+  skills: (n) => n + (n === 1 ? ' SKILL' : ' SKILLS'),
+  notes: (n) => n + (n === 1 ? ' NOTE' : ' NOTES'),
   needyou: (n) => n + ' NEED YOU',
-  projects: (n) => n + ' PROJECTS',
+  projects: (n) => n + (n === 1 ? ' PROJECT' : ' PROJECTS'),
 });
 
 /** the count a readout shows: a whole number from 0 to 99999, anything else reads 0 */
@@ -123,7 +123,7 @@ export function workbenchArt(kind, n) {
   const label = READOUTS[kind](count);
   const shapes = b.s.shapes.concat(b.shapes).map((x, i) => ({ key: kind + i, prim: x.prim, d: x.d, fill: x.fill, stroke: x.stroke, sw: x.sw }));
   return {
-    kind, n: count, label, aria: label.toLowerCase(),
+    kind, n: count, label, aria: label.toLowerCase(), show: true,
     viewBox: '0 0 ' + WBN_VIEW.w + ' ' + WBN_VIEW.h, w: WBN_VIEW.w, h: WBN_VIEW.h,
     shapes, screen: b.s.box, cursor: b.s.cursor,
   };
@@ -131,7 +131,7 @@ export function workbenchArt(kind, n) {
 
 /** The empty art every key of the wbnv group carries while the look is off, so the template always meets the same keys. */
 export const WBN_EMPTY_ART = Object.freeze({
-  kind: '', n: 0, label: '', aria: '', viewBox: '0 0 ' + WBN_VIEW.w + ' ' + WBN_VIEW.h, w: WBN_VIEW.w, h: WBN_VIEW.h,
+  kind: '', n: 0, label: '', aria: '', show: false, viewBox: '0 0 ' + WBN_VIEW.w + ' ' + WBN_VIEW.h, w: WBN_VIEW.w, h: WBN_VIEW.h,
   shapes: Object.freeze([]), screen: Object.freeze({ x: 0, y: 0, w: 0, h: 0 }), cursor: Object.freeze({ x: 0, y: 0, w: 0, h: 0 }),
   screenStyle: '', cursorX: 0, cursorY: 0, cursorW: 0, cursorH: 0,
 });

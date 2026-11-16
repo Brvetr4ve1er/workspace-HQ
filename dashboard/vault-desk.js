@@ -176,13 +176,18 @@ function create({ env = process.env, vaultDir, readLatest = () => null, vaultOpe
       const t = now().getTime();
       while (times.length && t - times[0] >= HOUR_MS) times.shift();
       if (times.length >= MAX_PER_HOUR) return { error: WORDS.rate };
+      const C = fsApi.constants || fs.constants;
+      // no O_CREAT: a note that is not there is never made; O_NOFOLLOW where the platform has it
+      fd = fsApi.openSync(ns.abs, C.O_WRONLY | C.O_APPEND | (C.O_NOFOLLOW || 0));
+      // the lstat above was a check; what was opened is checked again: the same file, one name only, still inside the vault
+      const st = fsApi.fstatSync(fd);
+      if (!st.isFile() || st.nlink > 1) return { error: WORDS.unsafe };
+      if (ns.lst.ino && st.ino && (String(st.ino) !== String(ns.lst.ino) || String(st.dev) !== String(ns.lst.dev))) return { error: WORDS.unsafe };
+      const realNote = realOf(ns.abs);
+      if (!realNote || !within(norm(realNote), norm(v.realRoot))) return { error: WORDS.unsafe };
       let existing = '';
       try { existing = fsApi.readFileSync(ns.abs, 'utf8'); } catch { return { error: WORDS.failed }; }
       const { add } = core.planAppend(existing, n.line);
-      const C = fsApi.constants || fs.constants;
-      fd = fsApi.openSync(ns.abs, C.O_WRONLY | C.O_APPEND);   // no O_CREAT: a note that is not there is never made
-      const st = fsApi.fstatSync(fd);
-      if (!st.isFile()) return { error: WORDS.unsafe };
       fsApi.writeSync(fd, add);
       times.push(t);
       return { ok: true };

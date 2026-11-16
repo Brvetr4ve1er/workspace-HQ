@@ -19,7 +19,7 @@ after(() => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { 
 const fx = makeFakeClaudeHome(path.join(tmp, 'a'));
 
 // reads only: a module that tried to write would find no such method
-const READ_FS = { readdirSync: fs.readdirSync, statSync: fs.statSync, openSync: fs.openSync, readSync: fs.readSync, closeSync: fs.closeSync, readFileSync: fs.readFileSync, realpathSync: fs.realpathSync, existsSync: fs.existsSync };
+const READ_FS = { readdirSync: fs.readdirSync, statSync: fs.statSync, openSync: fs.openSync, lstatSync: fs.lstatSync, fstatSync: fs.fstatSync, readSync: fs.readSync, closeSync: fs.closeSync, readFileSync: fs.readFileSync, realpathSync: fs.realpathSync, existsSync: fs.existsSync };
 const lines = () => { const a = []; a.log = (l) => a.push(String(l)); return a; };
 function make(over = {}) {
   const out = lines();
@@ -90,6 +90,32 @@ test('read: an install path that is not inside the Claude home is refused, and s
   const names = (await c2.read()).skills.map((s) => s.name);
   assert.ok(!names.includes('mood-board') && !names.includes('type-scale'), 'the plugin whose real place is outside the home is not read');
   assert.ok(names.includes('month-close'), 'the other plugin still is');
+});
+
+test('read: a skills folder whose real place is outside the home, and a SKILL.md that is a link, are never read', async () => {
+  const home3 = makeFakeClaudeHome(path.join(tmp, 'c'), { generated: 0 });
+  const looseDir = path.join(home3.home, 'skills');
+  // the loose skills folder resolves outside the home (a junction or symlink): nothing in it is listed
+  const fsOut = { ...READ_FS, realpathSync: (p) => (path.resolve(p) === path.resolve(looseDir) ? home3.outside : fs.realpathSync(p)) };
+  const a = make({ env: { HQ_CLAUDE_HOME: home3.home }, home: home3.home, fsApi: fsOut });
+  const base = (await make({ env: { HQ_CLAUDE_HOME: home3.home }, home: home3.home }).crew.read()).skills.filter((x) => !x.plugin).map((x) => x.name);
+  const after = (await a.crew.read()).skills.filter((x) => !x.plugin).map((x) => x.name);
+  assert.ok(base.length > 0 && after.length === 0, 'no loose skill is read through an outside skills folder');
+  // one SKILL.md reported as a link by lstat is skipped, the others stay
+  const victim = path.resolve(path.join(looseDir, 'alpha-lint', 'SKILL.md'));
+  const fsLnk = { ...READ_FS, lstatSync: (p) => { const st = fs.lstatSync(p); return path.resolve(p) === victim ? { isSymbolicLink: () => true, isFile: () => false } : st; } };
+  const b = make({ env: { HQ_CLAUDE_HOME: home3.home }, home: home3.home, fsApi: fsLnk });
+  const names = (await b.crew.read()).skills.map((x) => x.name);
+  assert.ok(!names.includes('alpha-lint') && names.includes('beta-palette'), 'a linked SKILL.md is skipped, a plain one is read');
+});
+
+test('start: a launch that fails spends neither the hourly count nor the same-skill wait', async () => {
+  let ok = false;
+  const { crew } = make({ launchFn: () => ok });
+  for (let i = 0; i < crewMod.MAX_STARTS_PER_HOUR + 2; i++) assert.deepEqual(await crew.start('alpha-lint'), { error: crewMod.WORDS.failed });
+  ok = true;
+  assert.deepEqual(await crew.start('alpha-lint'), { ok: true }, 'the failures left the limits untouched');
+  assert.deepEqual(await crew.start('alpha-lint'), { error: crewMod.WORDS.soon }, 'a real start still counts');
 });
 
 test('read: installed_plugins.json in an unexpected shape degrades to no plugin skills, never throws', async () => {

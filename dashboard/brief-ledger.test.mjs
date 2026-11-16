@@ -372,14 +372,46 @@ test('the raw subject is never persisted: not in the open map, the closed list o
   assert.ok(Object.values(ledger.open).every((e) => /^[0-9a-f]{12}$/.test(e.subjectRef)));
 });
 
-test('per-subject closure: a different subject under the same rule means the first is gone, counted as a clear', () => {
+test('per-subject closure: a rule shows only its worst subject, so a swap to another subject is changed, never a clear or a hold', () => {
   const { ledger, last } = run([[0, brief([A1])], [30, brief([B1], { at: at(30) })]]);
-  assert.deepEqual(last.closed, [{ rule: 'unpushed', how: 'resolved' }]);
+  assert.deepEqual(last.closed, [{ rule: 'unpushed', how: 'changed' }]);
+  assert.equal(ledger.closed[0].how, 'changed');
+  assert.equal(ledger.closed[0].label, undefined);
+  assert.equal(ledger.closed[0].hold, undefined);
+  assert.deepEqual(Object.values(ledger.open).map((e) => e.subjectRef), [subjectRefOf('unpushed', 'proj-b')]);
+  // the overtaking case from the taster report: a is still dirty, b overtakes it, 80 hours pass: nothing was cleared and nothing is held
+  const r = run([[0, brief([A1])], [30, brief([B1], { at: at(30) })], [80 * 60, brief([B1], { at: at(80 * 60) })]]);
+  const s = summarize(r.ledger, brief([B1], { at: at(80 * 60) }), { now: at(80 * 60) });
+  assert.equal(s.clearedThisWeek, 0);
+  assert.equal(s.clears.scanConfirmed, 0);
+  assert.equal(s.heldThisWeek, 0);
+});
+
+test('a clear that is only known because the rule went quiet still counts: the rule leaves entirely, then another subject appears', () => {
+  const { ledger } = run([[0, brief([A1])], [30, brief([], { at: at(30) })], [60, brief([B1], { at: at(60) })]]);
   assert.equal(ledger.closed[0].how, 'resolved');
-  assert.equal(ledger.closed[0].label, 'scan-confirmed');
   assert.equal(ledger.closed[0].hold, 'pending');
   assert.equal(ledger.closed[0].subjectRef, subjectRefOf('unpushed', 'proj-a'));
-  assert.deepEqual(Object.values(ledger.open).map((e) => e.subjectRef), [subjectRefOf('unpushed', 'proj-b')]);
+});
+
+test('a pending clear with no readable wait is given the full wait from its end, and one observe never turns it held', () => {
+  const { ledger } = run([[0, brief([A1])], [30, brief([], { at: at(30) })]]);
+  const damaged = JSON.parse(JSON.stringify(ledger));
+  delete damaged.closed[0].heldUntil;
+  const fixed = cleanLedger(damaged, at(60));
+  assert.equal(fixed.closed[0].hold, 'pending');
+  assert.equal(fixed.closed[0].heldUntil, new Date(at(30).getTime() + 72 * 3600e3).toISOString());
+  const o = observe(damaged, brief([], { at: at(90) }), { now: at(90) });
+  assert.equal(o.ledger.closed[0].hold, 'pending');
+  assert.equal(o.ledger.closed[0].heldAt, undefined);
+});
+
+test('held is a subset of cleared this week, and the headline uses the same one-per-subject basis as the breakdown', () => {
+  // ended 8 days ago and held 5 days ago: in neither number
+  const old = { v: 1, open: {}, busyFrom: null, lastClearShownAt: null, obsAt: at(8 * D).toISOString(), closed: [{ rule: 'unpushed', severity: 'med', count: 0, first: at(0).toISOString(), ended: at(D).toISOString(), how: 'resolved', label: 'scan-confirmed', hold: 'held', heldAt: at(4 * D).toISOString(), subjectRef: subjectRefOf('unpushed', 'proj-a') }] };
+  const s = summarize(old, brief([], { at: at(9 * D) }), { now: at(9 * D) });
+  assert.equal(s.clearedThisWeek, 0);
+  assert.equal(s.heldThisWeek, 0);
 });
 
 test('per-subject closure: the same subject with a new value stays changed and carries its age; nothing counts', () => {
@@ -466,7 +498,7 @@ test('came-back: the same rule and subject live again inside the hold cancels th
 });
 
 test('came-back is for a pending clear only: a different subject going live does not cancel it', () => {
-  let l = run([[0, brief([A1])], [H, brief([B1], { at: at(H) })]]).ledger;   // a is gone, b is new
+  let l = run([[0, brief([A1])], [H, brief([], { at: at(H) })], [H + 5, brief([B1], { at: at(H + 5) })]]).ledger;   // a is gone, then b is new
   l = observe(l, brief([B1], { at: at(D) }), { now: at(D) }).ledger;
   assert.equal(l.closed.find((c) => c.subjectRef === subjectRefOf('unpushed', 'proj-a')).hold, 'pending');
 });

@@ -45,10 +45,10 @@ test('an older answer with no counts has no strip and the old footer line stands
 });
 
 test('strip: week one reads "0 held", plain counts only, never a score or a total', () => {
-  assert.deepEqual(stripLines(ans8()), ['0 cleared this week · 0 held', 'Nothing open']);
+  assert.deepEqual(stripLines(ans8()), ['0 cleared this week · 0 still gone after 72 hours', 'Nothing open']);
   const busy = ans8({ clearedThisWeek: 5, heldThisWeek: 2, pendingNow: 1, cameBackThisWeek: 1, clears: { inPlace: 2, markedDone: 1, scanConfirmed: 1, unknown: 1 }, openCount: 3, oldestOpen: { since: local(5), after: '4 d' }, setAside: aside(2), outside: { count: 1, rules: ['pc-ember'] } });
   const all = stripLines(busy);
-  assert.equal(all[0], '5 cleared this week · 2 held · 1 waiting out the hold · 1 came back');
+  assert.equal(all[0], '5 cleared this week · 2 still gone after 72 hours · 1 waiting out the hold · 1 came back');
   assert.equal(all[1], 'Of those: 2 in place · 1 marked done · 1 confirmed by a scan · 1 source cannot confirm');
   assert.equal(all[2], '3 open · oldest 4 d (since the app first noticed it)');
   assert.equal(all[3], '2 set aside, the oldest 9 d');
@@ -84,6 +84,9 @@ test('clean card: "Board clean since X" only when open, outside and set aside ar
   const D = ans8({ entries: [entry({ ended: local(11, 14, 10) }), entry({ how: 'dismissed', ended: local(12, 9, 0) })] });
   assert.deepEqual(cleanCardOf(D, true), { title: 'Board clean since Wed 14:10', lines: [] }, 'a dismissal is never the moment the board went clean');
   assert.equal(cleanCardOf(ans8(), true).title, 'Board clean', 'no close to name a time for');
+  const quiet = ans8({ entries: [entry({ ended: local(11, 14, 10) }), entry({ how: 'silent', ended: local(12, 9, 0) }), entry({ how: 'changed', ended: local(12, 10, 0) }), entry({ ended: local(12, 11, 0), hold: 'came-back' })] });
+  assert.equal(cleanCardOf(quiet, true).title, 'Board clean since Wed 14:10', 'a row that went quiet, changed value or came back is not the moment it was clean');
+  assert.equal(cleanCardOf(ans8({ entries: [entry({ how: 'silent' }), entry({ how: 'changed' })] }), true).title, 'Board clean', 'no real clear, no date');
   assert.equal(cleanCardOf(D, false), null, 'the brief on screen is not empty');
   assert.equal(cleanCardOf(ans8({ openCount: 1 }), true), null, 'a row the Brief is not showing: no card');
   assert.equal(cleanCardOf(normalizeAnswer({ clearedThisWeek: 1 }), true), null, 'no counts, no card');
@@ -113,7 +116,7 @@ test('vals: the strip shows on Home with a brief; the clean card only on a clear
   const itemBrief = brief({ items: [{ key: 'dirty:a:1', rule: 'dirty', severity: 'low', text: 'x', why: 'y', source: 'scan', age: '', action: { kind: 'scan' }, count: 0 }] });
   const withItem = vals(mk8({ clearedThisWeek: 2 }), { b: itemBrief }).bhs;
   assert.equal(withItem.bhsStripShow, true);
-  assert.equal(withItem.bhsStripLines[0].text, '2 cleared this week · 0 held');
+  assert.equal(withItem.bhsStripLines[0].text, '2 cleared this week · 0 still gone after 72 hours');
   assert.equal(withItem.bhsFootShow, false, 'the strip replaces the footer line');
   assert.equal(withItem.bhsCleanShow, false);
   const clear = vals(mk8({ clearedThisWeek: 2 })).bhs;
@@ -130,7 +133,7 @@ test('vals: the strip shows on Home with a brief; the clean card only on a clear
 test('vals: History shows the strip and the set-aside rows with their age; set aside is not in the cleared count', () => {
   const v = vals(mk8({ clearedThisWeek: 1, setAside: aside(2), dismissedThisWeek: 2 }), { tab: 'history', sub: 'timeline' }).bhs;
   assert.equal(v.bhsOpStripShow, true);
-  assert.equal(v.bhsOpStripLines[0].text, '1 cleared this week · 0 held');
+  assert.equal(v.bhsOpStripLines[0].text, '1 cleared this week · 0 still gone after 72 hours');
   assert.equal(v.bhsOpAsideShow, true);
   assert.deepEqual(v.bhsOpAsideLines.map((x) => x.text), ['Item 0 · set aside 9 d', 'Item 1 · set aside 9 d']);
   assert.equal(v.bhsOpHasSummary, false, 'the old summary line stands down once the strip is there');
