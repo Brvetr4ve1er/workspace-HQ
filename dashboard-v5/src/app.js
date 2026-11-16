@@ -322,16 +322,22 @@ export class Component extends DCLogic {
     return id;
   }
   dismissToast(id) { this.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })); }
+  // No JS-driven motion when the app's own Reduce motion switch is on OR the OS asks for reduced motion. The stylesheet rule for the OS setting
+  // only stops CSS transitions and animations; el.animate() is not CSS, so the helpers below ask here.
+  noMotion() {
+    if (this.state.reduceMotion) return true;
+    try { return typeof matchMedia === 'function' && !!matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
   toastRef(id) {
-    if (!this._tr[id]) this._tr[id] = (el) => { if (el && !this.state.reduceMotion) el.animate([{ transform: 'translateX(24px) scale(.96)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 280, easing: 'cubic-bezier(.22,1.4,.36,1)' }); };
+    if (!this._tr[id]) this._tr[id] = (el) => { if (el && !this.noMotion()) el.animate([{ transform: 'translateX(24px) scale(.96)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 280, easing: 'cubic-bezier(.22,1.4,.36,1)' }); };
     return this._tr[id];
   }
-  popIn = (el) => { if (el && !this.state.reduceMotion) el.animate([{ transform: 'translateY(12px) scale(.97)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: 'cubic-bezier(.22,1.3,.36,1)' }); };
-  slideIn = (el) => { if (el && !this.state.reduceMotion) el.animate([{ transform: 'translateX(40px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, easing: 'cubic-bezier(.22,1,.36,1)' }); };
+  popIn = (el) => { if (el && !this.noMotion()) el.animate([{ transform: 'translateY(12px) scale(.97)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: 'cubic-bezier(.22,1.3,.36,1)' }); };
+  slideIn = (el) => { if (el && !this.noMotion()) el.animate([{ transform: 'translateX(40px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, easing: 'cubic-bezier(.22,1,.36,1)' }); };
   shimmer = (el) => { if (el) el.animate([{ opacity: 0.4 }, { opacity: 0.9 }, { opacity: 0.4 }], { duration: 1400, iterations: Infinity }); };
-  pulse = (el) => { if (el && !this.state.reduceMotion) el.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.7)', opacity: 0.35 }, { transform: 'scale(1)', opacity: 1 }], { duration: 1200, iterations: Infinity }); };
+  pulse = (el) => { if (el && !this.noMotion()) el.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.7)', opacity: 0.35 }, { transform: 'scale(1)', opacity: 1 }], { duration: 1200, iterations: Infinity }); };
   rise = (el) => {
-    if (!el || this.state.reduceMotion) return;
+    if (!el || this.noMotion()) return;
     el.querySelectorAll('[data-tower]').forEach((g, i) => g.animate([{ transform: 'translateY(46px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 560, delay: 80 + i * 70, easing: 'cubic-bezier(.22,1.3,.36,1)', fill: 'backwards' }));
   };
   bars = (el) => {

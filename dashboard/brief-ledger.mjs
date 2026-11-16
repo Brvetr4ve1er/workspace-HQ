@@ -34,9 +34,9 @@
 //   open entry   + subjectRef, actedVerb. Age (first) carries across a value change for the same rule and subject, and from a set-aside row that returns.
 //   closed entry + subjectRef, label (in-place | marked-done | scan-confirmed | unknown), hold (pending | held | came-back | never), heldUntil, heldAt, cameBackAt, setAside.
 //   ledger       + obsAt (the last observation, for gap detection).
-//   Per-subject closure: a row that leaves while a same-rule row is live is 'changed' only when a live row shares its subjectRef; with no shared subject the first is gone and
-//   is decided like any other close (acted / silent / resolved). A rule shows only its top subject, so a worse subject overtaking a still-true one reads as a clear that
-//   may come back; the hold and came-back exist for exactly that.
+//   Per-subject closure: a row that leaves while a same-rule row is live is ALWAYS 'changed', never a clear and never held: a rule shows
+//   only its top subject, so a different subject taking the row can be an overtake, not a fix. A real clear under a still-live rule is undercounted rather than claimed.
+//   A close is decided as acted / silent / resolved only when no row of that rule is live.
 //   Hold: a clear by a verb that changed a fact (in-place) or a collector-sourced row that left with its source answering (scan-confirmed) is pending for 72 h of observation
 //   (heldUntil). A gap between two observations longer than one day restarts it. The same rule and subject live again before it passes cancels it (hold came-back).
 //   marked-done (a quest the owner marked) and unknown (senses sources, which cannot show a quiet-but-old file) are shown but never held.
