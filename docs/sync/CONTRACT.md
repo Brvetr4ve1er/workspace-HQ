@@ -577,7 +577,7 @@ Row written with the code, in the same work block. Nothing is removed or renamed
 
 | Thing | Shape |
 |---|---|
-| open entry | `+ subjectRef?` (12 hex: sha256 of `subject|<rule>|<subject>`, one-way), `+ actedVerb?` (the verb of the `acted` marker). `first` carries across a value change for the same rule and subject, and from a set-aside row that returns. |
+| open entry | `+ subjectRef?` (12 hex: sha256 of `subject|<rule>|<subject>`; the subject is not stored, but the ids are guessable so the file stays on this machine), `+ actedVerb?` (the verb of the `acted` marker). `first` carries across a value change for the same rule and subject, and from a set-aside row that returns. |
 | closed entry | `+ subjectRef?`, `label?` (`in-place` | `marked-done` | `scan-confirmed` | `unknown`, only on `resolved`/`acted`), `hold?` (`pending` | `held` | `came-back` | `never`), `heldUntil?`, `heldAt?`, `cameBackAt?`, `setAside?` (true on a dismissal). `how` keeps its five values. |
 | ledger | `+ obsAt` (ISO of the last observation, null before the first; used only to see a gap). |
 | the subject | A live row may carry `subject` (the project, bill, quest or account it is about; '' when a rule is about nothing in particular). It exists IN MEMORY only: `brief.js` strips it before `data/brief.json` is written and hands it to the ledger as `opts.subjects[key]`; `hq_brief`, the tray rows, the Bridge badge, the phone file and `brief-project.mjs` never carry it (pinned in tests). The ledger file stores `subjectRef` only, never the subject. |
