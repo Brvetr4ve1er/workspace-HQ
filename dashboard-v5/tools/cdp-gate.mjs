@@ -32,6 +32,8 @@
 //   crew-render · crew-start · crew-search
 // The Vault desk (batch 8; --preload=fake; tools/cdp-vault-desk.mjs; the fake's hq.vaultDesk answers an invented vault with one note and twelve recent names, sessionStorage hqFake:vaultDesk picks a state; each scenario ends with hqFake.reset(true) and the state back to its default):
 //   vault-desk-read · vault-desk-capture · vault-desk-missing-note · vault-desk-open
+// The Workbench look (batch 8; --preload=fake; tools/cdp-workbench.mjs; the second Console-layer look: its sheet, the red accent, the five small pictures with real numbers, the reduced-motion rule, leaving it; each scenario ends with hqFake.reset(true) and the layer put back)
+//   workbench-skin · workbench-art · workbench-reduced-motion · workbench-leave
 // Clients list (batch 2; --preload=fake; tools/cdp-clients-list.mjs; the fake's hq.delivery.clients answers three invented client jobs and one gone from the scan; each scenario ends with hqFake.reset(true)):
 //   clients-list-open · clients-list-open-card · clients-list-empty
 // Brief act in place + waiting session (batch 2; --preload=fake; tools/cdp-brief-act.mjs; the fake's hq.brief.act answers like main's table; each scenario serves its own placeholder brief and ends with hqFake.reset(true)):
@@ -98,6 +100,7 @@ import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
 import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 import { makeCrewScenarios } from './cdp-crew.mjs';
 import { makeVaultDeskScenarios } from './cdp-vault-desk.mjs';
+import { makeWorkbenchScenarios } from './cdp-workbench.mjs';   // batch 8: workbench-skin, workbench-art, workbench-reduced-motion, workbench-leave
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
@@ -2136,6 +2139,7 @@ Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep, settleWait }
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeCrewScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultDeskScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeWorkbenchScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));

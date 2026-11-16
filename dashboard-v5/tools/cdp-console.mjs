@@ -28,7 +28,7 @@ const PREFS_KEY = 'whq3-prefs';
 const ROOT = `document.querySelector('[data-hq-theme]')`;
 const DLG = `document.querySelector('[role="dialog"][aria-label="Settings"]')`;
 export const ACCENTS = Object.freeze(['--gold', '--purple', '--orange', '--green']);
-export const LAYER_OFF = Object.freeze({ on: false, skin: false, scan: false, palette: '', debug: false, shelf: false });
+export const LAYER_OFF = Object.freeze({ on: false, skin: false, scan: false, palette: '', debug: false, shelf: false, look: '' });
 
 /** The sheet's own token values, read from styles/console.css (one source of truth for the expected computed colours). */
 export function sheetTokens() {

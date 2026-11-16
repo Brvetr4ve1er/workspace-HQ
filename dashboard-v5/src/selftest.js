@@ -138,6 +138,7 @@ export async function run(W = window.WHQ) {
     const { driftStates, DRIFT_OFFLINE_ROWS } = await import('./selftest-drift.mjs');   // System › Machine › How the PC changed: invented checks
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
+    const { workbenchInitState, workbenchStates, workbenchSeen, workbenchProblems } = await import('./selftest-workbench.mjs');   // batch 8: the Workbench look (look attribute, the red accent, the five small pictures with real numbers)
     const { consoleInitState, consoleStates, consoleSeen, consoleProblems } = await import('./selftest-console.mjs');   // Console layer: off (probe zeros), on, skin, scanlines
     const { homeOneStates } = await import('./selftest-home-one.mjs');   // Home as one decision: the card follows the Brief or the fixed rules, More on Home closed and open
     const base = { askHistory: initial.askHistory };
@@ -564,6 +565,25 @@ export async function run(W = window.WHQ) {
             });
             consoleProblems(name, consoleSeen(document, window)).forEach((p) => note('console-layer', [p]));
           } finally { L.setState(consoleInitState()); }
+        }
+        // The Workbench look (src/selftest-workbench.mjs): the look attribute and its one stylesheet, the red accent, and the five small pictures with the numbers the app holds (Home, the empty Brief,
+        // Claude > Crew, Life > Notes, the empty Projects shelf), plus the rows where nothing of it may appear (layer on without the look, the Console skin, a stored look with the layer off).
+        // The arrival reads are held the way the Crew and Vault desk rows hold them; the layer pref, the LIVE brief and the shelf swap go back in a finally.
+        for (const row of workbenchStates()) {
+          const cl10 = L.state.consoleLayer, brief10 = LV.brief;
+          const restoreP = row.kind === 'shelf-empty' ? swapProjects(M.at(0).P0, fakeShelf({ count: 0 }), toProj) : null;
+          try {
+            await combo([theme, 'p3:' + row.name].join(' '), () => {
+              if (row.brief) LV.brief = row.brief;
+              L.crwArrive = () => Promise.resolve(null); L.vdkArrive = () => Promise.resolve(null);
+              if (row.kind === 'crew') L.go('claude', 'crew');
+              else if (row.kind === 'notes') L.go('life', 'notes');
+              else if (row.kind === 'shelf-empty') L.go('projects', 'grid');
+              else L.go('home', null);
+              L.setState(Object.assign({}, CLEAR, base, workbenchInitState(), { themePref: theme, snapOffset: 0, shelfMore: null }, row.state));
+            });
+            workbenchProblems(row, workbenchSeen(document)).forEach((p) => note('workbench', [row.name + ': ' + p]));
+          } finally { if (restoreP) restoreP(); delete L.crwArrive; delete L.vdkArrive; LV.brief = brief10; L.setState(Object.assign(workbenchInitState(), { consoleLayer: cl10, crw: null, vdk: null, shelfMore: null })); }
         }
         // Folded surfaces (src/selftest-fold.mjs): the two fold prefs go straight into state; FOLD_RESET puts them back after the rows (CLEAR does not cover them)
         for (const [name, tab, sub, foldState, extra] of foldStates()) {
