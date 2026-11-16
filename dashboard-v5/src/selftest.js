@@ -22,7 +22,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { dlxRoom: false, dlxRun: false, /* batch 7: the back room is shut and the attract scene is not playing */ vcShow: false, /* batch 7: the New-version card is not showing */ homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, crw: null, crwBusy: [], batOpen: null, batBal: '', batBusy: false, batDone: {},
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false,
   // Money for Claude sessions (Settings): the switch as main last said it, back to unloaded before every combo
@@ -738,6 +738,39 @@ export async function run(W = window.WHQ) {
                 L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
               });
             } finally { W.store.hq = hq2; W.store.refreshDelivery = rd0; delete L.dckArrive; }
+          }
+        }
+        // Claude > Crew (batch 8: the installed skills by role): every state of the view. The roster is put straight into the crw state and the arrival read is
+        // held (the fake's own answer would replace it); crew-offline hides hq.crew for one combo. Invented names only.
+        {
+          const hq4 = W.store.hq;
+          const cwRoles = [['developers', 'Developers'], ['designers', 'Designers'], ['marketing', 'Marketing'], ['finance', 'Finance'], ['other', 'Other']].map((r) => ({ id: r[0], label: r[1] }));
+          const cwRow = (i, o) => Object.assign({ id: 'selftest-skill-' + i, name: 'selftest-skill-' + i, description: 'A placeholder skill for the selftest, number ' + i + '.', role: cwRoles[i % cwRoles.length].id, plugin: i % 4 === 0 ? 'selftest-plugin' : '', canStart: true }, o);
+          const cwFew = Array.from({ length: 9 }, (_, i) => cwRow(i));
+          const cwMany = Array.from({ length: 150 }, (_, i) => cwRow(i));
+          const cwOdd = [cwRow(1, { id: '', name: 'odd folder!', canStart: false, description: '' }), cwRow(2, { description: 'x'.repeat(140) }), cwRow(3, { name: 'a-very-long-skill-name-' + 'z'.repeat(60) })];
+          const crw = (o) => ({ crw: Object.assign({ rows: null, roles: cwRoles, error: '', loaded: true, busy: false, at: '', q: '', page: 1, open: {} }, o) });
+          for (const [name, offline, patch] of [
+            ['crew-offline', true, crw({})],
+            ['crew-loading', false, crw({ loaded: false, busy: true })],
+            ['crew-error', false, crw({ error: 'the crew could not be read' })],
+            ['crew-empty', false, crw({ rows: [] })],
+            ['crew-ready', false, crw({ rows: cwFew })],
+            ['crew-ready-odd', false, crw({ rows: cwOdd })],
+            ['crew-ready-many', false, crw({ rows: cwMany })],
+            ['crew-ready-many-open', false, crw({ rows: cwMany, open: { developers: true } })],
+            ['crew-ready-error', false, crw({ rows: cwFew, error: 'the crew could not be read' })],
+            ['crew-search', false, crw({ rows: cwMany, q: 'skill-1' })],
+            ['crew-search-none', false, crw({ rows: cwMany, q: 'no-such-skill' })],
+          ]) {
+            try {
+              await combo([theme, 'p3:' + name].join(' '), () => {
+                if (offline && hq4) W.store.hq = Object.assign({}, hq4, { crew: undefined });
+                L.crwArrive = () => Promise.resolve(null);
+                L.go('claude', 'crew');
+                L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
+              });
+            } finally { W.store.hq = hq4; delete L.crwArrive; }
           }
         }
         // Projects > Clients (batch 2: the list of client jobs): every state of the list. The rows are put straight into the cls state and the arrival read is

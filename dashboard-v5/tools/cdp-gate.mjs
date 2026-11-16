@@ -28,6 +28,8 @@
 //   delivery-render · delivery-scope-add · delivery-copy-update · delivery-empty · delivery-plan-mode
 // Client delivery check (batch 2; --preload=fake; tools/cdp-delivery-check.mjs; the fake's hq.deliveryCheck answers one project READY and the rest nothing, and keeps one fixed report per project):
 //   delivery-check-nothing-answering · delivery-check-run · delivery-check-forget · delivery-check-button-sweep
+// The Crew (batch 8; --preload=fake; tools/cdp-crew.mjs; the fake's hq.crew.read answers 24 invented skills, sessionStorage hqFake:crewCount asks for more; each scenario ends with hqFake.reset(true) and the count back to its default):
+//   crew-render · crew-start · crew-search
 // Clients list (batch 2; --preload=fake; tools/cdp-clients-list.mjs; the fake's hq.delivery.clients answers three invented client jobs and one gone from the scan; each scenario ends with hqFake.reset(true)):
 //   clients-list-open · clients-list-open-card · clients-list-empty
 // Brief act in place + waiting session (batch 2; --preload=fake; tools/cdp-brief-act.mjs; the fake's hq.brief.act answers like main's table; each scenario serves its own placeholder brief and ends with hqFake.reset(true)):
@@ -92,6 +94,7 @@ import { makeCosmosScenarios } from './cdp-cosmos.mjs';
 import { makeCosmosPolishScenarios } from './cdp-cosmos-polish.mjs';
 import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
 import { makeClientsListScenarios } from './cdp-clients-list.mjs';
+import { makeCrewScenarios } from './cdp-crew.mjs';
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
 import { makeTodayScenarios } from './cdp-today.mjs';
@@ -2128,6 +2131,7 @@ Object.assign(SCENARIOS, makeCosmosScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, s
 Object.assign(SCENARIOS, makeCosmosPolishScenarios({ fresh, SNAP_KEYS, RESTORE_KEYS, sleep }));
 Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep, settleWait }));
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeCrewScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));
