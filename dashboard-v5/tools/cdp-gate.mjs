@@ -42,7 +42,7 @@
 //   fold-default-shows-everything · fold-hides-and-reveals · fold-number-keys-stable · fold-use-marks · fold-no-motion · fold-reload-persists
 // Save to vault with no local model (batch 3; --preload=fake; tools/cdp-vault-template.mjs): vault-template-preview (the fake preview answers the template fallback; banner, no redraft button, one plain-id call, exactly one save of exactly the draft)
 // Brief history (batch 3; --preload=fake; tools/cdp-brief-history.mjs; the fake's hq.briefHistory answers nothing remembered and no card due; each scenario serves its own placeholder answers with hqFake.set and ends with hqFake.reset(true) and Home shown):
-//   brief-history-render · brief-history-all-clear
+//   brief-history-render · brief-history-all-clear · brief-history-strip · brief-history-clean-card · brief-history-settings (batch 8: the strip, the clean-board card and the Settings counts)
 // Machine drift (batch 3; --preload=fake; tools/cdp-drift.mjs; the fake's hq.machineHistory.read answers 40 invented checks under 10 days, so the disk Estimate refuses; each scenario ends with hqFake.reset(true) and the page reset)
 //   machine-drift-render · machine-drift-estimate-refuses
 // Security space (batch 4; the 11th destination, no number key; --preload=fake; tools/cdp-security.mjs; the fake's hq.security answers an INVENTED footprint (example.test, acme.test) and accepts one invented passphrase; each scenario ends with hqFake.reset(true) and the page reset):
