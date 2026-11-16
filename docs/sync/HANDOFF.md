@@ -12,6 +12,14 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-16 · FROM frontend (batch 8 dish 1a gate record) · main (not pushed)
+DONE: integrator pass on the ledger core (e2ab256, 125a207, 38002ac). Plan gap check: files, leak tests, CONTRACT and IPC-CONTRACT entries and the HANDOFF note match the dish section; no gap found.
+GOLDENS: none moved, none re-baselined (no template, vals key or renderer file changed).
+GATES: full node tools/gates.mjs green on the first run, exit 0. main 1816 pass 0 fail, hub 205/0, money 261/0, cosmos 473/0, renderer 1779/0 (1 skip), tools 279/0 (1 skip), selftest combos=3485 0/0/0, cdp 156/156. No flake seen.
+OPEN: the strip and clean card are dish 1c; a marked-done quest is never held until the structure lane's quest fact-state ask lands.
+
+---
+
 ## 2026-11-16 · FROM frontend (batch 8 dish 1a DONE: ledger core) · main (not pushed)
 DONE: the Brief ledger can now tell a clear from a change, a hold from a gap, and a set-aside row from a fixed one (CONTRACT "Batch 8 additions to data/brief-ledger.json" and IPC-CONTRACT, additive). (1) brief-core rows carry an in-memory `subject` (project, bill, quest or account id; '' for a rule about nothing in particular), set where each key is built, never parsed from it; brief.js strips it before data/brief.json and gives the ledger a key to subject map; `hq_brief` drops it too. Tests pin that the file, hq_brief, the tray and badge projection and the phone file never carry it. (2) brief-ledger.mjs: `subjectRef` (one-way hash of rule and subject; the subject is never stored), per-subject closure (same rule, different subject = the first is gone), clear labels (in-place, marked-done, scan-confirmed, unknown), a 72 h hold in observation time with a one-day gap reset and came-back, set-aside on dismissal, age carried across a value change, `obsAt`. (3) summarize() adds counts only: clears by label, heldThisWeek, pendingNow, cameBackThisWeek, openCount, oldestOpen, outside, setAside; no total, no score. `how` keeps its five values and HOWS is unchanged: the new words ride in separate fields (label, hold, setAside), so no renderer changes. The strip and clean card are dish 1c.
 CHOICES THE NEXT DISH SHOULD KNOW: a file or caller with no subjects behaves exactly as before (no label, no hold), so legacy closes are counted in clearedThisWeek but in no label. A marked-done quest and a senses-sourced clear are never held (the first needs the structure ask that makes quests carry their fact state; the second cannot be seen from the ledger). A rule shows only its top subject, so a worse subject overtaking a still-true one reads as a clear: the hold and came-back are the guard, and the first real week will show how often it happens. Not done here: no cdp or selftest scenario and no vals key, because this dish has no renderer surface (the strip is 1c); fake-preload's briefHistory.read fields are 1c's.
