@@ -22,7 +22,7 @@ const LOCAL_KEYS = ['whq3-prefs', 'hq-theme', 'hq-theme-migrated', 'hq-oracle-ch
 const CLEAR = { dlxRoom: false, dlxRun: false, /* batch 7: the back room is shut and the attract scene is not playing */ vcShow: false, /* batch 7: the New-version card is not showing */ homeMore: true, /* batch 7: the sweep walks Home with More on Home OPEN so Portfolio, Changes, the ribbon and the strip stay covered; the ho1-* rows set it both ways */ paletteOpen: false, paletteMode: 'go', paletteQuery: '', paletteSel: 0, askOpen: false, runsOpen: false, scrubOpen: false, settingsOpen: false, cheatOpen: false, moreOpen: false, ambientOverlay: false, focus: null, confirm: null, commit: null, sheet: null, levelUp: null, onboard: null, vault: null, lightbox: null, pageMore: false, whatsNewOpen: false, whatsNewMissing: {}, clSrc: 'all', clProj: '', clSince: 'all', clQuery: '', clSearched: false, clOpen: false, clExpanded: {}, clForgetAsk: false, clLinkPick: '', ccOpen: false, ccConv: null, ccProj: '', ccText: '', ccMode: 'read-only', ccTurn: null, ccSending: false,
   // Phase 3 surface state (app.js initState, contract K-4), back to its defaults before every combo
   sysExamining: false, sysSaves: {}, fixed: [], libKind: 'all', libSource: 'all', libSchool: 'all', libShow: 40, libRescanning: false, autoQuery: '',
-  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, crw: null, crwBusy: [], batOpen: null, batBal: '', batBusy: false, batDone: {},
+  projSearch: '', projStatus: 'all', askChecking: false, mny: {}, mst: {}, dlv: {}, dlvBusy: false, brfBusy: false, cls: null, crw: null, crwBusy: [], vdk: null, batOpen: null, batBal: '', batBusy: false, batDone: {},
   // Reach (Settings): the loaded rows and their errors, back to unloaded before every combo
   rchRows: null, rchAt: null, rchError: '', rchBusy: false,
   // Money for Claude sessions (Settings): the switch as main last said it, back to unloaded before every combo
@@ -771,6 +771,36 @@ export async function run(W = window.WHQ) {
                 L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
               });
             } finally { W.store.hq = hq4; delete L.crwArrive; }
+          }
+        }
+        // Life > Notes > Vault desk (batch 8: today's daily note and one capture line): every state of the card. The answer is put straight into the vdk state and the
+        // arrival read is held (the fake's own answer would replace it); vault-desk-offline hides hq.vaultDesk for one combo. Invented names only.
+        {
+          const hq5 = W.store.hq;
+          const vdAns = (o) => Object.assign({ state: 'ready', vaultName: 'Selftest Vault', canOpen: true, folder: '10_Daily', folderFromSettings: false, settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a placeholder line\n- another placeholder line\n', truncated: false, recent: Array.from({ length: 12 }, (_, i) => ({ name: 'Selftest note ' + i })) }, o);
+          const vdk = (o) => ({ vdk: Object.assign({ data: null, error: '', loaded: true, busy: false, draft: '', sending: false }, o) });
+          for (const [name, offline, patch] of [
+            ['vault-desk-offline', true, vdk({})],
+            ['vault-desk-loading', false, vdk({ loaded: false, busy: true })],
+            ['vault-desk-error', false, vdk({ error: 'vault not found' })],
+            ['vault-desk-ready', false, vdk({ data: vdAns() })],
+            ['vault-desk-ready-draft', false, vdk({ data: vdAns(), draft: 'a line that is being typed' })],
+            ['vault-desk-sending', false, vdk({ data: vdAns(), draft: 'a line on its way', sending: true })],
+            ['vault-desk-long', false, vdk({ data: vdAns({ text: 'a long placeholder line '.repeat(40) + '\n' + 'x'.repeat(200), truncated: true }) })],
+            ['vault-desk-no-open', false, vdk({ data: vdAns({ canOpen: false, recent: [{ name: 'Only note' }] }) })],
+            ['vault-desk-no-folder', false, vdk({ data: vdAns({ state: 'no-folder', text: '', recent: [] }) })],
+            ['vault-desk-no-note', false, vdk({ data: vdAns({ state: 'no-note', text: '', folderFromSettings: true, folder: 'Journal' }) })],
+            ['vault-desk-settings-ignored', false, vdk({ data: vdAns({ settingsIgnored: true }) })],
+            ['vault-desk-ready-error', false, vdk({ data: vdAns(), error: 'vault not found' })],
+          ]) {
+            try {
+              await combo([theme, 'p3:' + name].join(' '), () => {
+                if (offline && hq5) W.store.hq = Object.assign({}, hq5, { vaultDesk: undefined });
+                L.vdkArrive = () => Promise.resolve(null);
+                L.go('life', 'notes');
+                L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, patch));
+              });
+            } finally { W.store.hq = hq5; delete L.vdkArrive; }
           }
         }
         // Projects > Clients (batch 2: the list of client jobs): every state of the list. The rows are put straight into the cls state and the arrival read is
