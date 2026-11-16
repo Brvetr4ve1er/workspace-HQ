@@ -1,7 +1,8 @@
 // Claude screen (v.claude): sessions.
 // Cut verbatim from lines 562-611 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
-import sessionsBoard from './sessions-board.tpl.js';   // 2026-11-07 sessions board, first in the Sessions column
+import sessionsBoard from './sessions-board.tpl.js';
+import crew from './crew.tpl.js';   // 2026-11-16 Claude › Crew: the installed skills by role (wraps itself in crwv.on)   // 2026-11-07 sessions board, first in the Sessions column
 export default String.raw`        <sc-if value="{{ v.claude }}" hint-placeholder-val="{{ false }}">
           <div>
             <!-- v5: Claude › Chats (spec 2026-10-13 §9, H2) — every indexed Claude Code chat: filters, FTS search (hits rendered as text parts, never HTML), paged thread view, Forget -->
@@ -85,7 +86,7 @@ export default String.raw`        <sc-if value="{{ v.claude }}" hint-placeholder
                 </div></sc-for>
               </section>
             </sc-if>
-            <sc-if value="{{ isSessions }}" hint-placeholder-val="{{ true }}">
+${crew}            <sc-if value="{{ isSessions }}" hint-placeholder-val="{{ true }}">
               <div style="display:flex;flex-direction:column;gap:22px">
 ${sessionsBoard}                <section style="background:var(--card);border:1px solid var(--purple);border-radius:12px;padding:14px 16px">
                   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)">New session</span><span style="flex:1"></span><span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:11px;white-space:nowrap;color:var(--tone-gold);border:1px solid color-mix(in oklab,var(--tone-gold) 45%,transparent);background:color-mix(in oklab,var(--tone-gold) 10%,transparent)">Uses Claude quota</span></div>

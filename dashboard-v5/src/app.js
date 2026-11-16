@@ -38,6 +38,7 @@ import { moneyLogic } from './logic/money.js';
 import { briefLogic } from './logic/brief.js';
 import { briefActLogic } from './logic/brief-act.js';
 import { deliveryCheckLogic } from './logic/delivery-check.js';   // batch 2: phone-and-language check of the local dev server, under the delivery card (dck*)
+import { crewLogic } from './logic/crew.js';   // batch 8: Claude › Crew, reads on arrival (crw*; vals under ONE key crwv)
 import { clientsListLogic } from './logic/clients-list.js';   // batch 2: Projects › Clients list, reads on arrival (cls*)
 import { deliveryLogic } from './logic/delivery.js';   // Client delivery card on each project page: Mark, pick a scope file, checklist items, Copy update
 import { moneyStartLogic } from './logic/money-start.js';   // Money in one minute: the start card, the quick line, Ctrl K's Log a spend
@@ -141,6 +142,7 @@ export class Component extends DCLogic {
     this._prev = Object.assign({}, this.state, { sub: Object.assign({}, this.state.sub) }); this._prevProps = Object.assign({}, this.props);
     if (this.state.tab === 'cosmos') this.cosArrive();
     if (this.state.tab === 'security') this.secArrive();
+    if (this.crwOn()) this.crwArrive();   // Claude > Crew restored from the last session reads its roster too (never at boot otherwise)
     if (this.clsOn()) this.clsArrive();   // Projects > Clients restored from the last session reads its list too (never at boot otherwise)
     if (this.state.route && this.state.route.type === 'project' && this.state.route.id) this.dckArrive(this.state.route.id, this.dlvArrive(this.state.route.id));   // client delivery: a project page restored from the last session reads its card too
     // deep links (tray): subscribed first and synchronously, main may push right after load
@@ -210,6 +212,7 @@ export class Component extends DCLogic {
     if (moved && ps.tab !== S.tab) this.useSpace(S.tab);   // one 'space-<id>' mark per arrival on a space (Jump orders typed-query ties by these counts)
     if (moved && S.tab === 'home') this.sbdArrive('strip');   // sessions board: the Home strip reads the board on arrival (main pushes changes after that)
     if (moved && S.tab === 'claude' && S.sub.claude === 'sessions') this.sbdArrive('board');
+    if (moved && this.crwOn()) this.crwArrive();   // Claude > Crew: the roster reads when the view opens
     if (moved && S.tab === 'cosmos') this.cosArrive();
     if (moved && S.tab === 'security') this.secArrive();
     if (moved && this.clsOn()) this.clsArrive();   // Projects > Clients: the list reads when the sub-view opens
@@ -458,5 +461,5 @@ export class Component extends DCLogic {
 }
 bindVersionCardLayer(consoleLayerApi);   // batch 7: the New-version card registers its listeners and timer through the Console layer, and only through it
 Object.assign(Component.prototype, tasksLogic, claudeLogic, claudeLibLogic, claudeChatLogic, runsLogic, commitLogic, sheetLogic, journalLogic, askLogic, paletteLogic, onboardLogic,
-  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic, versionCardLogic, delightsLogic);
+  whatsNewLogic, systemLogic, libraryLogic, projectLogic, claudeVaultLogic, githubLogic, accountsLogic, lifeLogic, statCardLogic, moneyLogic, briefLogic, briefHistoryLogic, briefActLogic, sessionsBoardLogic, crewLogic, useLogLogic, moneyStartLogic, deliveryLogic, deliveryCheckLogic, clientsListLogic, moneyAccessLogic, todayLogic, cosmosLogic, driftLogic, securityLogic, consoleSkinLogic, shelfLogic, memoryCardLogic, cheatsLogic, versionCardLogic, delightsLogic);
 Component.prototype.renderVals = renderVals;
