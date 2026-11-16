@@ -12,6 +12,14 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-16 · FROM frontend (batch 8 dish 1b gate record) · main (not pushed)
+DONE: integrator pass on the counting fix (ef27d38, 763be5a). Plan gap check: files, tests and the HANDOFF note match the dish section; no CONTRACT or IPC-CONTRACT entry is named for this dish and none changed (no channel or data shape moved). The Brief row go and scan buttons still send brief-panel/act, as the cook flagged: kept, the spec says scan and view count nothing, so dropping them is an owner call.
+GOLDENS: none moved, none re-baselined (no template or vals key changed).
+GATES (node tools/gates.mjs): main 1785, hub 204/1 then 205/0, money 261, cosmos 473, renderer 1779 (1 skip), tools 278 (1 skip), selftest 3485 combos 0/0/0, cdp 156/156. The one hub failure was the snapshot op test: it passed alone and the whole hub suite passed on a re-run, so a load timing flake.
+IN-FLIGHT: none. ASKS: none. BREAKS: none.
+
+---
+
 ## 2026-11-16 · FROM frontend (batch 8 dish 1b DONE: counting fix) · main @ (see commits, not pushed)
 DONE: ACT COUNTING CHANGED, so do not compare act numbers before and after this commit in `node tools/use-report.mjs` (the report now says so). (1) Dismiss on a Brief row no longer sends an act mark (it sets a row aside). (2) Mark done and Confirm balance on a Brief row (the verbs with `marks` true) send one (brief-act, act); Open its folder sends nothing; Commit sends one (brief-act, handover), a new action, and the commit overlay opens as before. (3) A task Done sends one (tasks-board, act) when the deferred write goes out (Undo inside the window sends none). (4) Anti-farming: an identical click inside a minute adds no mark (`useActOnce`, the ref stays in the window and is never sent). The Brief row go and scan buttons still send (brief-panel, act): the plan did not list them. use-log allowlist gains surface `tasks-board` and action `handover`; use-report gains a handover column. renderer VERB_MARKS has a parity test against brief-act-core VERBS.
 TESTS: use-log, act-marks, use-report, cdp-act-marks (node), cdp use-act-marks (changed) and new use-act-effect passed on a throwaway instance. No template, vals key or golden moved.
