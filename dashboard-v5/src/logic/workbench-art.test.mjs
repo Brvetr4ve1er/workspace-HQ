@@ -142,6 +142,15 @@ test('wbnv: each readout shows a real number the app already holds (and 0 for th
   assert.equal(valsOn({ crw: { rows: [] } }).skills.show, true, 'a roster that was read and is empty is a real 0');
 });
 
+test('a good read then a failed read keeps the old answer in state but draws no cleared picture', () => {
+  const good = { bhsData: { clearedThisWeek: 7 }, bhsErr: '' };
+  assert.equal(workbenchNumbers(good, {}).cleared, 7);
+  assert.equal(valsOn(good).cleared.show, true);
+  const failed = { bhsData: { clearedThisWeek: 7 }, bhsErr: 'read failed' };   // a failed read sets bhsErr and leaves the old bhsData
+  assert.equal(workbenchNumbers(failed, {}).cleared, null);
+  assert.equal(valsOn(failed).cleared.show, false);
+});
+
 test('the cleared number is the one the Brief strip says: both read clearedThisWeek of the same answer', () => {
   const D = { clearedThisWeek: 7, dismissedThisWeek: 0, entries: [], strip: { held: 3, pending: 0, cameBack: 0, clears: { inPlace: 0, markedDone: 0, scanConfirmed: 0, unknown: 0 }, open: 0, oldestOpen: null, outside: { count: 0 }, setAside: { count: 0, items: [], oldest: null } } };
   const line = stripLines(D)[0];

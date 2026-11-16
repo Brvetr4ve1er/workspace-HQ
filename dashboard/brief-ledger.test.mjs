@@ -394,16 +394,32 @@ test('a clear that is only known because the rule went quiet still counts: the r
   assert.equal(ledger.closed[0].subjectRef, subjectRefOf('unpushed', 'proj-a'));
 });
 
-test('a pending clear with no readable wait is given the full wait from its end, and one observe never turns it held', () => {
+test('a pending clear with no readable wait is given the full wait from load time (it ended just before), and one observe never turns it held', () => {
   const { ledger } = run([[0, brief([A1])], [30, brief([], { at: at(30) })]]);
   const damaged = JSON.parse(JSON.stringify(ledger));
   delete damaged.closed[0].heldUntil;
   const fixed = cleanLedger(damaged, at(60));
   assert.equal(fixed.closed[0].hold, 'pending');
-  assert.equal(fixed.closed[0].heldUntil, new Date(at(30).getTime() + 72 * 3600e3).toISOString());
+  assert.equal(fixed.closed[0].heldUntil, new Date(at(60).getTime() + 72 * 3600e3).toISOString());
   const o = observe(damaged, brief([], { at: at(90) }), { now: at(90) });
   assert.equal(o.ledger.closed[0].hold, 'pending');
   assert.equal(o.ledger.closed[0].heldAt, undefined);
+});
+
+test('a pending clear with no readable wait that ended long ago stays pending one hour after load, and is not counted held', () => {
+  const { ledger } = run([[0, brief([A1])], [30, brief([], { at: at(30) })]]);
+  const damaged = JSON.parse(JSON.stringify(ledger));
+  delete damaged.closed[0].heldUntil;
+  damaged.obsAt = null;
+  damaged.closed[0].first = at(-130 * 60).toISOString();
+  damaged.closed[0].ended = at(-120 * 60).toISOString();   // ended 120 hours before the app loaded the file
+  const o1 = observe(damaged, brief([], { at: at(60) }), { now: at(60) });
+  assert.equal(o1.ledger.closed[0].hold, 'pending');
+  assert.equal(o1.ledger.closed[0].heldUntil, new Date(at(60).getTime() + 72 * 3600e3).toISOString());
+  const o2 = observe(o1.ledger, brief([], { at: at(120) }), { now: at(120) });
+  assert.equal(o2.ledger.closed[0].hold, 'pending');
+  assert.equal(o2.ledger.closed[0].heldAt, undefined);
+  assert.equal(summarize(o2.ledger, { now: at(120) }).heldThisWeek, 0);
 });
 
 test('held is a subset of cleared this week, and the headline uses the same one-per-subject basis as the breakdown', () => {

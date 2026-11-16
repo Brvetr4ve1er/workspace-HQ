@@ -87,14 +87,12 @@ for (const name of Object.keys(BLOCKS)) {
     for (const k of ['--gold', '--green', '--red', '--orange', '--yellow', '--blue', '--purple', '--cyan']) {
       const r = ratio(parseColor(b[k]), seen(b, '--card'));
       assert.ok(r >= 3, k + ' as a mark = ' + r.toFixed(2));
-      if (k !== '--gold') assert.ok(r >= 4.5, k + ' as text = ' + r.toFixed(2));
+      assert.ok(r >= 4.5, k + ' as text = ' + r.toFixed(2));
     }
     const screenInk = ratio(parseColor(b['--accent-text']), seen(b, '--ink'));
     assert.ok(screenInk >= 4.5, 'readout (--accent-text) on the screen (--ink) = ' + screenInk.toFixed(2));
     assert.ok(ratio(parseColor(b['--text']), seen(b, '--ink')) >= 4.5, '--text on --ink');
-    // the fill must hold the dark button label (4.5, next test), which on the light base leaves the strokes on the screen a little under 3: they are
-    // decoration (aria-hidden; the readout text above carries the number and is held to 4.5)
-    assert.ok(ratio(parseColor(b['--gold']), seen(b, '--ink')) >= (name === 'light' ? 2.5 : 3), 'the accent mark on the screen: ' + name);
+    assert.ok(ratio(parseColor(b['--gold']), seen(b, '--ink')) >= 3, 'the accent mark on the screen: ' + name);
   });
 }
 
@@ -172,10 +170,13 @@ test('the sheet is attached only by the layer: no page links it, no file in the 
   assert.equal(/workbench\.css/.test(read('app.css')), false, 'app.css does not import it');
 });
 
-test('the dark label the app puts on a gold fill (Crew Start, Vault desk Add, the all-clear Got it) reads at 4.5 on BOTH bases, light included', () => {
-  const label = parseColor('#1a0f0a');
-  for (const [name, b] of Object.entries(BLOCKS)) {
-    const r = ratio(label, parseColor(b['--gold']));
-    assert.ok(r >= 4.5, name + ': the label on the --gold fill = ' + r.toFixed(2));
-  }
+test('the label on a gold fill (Crew Start, Vault desk Add, the all-clear Got it) reads at 4.5: dark base keeps the dark label, light base has a white-label rule', () => {
+  assert.ok(ratio(parseColor('#1a0f0a'), parseColor(dark['--gold'])) >= 4.5, 'dark: the dark label on --gold');
+  const rules = allRules().filter(([sel]) => sel.includes('[style*='));
+  assert.equal(rules.length, 1, 'exactly one label rule in the sheet');
+  const [sel, d] = rules[0];
+  assert.match(sel, /^\[data-hq-look=workbench\]\[data-hq-theme=light\] \[style\*=background: var\(--gold\);\]$/, 'scoped to the light look, spelled as Chromium serializes the inline style');
+  assert.match(d.color, /^#ffffff !important$/);
+  const r = ratio(parseColor(d.color.replace(/ !important$/, '')), parseColor(light['--gold']));
+  assert.ok(r >= 4.5, 'light: the label rule colour on --gold = ' + r.toFixed(2));
 });

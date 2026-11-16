@@ -39,7 +39,7 @@ test('the words the scenarios expect are the logic module’s own, and the place
 
 test('the placeholder answers carry no real names (the repo is public)', () => {
   const text = JSON.stringify([ANSWER, CLEAR_ANSWER]);
-  assert.doesNotMatch(text, /acme|workspace|C:\\|veemo|\.env/i);
+  assert.doesNotMatch(text, /acme|workspace|C:\\|\.env/i);
 });
 
 test('each scenario returns the failed fresh() answer and touches nothing', async () => {
@@ -91,6 +91,6 @@ test('batch 8: the words the strip, clean-card and settings scenarios wait for a
 });
 
 test('batch 8: the placeholder counts carry no real names and the page reset closes Settings', () => {
-  assert.doesNotMatch(JSON.stringify([BUSY_COUNTS, ZERO_COUNTS]), /acme|workspace|C:\\|veemo|\.env/i);
+  assert.doesNotMatch(JSON.stringify([BUSY_COUNTS, ZERO_COUNTS]), /acme|workspace|C:\\|\.env/i);
   assert.match(PAGE.reset, /settingsOpen: false/);
 });

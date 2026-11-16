@@ -24,7 +24,7 @@ const len = (x) => (Array.isArray(x) ? x.length : null);   // null = not read ye
 export function workbenchNumbers(S, ctx) {
   const D = S && S.bhsData && typeof S.bhsData === 'object' ? S.bhsData : null;
   return {
-    cleared: D && !D.error ? num(D.clearedThisWeek) : null,
+    cleared: D && !S.bhsErr ? num(D.clearedThisWeek) : null,
     skills: len(S && S.crw && S.crw.rows),
     notes: S && S.vdk && S.vdk.data ? len(S.vdk.data.recent) : null,   // a held answer lists its recent notes even when today's note is missing
     needyou: 0,

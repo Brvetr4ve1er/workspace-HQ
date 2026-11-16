@@ -121,8 +121,9 @@ export function cleanLedger(x, now) {
     if (CLEAR_LABELS.includes(c.label)) k.label = c.label;
     if (HOLDS.includes(c.hold)) k.hold = c.hold;
     for (const name of ['heldUntil', 'heldAt', 'cameBackAt']) { const v = isoOrNull(c[name]); if (v !== null) k[name] = v; }
-    // a pending clear with no readable wait gets the full wait from when it ended: a damaged file never mints a held clear early
-    if (k.hold === 'pending' && !k.heldUntil) k.heldUntil = isoOf(e + HOLD_MS);
+    // a pending clear with no readable wait gets the full wait counted from the later of when it ended and now (the load time): the app has only been watching since it loaded,
+    // so a damaged file never mints a held clear early, and an old clear is not held on the very next look
+    if (k.hold === 'pending' && !k.heldUntil) k.heldUntil = isoOf(Math.max(e, t) + HOLD_MS);
     if (c.setAside === true) k.setAside = true;
     closed.push(k);
   }

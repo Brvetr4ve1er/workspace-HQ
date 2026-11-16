@@ -9,6 +9,7 @@
 //                             and a fourth link; choosing Console leaves the look (and removes its sheet); the layer off is all zeros again
 //   workbench-art             under the look, Claude > Crew and Life > Notes carry their small picture: the readout reads "<n> SKILLS" / "<n> NOTES" with n the number the app holds, the
 //                             picture is named once (role img, aria-label), the readout sits inside its screen box, the drawing has real size; with the look off there is no picture at all
+//   (workbench-art also reads the label colour of a gold-filled button: dark on the dark look, white on the light look and on the light red accent with or without the look, dark on the plain light base)
 //   workbench-reduced-motion  the screen cursor blinks only when the OS and the app both allow motion: with Reduce motion on, and again with the OS preference emulated, its computed
 //                             animation is none; with both free it is the sheet's own wbn- keyframes
 //   workbench-leave           the shell Light/dark button, the palette's "Toggle light / dark" and the Dark chip each leave the look (attribute empty, sheet gone, layer still on, the red accent kept)
@@ -45,6 +46,8 @@ export const PAGE = Object.freeze({
   artText: (kind) => `(() => { const a = document.querySelector('[data-wbn="art-${kind}"]'); const r = a && a.querySelector('[data-wbn="readout"]'); return r ? r.textContent.trim() : null; })()`,
   artCount: `document.querySelectorAll('[data-wbn^="art-"]').length`,
   artInfo: (kind) => `(() => { const a = document.querySelector('[data-wbn="art-${kind}"]'); if (!a) return null; const r = a.querySelector('[data-wbn="readout"]'), s = a.querySelector('svg'); const ab = a.getBoundingClientRect(), rb = r.getBoundingClientRect(); return JSON.stringify({ role: a.getAttribute('role'), label: a.getAttribute('aria-label'), w: Math.round(ab.width), h: Math.round(ab.height), inside: rb.left >= ab.left - 1 && rb.right <= ab.right + 1 && rb.top >= ab.top - 1 && rb.bottom <= ab.bottom + 1, readoutHidden: r.getAttribute('aria-hidden'), svgHidden: s.getAttribute('aria-hidden'), paths: s.querySelectorAll('path').length, ns: (s.querySelector('path') || {}).namespaceURI || '', bbox: (() => { const p = s.querySelector('path'); try { const b = p.getBBox(); return Math.round(b.width) + 'x' + Math.round(b.height); } catch (e) { return 'none'; } })(), upper: getComputedStyle(r).textTransform, mono: /mono|monospace/i.test(getComputedStyle(r).fontFamily) }); })()`,
+  // every gold-filled control on screen (the inline style Chromium writes reads "background: var(--gold);"): the first one with text, and how many have a background that is not the --gold token
+  goldFills: `(() => { const els = [...document.querySelectorAll('[style*="background: var(--gold);"]')]; const probe = document.createElement('div'); probe.style.background = 'var(--gold)'; (els[0] ? els[0].parentElement : document.body).appendChild(probe); const want = getComputedStyle(probe).backgroundColor; probe.remove(); const withText = els.find((e) => e.tagName === 'BUTTON' && e.textContent.trim()); const cs = withText && getComputedStyle(withText); return JSON.stringify({ n: els.length, want, label: cs ? cs.color : null, bg: cs ? cs.backgroundColor : null, wrongBg: els.filter((e) => getComputedStyle(e).backgroundColor !== want).length, attr: withText ? withText.getAttribute('style').match(/background: var\\(--gold\\);/) !== null : null }); })()`,
   cursor: `(() => { const c = document.querySelector('.wbn-cursor'); if (!c) return null; const cs = getComputedStyle(c); return JSON.stringify({ name: cs.animationName, iter: cs.animationIterationCount }); })()`,
   heldCount: (key) => `(() => { const s = WHQ.app.logic.state; return ${key === 'crw' ? "(s.crw && s.crw.rows ? s.crw.rows.length : -1)" : "(s.vdk && s.vdk.data && s.vdk.data.recent ? s.vdk.data.recent.length : -1)"}; })()`,
   setState: (o) => `(() => { WHQ.app.logic.setState(${q(o)}); return true; })()`,
@@ -150,6 +153,33 @@ export function makeWorkbenchScenarios({ fresh, sleep }) {
           if (await t.evaluate(PAGE.artText('notes')) !== n + ' NOTES') out.push('the Vault desk readout is ' + JSON.stringify(await t.evaluate(PAGE.artText('notes'))) + ', the desk lists ' + n);
           if (await t.evaluate(PAGE.artCount) !== 1) out.push('more than one picture is on the Vault desk screen: ' + await t.evaluate(PAGE.artCount));
         }
+        // the label on a gold-filled control (Crew Start): dark on the dark look, white on the light look and on the light red accent, dark again on the plain light base
+        const DARK_LABEL = 'rgb(26, 15, 10)', WHITE = 'rgb(255, 255, 255)';
+        const gold = async (where, label, bg) => {
+          if (bg) await t.waitFor(`JSON.parse(${PAGE.goldFills}).bg === ${q(bg)}`, 4000);
+          await pause(t, 600);
+          if (!await t.waitFor(`${PAGE.goldFills} && JSON.parse(${PAGE.goldFills}).label !== null`, 4000)) { out.push(where + ': no gold-filled button with a label on the Crew screen'); return; }
+          const g = await json(t, PAGE.goldFills);
+          if (!g.attr) out.push(where + ': the gold fill is not in the style attribute as "background: var(--gold);"');
+          if (g.label !== label) out.push(where + ': the gold button label is ' + g.label + ', want ' + label);
+          if (bg && g.bg !== bg) out.push(where + ': the gold button fill is ' + g.bg + ', want ' + bg);
+          if (g.wrongBg) out.push(where + ': ' + g.wrongBg + ' gold-filled element(s) have a fill that is not the --gold token');
+        };
+        await t.evaluate(PAGE.go('claude', 'crew'));
+        await t.waitFor(`!!document.querySelector('[data-crw="view"]')`, 8000);
+        await gold('dark + Workbench', DARK_LABEL);
+        await t.evaluate(PAGE.setState({ themePref: 'light' }));
+        await gold('light + Workbench', WHITE, 'rgb(63, 106, 140)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, palette: 'signal' }));
+        await gold('light + Workbench + red accent', WHITE, 'rgb(179, 38, 30)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', palette: 'signal' }));
+        await gold('light + red accent, no look', WHITE, 'rgb(179, 38, 30)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', palette: '' }));
+        await gold('light, plain (label stays dark)', DARK_LABEL, 'rgb(181, 88, 58)');
+        await t.evaluate(PAGE.setState({ themePref: 'dark' }));
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, palette: 'signal' }));
+        await gold('dark + Workbench + red accent', DARK_LABEL, 'rgb(224, 88, 74)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK }));
         // the Console skin and the layer off show none
         await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', skin: true }));
         await pause(t, 250);
