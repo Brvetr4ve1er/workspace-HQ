@@ -53,7 +53,7 @@ test('a healthy page reports nothing and the clicks are the ones the spec names'
     evaluate: async (s) => {
       for (const [k, v] of Object.entries(counts)) { const [sf, ac] = k.split('/'); if (s === PAGE.marks(sf, ac)) return v; }
       if (s === PAGE.dismissButton(0)) { clicked.push('dismiss'); return true; }   // Dismiss is not an act (batch 8)
-      if (s === PAGE.rowButton(0)) { clicked.push('row'); counts['brief-panel/act']++; return true; }
+      if (s === PAGE.rowButton(0)) { clicked.push('row'); return true; }   // Go and Scan are not acts (batch 8)
       if (s === PAGE.cosmosCards) return ['e1', 'e2'];
       if (s === PAGE.favorite('e1')) { clicked.push('favorite'); counts['cosmos/act']++; return true; }
       if (s === PAGE.saveVault) { clicked.push('save'); counts['claude-vault/act']++; return 'saved'; }

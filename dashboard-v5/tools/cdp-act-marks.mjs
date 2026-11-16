@@ -4,8 +4,8 @@
 //
 //   node tools/cdp-gate.mjs --port 9342 --scenario use-act-marks     (needs --preload=fake)
 //
-//   use-act-marks   the fake's hq.use records every call. A Brief row button, a Cosmos favourite and a Save to vault each add exactly ONE
-//                   ('<surface>','act') call; Dismiss sets a row aside and adds NONE (batch 8: only a click that changed a fact is an act); and opening
+//   use-act-marks   the fake's hq.use records every call. A Cosmos favourite and a Save to vault each add exactly ONE
+//                   ('<surface>','act') call; Dismiss, and a Brief row's Go or Scan button, add NONE (batch 8: only a click that changed a fact is an act); and opening
 //                   the same screen twice still adds ONE 'open'. No act mark from any other surface appears.
 //   use-act-effect  (batch 8, counting fix) Mark done on a Brief row adds ONE ('brief-act','act') and the same click again inside a minute adds none;
 //                   Open its folder adds none; a task Done adds ONE ('tasks-board','act') once the Undo window has passed. Nothing else marks 'act'.
@@ -65,7 +65,10 @@ export function makeActMarksScenarios({ fresh, sleep }) {
         await t.evaluate(`(() => { const L = WHQ.app.logic; L.setState({ brfBusy: false }); L._brfBusy = false; L.store.refreshBrief(); return true; })()`);
         await t.waitFor(`${PAGE.rows}.length >= 1`, 4000);
         if (!await t.evaluate(PAGE.rowButton(0))) out.push('no Brief row button to click');
-        else if (!await t.waitFor(`${PAGE.marks('brief-panel', 'act')} === 1`, 3000)) out.push('a Brief row button made ' + await n('brief-panel', 'act') + ' act mark(s), want 1');
+        else {
+          await pause(400);   // Go and Scan only look or scan: no act mark, the open mark stays one per arrival
+          if (await n('brief-panel', 'act') !== 0) out.push('a Brief row button made ' + await n('brief-panel', 'act') + ' act mark(s), want 0');
+        }
 
         // Cosmos favourite: one act; the arrival is one open even when the screen is asked for twice
         await t.evaluate(PAGE.goCosmos); await pause(200);

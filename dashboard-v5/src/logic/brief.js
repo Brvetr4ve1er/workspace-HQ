@@ -9,8 +9,9 @@ export const briefLogic = {
     if (action.kind === 'scan') { this._brfMark(); return this.scanNow(); }
     if (action.kind === 'go') { this._brfMark(); return action.projectId ? this.openProject(action.projectId) : this.go(action.tab, action.sub); }
   },
-  // act marks (batch 6): a row button (go or scan) is one; Dismiss is not (batch 8) ('brief-panel','act'); a mark never blocks or fails the click
-  _brfMark() { try { if (typeof this.useMark === 'function') this.useMark('brief-panel', 'act'); } catch { /* a usage mark is a bonus */ } },
+  // Go and Scan only look or start a scan: they change no fact, so they send no act mark (batch 8), just the plain open mark (once per arrival);
+  // a mark never blocks or fails the click
+  _brfMark() { try { if (typeof this.useMark === 'function') this.useMark('brief-panel'); } catch { /* a usage mark is a bonus */ } },
   async brfDismiss(key) {
     if (this._brfBusy) return false;   // double click while the dismiss is in flight: one write, not two
     this._brfBusy = true;

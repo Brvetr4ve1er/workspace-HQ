@@ -63,15 +63,16 @@ test('an act is sent while the window is hidden too (a click means someone is th
   } finally { delete globalThis.document; }
 });
 
-test('the Brief row button marks (brief-panel, act) for go and scan; a bad action marks nothing', () => {
+test('the Brief row Go and Scan buttons send no act mark (viewing and scanning count nothing); a bad action marks nothing', () => {
   const { self, sent, calls } = rig();
   self.brfAct({ kind: 'go', tab: 'claude', sub: 'chats' });
   self.brfAct({ kind: 'go', tab: 'projects', projectId: 'p1' });
   self.brfAct({ kind: 'scan' });
-  assert.equal(acts(sent, 'brief-panel'), 3);
+  assert.equal(acts(sent, 'brief-panel'), 0, 'go and scan are not effects');
+  assert.deepEqual(sent, [['brief-panel', 'open']], 'one plain open mark, deduped per arrival');
   assert.deepEqual(calls.map((c) => c[0]), ['go', 'openProject', 'scan']);
   for (const bad of [null, undefined, 'go', 7, { kind: 'nope' }, {}]) self.brfAct(bad);
-  assert.equal(sent.length, 3, 'nothing extra for a refused action');
+  assert.equal(sent.length, 1, 'nothing extra for a refused action');
 });
 
 test('a Dismiss that fails or is refused marks nothing', async () => {
