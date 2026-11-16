@@ -186,3 +186,15 @@ test('batch 6: an aged row projects as aged:true and a group field projects noth
   const s = JSON.stringify(p);
   for (const bad of [QUEST, PID, QID, 'sinceAt', 'listAction', 'group']) assert.ok(!s.includes(bad), bad);
 });
+
+// batch 8: a row may carry `subject` in memory (what it is about). It never crosses this projection: not on the tray rows, not on the Bridge badge, not anywhere.
+test('batch 8: a row carrying a subject projects with no subject field anywhere, and the subject text appears nowhere in the output', () => {
+  const MARK = 'subject-marker-zzz';
+  const withSubject = { ...BRIEF, items: BRIEF.items.map((x) => ({ ...x, subject: MARK })), overflow: BRIEF.overflow.map((x) => ({ ...x, subject: MARK })), standing: [{ ...it('dirty', 'low', 'dirty:proj-x:12', { subject: MARK }), since: new Date(NOW - 80 * H).toISOString() }] };
+  const out = projectBrief(withSubject, { now: NOW, firstSeen: FIRST });
+  const text = JSON.stringify(out);
+  assert.ok(!text.includes(MARK), 'the subject leaked');
+  assert.ok(!/"subject"/.test(text), 'a subject field leaked');
+  const noStanding = projectBrief({ ...withSubject, standing: [] }, { now: NOW, firstSeen: FIRST });
+  assert.deepEqual(noStanding, P(), 'the projection is identical with or without a subject on the rows');
+});

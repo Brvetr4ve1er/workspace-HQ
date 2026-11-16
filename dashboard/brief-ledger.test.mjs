@@ -338,3 +338,274 @@ test('batch 6: an aged row moving between standing and the last slot is never cl
   assert.equal(Object.keys(ledger.open).length, 2, 'the quiet line never opens an entry');
   assert.ok(!JSON.stringify(ledger).includes('quiet'));
 });
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// Batch 8 (ledger core): subjects, per-subject closure, labels, the 72 h hold, the one-day gap, came-back, set-aside. Placeholder names only.
+import { subjectRefOf, CLEAR_LABELS, HOLDS, HOLD_MS, OUTSIDE_RULES } from './brief-ledger.mjs';
+
+const H = 60;   // minutes in an hour
+const sub = (key, rule, source, subject, severity = 'med', extra) => row(key, rule, source, severity, { subject, ...(extra || {}) });
+const A1 = sub('unpushed:proj-a:3', 'unpushed', 'scan', 'proj-a');
+const A2 = sub('unpushed:proj-a:2', 'unpushed', 'scan', 'proj-a');
+const B1 = sub('unpushed:proj-b:1', 'unpushed', 'scan', 'proj-b');
+// observe the ledger hourly from minute `from` to `to` (inclusive) with the same rows
+const hourly = (ledger, from, to, items, o) => {
+  let l = ledger;
+  for (let m = from; m <= to; m += H) l = observe(l, brief(items, { at: at(m), ...(o || {}) }), { now: at(m) }).ledger;
+  return l;
+};
+
+test('subjectRefOf is a one-way hash of rule and subject: stable, 12 hex, differs by rule and subject, never contains the subject', () => {
+  const r = subjectRefOf('unpushed', 'proj-a');
+  assert.match(r, /^[0-9a-f]{12}$/);
+  assert.equal(r, subjectRefOf('unpushed', 'proj-a'));
+  assert.notEqual(r, subjectRefOf('unpushed', 'proj-b'));
+  assert.notEqual(r, subjectRefOf('dirty', 'proj-a'));
+  assert.equal(subjectRefOf('unpushed', undefined), undefined);
+  assert.equal(typeof subjectRefOf('scan-stale', ''), 'string', 'an empty subject is still a subject (one thing per rule)');
+});
+
+test('the raw subject is never persisted: not in the open map, the closed list or the JSON text', () => {
+  const { ledger } = run([[0, brief([A1])], [30, brief([A1], { at: at(30) })], [60, brief([], { at: at(60) })], [90, brief([B1], { at: at(90) })]]);
+  const text = JSON.stringify(ledger);
+  assert.ok(!text.includes('proj-a') && !text.includes('proj-b') && !text.includes('subject"'), text);
+  assert.ok(Object.values(ledger.open).every((e) => /^[0-9a-f]{12}$/.test(e.subjectRef)));
+});
+
+test('per-subject closure: a different subject under the same rule means the first is gone, counted as a clear', () => {
+  const { ledger, last } = run([[0, brief([A1])], [30, brief([B1], { at: at(30) })]]);
+  assert.deepEqual(last.closed, [{ rule: 'unpushed', how: 'resolved' }]);
+  assert.equal(ledger.closed[0].how, 'resolved');
+  assert.equal(ledger.closed[0].label, 'scan-confirmed');
+  assert.equal(ledger.closed[0].hold, 'pending');
+  assert.equal(ledger.closed[0].subjectRef, subjectRefOf('unpushed', 'proj-a'));
+  assert.deepEqual(Object.values(ledger.open).map((e) => e.subjectRef), [subjectRefOf('unpushed', 'proj-b')]);
+});
+
+test('per-subject closure: the same subject with a new value stays changed and carries its age; nothing counts', () => {
+  const { ledger, last } = run([[0, brief([A1])], [3 * D, brief([A2], { at: at(3 * D) })]]);
+  assert.deepEqual(last.closed, [{ rule: 'unpushed', how: 'changed' }]);
+  assert.equal(ledger.closed[0].how, 'changed');
+  assert.equal(ledger.closed[0].hold, undefined);
+  assert.equal(ledger.closed[0].label, undefined);
+  assert.equal(Object.values(ledger.open)[0].first, at(0).toISOString(), 'age carries across the value change');
+  const s = summarize(ledger, brief([A2], { at: at(3 * D) }), { now: at(3 * D) });
+  assert.equal(s.clearedThisWeek, 0);
+  assert.equal(s.oldestOpen.after, '3 d');
+});
+
+test('a pile that shrinks (3 to 2) is the same subject: age carries, nothing counts', () => {
+  const p3 = sub('dirty:proj-a:30', 'dirty', 'scan', 'proj-a', 'low', { count: 3 });
+  const p2 = sub('dirty:proj-a:29', 'dirty', 'scan', 'proj-a', 'low', { count: 2 });
+  const { ledger } = run([[0, brief([p3])], [H, brief([p2], { at: at(H) })]]);
+  assert.deepEqual(closedHows(ledger), ['changed']);
+  assert.equal(ledger.closed[0].hold, undefined);
+  assert.equal(Object.values(ledger.open)[0].first, at(0).toISOString());
+});
+
+test('without a subject (a legacy caller) the old rule holds: same rule live means changed, and no label or hold is written', () => {
+  const { ledger } = run([[0, brief([UNPUSHED])], [30, brief([row('unpushed:other:1', 'unpushed', 'scan')], { at: at(30) })]]);
+  assert.deepEqual(closedHows(ledger), ['changed']);
+  const r = run([[0, brief([UNPUSHED])], [30, brief([])]]);
+  assert.equal(r.ledger.closed[0].hold, undefined);
+  assert.equal(r.ledger.closed[0].subjectRef, undefined);
+});
+
+test('opts.subjects supplies the subject by key when the row carries none (brief.js strips it before the file is written)', () => {
+  const plain = row('unpushed:proj-a:3', 'unpushed', 'scan');
+  const { ledger } = run([[0, brief([plain]), { subjects: { [plain.key]: 'proj-a' } }]]);
+  assert.equal(Object.values(ledger.open)[0].subjectRef, subjectRefOf('unpushed', 'proj-a'));
+});
+
+test('hold: a clear is pending for 72 h of observation, then held', () => {
+  let l = run([[0, brief([A1])], [H, brief([], { at: at(H) })]]).ledger;
+  assert.equal(l.closed[0].hold, 'pending');
+  assert.equal(l.closed[0].heldUntil, new Date(at(H).getTime() + HOLD_MS).toISOString());
+  l = hourly(l, 2 * H, 2 * D, []);   // observed every hour for two days: still pending
+  assert.equal(l.closed[0].hold, 'pending');
+  let s = summarize(l, brief([], { at: at(2 * D) }), { now: at(2 * D) });
+  assert.equal(s.heldThisWeek, 0);
+  assert.equal(s.pendingNow, 1);
+  l = hourly(l, 2 * D + H, H + 3 * D, []);   // 72 h after the clear: held
+  assert.equal(l.closed[0].hold, 'held');
+  assert.equal(l.closed[0].heldAt, at(H + 3 * D).toISOString());
+  s = summarize(l, brief([], { at: at(H + 3 * D) }), { now: at(H + 3 * D) });
+  assert.equal(s.heldThisWeek, 1);
+  assert.equal(s.pendingNow, 0);
+});
+
+test('gap reset: no observation for over a day restarts the hold', () => {
+  let l = run([[0, brief([A1])], [H, brief([], { at: at(H) })]]).ledger;
+  l = observe(l, brief([], { at: at(2 * D) }), { now: at(2 * D) }).ledger;     // a 47 h silence: the hold restarts from here
+  assert.equal(l.closed[0].hold, 'pending');
+  assert.equal(l.closed[0].heldUntil, new Date(at(2 * D).getTime() + HOLD_MS).toISOString());
+  // 3 days + 1 h after the clear would have passed the original hold, but a second 49 h silence restarts it again
+  l = observe(l, brief([], { at: at(4 * D) }), { now: at(4 * D) }).ledger;
+  assert.equal(l.closed[0].hold, 'pending');
+  assert.equal(l.closed[0].heldUntil, new Date(at(4 * D).getTime() + HOLD_MS).toISOString());
+});
+
+test('a gap under a day (a restart, a nap) does not reset the hold', () => {
+  let l = run([[0, brief([A1])], [H, brief([], { at: at(H) })]]).ledger;
+  const until = l.closed[0].heldUntil;
+  l = observe(l, brief([], { at: at(H + 20 * H) }), { now: at(H + 20 * H), coldStart: true }).ledger;
+  assert.equal(l.closed[0].heldUntil, until);
+});
+
+test('came-back: the same rule and subject live again inside the hold cancels the pending clear, and it never counts', () => {
+  let l = run([[0, brief([A1])], [H, brief([], { at: at(H) })]]).ledger;
+  l = observe(l, brief([A1], { at: at(D) }), { now: at(D) }).ledger;
+  assert.equal(l.closed[0].hold, 'came-back');
+  assert.equal(l.closed[0].cameBackAt, at(D).toISOString());
+  assert.equal(l.closed[0].heldUntil, undefined);
+  const s = summarize(l, brief([A1], { at: at(D) }), { now: at(D) });
+  assert.equal(s.clearedThisWeek, 0, 'a clear that came back is not a clear');
+  assert.equal(s.cameBackThisWeek, 1);
+  assert.equal(s.pendingNow, 0);
+  assert.equal(s.entries.find((e) => e.how === 'resolved').hold, 'came-back');
+});
+
+test('came-back is for a pending clear only: a different subject going live does not cancel it', () => {
+  let l = run([[0, brief([A1])], [H, brief([B1], { at: at(H) })]]).ledger;   // a is gone, b is new
+  l = observe(l, brief([B1], { at: at(D) }), { now: at(D) }).ledger;
+  assert.equal(l.closed.find((c) => c.subjectRef === subjectRefOf('unpushed', 'proj-a')).hold, 'pending');
+});
+
+test('dismissed is set aside: never a clear, never held, never a label, with its age; and it stops being set aside when the subject is live again', () => {
+  const { ledger } = run([[0, brief([A1])], [2 * D, brief([], { at: at(2 * D) }), { dismissedKeys: [A1.key] }]]);
+  const c = ledger.closed[0];
+  assert.equal(c.how, 'dismissed');
+  assert.equal(c.setAside, true);
+  assert.equal(c.hold, undefined);
+  assert.equal(c.label, undefined);
+  const s = summarize(ledger, brief([], { at: at(2 * D) }), { now: at(2 * D) });
+  assert.equal(s.clearedThisWeek, 0);
+  assert.equal(s.dismissedThisWeek, 1);
+  assert.equal(s.heldThisWeek, 0);
+  assert.equal(s.setAside.count, 1);
+  assert.equal(s.setAside.oldest.after, '2 d');
+  assert.equal(s.setAside.items[0].text, phraseOf('unpushed', 0));
+  // its fact moves on (a new value): the Brief shows it again, it is no longer set aside, and the age is carried
+  const back = observe(ledger, brief([A2], { at: at(3 * D) }), { now: at(3 * D) }).ledger;
+  assert.equal(back.closed[0].setAside, undefined);
+  assert.equal(Object.values(back.open)[0].first, at(0).toISOString());
+  assert.equal(summarize(back, brief([A2], { at: at(3 * D) }), { now: at(3 * D) }).setAside.count, 0);
+});
+
+test('set-aside rows never make the board clean: allClear stays null for a ledger whose only close is a dismissal', () => {
+  const { ledger } = run([[0, brief([A1])], [30, brief([], { at: at(30) }), { dismissedKeys: [A1.key] }]]);
+  assert.equal(allClearOf(ledger, brief([], { at: at(30) }), { now: at(30) }), null);
+});
+
+test('senses sources are labelled unknown and never held; the clear is shown and counted apart', () => {
+  const ci = sub('ci-red:repo-q:1', 'ci-red', 'github', 'repo-q');
+  let l = run([[0, brief([ci])], [H, brief([], { at: at(H) })]]).ledger;
+  const c = l.closed[0];
+  assert.equal(c.how, 'resolved');
+  assert.equal(c.label, 'unknown');
+  assert.equal(c.hold, 'never');
+  assert.equal(c.heldUntil, undefined);
+  l = hourly(l, 2 * H, 5 * D, []);
+  assert.equal(l.closed[0].hold, 'never', 'never becomes held, however long it stays gone');
+  const s = summarize(l, brief([], { at: at(5 * D) }), { now: at(5 * D) });
+  assert.equal(s.heldThisWeek, 0);
+  assert.deepEqual(s.clears, { inPlace: 0, markedDone: 0, scanConfirmed: 0, unknown: 1 });
+});
+
+test('a row the owner acted on closes acted: in place for a verb that changes a fact, marked done for a quest, and only in place is held', () => {
+  const dirty = sub('dirty:proj-a:12', 'dirty', 'scan', 'proj-a', 'low', { acted: { verb: 'commit', at: at(10).toISOString() } });
+  const quest = sub('quest-red:q-1', 'quest-red', 'scan', 'q-1', 'high', { acted: { verb: 'quest-done', at: at(10).toISOString() } });
+  const { ledger } = run([[0, brief([dirty, quest])], [30, brief([], { at: at(30) })]]);
+  const by = (rule) => ledger.closed.find((c) => c.rule === rule);
+  assert.deepEqual([by('dirty').how, by('dirty').label, by('dirty').hold], ['acted', 'in-place', 'pending']);
+  assert.deepEqual([by('quest-red').how, by('quest-red').label, by('quest-red').hold], ['acted', 'marked-done', 'never']);
+  const s = summarize(ledger, brief([], { at: at(30) }), { now: at(30) });
+  assert.deepEqual(s.clears, { inPlace: 1, markedDone: 1, scanConfirmed: 0, unknown: 0 });
+  assert.equal(s.pendingNow, 1, 'only the in-place clear waits out a hold');
+});
+
+test('a quiet source (an error on it) cannot call a gone row fixed: silent, no hold', () => {
+  const { ledger } = run([[0, brief([A1])], [H, brief([], { at: at(H), errors: [{ source: 'scan', error: 'placeholder' }] })]]);
+  assert.equal(ledger.closed[0].how, 'silent');
+  assert.equal(ledger.closed[0].hold, undefined);
+});
+
+test('one count per rule and subject per week: closing, returning and closing the same subject counts once', () => {
+  let l = run([[0, brief([A1])], [H, brief([], { at: at(H) })]]).ledger;
+  l = hourly(l, 2 * H, H + 3 * D, []);                                                                    // held
+  l = observe(l, brief([A1], { at: at(H + 3 * D + H) }), { now: at(H + 3 * D + H) }).ledger;              // it returns after the hold: a new row
+  l = observe(l, brief([], { at: at(H + 3 * D + 2 * H) }), { now: at(H + 3 * D + 2 * H) }).ledger;        // cleared again
+  const now = at(H + 3 * D + 2 * H);
+  const s = summarize(l, brief([], { at: now }), { now });
+  assert.equal(s.clears.scanConfirmed, 1, 'two closes of one subject in a week: one count');
+  assert.equal(s.heldThisWeek, 1);
+});
+
+test('a first sight closes nothing: a row must be seen in a compute before it can clear', () => {
+  const { ledger, last } = run([[0, brief([A1])]]);
+  assert.deepEqual(last.closed, []);
+  assert.deepEqual(ledger.closed, []);
+});
+
+test('the strip numbers: oldest open row excludes the rows the app cannot fix, which sit on their own line', () => {
+  const pc = sub('pc-ember:disk-x', 'pc-ember', 'pc-health', 'disk-x', 'med');
+  const old = sub('claude-sync:0:never', 'claude-sync', 'claude', '', 'low');
+  const { ledger } = run([[0, brief([pc, old])], [5 * D, brief([pc, old, A1], { at: at(5 * D) })]]);
+  const now = at(5 * D);
+  const s = summarize(ledger, brief([pc, old, A1], { at: now }), { now });
+  assert.equal(s.openCount, 1);
+  assert.equal(s.oldestOpen.after, durationWords(0), 'only the in-app row counts, and it is new');
+  assert.equal(s.outside.count, 2);
+  assert.deepEqual(s.outside.rules.sort(), ['claude-sync', 'pc-ember']);
+  assert.ok(OUTSIDE_RULES.includes('review-waiting'));
+});
+
+test('summarize keeps every earlier field, and the new numbers are plain counts (no score, no total)', () => {
+  const s = summarize(emptyLedger(), brief([]), { now: at(0) });
+  assert.deepEqual(Object.keys(s).sort(), ['allClear', 'cameBackThisWeek', 'clearedThisWeek', 'clears', 'dismissedThisWeek', 'entries', 'heldThisWeek', 'oldestOpen', 'openCount', 'outside', 'pendingNow', 'setAside']);
+  assert.ok(!('score' in s) && !('total' in s) && !('level' in s));
+  assert.equal(s.oldestOpen, null);
+  assert.deepEqual(s.setAside, { count: 0, oldest: null, items: [] });
+});
+
+test('legacy file: a ledger written before batch 8 loads unchanged, keeps its rows, and gains nothing it did not have', () => {
+  const legacy = {
+    v: 1, busyFrom: at(0).toISOString(), lastClearShownAt: null,
+    open: { [refOf('unpushed:proj-a:3')]: { rule: 'unpushed', source: 'scan', severity: 'med', count: 0, first: at(0).toISOString(), last: at(60).toISOString() } },
+    closed: [{ rule: 'dirty', severity: 'low', count: 0, first: at(0).toISOString(), ended: at(120).toISOString(), how: 'resolved' }],
+  };
+  const c = cleanLedger(legacy, at(180));
+  assert.deepEqual(c.open[refOf('unpushed:proj-a:3')], legacy.open[refOf('unpushed:proj-a:3')]);
+  assert.deepEqual(c.closed, legacy.closed);
+  assert.equal(c.obsAt, null);
+  const s = summarize(c, brief([]), { now: at(180) });
+  assert.equal(s.clearedThisWeek, 1);
+  assert.deepEqual(s.clears, { inPlace: 0, markedDone: 0, scanConfirmed: 0, unknown: 0 }, 'a legacy close has no label: counted as before, not as a labelled clear');
+  assert.equal(s.heldThisWeek, 0);
+  const r = observe(c, brief([A1], { at: at(200) }), { now: at(200) });   // the old open row has no subjectRef: adopted without error
+  assert.equal(r.ledger.obsAt, at(200).toISOString());
+  assert.ok(Object.values(r.ledger.open).some((e) => e.subjectRef));
+});
+
+test('cleanLedger passes the new fields through and drops anything unknown or malformed', () => {
+  const ref = refOf('x');
+  const c = cleanLedger({
+    v: 1, obsAt: at(5).toISOString(), open: { [ref]: { rule: 'dirty', source: 'scan', severity: 'low', count: 1, first: at(0).toISOString(), last: at(5).toISOString(), subjectRef: ref, actedVerb: 'commit', acted: at(3).toISOString(), extra: 'x' } },
+    closed: [{ rule: 'dirty', severity: 'low', count: 1, first: at(0).toISOString(), ended: at(5).toISOString(), how: 'acted', subjectRef: ref, label: 'in-place', hold: 'pending', heldUntil: at(9).toISOString(), setAside: true, junk: 1 },
+      { rule: 'dirty', severity: 'low', count: 1, first: at(0).toISOString(), ended: at(5).toISOString(), how: 'acted', subjectRef: 'not a ref', label: 'bogus', hold: 'bogus', heldUntil: 'not a date', setAside: 'yes' }],
+  }, at(10));
+  assert.deepEqual(Object.keys(c.open[ref]).sort(), ['acted', 'actedVerb', 'count', 'first', 'last', 'rule', 'severity', 'source', 'subjectRef']);
+  assert.deepEqual(Object.keys(c.closed[0]).sort(), ['count', 'ended', 'first', 'heldUntil', 'hold', 'how', 'label', 'rule', 'setAside', 'severity', 'subjectRef']);
+  assert.deepEqual(Object.keys(c.closed[1]).sort(), ['count', 'ended', 'first', 'how', 'rule', 'severity']);
+  assert.equal(CLEAR_LABELS.length, 4);
+  assert.equal(HOLDS.length, 4);
+});
+
+test('the engine never throws on junk with subjects, and does not mutate its inputs', () => {
+  const b = brief([A1, { key: 5, rule: {}, subject: 9 }, null]);
+  const copy = JSON.stringify(b), led = run([[0, brief([A1])]]).ledger, ledCopy = JSON.stringify(led);
+  assert.doesNotThrow(() => observe(led, b, { now: at(10), subjects: 'nope' }));
+  assert.doesNotThrow(() => observe(led, brief([]), { now: at(2 * D), subjects: { a: 1 } }));
+  assert.equal(JSON.stringify(b), copy);
+  assert.equal(JSON.stringify(led), ledCopy);
+});

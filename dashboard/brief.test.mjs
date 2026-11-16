@@ -580,3 +580,21 @@ test('quiet lane: brief.json carries one quiet line from the stat-only sources, 
   assert.equal(r2.changed, true, 'the quiet line moved');
   assert.equal(r2.brief.quiet.rule, 'quiet-source-dark'); assert.equal(r2.brief.quiet.kind, 'pc-health'); assert.ok(!JSON.stringify(r2.brief.quiet).includes(dataDir), 'no path in the quiet line');
 });
+
+// batch 8: the subject lives in memory; the ledger gets it by key, the file and the answer never carry it
+test('batch 8: compute strips every row\'s subject before data/brief.json is written and hands them to the ledger by key', async () => {
+  const dataDir = tmp();
+  fs.writeFileSync(path.join(dataDir, 'latest.json'), JSON.stringify(latest([proj('proj-sub', 12)])));
+  fs.writeFileSync(path.join(dataDir, 'pc-health.json'), JSON.stringify({ scanned_at: '2026-11-05T09:30:00Z', organs: [] }));
+  const seen = [];
+  const ledger = { observe: async (b, o) => { seen.push({ b, o }); return { ok: true }; } };
+  const b = brief.create({ dataDir, ...fakes(), ledger, now: () => NOW });
+  const { brief: out } = await b.compute();
+  assert.equal(out.items[0].rule, 'dirty');
+  assert.ok(!('subject' in out.items[0]), 'the returned brief has no subject');
+  const file = fs.readFileSync(path.join(dataDir, 'brief.json'), 'utf8');
+  assert.ok(!/"subject"/.test(file), 'data/brief.json has no subject');
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].o.subjects[out.items[0].key], 'proj-sub');
+  assert.ok(!JSON.stringify(seen[0].b).includes('"subject"'), 'the ledger is handed the stripped brief and the map');
+});

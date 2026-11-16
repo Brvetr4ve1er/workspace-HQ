@@ -178,7 +178,8 @@ const TOOLS = [
         if (quiet && typeof quiet === 'object' && quiet.source === 'money') quiet = null;   // the quiet lane's Money line follows the same switch
       }
       // additive: every row also carries ref (12 hex of its key) so a session can name a row to hq_brief_dismiss without ever sending a key
-      const withRef = (it) => (it && typeof it === 'object' && typeof it.key === 'string' ? { ...it, ref: refOf(it.key) } : it);
+      // a row's `subject` (batch 8: what it is about) is in memory in the app and never leaves it: dropped here too, in case a file ever carries one
+      const withRef = (it) => { if (!it || typeof it !== 'object') return it; const { subject, ...rest } = it; return typeof it.key === 'string' ? { ...rest, ref: refOf(it.key) } : rest; };
       return { ...b, ...(quiet !== undefined ? { quiet } : {}), ...(more !== undefined ? { more } : {}), ...(errors !== undefined ? { errors } : {}), items: ranked.slice(0, limit).map(withRef), overflow: ranked.slice(limit).map(withRef), standing: standing.map(withRef), ageMinutes: Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60e3)) : null };
     },
   },

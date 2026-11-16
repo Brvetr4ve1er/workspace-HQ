@@ -362,3 +362,22 @@ test('batch 6: the quiet lane comes from inputs.quiet, is one line, and is never
   assert.equal(shouldToast(b, { toasted: {}, lastTop: null }, new Date(2026, 10, 5, 12, 0, 0)).toast, null);
   assert.equal(run(base()).quiet, null);
 });
+
+// batch 8: every row says what it is about (in memory only: brief.js strips it before data/brief.json is written)
+test('batch 8: a row carries its subject: the project, bill, quest or account it names, and an empty one for a rule about nothing in particular', () => {
+  const b = run(base({ scan: { projects: [proj('a', { dirty: 12 }), proj('b', { ahead: 2 })], quests: [{ id: 'q-9', title: 'Placeholder quest', tier: 'red', status: 'open' }] } }));
+  const by = Object.fromEntries(b.items.concat(b.overflow).map((i) => [i.rule, i.subject]));
+  assert.equal(by['quest-red'], 'q-9');
+  assert.equal(by.unpushed, 'b');
+  assert.equal(by.dirty, 'a');
+  const stale = run({ ...base(), scan: scan({ date: iso(3 * D) }) }).items.find((i) => i.rule === 'scan-stale');
+  assert.equal(stale.subject, '', 'scan-stale is about the scan as a whole');
+  for (const i of b.items.concat(b.overflow)) assert.equal(typeof i.subject, 'string', i.rule);
+});
+
+test('batch 8: the subject is never read out of the key and is cut to 120 characters', () => {
+  const long = 'p'.repeat(300);
+  const b = run(base({ scan: { projects: [proj(long, { dirty: 12 })] } }));
+  assert.equal(b.items[0].subject.length, 120);
+  assert.ok(b.items[0].key.includes(long), 'the key itself is unchanged');
+});

@@ -654,3 +654,15 @@ test('hq_today is tiered read, answers today as counts with its age, says honest
     assert.doesNotMatch(JSON.stringify(out), /[\/]|\.test|http/i, 'no path, site or url in any answer');
   } finally { fs.rmSync(file, { force: true }); }
 });
+
+// batch 8: a row's in-memory `subject` (what it is about) is dropped even if a file ever carries one
+test('hq_brief never returns a subject field, on items, overflow or standing', async () => {
+  const mk = (k) => ({ key: k, rule: 'dirty', severity: 'low', text: 'Placeholder has 12 uncommitted files', why: 'x', source: 'scan', age: 'scan 1 h ago', action: { kind: 'scan' }, count: 0, subject: 'subject-marker-zzz' });
+  const brief = { v: 1, generatedAt: new Date().toISOString(), more: 0, errors: [], items: [mk('dirty:p:12')], overflow: [mk('dirty:q:11')], standing: [{ ...mk('dirty:r:10'), since: new Date().toISOString() }] };
+  fs.writeFileSync(path.join(root, 'data', 'brief.json'), JSON.stringify(brief));
+  const r = await rpc([{ id: 36, method: 'tools/call', params: { name: 'hq_brief', arguments: { limit: 1 } } }]);
+  const text = JSON.stringify(toolResult(r[36]));
+  assert.ok(!text.includes('subject-marker-zzz'));
+  assert.ok(!/"subject"/.test(text));
+  assert.ok(text.includes('"ref"'), 'the additive ref is still there');
+});

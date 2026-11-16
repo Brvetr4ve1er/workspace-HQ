@@ -67,7 +67,7 @@ const RULE_FNS = {
     const w = worst(projects, (p) => num(riskOf(p).secrets_found)); if (!w) return null;
     const n = num(riskOf(w.top).secrets_found);
     return { key: 'secrets:' + w.top.id + ':' + n, severity: 'high', text: name(w.top.name, w.top.id) + ' has ' + plural(n, 'secret') + ' in plain sight' + andMore(w.others, 'project'),
-      why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others };
+      why: 'Anyone who can read the repo can read them — rotate, then remove.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others, subject: String(w.top.id) };
   },
 
   'money-late': ({ money }) => {
@@ -75,7 +75,7 @@ const RULE_FNS = {
     if (!late.length) return null;
     const o = late[0];
     return { key: 'money-late:' + o.id + ':' + (o.due || ''), severity: 'high', text: name(o.name, 'A bill') + ' is ' + (o.dueLabel || 'late') + andMore(late.length - 1, 'late bill'),
-      why: 'It still counts against your breathing room until it is paid.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'runway' }, others: late.length - 1 };
+      why: 'It still counts against your breathing room until it is paid.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'runway' }, others: late.length - 1, subject: String(o.id) };
   },
 
   'pc-blood': ({ organs, pcAge }) => organRule(organs, 'blood', 'high', pcAge, 'PC health marks it critical.'),
@@ -84,7 +84,7 @@ const RULE_FNS = {
     const red = quests.filter((q) => isObj(q) && q.tier === 'red' && q.status !== 'done');
     if (!red.length) return null;
     return { key: KEYS.questRed(red[0].id), severity: 'high', text: name(red[0].title, 'A critical quest') + andMore(red.length - 1, 'critical quest'),
-      why: 'The scan marks it critical.', source: 'scan', age: scanAge, action: { kind: 'go', tab: 'tasks' }, others: red.length - 1 };
+      why: 'The scan marks it critical.', source: 'scan', age: scanAge, action: { kind: 'go', tab: 'tasks' }, others: red.length - 1, subject: String(red[0].id) };
   },
 
   'scan-stale': ({ scanMs, scanDay, now }) => {
@@ -98,7 +98,7 @@ const RULE_FNS = {
     const w = worst(projects, (p) => { const g = gitOf(p); return num(g.ahead) || (g.unpushed ? 1 : 0); }); if (!w) return null;
     const n = num(gitOf(w.top).ahead);
     return { key: 'unpushed:' + w.top.id + ':' + n, severity: 'med', text: name(w.top.name, w.top.id) + ' has ' + (n ? plural(n, 'commit') : 'work') + ' not pushed' + andMore(w.others, 'project'),
-      why: 'Until it is pushed it lives on this disk only.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others };
+      why: 'Until it is pushed it lives on this disk only.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others, subject: String(w.top.id) };
   },
 
   'money-stale': ({ money }) => {
@@ -106,7 +106,7 @@ const RULE_FNS = {
     if (!stale.length) return null;
     const a = stale[0];
     return { key: KEYS.moneyStale(a.id, a.anchorAt), severity: 'med', text: 'Confirm ' + name(a.name, 'an account') + ' — last confirmed ' + (a.confirmed || 'a while ago') + andMore(stale.length - 1, 'account'),
-      why: 'Breathing room uses an estimate until you do.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'today' }, others: stale.length - 1 };
+      why: 'Breathing room uses an estimate until you do.', source: 'money', age: 'live', action: { kind: 'go', tab: 'money', sub: 'today' }, others: stale.length - 1, subject: String(a.id) };
   },
 
   'pc-ember': ({ organs, pcAge }) => organRule(organs, 'ember', 'med', pcAge, 'PC health flags it.'),
@@ -116,7 +116,7 @@ const RULE_FNS = {
     const w = worst(projects.filter((p) => !(sessionDirtyIds && sessionDirtyIds.has(String(p.id)))), (p) => { const n = num(gitOf(p).dirty); return n >= DIRTY_MIN ? n : 0; }); if (!w) return null;
     const n = num(gitOf(w.top).dirty);
     return { key: 'dirty:' + w.top.id + ':' + n, severity: 'low', text: name(w.top.name, w.top.id) + ' has ' + n + ' uncommitted files' + andMore(w.others, 'project'),
-      why: 'Commit or stash them before they grow.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others };
+      why: 'Commit or stash them before they grow.', source: 'scan', age: scanAge, action: goProject(w.top), others: w.others, subject: String(w.top.id) };
   },
 
   'money-backup': ({ money, moneyMeta, now }) => {
@@ -145,10 +145,15 @@ function organRule(organs, status, severity, pcAge, why) {
   if (!hit.length) return null;
   const o = hit[0];
   return { key: 'pc-' + status + ':' + o.id, severity, text: name(o.label, 'PC') + ': ' + name(o.diagnosis, 'needs a look') + andMore(hit.length - 1, 'issue'),
-    why, source: 'pc-health', age: pcAge, action: { kind: 'go', tab: 'system', sub: 'machine' }, others: hit.length - 1 };
+    why, source: 'pc-health', age: pcAge, action: { kind: 'go', tab: 'system', sub: 'machine' }, others: hit.length - 1, subject: String(o.id) };
 }
 
 Object.assign(RULE_FNS, SENSE_FNS, SESSION_WAITING_FN, BRIEF_SECURITY_FNS);   // the six senses (brief-senses.mjs) run through the same loop, in RULES order
+
+// batch 8: which thing a row is about (a project id, a bill id, a quest id), so the ledger can tell "the same thing, a new value" from "a different thing".
+// IN MEMORY ONLY: brief.js strips it before data/brief.json is written. A rule with no named thing says ''. Never parsed out of the key.
+const SUBJECT_MAX = 120;
+const subjectOf = (it) => (typeof it.subject === 'string' ? [...it.subject].slice(0, SUBJECT_MAX).join('') : '');
 
 export function computeBrief(inputs, opts) {
   const i = isObj(inputs) ? inputs : {};
@@ -177,7 +182,7 @@ export function computeBrief(inputs, opts) {
   for (const rule of RULES) {
     let it = null;
     try { it = RULE_FNS[rule](ctx); } catch { it = null; }   // a malformed input skips its rule, never the brief
-    if (it && !dismissed.has(it.key)) all.push({ key: it.key, rule, severity: it.severity, text: it.text, why: it.why, source: it.source, age: it.age, action: it.action, count: Math.max(0, Math.floor(num(it.others))) });
+    if (it && !dismissed.has(it.key)) all.push({ key: it.key, rule, severity: it.severity, text: it.text, why: it.why, source: it.source, age: it.age, action: it.action, count: Math.max(0, Math.floor(num(it.others))), subject: subjectOf(it) });
   }
   // stable: severity first, rule order within a severity (all[] is already in rule order)
   all.sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity]);

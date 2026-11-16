@@ -127,7 +127,7 @@ test('a write that fails keeps the ledger for the session and says so in notice'
 test('read: nothing yet is honest, an entry shows its words, and no brief means no card', async () => {
   const m = make();
   const none = await m.L.read(null);
-  assert.deepEqual(none, { entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' });
+  assert.deepEqual(none, { entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '', clears: { inPlace: 0, markedDone: 0, scanConfirmed: 0, unknown: 0 }, heldThisWeek: 0, pendingNow: 0, cameBackThisWeek: 0, openCount: 0, oldestOpen: null, outside: { count: 0, rules: [] }, setAside: { count: 0, oldest: null, items: [] } });   // batch 8 added the counts; every earlier field is unchanged
   await warm(m);
   m.at(0); await m.L.observe(m.view([UNPUSHED]), {});
   m.at(2 * D); await m.L.observe(m.view([]), {});
@@ -243,4 +243,50 @@ test('observe never throws at the caller, even on junk', async () => {
     const r = await m.L.observe(junk, null);
     assert.equal(r.ok, true);
   }
+});
+
+// ---- batch 8 (ledger core): the file round trip with subjects, and a pre-batch-8 file --------------------------------------------------
+test('batch 8: subjects handed to observe reach the file only as subjectRef, the hold survives a restart, and read() carries the new numbers', async () => {
+  const m = make();
+  const A = row('unpushed:proj-a:3', 'unpushed', 'scan');
+  const B = row('unpushed:proj-b:1', 'unpushed', 'scan');
+  const subjects = { [A.key]: 'proj-a', [B.key]: 'proj-b' };
+  await warm(m);
+  m.at(1);
+  await m.L.observe(m.view([A]), { subjects });
+  m.at(30);
+  await m.L.observe(m.view([B]), { subjects });
+  const j = m.json();
+  const text = JSON.stringify(j);
+  assert.ok(!text.includes('proj-a') && !text.includes('proj-b'), 'the subject is never written');
+  assert.equal(j.closed.length, 1);
+  assert.equal(j.closed[0].hold, 'pending');
+  assert.match(j.closed[0].subjectRef, /^[0-9a-f]{12}$/);
+  assert.match(j.obsAt, /^2026-/);
+  // a second process (a restart) reads the same file and carries on
+  const again = ledgerMod.create({ dataDir: m.dir, now: () => new Date(T0 + 40 * 60e3) });
+  const r = await again.read(brief([B], { min: 40 }));
+  assert.equal(r.pendingNow, 1);
+  assert.equal(r.clears.scanConfirmed, 1);
+  assert.equal(r.openCount, 1);
+  assert.equal(r.setAside.count, 0);
+});
+
+test('batch 8: a ledger file written before this batch loads, reads and takes new observations without being set aside', async () => {
+  const dir = tmp();
+  const legacy = {
+    v: 1, busyFrom: new Date(T0).toISOString(), lastClearShownAt: null,
+    open: { ['0123456789ab']: { rule: 'unpushed', source: 'scan', severity: 'med', count: 0, first: new Date(T0).toISOString(), last: new Date(T0 + 60e3).toISOString() } },
+    closed: [{ rule: 'dirty', severity: 'low', count: 0, first: new Date(T0).toISOString(), ended: new Date(T0 + 120e3).toISOString(), how: 'resolved' }],
+  };
+  fs.writeFileSync(path.join(dir, 'brief-ledger.json'), JSON.stringify(legacy));
+  const L = ledgerMod.create({ dataDir: dir, now: () => new Date(T0 + 10 * 60e3) });
+  const r = await L.read(brief([], { min: 10 }));
+  assert.equal(r.notice, '');
+  assert.equal(r.clearedThisWeek, 1);
+  assert.equal(r.clears.scanConfirmed, 0, 'a close with no label is counted as before, never as a labelled clear');
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.includes('corrupt')), [], 'nothing was set aside');
+  const A = row('unpushed:proj-a:3', 'unpushed', 'scan');
+  assert.equal((await L.observe(brief([A], { min: 10 }), { subjects: { [A.key]: 'proj-a' } })).ok, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'brief-ledger.json'), 'utf8')).v, 1);
 });

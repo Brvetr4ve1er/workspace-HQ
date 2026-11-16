@@ -1,10 +1,11 @@
 // Brief ledger, main side (dish brief-history, batch 3; engine: brief-ledger.mjs). Keeps data/brief-ledger.json, the small file that remembers what the
 // Brief noticed and how each thing ended (resolved, dismissed, acted on, changed, or went silent), and serves the two IPC channels:
-//   hq:brief-history:read  () → { entries:[{ text, rule, severity, first, ended|null, how, after }], clearedThisWeek, dismissedThisWeek,
+//   hq:brief-history:read  () → { entries:[{ text, rule, severity, first, ended|null, how, after, label?, hold?, setAside? }], clearedThisWeek, dismissedThisWeek,
+//                                 (batch 8, additive) clears:{ inPlace, markedDone, scanConfirmed, unknown }, heldThisWeek, pendingNow, cameBackThisWeek, openCount, oldestOpen, outside, setAside,
 //                                 allClear: null | { since, resolved:[{ text, after, how, ended }] }, notice }
 //   hq:brief-history:ack   () → { ok:true, acked }   records the all-clear card as shown; the ONLY write the renderer can cause (a no-op while no card is due)
 //
-// create({ dataDir, now? }) → { observe(brief, { dismissedKeys, errors }), read(brief), ack(brief), registerIpc(ipcMain, getBrief), load(), files:{ ledgerFile } }
+// create({ dataDir, now? }) → { observe(brief, { dismissedKeys, errors, subjects }), read(brief), ack(brief), registerIpc(ipcMain, getBrief), load(), files:{ ledgerFile } }
 //   brief.js compute() calls `await ledger.observe(brief, { dismissedKeys: st.dismissed, errors })` after the data/brief.json write (so a failed write reaches it as the brief error source), and its init() calls
 //   ledger.registerIpc(ipcMain, () => b.current()), so main.js only passes the ledger into the existing briefApi init call.
 //   observe never throws at the caller. The first observe of this process is the cold start (nothing closes). A write failure keeps the ledger in memory and
@@ -71,7 +72,7 @@ function create({ dataDir, now = () => new Date() }) {
       const L = await lib();
       const o = opts && typeof opts === 'object' ? opts : {};
       const ledger = await load();
-      const r = L.observe(ledger, brief, { now: now(), dismissedKeys: o.dismissedKeys, errors: o.errors, coldStart: cold });
+      const r = L.observe(ledger, brief, { now: now(), dismissedKeys: o.dismissedKeys, errors: o.errors, subjects: o.subjects, coldStart: cold });
       cold = false;
       cur = r.ledger;
       save(cur);

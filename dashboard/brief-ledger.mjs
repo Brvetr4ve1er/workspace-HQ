@@ -28,7 +28,20 @@
 //   Source trust (SOURCE_ALIAS: the item vocabulary and the error vocabulary differ): an error whose source is 'brief' (the file write failed) or is not in the table
 //   makes every close 'silent' that computation; an error on a source makes that source's rows 'silent'; scan-sourced rows are also 'silent' while a scan-stale or
 //   scan-failed row is live. Residual, stated honestly: a senses row (github, vercel, claude-code) whose data file went old WITHOUT an error is not detectable here.
-// summarize(ledger, brief, { now, errors }) → { entries, clearedThisWeek, dismissedThisWeek, allClear }   (the hq:brief-history:read answer, minus notice)
+// BATCH 8 (additive; a file or caller without subjects behaves exactly as before):
+//   a live row may carry `subject` (in memory only: brief.js strips it before data/brief.json is written and hands it to observe as opts.subjects[key]).
+//   The ledger stores only subjectRef = refOf of rule + subject (one-way); the subject itself is never persisted.
+//   open entry   + subjectRef, actedVerb. Age (first) carries across a value change for the same rule and subject, and from a set-aside row that returns.
+//   closed entry + subjectRef, label (in-place | marked-done | scan-confirmed | unknown), hold (pending | held | came-back | never), heldUntil, heldAt, cameBackAt, setAside.
+//   ledger       + obsAt (the last observation, for gap detection).
+//   Per-subject closure: a row that leaves while a same-rule row is live is 'changed' only when a live row shares its subjectRef; with no shared subject the first is gone and
+//   is decided like any other close (acted / silent / resolved). A rule shows only its top subject, so a worse subject overtaking a still-true one reads as a clear that
+//   may come back; the hold and came-back exist for exactly that.
+//   Hold: a clear by a verb that changed a fact (in-place) or a collector-sourced row that left with its source answering (scan-confirmed) is pending for 72 h of observation
+//   (heldUntil). A gap between two observations longer than one day restarts it. The same rule and subject live again before it passes cancels it (hold came-back).
+//   marked-done (a quest the owner marked) and unknown (senses sources, which cannot show a quiet-but-old file) are shown but never held.
+//   A dismissed row is set aside (setAside true): never a clear, never held, never counted toward a clean board.
+// summarize(ledger, brief, { now, errors }) → { entries, clearedThisWeek, dismissedThisWeek, allClear, + batch 8: clears, heldThisWeek, pendingNow, cameBackThisWeek, openCount, oldestOpen, outside, setAside }   (the hq:brief-history:read answer, minus notice)
 //   allClear: null | { since, resolved:[{ text, after, how, ended }] } — strict, once per clear episode (see allClearOf).
 import { WORDING, SEV_WORD, STALE_MIN, REF_LEN, refOf } from './brief-project.mjs';
 
@@ -38,6 +51,13 @@ const DAY = 24 * 3600e3;
 export const CLOSED_KEEP_MS = 30 * DAY, CLOSED_MAX = 300, OPEN_SILENT_MS = 30 * DAY, WEEK_MS = 7 * DAY, HISTORY_MS = 14 * DAY;
 export const OPEN_MAX = 200, ENTRIES_MAX = 60, ALLCLEAR_MAX = 12;
 export const HOWS = Object.freeze(['resolved', 'acted', 'dismissed', 'changed', 'silent']);
+export const CLEAR_LABELS = Object.freeze(['in-place', 'marked-done', 'scan-confirmed', 'unknown']);
+export const HOLDS = Object.freeze(['pending', 'held', 'came-back', 'never']);
+export const HOLD_MS = 72 * 3600e3, GAP_MS = DAY, SET_ASIDE_MAX = 30;
+/** rules the owner cannot fix inside the app: they leave the oldest-open-row count and sit on their own line. */
+export const OUTSIDE_RULES = Object.freeze(['pc-blood', 'pc-ember', 'claude-sync', 'review-waiting']);
+/** the one verb whose effect is a self-report (the quest still reads red in the scan until the repo fact changes). */
+const SELF_REPORT_VERBS = new Set(['quest-done']);
 
 /** item source / error source -> the canonical source whose trust it shares. Anything not here is untrusted (a close is 'silent'). */
 export const SOURCE_ALIAS = Object.freeze({
@@ -59,7 +79,11 @@ const canon = (source) => (typeof source === 'string' && own(SOURCE_ALIAS, sourc
 const ruleOf = (r) => (typeof r === 'string' && own(WORDING, r) ? r : 'unknown');
 const sevOf = (s) => (typeof s === 'string' && own(SEV_WORD, s) ? s : 'low');
 
-export const emptyLedger = () => ({ v: LEDGER_V, open: {}, closed: [], busyFrom: null, lastClearShownAt: null });
+export const emptyLedger = () => ({ v: LEDGER_V, open: {}, closed: [], busyFrom: null, lastClearShownAt: null, obsAt: null });
+const VERB = /^[a-z][a-z-]{0,23}$/;
+/** subjectRef: a one-way hash of rule and subject only. The subject is never kept. */
+export const subjectRefOf = (rule, subject) => (typeof subject === 'string' ? refOf('subject|' + ruleOf(rule) + '|' + [...subject].slice(0, 200).join('')) : undefined);
+const isoOrNull = (t) => { const n = msOf(t); return n === null ? null : isoOf(n); };
 
 function trimClosed(list, t) {
   const kept = list.filter((c) => t - msOf(c.ended) < CLOSED_KEEP_MS);
@@ -80,6 +104,8 @@ export function cleanLedger(x, now) {
       const row = { rule: ruleOf(e.rule), source: typeof e.source === 'string' && SRC.test(e.source) ? e.source : '', severity: sevOf(e.severity), count: cnt(e.count), first: isoOf(f), last: isoOf(l) };
       const a = msOf(e.acted);
       if (a !== null) row.acted = isoOf(a);
+      if (typeof e.actedVerb === 'string' && VERB.test(e.actedVerb)) row.actedVerb = e.actedVerb;
+      if (typeof e.subjectRef === 'string' && REF.test(e.subjectRef)) row.subjectRef = e.subjectRef;
       rows.push([ref, row, l]);
     }
     rows.sort((a, b) => b[2] - a[2]);
@@ -90,12 +116,19 @@ export function cleanLedger(x, now) {
     if (!isObj(c) || !HOWS.includes(c.how)) continue;
     const f = msOf(c.first), e = msOf(c.ended);
     if (f === null || e === null) continue;
-    closed.push({ rule: ruleOf(c.rule), severity: sevOf(c.severity), count: cnt(c.count), first: isoOf(f), ended: isoOf(e), how: c.how });
+    const k = { rule: ruleOf(c.rule), severity: sevOf(c.severity), count: cnt(c.count), first: isoOf(f), ended: isoOf(e), how: c.how };
+    if (typeof c.subjectRef === 'string' && REF.test(c.subjectRef)) k.subjectRef = c.subjectRef;
+    if (CLEAR_LABELS.includes(c.label)) k.label = c.label;
+    if (HOLDS.includes(c.hold)) k.hold = c.hold;
+    for (const name of ['heldUntil', 'heldAt', 'cameBackAt']) { const v = isoOrNull(c[name]); if (v !== null) k[name] = v; }
+    if (c.setAside === true) k.setAside = true;
+    closed.push(k);
   }
   out.closed = trimClosed(closed, t);
   const b = msOf(x.busyFrom), s = msOf(x.lastClearShownAt);
   out.busyFrom = b === null ? null : isoOf(b);
   out.lastClearShownAt = s === null ? null : isoOf(s);
+  out.obsAt = isoOrNull(x.obsAt);
   return out;
 }
 
@@ -136,25 +169,63 @@ export function trustFn(errors, rows) {
   return (source) => { if (!all) return false; const c = canon(source); return c !== null && !bad.has(c); };
 }
 
+/** What a clear is called, from how the row ended and where it came from. */
+function labelOf(e, how) {
+  if (how === 'acted') return SELF_REPORT_VERBS.has(e.actedVerb) ? 'marked-done' : 'in-place';
+  return canon(e.source) === 'brief-senses' ? 'unknown' : 'scan-confirmed';
+}
+
 export function observe(ledger, brief, opts) {
   const o = isObj(opts) ? opts : {};
   const t = nowMs(o.now), iso = isoOf(t);
   const base = cleanLedger(ledger, t);
   if (!isObj(brief)) return { ledger: base, changed: false, opened: 0, closed: [], skipped: 'no brief' };
   const open = { ...base.open };
-  const closed = base.closed.slice();
+  const closed = base.closed.map((c) => ({ ...c }));
   const rows = liveRows(brief);
   const liveRefs = new Set(rows.map((r) => r.ref));
   const liveRules = new Set(rows.map((r) => r.row.rule));
+  const subjects = isObj(o.subjects) ? o.subjects : {};
+  // subject of a live row: the engine's in-memory field, or what brief.js stripped and handed over by key
+  const subjectOf = (row) => (typeof row.subject === 'string' ? row.subject : typeof subjects[row.key] === 'string' ? subjects[row.key] : undefined);
+  const liveSubj = new Map();   // rule -> Set of subjectRef, or null when any live row of the rule has no subject (cannot be compared)
+  const liveByRule = new Set();  // rule + '|' + subjectRef of every live row
+  for (const { row } of rows) {
+    const r = ruleOf(row.rule), sr = subjectRefOf(r, subjectOf(row));
+    if (sr === undefined) liveSubj.set(r, null);
+    else { if (liveSubj.get(r) !== null) liveSubj.set(r, (liveSubj.get(r) || new Set()).add(sr)); liveByRule.add(r + '|' + sr); }
+  }
   const wasBusy = Object.keys(base.open).length > 0;
+  const gap = base.obsAt !== null && t - msOf(base.obsAt) > GAP_MS;
   let opened = 0;
   for (const { ref, row } of rows) {
     const prev = open[ref];
-    const e = { rule: ruleOf(row.rule), source: typeof row.source === 'string' && SRC.test(row.source) ? row.source : '', severity: sevOf(row.severity), count: cnt(row.count), first: prev ? prev.first : iso, last: iso };
+    const rule = ruleOf(row.rule), sr = subjectRefOf(rule, subjectOf(row));
+    let first = prev ? prev.first : iso;
+    if (!prev && sr !== undefined) {
+      // age carries across a value change for the same subject, and from a set-aside row that returns
+      for (const [r2, e2] of Object.entries(open)) if (!liveRefs.has(r2) && e2.rule === rule && e2.subjectRef === sr && msOf(e2.first) < msOf(first)) first = e2.first;
+      for (const c of closed) if (c.setAside && c.rule === rule && c.subjectRef === sr && msOf(c.first) < msOf(first)) first = c.first;
+    }
+    const e = { rule, source: typeof row.source === 'string' && SRC.test(row.source) ? row.source : '', severity: sevOf(row.severity), count: cnt(row.count), first, last: iso };
     const a = actedAt(row, iso);
     if (a) e.acted = a;
+    const verb = isObj(row.acted) && typeof row.acted.verb === 'string' && VERB.test(row.acted.verb) ? row.acted.verb : (prev && prev.actedVerb) || undefined;
+    if (a && verb) e.actedVerb = verb;
+    const subjRef = sr !== undefined ? sr : prev && prev.subjectRef;
+    if (subjRef) e.subjectRef = subjRef;
     open[ref] = e;
     if (!prev) opened++;
+  }
+  // a set-aside row whose subject is live again is no longer set aside (its fact moved on and the Brief shows it)
+  for (const c of closed) if (c.setAside && c.subjectRef && liveByRule.has(c.rule + '|' + c.subjectRef)) delete c.setAside;
+  // pending clears: a gap restarts the hold, a return inside it cancels it, otherwise it passes
+  for (const c of closed) {
+    if (c.hold !== 'pending') continue;
+    const back = c.subjectRef ? liveByRule.has(c.rule + '|' + c.subjectRef) : liveRules.has(c.rule);
+    if (back) { c.hold = 'came-back'; c.cameBackAt = iso; delete c.heldUntil; }
+    else if (gap) c.heldUntil = isoOf(t + HOLD_MS);
+    else if (t >= msOf(c.heldUntil)) { c.hold = 'held'; c.heldAt = iso; delete c.heldUntil; }
   }
   const ended = [];
   if (!o.coldStart) {
@@ -164,18 +235,28 @@ export function observe(ledger, brief, opts) {
     for (const [ref, e] of Object.entries(open)) {
       if (liveRefs.has(ref)) continue;
       let how;
+      const sameSubjectLive = () => { const set = liveSubj.get(e.rule); return set === null || !e.subjectRef || (set && set.has(e.subjectRef)); };
       if (dismissedRefs.has(ref)) how = 'dismissed';
       else if (hidden > 0) { if (t - msOf(e.last) >= OPEN_SILENT_MS) how = 'silent'; else continue; }
-      else if (liveRules.has(e.rule)) how = 'changed';
+      else if (liveRules.has(e.rule) && sameSubjectLive()) how = 'changed';
       else if (e.acted) how = 'acted';
       else if (!trusted(e.source)) how = 'silent';
       else how = 'resolved';
-      closed.push({ rule: e.rule, severity: e.severity, count: e.count, first: e.first, ended: iso, how });
+      const c = { rule: e.rule, severity: e.severity, count: e.count, first: e.first, ended: iso, how };
+      if (e.subjectRef) {
+        c.subjectRef = e.subjectRef;
+        if (how === 'dismissed') c.setAside = true;
+        else if (how === 'resolved' || how === 'acted') {
+          c.label = labelOf(e, how);
+          if (c.label === 'in-place' || c.label === 'scan-confirmed') { c.hold = 'pending'; c.heldUntil = isoOf(t + HOLD_MS); } else c.hold = 'never';
+        }
+      }
+      closed.push(c);
       ended.push({ rule: e.rule, how });
       delete open[ref];
     }
   }
-  const next = { v: LEDGER_V, open, closed: trimClosed(closed, t), busyFrom: rows.length > 0 && !wasBusy ? iso : base.busyFrom, lastClearShownAt: base.lastClearShownAt };
+  const next = { v: LEDGER_V, open, closed: trimClosed(closed, t), busyFrom: rows.length > 0 && !wasBusy ? iso : base.busyFrom, lastClearShownAt: base.lastClearShownAt, obsAt: iso };
   return { ledger: next, changed: JSON.stringify(next) !== JSON.stringify(base), opened, closed: ended };
 }
 
@@ -218,7 +299,7 @@ export function allClearOf(ledger, brief, opts) {
   if (from === null) return null;
   const shown = msOf(L.lastClearShownAt);
   const stretch = L.closed.filter((c) => { const e = msOf(c.ended); return e >= from && (shown === null || e > shown); });
-  const done = stretch.filter((c) => c.how === 'resolved' || c.how === 'acted');
+  const done = stretch.filter((c) => (c.how === 'resolved' || c.how === 'acted') && c.hold !== 'came-back');
   if (!done.length) return null;
   const since = Math.max(...stretch.map((c) => msOf(c.ended)));
   return {
@@ -227,19 +308,42 @@ export function allClearOf(ledger, brief, opts) {
   };
 }
 
+/** one count per rule and subject: the first entry of each (rule, subjectRef) in a list; entries without a subject each count once. */
+const onePerSubject = (list) => { const seen = new Set(); return list.filter((c) => { if (!c.subjectRef) return true; const k = c.rule + '|' + c.subjectRef; if (seen.has(k)) return false; seen.add(k); return true; }); };
+const isClear = (c) => (c.how === 'resolved' || c.how === 'acted') && c.hold !== 'came-back';
+
 export function summarize(ledger, brief, opts) {
   const o = isObj(opts) ? opts : {}, t = nowMs(o.now);
   const L = cleanLedger(ledger, t);
   const entries = [];
   const openRows = Object.values(L.open).sort((a, b) => msOf(b.first) - msOf(a.first));
+  const extra = (c) => { const x = {}; if (c.label) x.label = c.label; if (c.hold) x.hold = c.hold; if (c.setAside) x.setAside = true; return x; };
   for (const e of openRows) entries.push({ text: phraseOf(e.rule, e.count), rule: e.rule, severity: e.severity, first: e.first, ended: null, how: 'open', after: durationWords(t - msOf(e.first)) });
   const recent = L.closed.filter((c) => t - msOf(c.ended) < HISTORY_MS).sort((a, b) => msOf(b.ended) - msOf(a.ended));
-  for (const c of recent) entries.push({ text: phraseOf(c.rule, c.count), rule: c.rule, severity: c.severity, first: c.first, ended: c.ended, how: c.how, after: durationWords(msOf(c.ended) - msOf(c.first)) });
+  for (const c of recent) entries.push({ text: phraseOf(c.rule, c.count), rule: c.rule, severity: c.severity, first: c.first, ended: c.ended, how: c.how, after: durationWords(msOf(c.ended) - msOf(c.first)), ...extra(c) });
   const week = L.closed.filter((c) => t - msOf(c.ended) < WEEK_MS);
+  // batch 8: plain counts, derived from the ledger each time and never stored. No total, no score, no comparison with a past week.
+  const labelled = onePerSubject(week.filter((c) => isClear(c) && c.label));
+  const count = (label) => labelled.filter((c) => c.label === label).length;
+  const heldWeek = onePerSubject(L.closed.filter((c) => c.hold === 'held' && c.heldAt && t - msOf(c.heldAt) < WEEK_MS));
+  const inApp = openRows.filter((e) => !OUTSIDE_RULES.includes(e.rule));
+  const outside = openRows.filter((e) => OUTSIDE_RULES.includes(e.rule));
+  const aside = L.closed.filter((c) => c.setAside && t - msOf(c.ended) < SET_ASIDE_MAX * DAY).sort((a, b) => msOf(a.first) - msOf(b.first));
+  const asideRows = onePerSubject(aside);
+  const oldestOpen = inApp.length ? inApp.reduce((a, b) => (msOf(b.first) < msOf(a.first) ? b : a)) : null;
   return {
     entries: entries.slice(0, ENTRIES_MAX),
-    clearedThisWeek: week.filter((c) => c.how === 'resolved' || c.how === 'acted').length,
+    clearedThisWeek: week.filter(isClear).length,
     dismissedThisWeek: week.filter((c) => c.how === 'dismissed').length,
     allClear: allClearOf(L, brief, o),
+    // clears this week by label, held clears (72 h of observation, no gap over a day), clears still waiting out the hold, returns inside the hold
+    clears: { inPlace: count('in-place'), markedDone: count('marked-done'), scanConfirmed: count('scan-confirmed'), unknown: count('unknown') },
+    heldThisWeek: heldWeek.length,
+    pendingNow: L.closed.filter((c) => c.hold === 'pending').length,
+    cameBackThisWeek: week.filter((c) => c.hold === 'came-back').length,
+    openCount: inApp.length,
+    oldestOpen: oldestOpen ? { since: oldestOpen.first, after: durationWords(t - msOf(oldestOpen.first)) } : null,   // since the app first noticed it
+    outside: { count: outside.length, rules: [...new Set(outside.map((e) => e.rule))] },
+    setAside: { count: asideRows.length, oldest: asideRows.length ? { since: asideRows[0].first, after: durationWords(t - msOf(asideRows[0].first)) } : null, items: asideRows.slice(0, 12).map((c) => ({ text: phraseOf(c.rule, c.count), rule: c.rule, severity: c.severity, first: c.first, after: durationWords(t - msOf(c.first)) })) },
   };
 }

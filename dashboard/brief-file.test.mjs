@@ -384,3 +384,15 @@ test('init never throws without a window, a dialog or a folder, and dispose is s
     api.dispose(); api.dispose();
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+// batch 8: the phone file is built from the projection; a row's in-memory `subject` can never reach it
+test('batch 8: a subject on a row of brief.json never reaches the phone file', async () => {
+  const c = setup();
+  try {
+    c.writeBrief(A().map((x) => ({ ...x, subject: 'subject-marker-zzz' })));
+    const r = await c.ask('pick');
+    assert.equal(r.ok, true);
+    assert.ok(!c.text().includes('subject-marker-zzz'));
+    assert.ok(!/subject/i.test(c.text()));
+  } finally { c.done(); }
+});

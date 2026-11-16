@@ -131,6 +131,10 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
     const seen = Object.assign({}, firstSeen);
     // standing items (unchanged for 72 h) step aside inside the engine, from firstSeen's first time for the exact key
     let brief = L.computeBrief(inputs, { now: t, dismissed: st.dismissed, firstSeen });
+    // each row's `subject` (what it is about) lives in memory only: it goes to the ledger by key and never reaches data/brief.json, the tray, the badge, the phone file or MCP
+    const subjects = {};
+    const stripSubject = (it) => { if (!it || typeof it !== 'object' || !('subject' in it)) return it; const { subject, ...rest } = it; if (typeof it.key === 'string') subjects[it.key] = subject; return rest; };
+    brief = { ...brief, items: brief.items.map(stripSubject), overflow: (brief.overflow || []).map(stripSubject), standing: (brief.standing || []).map(stripSubject) };
     lastInputs = { inputs, at: t.getTime() };
     // then stamp `first` on a key seen for the first time and `last` on every live key (standing ones too, or their clock would be pruned)
     const liveKeys = new Set();
@@ -144,7 +148,7 @@ function create({ dataDir, money, hub, liveState, getSessionBoard, decorate, led
     if (typeof decorate === 'function') { try { const d = await decorate(brief); if (d && typeof d === 'object') brief = d; } catch { /* a marker is a courtesy: the brief goes on without it */ } }
     try { writeAtomic(briefFile, brief); } catch (e) { brief.errors.push({ source: 'brief', error: 'data/brief.json not written — ' + msg(e) }); }
     // the ledger (brief-ledger.js) remembers what the Brief noticed and how it ended; after the write, so a failed write's 'brief' error source reaches it (every close is then silent)
-    if (ledger && typeof ledger.observe === 'function') { try { await ledger.observe(brief, { dismissedKeys: st.dismissed, errors: brief.errors }); } catch { /* a ledger is a courtesy */ } }
+    if (ledger && typeof ledger.observe === 'function') { try { await ledger.observe(brief, { dismissedKeys: st.dismissed, errors: brief.errors, subjects }); } catch { /* a ledger is a courtesy */ } }
     const sig = JSON.stringify([brief.items, brief.more, brief.overflow, brief.standing, brief.quiet, brief.errors]);   // generatedAt alone is not a change
     const changed = sig !== lastSig;
     lastSig = sig; last = brief;

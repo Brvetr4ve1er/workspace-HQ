@@ -61,6 +61,7 @@ export const SESSION_WAITING_FN = {
       age: 'sessions board',
       action: { kind: 'go', tab: 'claude', sub: 'sessions' },
       others: hits.length - 1,
+      subject: String(top.id),
     };
   },
 };

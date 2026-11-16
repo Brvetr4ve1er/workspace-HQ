@@ -137,7 +137,7 @@ export const SENSE_FNS = {
     return { key: 'prod-deploy-error:' + name(top.name, 'project') + ':' + (top.prod.at || ''), severity: 'high',
       text: name(top.name, 'A project') + ' failed to deploy to production' + andMore(bad.length - 1, 'project'),
       why: 'The live site is still on the last good deploy — open the failed one and read its log.', source: 'vercel',
-      age: 'accounts.json ' + ago(st.atMs, now), action: go('projects', 'accounts'), others: bad.length - 1 };
+      age: 'accounts.json ' + ago(st.atMs, now), action: go('projects', 'accounts'), others: bad.length - 1, subject: name(top.name, 'project') };
   },
 
   'ci-red': ({ github, now }) => {
@@ -149,7 +149,7 @@ export const SENSE_FNS = {
     return { key: 'ci-red:' + (top.full || top.name || '?') + ':' + top.pushedAt, severity: 'med',
       text: 'CI is failing on ' + name(top.name || top.full, 'a repo') + andMore(hits.length - 1, 'repo'),
       why: 'The last push to it did not pass its checks.', source: 'github', age: 'github.json ' + ago(st.atMs, now),
-      action: go('projects', 'github'), others: hits.length - 1 };
+      action: go('projects', 'github'), others: hits.length - 1, subject: String(top.full || top.name || '?') };
   },
 
   'session-left-dirty': (ctx) => {
@@ -159,7 +159,7 @@ export const SENSE_FNS = {
     return { key: 'session-left-dirty:' + idOf(top.project) + ':' + top.session.lastAt, severity: 'med',
       text: name(top.project.name, idOf(top.project)) + ': your Claude session there ended ' + ago(top.lastMs, now) + '; the scan after it saw ' + plural(top.dirty, 'uncommitted file') + andMore(hits.length - 1, 'project'),
       why: 'Review what it changed, then commit or stash it.', source: 'claude-code', age: 'session ' + ago(top.lastMs, now),
-      action: { kind: 'go', tab: 'projects', projectId: idOf(top.project) }, others: hits.length - 1 };
+      action: { kind: 'go', tab: 'projects', projectId: idOf(top.project) }, others: hits.length - 1, subject: String(idOf(top.project)) };
   },
 
   'review-waiting': ({ github, now }) => {
