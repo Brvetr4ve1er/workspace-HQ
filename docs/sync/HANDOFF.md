@@ -12,6 +12,13 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-16 · FROM frontend (batch 8 dish 1b DONE: counting fix) · main @ (see commits, not pushed)
+DONE: ACT COUNTING CHANGED, so do not compare act numbers before and after this commit in `node tools/use-report.mjs` (the report now says so). (1) Dismiss on a Brief row no longer sends an act mark (it sets a row aside). (2) Mark done and Confirm balance on a Brief row (the verbs with `marks` true) send one (brief-act, act); Open its folder sends nothing; Commit sends one (brief-act, handover), a new action, and the commit overlay opens as before. (3) A task Done sends one (tasks-board, act) when the deferred write goes out (Undo inside the window sends none). (4) Anti-farming: an identical click inside a minute adds no mark (`useActOnce`, the ref stays in the window and is never sent). The Brief row go and scan buttons still send (brief-panel, act): the plan did not list them. use-log allowlist gains surface `tasks-board` and action `handover`; use-report gains a handover column. renderer VERB_MARKS has a parity test against brief-act-core VERBS.
+TESTS: use-log, act-marks, use-report, cdp-act-marks (node), cdp use-act-marks (changed) and new use-act-effect passed on a throwaway instance. No template, vals key or golden moved.
+IN-FLIGHT: none. ASKS: none. BREAKS: none.
+
+---
+
 ## 2026-11-15 · FROM frontend (batch 7 taster fixes) · main @ 28efc09 (not pushed)
 DONE: 28efc09 (fe). Two taster findings, both real, both fixed with a test that failed first. (1) Ctrl K "theme dark|light|os" set themePref directly and never left the Console skin; it now calls cslChooseBase (logic/palette.js), so every base-theme entry point (palette verb, Appearance chips, toggleTheme) clears the skin. Test: vals/palette-theme.test.mjs. (2) The legacy cheat matcher kept its tail after a hit and the 14-character ArrowUp needle re-fired on every later ArrowUp, so a held ArrowUp made Bit dance on every repeat. A hit now clears the tail (logic/cheats.mjs) and cheatKey ignores auto-repeat (logic/cheats-host.js); two new tests in cheats.test.mjs and one assertion adjusted for the cleared tail. Owner-visible: ArrowUp pressed twice still fires dance, every second press, never on a held key. No template, vals key or golden moved.
 GATES: main 2721/0, money 261/0, renderer 1770 (1769 pass, 1 skip, 0 fail), selftest 3485 combos 0/0/0, cdp 155/155 on a re-run; the first full run was 154/155 with the failing scenario name lost to the output tail (only the last ten lines were kept), and the re-run on a fresh instance was clean, so it is recorded as an unattributed flake, not a fix.
