@@ -6,6 +6,7 @@
 //     brief   a LIVE.brief value ({ brief, error, loaded }): the Brief on screen. The all-clear card needs it empty at 0/0/0
 //     hist    the bhs* component state this row sets { bhsLoaded, bhsData, bhsErr, bhsBusy }; bhsData is the NORMALIZED answer (normalizeAnswer), as the real read leaves it.
 //             The caller also sets logic._bhsHold = true so the fake preload's own answer does not replace the row's state
+//     extra   (optional) more component state for the row, e.g. { settingsOpen: true } for the Settings counts; the caller spreads it after hist
 //   BHS_OFFLINE_ROWS  rows that need hq.briefHistory hidden for one combo (the store's hq, never window.hq), the way rch-offline hides hq.reach
 //
 // Placeholder text only (rule wording comes from the same table main uses). No IO: the module only shapes data.
@@ -38,11 +39,20 @@ const CLEAR = { since: iso(2026, 11, 10, 8, 50), resolved: [
   { text: 'A bill is late', after: '5 h', how: 'acted', ended: iso(2026, 11, 10, 8, 50) },
 ] };
 
+// batch 8: the counts main derives from the ledger (plain numbers, no score); every field is the shape IPC-CONTRACT gives
+const COUNTS = { clears: { inPlace: 0, markedDone: 0, scanConfirmed: 0, unknown: 0 }, heldThisWeek: 0, pendingNow: 0, cameBackThisWeek: 0, openCount: 0, oldestOpen: null, outside: { count: 0, rules: [] }, setAside: { count: 0, oldest: null, items: [] } };
+const counted = (o) => answer(Object.assign({}, COUNTS, o || {}));
+const ASIDE = { count: 2, oldest: { since: iso(2026, 11, 1, 9, 0), after: '9 d' }, items: [
+  { text: 'A bill is late', rule: 'money-late', severity: 'high', first: iso(2026, 11, 1, 9, 0), after: '9 d' },
+  { text: 'Work not pushed', rule: 'unpushed', severity: 'med', first: iso(2026, 11, 3, 9, 0), after: '7 d' },
+] };
+const BUSY = { clearedThisWeek: 5, heldThisWeek: 2, pendingNow: 1, cameBackThisWeek: 1, clears: { inPlace: 2, markedDone: 1, scanConfirmed: 1, unknown: 1 }, openCount: 2, oldestOpen: { since: iso(2026, 11, 6, 9, 0), after: '4 d' }, setAside: ASIDE, outside: { count: 1, rules: ['pc-ember'] } };
+
 const ready = (data, o) => Object.assign({ bhsLoaded: true, bhsErr: '', bhsBusy: false, bhsData: data }, o || {});
 
 export function briefHistoryStates() {
   const op = (name, hist) => ({ name, tab: 'history', sub: 'timeline', brief: briefOf(BI), hist });
-  const home = (name, brief, hist) => ({ name, tab: 'home', sub: null, brief, hist });
+  const home = (name, brief, hist, extra) => ({ name, tab: 'home', sub: null, brief, hist, ...(extra ? { extra } : {}) });
   return [
     op('bhs-operator-entries', ready(answer({ entries: ENTRIES, clearedThisWeek: 2, dismissedThisWeek: 1 }))),
     op('bhs-operator-empty', ready(answer())),
@@ -58,6 +68,16 @@ export function briefHistoryStates() {
     home('bhs-clear-with-standing', briefOf([], { standing: [Object.assign({}, BI[0], { since: '2026-11-05T09:00:00.000Z' })] }), ready(answer({ allClear: CLEAR }))),
     home('bhs-clear-source-error', briefOf([], { errors: [{ source: 'pc-health', error: 'unreadable (selftest)' }] }), ready(answer({ allClear: CLEAR }))),
     home('bhs-card-stale-guard', briefOf(BI), ready(answer({ allClear: CLEAR }))),
+    // batch 8: the strip, the clean-board card and the Settings counts
+    home('bhs-strip-week-one', briefOf(BI), ready(counted())),
+    home('bhs-strip-busy', briefOf(BI), ready(counted(BUSY))),
+    home('bhs-clean-since', briefOf([]), ready(counted({ entries: ENTRIES.slice(1, 3), clearedThisWeek: 2 }))),
+    home('bhs-clean-set-aside', briefOf([]), ready(counted({ clearedThisWeek: 1, setAside: ASIDE }))),
+    home('bhs-clean-outside', briefOf([]), ready(counted({ outside: { count: 1, rules: ['pc-ember'] } }))),
+    op('bhs-operator-strip', ready(counted(Object.assign({ entries: ENTRIES }, BUSY)))),
+    home('bhs-settings-counts', briefOf(BI), ready(counted(BUSY)), { settingsOpen: true }),
+    home('bhs-settings-week-one', briefOf(BI), ready(counted()), { settingsOpen: true }),
+    home('bhs-settings-old-main', briefOf(BI), ready(answer({ clearedThisWeek: 1 })), { settingsOpen: true }),
   ];
 }
 

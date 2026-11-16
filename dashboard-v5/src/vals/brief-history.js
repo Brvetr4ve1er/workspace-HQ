@@ -5,7 +5,11 @@
 //   bhsCard*  the one-time all-clear card on the Brief panel (shown only while the panel itself is empty; the ack is the only write)
 // Honest states: no bridge · still loading · read failed · nothing noticed · rows. The card is double-checked here: whatever main said, it is hidden
 // the moment the brief on screen has an item, an overflow or standing row, a hidden row or a source error.
-import { BHS_HEADING, BHS_OFFLINE, BHS_LOADING, BHS_EMPTY, BHS_CLEAR_TITLE, BHS_CLEAR_LEAD, BHS_CLEAR_ACK, BHS_DAYS, HOW_GLYPH, HOW_COLOR, SEV_COLOR, entryLine, clearedLine, clearLine, clearSince } from '../logic/brief-history.js';
+import { BHS_HEADING, BHS_OFFLINE, BHS_LOADING, BHS_EMPTY, BHS_CLEAR_TITLE, BHS_CLEAR_LEAD, BHS_CLEAR_ACK, BHS_DAYS, HOW_GLYPH, HOW_COLOR, SEV_COLOR, HELD_NOTE, entryLine, clearedLine, clearLine, clearSince, stripLines, settingsRows, asideLines, cleanCardOf } from '../logic/brief-history.js';
+// batch 8 (the strip and the clean card): the strip is plain counts main derived from the ledger (never a score), the clean card says when the board is clear
+// and how many rows are only set aside. An older main sends no counts: the strip stays away and the old footer line stands in.
+const BHS_SET_HEADING = 'Brief history · plain counts';
+const BHS_SET_OLD = 'These counts need the newer Brief history from the desktop app.';
 
 function bhsFlat(ctx) {
   const { S, LIVE, live } = ctx;
@@ -13,9 +17,10 @@ function bhsFlat(ctx) {
   const can = !!(api && typeof api.read === 'function');
   const onHome = S.tab === 'home' && !!live;
   const onTimeline = S.tab === 'history' && !!(S.sub && S.sub.history === 'timeline');
+  const onSettings = !!S.settingsOpen;
   const B = (LIVE && LIVE.brief) || {};
   const brief = B.loaded && !B.error && B.brief && typeof B.brief === 'object' ? B.brief : null;
-  if (can && (onHome || onTimeline)) this.bhsEnsure((onHome ? 'home' : 'timeline') + '|' + String((brief && brief.generatedAt) || ''));   // deferred: one read per arrival and per new brief
+  if (can && (onHome || onTimeline || onSettings)) this.bhsEnsure((onHome ? 'home' : onTimeline ? 'timeline' : 'settings') + '|' + String((brief && brief.generatedAt) || ''));   // deferred: one read per arrival and per new brief
   const loaded = !!S.bhsLoaded;
   const err = S.bhsErr || '';
   const D = loaded && !err && S.bhsData && typeof S.bhsData === 'object' ? S.bhsData : null;
@@ -26,8 +31,16 @@ function bhsFlat(ctx) {
   // the brief on screen is empty in the strict sense the card needs; main checked too, this is the second look
   const clearNow = !!brief && !arr(brief.items).length && !arr(brief.overflow).length && !arr(brief.standing).length && !(Number(brief.more) > 0) && !arr(brief.errors).length;
   const card = onHome && can && D && clearNow && D.allClear ? D.allClear : null;
-  const footer = onHome && can && D && brief ? clearedLine(D.clearedThisWeek || 0, D.dismissedThisWeek || 0) : '';
-  const summary = D ? clearedLine(D.clearedThisWeek || 0, D.dismissedThisWeek || 0) : '';
+  const hasStrip = !!(D && D.strip);
+  const footer = onHome && can && D && brief && !hasStrip ? clearedLine(D.clearedThisWeek || 0, D.dismissedThisWeek || 0) : '';
+  const summary = D && !hasStrip ? clearedLine(D.clearedThisWeek || 0, D.dismissedThisWeek || 0) : '';
+  const lines = D ? stripLines(D) : [];
+  const stripOn = onHome && can && !!brief && lines.length > 0;
+  const clean = onHome && can && !card ? cleanCardOf(D, clearNow) : null;   // the one-time card above wins; never two cards at once
+  const asideTexts = D ? asideLines(D) : [];
+  const setRows = D ? settingsRows(D) : [];
+  const setOn = onSettings && can;
+  const kv = (arr, p) => arr.map((t, n) => ({ key: p + n, text: t }));
 
   return {
     // ---- the Operator section (History > Timeline)
@@ -43,6 +56,19 @@ function bhsFlat(ctx) {
       key: 'e' + n, line: entryLine(e), glyph: HOW_GLYPH[e.how] || '?', glyphColor: HOW_COLOR[e.how] || 'var(--muted)', sevColor: SEV_COLOR[e.severity] || 'var(--muted)',
     })),
     bhsOpHasSummary: onTimeline && !!summary, bhsOpSummary: summary,
+    bhsOpStripShow: onTimeline && lines.length > 0, bhsOpStripLines: kv(lines, 'o'), bhsOpStripNote: HELD_NOTE,
+    bhsOpAsideShow: onTimeline && asideTexts.length > 0, bhsOpAsideHeading: 'Set aside, not cleared', bhsOpAsideLines: kv(asideTexts, 'a'),
+    // ---- the strip on the Brief panel (Home): replaces the footer line once main sends the counts
+    bhsStripShow: stripOn, bhsStripHeading: 'this week', bhsStripLines: kv(lines, 's'), bhsStripNote: HELD_NOTE,
+    // ---- the clean-board card (Home): no button, nothing to acknowledge, shown while it is true
+    bhsCleanShow: !!clean, bhsCleanTitle: clean ? clean.title : '', bhsCleanHasLines: !!(clean && clean.lines.length), bhsCleanLines: clean ? kv(clean.lines, 'k') : [],
+    // ---- Settings: the same counts, one per row
+    bhsSetShow: setOn, bhsSetHeading: BHS_SET_HEADING,
+    bhsSetLoading: setOn && !loaded, bhsSetLoadingText: BHS_LOADING,
+    bhsSetError: setOn && loaded && !!err, bhsSetErrorText: 'Couldn’t read the Brief history · ' + err,
+    bhsSetOld: setOn && !!D && !hasStrip, bhsSetOldText: BHS_SET_OLD,
+    bhsSetHas: setOn && setRows.length > 0, bhsSetRows: setRows.map(([label, value], n) => ({ key: 'r' + n, label, value })),
+    bhsSetAsideShow: setOn && asideTexts.length > 0, bhsSetAsideLines: kv(asideTexts, 'x'), bhsSetNote: HELD_NOTE,
     // ---- the Brief panel footer (Home)
     bhsFootShow: !!footer, bhsFootText: footer,
     // ---- the all-clear card (Home)

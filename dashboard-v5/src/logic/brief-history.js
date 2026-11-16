@@ -19,6 +19,14 @@ export const BHS_CLEAR_LEAD = 'Nothing needs you, nothing is hidden, and every s
 export const BHS_CLEAR_ACK = 'Got it';
 
 const HOWS = ['open', 'resolved', 'acted', 'dismissed', 'changed', 'silent'];
+// batch 8 (additive): how a clear was labelled and how its 72 hour hold stands. HOWS keeps its six values; these ride in separate fields.
+const LABELS = ['in-place', 'marked-done', 'scan-confirmed', 'unknown'];
+const HOLDS = ['pending', 'held', 'came-back', 'never'];
+export const LABEL_WORD = Object.freeze({ 'in-place': 'in place', 'marked-done': 'marked done', 'scan-confirmed': 'confirmed by a scan', unknown: 'the source cannot confirm it' });
+export const HOLD_WORD = Object.freeze({ pending: 'waiting out the 72 hour hold', held: 'stayed gone', 'came-back': 'came back', never: '' });
+export const HELD_NOTE = 'Held means still gone after 72 hours of the app watching. Plain counts, no score.';
+// rules that never step aside and so never make a "board clean" line (mirrors STANDING_EXEMPT in dashboard/brief-core.mjs)
+export const CLEAN_EXEMPT = Object.freeze(['secrets', 'plain-export-found', 'vault-conflict']);
 const SEVS = ['high', 'med', 'low'];
 export const HOW_WORD = Object.freeze({ open: 'still open', resolved: 'resolved', acted: 'acted on', dismissed: 'dismissed', changed: 'changed', silent: 'went quiet' });
 // the sentence tail for the two endings that must never read as fixed
@@ -46,6 +54,7 @@ export function normalizeAnswer(r) {
   const entries = (Array.isArray(r.entries) ? r.entries : []).filter((e) => isObj(e) && str(e.text, 120)).slice(0, 60).map((e) => ({
     text: str(e.text, 120), rule: str(e.rule, 32), severity: SEVS.includes(e.severity) ? e.severity : 'low',
     first: iso(e.first), ended: e.ended == null ? null : iso(e.ended) || null, how: HOWS.includes(e.how) ? e.how : 'open', after: str(e.after, 24),
+    ...(LABELS.includes(e.label) ? { label: e.label } : {}), ...(HOLDS.includes(e.hold) ? { hold: e.hold } : {}), ...(e.setAside === true ? { setAside: true } : {}),
   }));
   let allClear = null;
   if (isObj(r.allClear) && Array.isArray(r.allClear.resolved)) {
@@ -54,7 +63,26 @@ export function normalizeAnswer(r) {
     }));
     if (resolved.length) allClear = { since: iso(r.allClear.since), resolved };
   }
-  return { entries, clearedThisWeek: nat(r.clearedThisWeek), dismissedThisWeek: nat(r.dismissedThisWeek), allClear, notice: str(r.notice, 240) };
+  const strip = normalizeStrip(r);
+  return { entries, clearedThisWeek: nat(r.clearedThisWeek), dismissedThisWeek: nat(r.dismissedThisWeek), allClear, notice: str(r.notice, 240), ...(strip ? { strip } : {}) };
+}
+
+const age = (x) => (isObj(x) && str(x.after, 24) ? { since: iso(x.since), after: str(x.after, 24) } : null);
+/** Batch 8 counts from main, or null when main is older and sent none (the old footer line then stands in). Plain numbers only: no total, no score. */
+export function normalizeStrip(r) {
+  if (!isObj(r) || !isObj(r.clears)) return null;
+  const c = r.clears, out = isObj(r.outside) ? r.outside : {}, sa = isObj(r.setAside) ? r.setAside : {};
+  return {
+    clears: { inPlace: nat(c.inPlace), markedDone: nat(c.markedDone), scanConfirmed: nat(c.scanConfirmed), unknown: nat(c.unknown) },
+    held: nat(r.heldThisWeek), pending: nat(r.pendingNow), cameBack: nat(r.cameBackThisWeek), open: nat(r.openCount), oldestOpen: age(r.oldestOpen),
+    outside: { count: nat(out.count), rules: (Array.isArray(out.rules) ? out.rules : []).map((x) => str(x, 32)).filter(Boolean).slice(0, 12) },
+    setAside: {
+      count: nat(sa.count), oldest: age(sa.oldest),
+      items: (Array.isArray(sa.items) ? sa.items : []).filter((x) => isObj(x) && str(x.text, 120)).slice(0, 12).map((x) => ({
+        text: str(x.text, 120), rule: str(x.rule, 32), severity: SEVS.includes(x.severity) ? x.severity : 'low', first: iso(x.first), after: str(x.after, 24),
+      })),
+    },
+  };
 }
 
 /** One Operator row: "Work not pushed: noticed Tue 09:12, resolved Thu after 2 d". A close that was silence or a change never says resolved. */
@@ -64,7 +92,60 @@ export function entryLine(e) {
   if (e.how === 'open') return head + 'still open' + (e.after ? ' after ' + e.after : '');
   const day = dayName(e.ended);
   const tail = HOW_NOTE[e.how] ? ': ' + HOW_NOTE[e.how] : '';
-  return head + HOW_WORD[e.how] + (day ? ' ' + day : '') + (e.after ? ' after ' + e.after : '') + tail;
+  // batch 8: a clear says how it was cleared and where its 72 hour hold stands; a dismissal says it was set aside, never that it was cleared
+  const clear = e.how === 'resolved' || e.how === 'acted';
+  const more = [e.setAside && e.how === 'dismissed' ? 'set aside' : '', clear && LABEL_WORD[e.label] ? LABEL_WORD[e.label] : '', clear && HOLD_WORD[e.hold] ? HOLD_WORD[e.hold] : ''].filter(Boolean);
+  return head + HOW_WORD[e.how] + (day ? ' ' + day : '') + (e.after ? ' after ' + e.after : '') + tail + (more.length ? ' · ' + more.join(' · ') : '');
+}
+
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+/** The strip's lines, plain counts only (never a score or a total). Week one reads "0 held". Needs a normalized answer with a strip; [] otherwise. */
+export function stripLines(D) {
+  const S = D && D.strip;
+  if (!S) return [];
+  const lines = [];
+  lines.push((D.clearedThisWeek || 0) + ' cleared this week · ' + S.held + ' held' + (S.pending > 0 ? ' · ' + S.pending + ' waiting out the hold' : '') + (S.cameBack > 0 ? ' · ' + S.cameBack + ' came back' : ''));
+  const kinds = [[S.clears.inPlace, 'in place'], [S.clears.markedDone, 'marked done'], [S.clears.scanConfirmed, 'confirmed by a scan'], [S.clears.unknown, 'source cannot confirm']].filter(([n]) => n > 0).map(([n, w]) => n + ' ' + w);
+  if (kinds.length) lines.push('Of those: ' + kinds.join(' · '));
+  lines.push(S.open > 0 && S.oldestOpen ? S.open + ' open · oldest ' + S.oldestOpen.after + ' (since the app first noticed it)' : S.open > 0 ? S.open + ' open' : 'Nothing open');
+  if (S.setAside.count > 0) lines.push(S.setAside.count + ' set aside' + (S.setAside.oldest ? ', the oldest ' + S.setAside.oldest.after : ''));
+  if (S.outside.count > 0) lines.push(plural(S.outside.count, 'row is', 'rows are') + ' waiting on something outside the app');
+  return lines;
+}
+
+/** The numbers block in Settings: [label, value] rows, nothing computed that main did not count. */
+export function settingsRows(D) {
+  const S = D && D.strip;
+  if (!S) return [];
+  return [
+    ['Cleared this week', String(D.clearedThisWeek || 0)], ['Held (still gone after 72 hours)', String(S.held)], ['Waiting out the hold', String(S.pending)], ['Came back inside the hold', String(S.cameBack)],
+    ['Cleared in place', String(S.clears.inPlace)], ['Marked done', String(S.clears.markedDone)], ['Confirmed by a scan', String(S.clears.scanConfirmed)], ['Source cannot confirm', String(S.clears.unknown)],
+    ['Open now', String(S.open)], ['Oldest open', S.oldestOpen ? S.oldestOpen.after + ' (since the app first noticed it)' : 'none'],
+    ['Set aside', String(S.setAside.count) + (S.setAside.oldest ? ', the oldest ' + S.setAside.oldest.after : '')], ['Waiting on something outside the app', String(S.outside.count)],
+  ];
+}
+
+/** "Secrets in plain sight · set aside 9 d", one per set-aside row (History and Settings). */
+export const asideLines = (D) => (D && D.strip ? D.strip.setAside.items.map((x) => x.text + ' · set aside' + (x.after ? ' ' + x.after : '')) : []);
+
+/**
+ * The clean-board card, or null. `clearNow` is the strict check on the Brief on screen (no row, no overflow, no standing, nothing hidden, no source error).
+ * "Board clean since Tue 14:10" only when open, outside and set-aside rows are all zero and no set-aside row is a rule that never steps aside;
+ * otherwise "Nothing new needs you, N set aside", naming the set-aside high-severity rows. A board with open rows main did not show gets no card.
+ */
+export function cleanCardOf(D, clearNow) {
+  const S = D && D.strip;
+  if (!S || !clearNow || S.open > 0) return null;
+  const exempt = S.setAside.items.some((x) => CLEAN_EXEMPT.includes(x.rule));
+  if (S.outside.count === 0 && S.setAside.count === 0 && !exempt) {
+    let latest = 0;
+    for (const e of D.entries || []) if (e.how !== 'open' && e.how !== 'dismissed' && e.ended) latest = Math.max(latest, Date.parse(e.ended) || 0);
+    const when = latest ? dayClock(new Date(latest).toISOString()) : '';
+    return { title: when ? 'Board clean since ' + when : 'Board clean', lines: [] };
+  }
+  const high = S.setAside.items.filter((x) => x.severity === 'high').map((x) => x.text + ' · set aside' + (x.after ? ' ' + x.after : ''));
+  return { title: 'Nothing new needs you' + (S.setAside.count > 0 ? ', ' + S.setAside.count + ' set aside' : ''), lines: high };
 }
 
 /** "3 cleared this week · 1 dismissed" ('' when both are zero: no claim). Dismissed is never folded into cleared. */

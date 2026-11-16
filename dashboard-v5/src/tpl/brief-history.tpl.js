@@ -10,9 +10,22 @@ const LABEL = 'font-family:var(--term);font-size:11px;letter-spacing:.02em;text-
 
 export const bhsFooter = String.raw`                <!-- v5: Brief history footer — cleared and dismissed this week, counted apart -->
                 <sc-if value="{{ bhs.bhsFootShow }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--muted)">{{ bhs.bhsFootText }}</div></sc-if>
+                <!-- v5: Brief strip (batch 8) — plain counts main derived from the ledger; no total, no score; replaces the footer line once main sends them -->
+                <sc-if value="{{ bhs.bhsStripShow }}" hint-placeholder-val="{{ false }}">
+                  <div role="group" aria-label="Brief: this week" title="{{ bhs.bhsStripNote }}" style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)">
+                    <sc-for list="{{ bhs.bhsStripLines }}" as="l" hint-placeholder-count="3"><div>{{ l.text }}</div></sc-for>
+                  </div>
+                </sc-if>
 `;
 
-export const bhsAllClear = String.raw`                <!-- v5: Brief all-clear — once per clear episode, only after something really resolved -->
+export const bhsAllClear = String.raw`                <!-- v5: Brief clean-board card (batch 8) — says since when the board is clean, or how many rows are only set aside; nothing to click -->
+                <sc-if value="{{ bhs.bhsCleanShow }}" hint-placeholder-val="{{ false }}">
+                  <section aria-label="Brief: board clean" style="padding:12px 14px;background:var(--card);border:1px solid var(--green);border-radius:12px;display:flex;flex-direction:column;gap:6px">
+                    <div style="font-size:14px;color:var(--green)">{{ bhs.bhsCleanTitle }}</div>
+                    <sc-if value="{{ bhs.bhsCleanHasLines }}" hint-placeholder-val="{{ false }}"><div role="list" style="display:flex;flex-direction:column;gap:4px"><sc-for list="{{ bhs.bhsCleanLines }}" as="c" hint-placeholder-count="1"><div role="listitem" style="font-size:13px;color:var(--text)">{{ c.text }}</div></sc-for></div></sc-if>
+                  </section>
+                </sc-if>
+                <!-- v5: Brief all-clear — once per clear episode, only after something really resolved -->
                 <sc-if value="{{ bhs.bhsCardShow }}" hint-placeholder-val="{{ false }}">
                   <section aria-label="Brief: all clear" style="padding:12px 14px;background:var(--card);border:1px solid var(--green);border-radius:12px;display:flex;flex-direction:column;gap:8px">
                     <div style="font-size:14px;color:var(--green)">{{ bhs.bhsCardTitle }}</div>
@@ -42,6 +55,40 @@ export default String.raw`                <!-- v5: Brief history — what the Br
                       </div>
                     </sc-if>
                     <sc-if value="{{ bhs.bhsOpHasSummary }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:var(--muted)">{{ bhs.bhsOpSummary }}</div></sc-if>
+                    <!-- v5: Brief history strip and set-aside list (batch 8) — plain counts, set aside is never a clear -->
+                    <sc-if value="{{ bhs.bhsOpStripShow }}" hint-placeholder-val="{{ false }}">
+                      <div role="group" aria-label="Brief history: this week" title="{{ bhs.bhsOpStripNote }}" style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)">
+                        <sc-for list="{{ bhs.bhsOpStripLines }}" as="l" hint-placeholder-count="3"><div>{{ l.text }}</div></sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ bhs.bhsOpAsideShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)">
+                        <div style="${LABEL}">{{ bhs.bhsOpAsideHeading }}</div>
+                        <sc-for list="{{ bhs.bhsOpAsideLines }}" as="a" hint-placeholder-count="2"><div>{{ a.text }}</div></sc-for>
+                      </div>
+                    </sc-if>
                   </section>
                 </sc-if>
+`;
+
+// Settings > "Brief history · plain counts" (batch 8): the same counts as the strip, one per row, plus the set-aside rows with their age. Read-only.
+// Interpolated into tpl/ov-settings.tpl.js after the Reach and Money blocks.
+export const bhsSettings = String.raw`        <!-- v5: Brief history counts in Settings (batch 8) — plain counts the app derived from its own notes of what the Brief showed; read-only -->
+        <sc-if value="{{ bhs.bhsSetShow }}" hint-placeholder-val="{{ false }}">
+          <section aria-label="Brief history counts" style="display:flex;flex-direction:column;gap:6px">
+            <div style="font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--faint);margin-top:18px">{{ bhs.bhsSetHeading }}</div>
+            <sc-if value="{{ bhs.bhsSetLoading }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">{{ bhs.bhsSetLoadingText }}</div></sc-if>
+            <sc-if value="{{ bhs.bhsSetError }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--red)">{{ bhs.bhsSetErrorText }}</div></sc-if>
+            <sc-if value="{{ bhs.bhsSetOld }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">{{ bhs.bhsSetOldText }}</div></sc-if>
+            <sc-if value="{{ bhs.bhsSetHas }}" hint-placeholder-val="{{ true }}">
+              <div role="list" style="display:flex;flex-direction:column">
+                <sc-for list="{{ bhs.bhsSetRows }}" as="r" hint-placeholder-count="12"><div role="listitem" style="display:flex;gap:12px;padding:6px 0;font-size:13px;border-bottom:1px dashed var(--frame)"><span style="flex:1;min-width:0;color:var(--muted)">{{ r.label }}</span><span style="color:var(--text)">{{ r.value }}</span></div></sc-for>
+              </div>
+              <sc-if value="{{ bhs.bhsSetAsideShow }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)"><sc-for list="{{ bhs.bhsSetAsideLines }}" as="x" hint-placeholder-count="2"><div>{{ x.text }}</div></sc-for></div>
+              </sc-if>
+              <div style="font-size:12px;color:var(--faint)">{{ bhs.bhsSetNote }}</div>
+            </sc-if>
+          </section>
+        </sc-if>
 `;

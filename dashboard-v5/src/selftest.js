@@ -539,7 +539,7 @@ export async function run(W = window.WHQ) {
               L._bhsHold = true;
               LV.brief = row.brief;
               L.go(row.tab, row.sub || null);
-              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, row.hist));
+              L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0 }, row.hist, row.extra || {}));
             });
           } finally { W.store.hq = hq5; L._bhsHold = false; LV.brief = savedLive.brief; }
         }

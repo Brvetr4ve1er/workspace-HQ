@@ -797,7 +797,7 @@ function createFake(opts) {
     }],
     ['money.importFile', () => ({ canceled: true })], ['money.exportFile', () => ({ canceled: true })],
     ['moneyAccess.read', () => ({ on: macOn, lastAskedAt: null })], ['moneyAccess.set', (on) => (typeof on === 'boolean' ? { on: (macOn = on) } : { error: 'on must be true or false' })],   // Settings: Claude sessions may read Money (words only); off, never asked
-    ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '' })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
+    ['briefHistory.read', () => ({ entries: [], clearedThisWeek: 0, dismissedThisWeek: 0, allClear: null, notice: '', clears: { inPlace: 0, markedDone: 0, scanConfirmed: 0, unknown: 0 }, heldThisWeek: 0, pendingNow: 0, cameBackThisWeek: 0, openCount: 0, oldestOpen: null, outside: { count: 0, rules: [] }, setAside: { count: 0, oldest: null, items: [] } })], ['briefHistory.ack', () => ({ ok: true, acked: false })],   // Brief history: nothing remembered; no all-clear card is due
     ['memory.read', () => inventedMemoryRead()],   // Settings > Memory card (Console layer): invented kinds, sizes and ages, read-only
     ['machineHistory.read', machineHistoryRead],   // System › Machine › How the PC changed: invented checks, read-only
     // Security space (hq:security:*): an INVENTED footprint (the paste block above createFake); refresh answers ok only for the invented passphrase. Nothing here ever holds a real secret.

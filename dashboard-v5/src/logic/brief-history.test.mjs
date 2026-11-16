@@ -10,6 +10,7 @@ import { briefHistoryVals } from '../vals/brief-history.js';
 import { briefHistoryStates, BHS_STATE_KEYS } from '../selftest-brief-history.mjs';
 import bhsTpl, { bhsFooter, bhsAllClear } from '../tpl/brief-history.tpl.js';
 
+import './brief-history-strip.test.mjs';   // batch 8: the strip, the clean card and the Settings counts (same command runs them)
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 const local = (d, h = 9, mi = 0) => new Date(2026, 10, d, h, mi).toISOString();   // 2026-11-<d> local: Nov 10 2026 is a Tuesday
 const entry = (o) => ({ text: 'Work not pushed', rule: 'unpushed', severity: 'med', first: local(10, 9, 12), ended: local(12, 14, 0), how: 'resolved', after: '2 d', ...o });
@@ -29,7 +30,7 @@ function rig({ api, state } = {}) {
   }, briefHistoryLogic);
   return self;
 }
-const vals = (self, { tab = 'home', sub = null, b = brief(), isLive = true } = {}) => briefHistoryVals.call(self, { S: { ...self.state, tab, sub: sub ? { [tab]: sub } : {} }, LIVE: { brief: live(b) }, live: isLive });
+const vals = (self, { tab = 'home', sub = null, b = brief(), isLive = true, settings = false } = {}) => briefHistoryVals.call(self, { S: { ...self.state, tab, sub: sub ? { [tab]: sub } : {}, settingsOpen: settings }, LIVE: { brief: live(b) }, live: isLive });
 
 test('dayName / dayClock are local-time words, and empty for an unreadable time', () => {
   assert.equal(dayName(local(10)), 'Tue');
@@ -262,14 +263,24 @@ test('the selftest rows render what they claim, with no unresolved binding', () 
     assert.match(r.name, /^bhs-/);
     assert.deepEqual(Object.keys(r.hist).sort(), BHS_STATE_KEYS.slice().sort(), r.name);
     const self = rig({ api: r.name === 'bhs-operator-offline' ? null : { read: async () => ({}) }, state: r.hist });
-    const v = vals(self, { tab: r.tab, sub: r.sub, b: r.brief.brief });
-    const text = JSON.stringify([v.bhs.bhsOpRows, v.bhs.bhsCardLines, v.bhs.bhsFootText, v.bhs.bhsCardLead, v.bhs.bhsOpSummary]);
+    const v = vals(self, { tab: r.tab, sub: r.sub, b: r.brief.brief, settings: !!(r.extra && r.extra.settingsOpen) });
+    const text = JSON.stringify([v.bhs.bhsOpRows, v.bhs.bhsCardLines, v.bhs.bhsFootText, v.bhs.bhsCardLead, v.bhs.bhsOpSummary, v.bhs.bhsStripLines, v.bhs.bhsCleanTitle, v.bhs.bhsCleanLines, v.bhs.bhsOpStripLines, v.bhs.bhsOpAsideLines, v.bhs.bhsSetRows, v.bhs.bhsSetAsideLines]);
     assert.doesNotMatch(text, /undefined|\[object|NaN/, r.name);
   }
-  const by = Object.fromEntries(rows.map((r) => [r.name, vals(rig({ api: r.name === 'bhs-operator-offline' ? null : { read: async () => ({}) }, state: r.hist }), { tab: r.tab, sub: r.sub, b: r.brief.brief })]));
+  const by = Object.fromEntries(rows.map((r) => [r.name, vals(rig({ api: r.name === 'bhs-operator-offline' ? null : { read: async () => ({}) }, state: r.hist }), { tab: r.tab, sub: r.sub, b: r.brief.brief, settings: !!(r.extra && r.extra.settingsOpen) })]));
   assert.equal(by['bhs-all-clear'].bhs.bhsCardShow, true);
   assert.equal(by['bhs-all-clear-busy'].bhs.bhsCardBusy, true);
   for (const n of ['bhs-clear-no-card', 'bhs-clear-with-standing', 'bhs-clear-source-error', 'bhs-card-stale-guard', 'bhs-footer']) assert.equal(by[n].bhs.bhsCardShow, false, n);
+  assert.equal(by['bhs-strip-week-one'].bhs.bhsStripLines[0].text, '0 cleared this week · 0 held');
+  assert.equal(by['bhs-strip-busy'].bhs.bhsStripShow, true);
+  assert.match(by["bhs-clean-since"].bhs.bhsCleanTitle, /^Board clean since [A-Z][a-z]{2} [0-9]{2}:[0-9]{2}$/);
+  assert.equal(by['bhs-clean-set-aside'].bhs.bhsCleanTitle, 'Nothing new needs you, 2 set aside');
+  assert.deepEqual(by['bhs-clean-set-aside'].bhs.bhsCleanLines.map((x) => x.text), ['A bill is late · set aside 9 d']);
+  assert.equal(by['bhs-clean-outside'].bhs.bhsCleanTitle, 'Nothing new needs you');
+  assert.equal(by['bhs-operator-strip'].bhs.bhsOpAsideLines.length, 2);
+  assert.equal(by['bhs-settings-counts'].bhs.bhsSetHas, true);
+  assert.equal(by['bhs-settings-week-one'].bhs.bhsSetRows.find((x) => x.label.startsWith('Held')).value, '0');
+  assert.equal(by['bhs-settings-old-main'].bhs.bhsSetOld, true);
   assert.equal(by['bhs-operator-entries'].bhs.bhsOpRows.length, 6);
   assert.equal(by['bhs-operator-offline'].bhs.bhsOpOffline, true);
   assert.equal(by['bhs-operator-loading'].bhs.bhsOpLoading, true);
@@ -282,7 +293,7 @@ test('the selftest rows render what they claim, with no unresolved binding', () 
 test('the template fragments bind only bhs keys that the vals return, and use the dc-lite dialect', () => {
   const v = vals(rig({ api: { read: async () => ({}) } }));
   const have = new Set(Object.keys(v.bhs));
-  const loopVars = new Set(['r', 'c']);
+  const loopVars = new Set(['r', 'c', 'l', 'a']);
   for (const [name, frag] of [['operator', bhsTpl], ['footer', bhsFooter], ['card', bhsAllClear]]) {
     for (const m of frag.matchAll(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g)) {
       const [head, root] = m[1].split('.');
