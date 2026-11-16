@@ -35,7 +35,7 @@ export const SUBS = {
   projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase'], ['clients', 'Clients']],
   tasks: [['ranked', 'Ranked'], ['byproject', 'By project'], ['ideas', 'Ideas & risks']],
   automations: [['runnable', 'Runnable'], ['library', 'Library'], ['scheduled', 'Scheduled']],
-  claude: [['chats', 'Chats'], ['projects', 'Projects'], ['sessions', 'Sessions']],
+  claude: [['chats', 'Chats'], ['projects', 'Projects'], ['sessions', 'Sessions'], ['crew', 'Crew']],
   history: [['trends', 'Trends'], ['timeline', 'Timeline'], ['milestones', 'Milestones']],
   system: [['machine', 'Machine'], ['clutter', 'Workspace clutter']],
   life: [['screen', 'Screen time'], ['notes', 'Notes']],

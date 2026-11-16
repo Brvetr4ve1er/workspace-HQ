@@ -49,7 +49,7 @@
     projects: [['grid', 'Grid'], ['map', 'Map'], ['archived', 'Archived'], ['github', 'GitHub'], ['accounts', 'Vercel & Supabase'], ['clients', 'Clients']],
     tasks: [['ranked', 'Ranked'], ['byproject', 'By project'], ['ideas', 'Ideas & risks']],
     automations: [['runnable', 'Runnable'], ['library', 'Library'], ['scheduled', 'Scheduled']],
-    claude: [['chats', 'Chats'], ['projects', 'Projects'], ['sessions', 'Sessions']],
+    claude: [['chats', 'Chats'], ['projects', 'Projects'], ['sessions', 'Sessions'], ['crew', 'Crew']],
     history: [['trends', 'Trends'], ['timeline', 'Timeline'], ['milestones', 'Milestones']],
     system: [['machine', 'Machine'], ['clutter', 'Workspace clutter']],
     life: [['screen', 'Screen time'], ['notes', 'Notes']],
@@ -62,6 +62,7 @@
   // an older use surface → the ONE sub-view it proves a visit to. A surface that sits on a screen a 'space-<id>' mark already covers is
   // absent on purpose (a Home arrival writes space-home and brief-panel, and counts once). dashboard/use-counts.js reads this table.
   const SURFACE_TARGETS = Object.freeze({
+    crew: 'claude/crew',   // 'crew-start' is absent on purpose: a Start happens on the Crew view, which 'crew' already proves a visit to
     'sessions-board': 'claude/sessions',   // 'sessions-strip' is absent on purpose: the strip renders on Home, so it proves no Sessions visit
     'clients-list': 'projects/clients', 'machine-drift': 'system/machine', 'brief-history': 'history/timeline',
     'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',

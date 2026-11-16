@@ -188,6 +188,12 @@ contextBridge.exposeInMainWorld('hq', {
     },
   },
 
+  // The Crew (IPC-CONTRACT hq:crew:*): installed Claude skills as plain rows, and Start opens a terminal session. The renderer sends a skill id only.
+  crew: {
+    read: () => ipcRenderer.invoke('hq:crew:read'),
+    start: (id) => ipcRenderer.invoke('hq:crew:start', { id }),
+  },
+
   // Client delivery (IPC-CONTRACT hq:delivery:*): the card on each project page. The renderer sends a project id and validated intents only.
   delivery: {
     read: (projectId) => ipcRenderer.invoke('hq:delivery:read', projectId),

@@ -44,9 +44,9 @@ test('non-use events, garbage lines and a use line with an unknown or non-string
   assert.deepEqual(make(d).read(), { marks: 1, byTarget: { 'money/': 1 } });
 });
 
-test('SURFACE_TARGETS: the seven older surfaces map to the documented sub-views, and only those', () => {
+test('SURFACE_TARGETS: the eight older surfaces map to the documented sub-views, and only those', () => {
   assert.deepEqual({ ...U.SURFACE_TARGETS }, {
-    'sessions-board': 'claude/sessions', 'clients-list': 'projects/clients',
+    crew: 'claude/crew', 'sessions-board': 'claude/sessions', 'clients-list': 'projects/clients',
     'machine-drift': 'system/machine', 'brief-history': 'history/timeline',
     'money-start': 'money/today', 'money-quick': 'money/today', 'money-access': 'money/today',
   });
