@@ -1,4 +1,4 @@
-/* Two hidden alternate ACCENT palettes (batch 7, the cheat codes 'ember' and 'tide').
+/* Three ACCENT palettes: ember and tide (batch 7, hidden cheat codes) and signal (batch 8, the warm red chosen in Settings).
    Attached ONLY while a palette is chosen: logic/console-layer.mjs adds <link id="hq-palettes-css"> when consoleLayer.palette is not
    empty and removes it when it is cleared or the layer goes off. The root carries data-hq-accent="ember" | "tide" (an attribute, empty
    by default, bound from vals/cheats.js chtv.chtAccent).
@@ -22,3 +22,13 @@
 [data-hq-theme="light"][data-hq-accent="tide"] { --gold: #1f7f7a; --gold-2: #17615d; --accent-text: #17615d; --link: #17615d; --link-hover: #0e3f3c; --tone-gold: var(--gold); }
 /* tide: Console skin */
 [data-hq-skin="console"][data-hq-accent="tide"] { --gold: #6fe0d6; --gold-2: #6fe0d6; --accent-text: #6fe0d6; --link: #6fe0d6; --link-hover: #b0f0ea; --tone-gold: var(--gold); }
+
+/* signal: warm red (batch 8). Chosen from the Settings chip "Warm red accent", not a cheat code. Different in hue from ember (orange). dark base */
+[data-hq-theme][data-hq-accent="signal"] { --gold: #e0584a; --gold-2: #ff7c6d; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
+/* signal: light base */
+[data-hq-theme="light"][data-hq-accent="signal"] { --gold: #b3261e; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }
+/* signal: Console skin */
+[data-hq-skin="console"][data-hq-accent="signal"] { --gold: #ff7c6d; --gold-2: #ff9c8e; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
+/* signal: Workbench look, dark then light (three attributes: they beat the look's own two-attribute token blocks whatever the link order) */
+[data-hq-look="workbench"][data-hq-theme][data-hq-accent="signal"] { --gold: #e0584a; --gold-2: #ff7c6d; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
+[data-hq-look="workbench"][data-hq-theme="light"][data-hq-accent="signal"] { --gold: #b3261e; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }

@@ -59,8 +59,8 @@ const ZERO = { links: 0, listeners: 0, timers: 0, frames: 0 };
 
 // ---- the pref normaliser --------------------------------------------------------------------------------------------------------------
 test('the defaults are everything off, and the key set is the documented one', () => {
-  assert.deepEqual({ ...CONSOLE_DEFAULTS }, { on: false, skin: false, scan: false, palette: '', debug: false, shelf: false });
-  assert.deepEqual([...CONSOLE_KEYS], ['on', 'skin', 'scan', 'palette', 'debug', 'shelf']);
+  assert.deepEqual({ ...CONSOLE_DEFAULTS }, { on: false, skin: false, scan: false, palette: '', debug: false, shelf: false, look: '' });
+  assert.deepEqual([...CONSOLE_KEYS], ['on', 'skin', 'scan', 'palette', 'debug', 'shelf', 'look']);
   assert.equal(Object.isFrozen(CONSOLE_DEFAULTS), true);
 });
 
@@ -359,16 +359,16 @@ test('vals: the Console chip is absent while the layer is off and present while 
   const c = comp({ consoleLayer: { on: false, skin: true } });
   assert.deepEqual(consoleThemeOpts.call(c, c.state, tabStyle).map((x) => x.label), ['Dark', 'Light', 'Follow system']);
   c.state.consoleLayer = { on: true };
-  assert.deepEqual(consoleThemeOpts.call(c, c.state, tabStyle).map((x) => x.label), ['Dark', 'Light', 'Follow system', 'Console']);
+  assert.deepEqual(consoleThemeOpts.call(c, c.state, tabStyle).map((x) => x.label), ['Dark', 'Light', 'Follow system', 'Console', 'Workbench']);
 });
 
 test('vals: only one chip reads selected; under the skin it is Console, never the base theme', () => {
   const c = comp({ themePref: 'light', consoleLayer: { on: true, skin: false } });
   let chips = consoleThemeOpts.call(c, c.state, tabStyle);
-  assert.deepEqual(chips.map((x) => x.style.selected), [false, true, false, false]);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, true, false, false, false]);
   c.state.consoleLayer = { on: true, skin: true };
   chips = consoleThemeOpts.call(c, c.state, tabStyle);
-  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, true]);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, true, false]);
 });
 
 test('vals: choosing Dark, Light or Follow system clears the skin and sets the base theme; choosing Console sets the skin and leaves themePref alone', () => {
@@ -394,11 +394,13 @@ test('vals: Settings rows. The Console layer row always, CRT scanlines only whil
   assert.equal(rows[0].desc, 'Opt-in look and a few extras. Off = nothing loads.');
   assert.equal(CSL_TITLE, 'Console layer'); assert.equal(CSL_LINE, rows[0].desc); assert.equal(CSL_SCAN_TITLE, 'CRT scanlines');
   rows = rowsOf({ on: true });
-  assert.deepEqual(rows.map((r) => [r.label, r.state]), [['Console layer', 'On']]);
+  assert.deepEqual(rows.map((r) => [r.label, r.state]), [['Console layer', 'On'], ['Warm red accent', 'Off']]);
   rows = rowsOf({ on: true, skin: true });
-  assert.deepEqual(rows.map((r) => [r.label, r.state]), [['Console layer', 'On'], ['CRT scanlines', 'Off']]);
+  assert.deepEqual(rows.map((r) => [r.label, r.state]), [['Console layer', 'On'], ['Warm red accent', 'Off'], ['CRT scanlines', 'Off']]);
   rows = rowsOf({ on: true, skin: true, scan: true });
-  assert.equal(rows[1].state, 'On');
+  assert.equal(rows[2].state, 'On');
+  rows = rowsOf({ on: true, look: 'workbench', palette: 'signal' });
+  assert.deepEqual(rows.map((r) => [r.label, r.state]), [['Console layer', 'On'], ['Warm red accent', 'On']], 'under the Workbench look there is no scanline row');
   rows = rowsOf({ on: false, skin: true, scan: true });
   assert.equal(rows.length, 1, 'layer off: no scanline row even if one is stored');
   const c = comp({ consoleLayer: { on: false } });
@@ -625,4 +627,143 @@ wired('vals/index.js registers consoleSkinVals (one surface, one key) and vals/s
   const shell = read('src/vals/shell.js');
   assert.match(shell, /consoleThemeOpts\.call\(this, S, tabStyle\)/);
   assert.match(shell, /consoleSettings\.call\(this, S, sw\)/);
+});
+
+// ---- the Workbench look (batch 8) --------------------------------------------------------------------------------------------------
+// `look` is a second, additive pref beside the Console skin: '' or 'workbench', mutually exclusive with the skin, off by default.
+import { withLook, WORKBENCH_LOOK, WORKBENCH_HREF, CONSOLE_PALETTES, WORKBENCH_PALETTES } from './console-layer.mjs';
+import { workbenchVals, WBN_OFF } from '../vals/workbench.js';
+
+test('look: off by default, only the exact id turns it on, garbage and other ids are none', () => {
+  assert.equal(CONSOLE_DEFAULTS.look, '');
+  for (const raw of [undefined, null, {}, { look: true }, { look: 1 }, { look: 'Workbench' }, { look: 'console' }, { look: ['workbench'] }, { look: ' workbench ' }]) assert.equal(normaliseConsoleLayer(raw).look, '', JSON.stringify(raw));
+  assert.equal(normaliseConsoleLayer({ look: 'workbench' }).look, 'workbench');
+  assert.equal(WORKBENCH_LOOK, 'workbench');
+  assert.equal(normaliseConsoleLayer({ look: 'workbench', junk: 1 }).junk, undefined, 'unknown keys are dropped');
+});
+
+test('look: mutually exclusive with the skin. A stored pair keeps the skin (legacy skin:true still means Console); the actions turn the other one off', () => {
+  assert.deepEqual(normaliseConsoleLayer({ on: true, skin: true, look: 'workbench' }), { ...CONSOLE_DEFAULTS, on: true, skin: true });
+  assert.equal(normaliseConsoleLayer({ skin: true }).skin, true, 'legacy skin:true is still the Console skin');
+  assert.equal(normaliseConsoleLayer({ skin: true }).look, '');
+  const s = withConsoleLayer({ on: true, skin: true, scan: true }, { look: 'workbench' });
+  assert.deepEqual([s.skin, s.look, s.scan], [false, 'workbench', true], 'choosing the look leaves the skin; the owner scanline choice is kept for later');
+  const k = withConsoleLayer({ on: true, look: 'workbench' }, { skin: true });
+  assert.deepEqual([k.skin, k.look], [true, '']);
+  assert.equal(withLook({ on: true, skin: true }, 'workbench').skin, false);
+  assert.equal(withLook({ on: true, look: 'workbench' }, '').look, '');
+  assert.equal(withLook({ on: true }, 'nonsense').look, '');
+});
+
+test('look: effective only while the layer is on; scanlines never run under the look; the cheat palettes are inert under it, the red one is not', () => {
+  assert.deepEqual(consoleEffective({ on: false, look: 'workbench', palette: 'signal' }), { ...CONSOLE_DEFAULTS });
+  const e = consoleEffective({ on: true, look: 'workbench', scan: true, palette: 'ember' });
+  assert.equal(e.look, 'workbench');
+  assert.equal(e.scan, false, 'scanlines belong to the skin');
+  assert.equal(e.palette, '', 'ember is kept on disk but does nothing under the look');
+  assert.equal(normaliseConsoleLayer({ on: true, look: 'workbench', palette: 'ember' }).palette, 'ember');
+  assert.equal(consoleEffective({ on: true, look: 'workbench', palette: 'signal' }).palette, 'signal');
+  assert.equal(consoleEffective({ on: true, skin: true, palette: 'ember' }).palette, 'ember', 'the cheat palettes still work under the Console skin');
+  assert.deepEqual([...WORKBENCH_PALETTES], ['signal']);
+  assert.ok(CONSOLE_PALETTES.includes('signal') && CONSOLE_PALETTES.includes('ember') && CONSOLE_PALETTES.includes('tide'));
+  assert.equal(normaliseConsoleLayer({ palette: 'Signal' }).palette, 'signal');
+});
+
+test('look: the Workbench stylesheet is one counted link added only while the look is chosen (probe: layer 2, look 3, with the red accent 4), removed with it', () => {
+  const f = fakeEnv();
+  const env = { ...f.env, win: {} };
+  const c = comp({ consoleLayer: { on: true } });
+  const ids = () => f.head.children.map((n) => n.attrs.id).sort();
+  try {
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css']);
+    assert.equal(env.win.__hqLayerProbe().links, 2);
+    c.state.consoleLayer = { on: true, look: 'workbench' };
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css', 'hq-workbench-css']);
+    assert.equal(env.win.__hqLayerProbe().links, 3);
+    assert.equal(f.head.children.find((n) => n.attrs.id === 'hq-workbench-css').attrs.href, WORKBENCH_HREF);
+    assert.equal(f.attrs['data-hq-scan'], undefined, 'no scanline attribute under the look, even with scan stored on');
+    c.state.consoleLayer = { on: true, look: 'workbench', scan: true, palette: 'signal' };
+    c.cslSync(env);
+    assert.equal(env.win.__hqLayerProbe().links, 4, 'the red accent is the fourth');
+    assert.equal(f.attrs['data-hq-scan'], undefined);
+    c.state.consoleLayer = { on: true, look: 'workbench', palette: 'ember' };
+    c.cslSync(env);
+    assert.equal(env.win.__hqLayerProbe().links, 3, 'a cheat palette adds no link under the look');
+    c.state.consoleLayer = { on: true };
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css'], 'leaving the look removes its sheet without a reload');
+    c.state.consoleLayer = { on: true, look: 'workbench' };
+    c.cslSync(env);
+    c.state.consoleLayer = { on: false, look: 'workbench' };
+    c.cslSync(env);
+    assert.equal(f.head.children.length, 0);
+    assert.deepEqual({ ...env.win.__hqLayerProbe() }, ZERO, 'layer off: the probe is all zeros, whatever look is stored');
+  } finally { detachDefault(); }
+});
+
+test('look: the Appearance chips. Workbench chip only while the layer is on; it clears the skin; the base chips never read selected under it', () => {
+  const c = comp({ themePref: 'dark', consoleLayer: { on: true, skin: true } });
+  let chips = consoleThemeOpts.call(c, c.state, tabStyle);
+  assert.equal(chips[4].label, 'Workbench');
+  chips[4].go();
+  assert.deepEqual([layerOf(c).skin, layerOf(c).look], [false, 'workbench']);
+  assert.equal(c.state.themePref, 'dark', 'a look over the base theme, it never replaces it');
+  chips = consoleThemeOpts.call(c, c.state, tabStyle);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, false, true]);
+  chips[3].go();
+  assert.deepEqual([layerOf(c).skin, layerOf(c).look], [true, ''], 'choosing Console leaves Workbench');
+  consoleThemeOpts.call(c, c.state, tabStyle)[4].go();
+  consoleThemeOpts.call(c, c.state, tabStyle)[1].go();
+  assert.deepEqual([layerOf(c).skin, layerOf(c).look, c.state.themePref], [false, '', 'light'], 'a base theme chip leaves the look');
+  const off = comp({ consoleLayer: { on: false, look: 'workbench' } });
+  assert.equal(consoleThemeOpts.call(off, off.state, tabStyle).length, 3);
+  const none = comp({ consoleLayer: { on: false } });
+  none.cslChooseLook();
+  assert.equal(layerOf(none).look, '', 'choosing needs the layer on');
+});
+
+test('look: the warm red chip toggles the palette signal and replaces a cheat palette; a base theme (shell button, Ctrl K verb) leaves the look and keeps the accent', () => {
+  const c = comp({ consoleLayer: { on: true, look: 'workbench', palette: 'ember' } });
+  c.cslToggleSignal();
+  assert.equal(layerOf(c).palette, 'signal');
+  c.cslToggleSignal();
+  assert.equal(layerOf(c).palette, '');
+  const off = comp({ consoleLayer: { on: false } });
+  off.cslToggleSignal();
+  assert.equal(layerOf(off).palette, '');
+  assert.equal(c.cslLeaveSkin({ consoleLayer: { on: true, look: 'workbench' } }).consoleLayer.look, '');
+  assert.deepEqual(c.cslLeaveSkin({ consoleLayer: { on: true } }), {}, 'nothing to leave, no patch');
+  const t = comp({ themePref: 'dark', consoleLayer: { on: true, look: 'workbench', palette: 'signal' } });
+  t.cslChooseBase('light');   // what the palette's "Theme · light" verb and the chips call
+  assert.deepEqual([layerOf(t).look, layerOf(t).palette, t.state.themePref], ['', 'signal', 'light'], 'the look is cleared, the accent choice is kept');
+  const app = read('src/app.js');
+  assert.match(app, /toggleTheme\(\)[^\n]*cslLeaveSkin\(s\)/, 'the shell button and "Toggle light / dark" both spread cslLeaveSkin');
+  const pal = read('src/logic/palette.js');
+  assert.match(pal, /cslChooseBase\(x\)/, 'the theme verb goes through cslChooseBase');
+});
+
+test('look: vals. ONE top-level key (wbnv); off is one frozen constant; the attribute is empty off and "workbench" only under the look', () => {
+  const v = (cl) => workbenchVals.call({ state: {} }, { S: { consoleLayer: cl }, rows: [] });
+  assert.deepEqual(Object.keys(v(null)), ['wbnv']);
+  assert.equal(v(null), WBN_OFF);
+  assert.equal(v({ on: true }), WBN_OFF);
+  assert.equal(v({ on: false, look: 'workbench' }), WBN_OFF, 'the layer off: no look, whatever is stored');
+  assert.equal(v({ on: true, skin: true }).wbnv.wbnLook, '');
+  assert.equal(v({ on: true, look: 'workbench' }).wbnv.wbnLook, 'workbench');
+  assert.equal(v({ on: true, skin: true, look: 'workbench' }), WBN_OFF, 'a stored pair is the skin, not the look');
+  assert.equal(Object.isFrozen(WBN_OFF.wbnv), true);
+});
+
+test('look: the Console skin is untouched. skin:true still gives cslSkin "console"; under the look the skin attribute is empty and scanlines are off; the root binds both', () => {
+  const k = (cl) => consoleSkinVals({ S: { consoleLayer: cl } }).cslv;
+  assert.equal(k({ on: true, skin: true }).cslSkin, CONSOLE_SKIN);
+  assert.equal(k({ on: true, look: 'workbench' }).cslSkin, '', 'every [data-hq-skin="console"] rule is inactive under the look');
+  assert.equal(k({ on: true, look: 'workbench', scan: true }).cslScan, false);
+  assert.equal(k({ on: true, skin: true, scan: true }).cslScan, true);
+  const shell = read('src/tpl/shell.tpl.js');
+  assert.match(shell, /data-hq-skin="\{\{ cslv\.cslSkin \}\}" data-hq-look="\{\{ wbnv\.wbnLook \}\}"/);
+  assert.match(read('src/vals/index.js'), /workbenchVals/);
+  assert.match(read('src/vals/cheats.js'), /consoleEffective\(L\)\.palette/, 'the accent attribute follows the layer own rule');
 });

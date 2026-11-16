@@ -1,5 +1,5 @@
 // node --test dashboard-v5/styles/palettes.test.mjs
-// The two hidden accent palettes (ember, tide): only the accent family is remapped, every rule is under data-hq-accent, nothing animates,
+// The accent palettes (ember and tide, the hidden cheat codes; signal, the warm red chosen in Settings): only the accent family is remapped, every rule is under data-hq-accent, nothing animates,
 // and each accent TEXT token reaches WCAG AA (4.5) on --card (and on --bg) for the dark base, the light base and the Console skin; the
 // non-text accent fills reach 3. --card is translucent in tokens.css, so it is composited over --bg first (what the eye sees).
 // The Console base is read from styles/console.css when that file exists (the console-skin dish owns it); until then the documented
@@ -20,12 +20,16 @@ const tokens = parseTokens(read('tokens.css'));
 const FAMILY = ['--gold', '--gold-2', '--accent-text', '--link', '--link-hover', '--tone-gold'];
 const TEXT = ['--accent-text', '--link', '--link-hover'];
 const FILLS = ['--gold', '--gold-2'];
-const PALETTES = ['ember', 'tide'];
+const PALETTES = ['ember', 'tide', 'signal'];
 const BASES = {
   dark: (p) => `[data-hq-theme][data-hq-accent=${p}]`,
   light: (p) => `[data-hq-theme=light][data-hq-accent=${p}]`,
   console: (p) => `[data-hq-skin=console][data-hq-accent=${p}]`,
+  wbdark: (p) => `[data-hq-look=workbench][data-hq-theme][data-hq-accent=${p}]`,
+  wblight: (p) => `[data-hq-look=workbench][data-hq-theme=light][data-hq-accent=${p}]`,
 };
+// ember and tide sit on the three base looks; signal also sits on the Workbench look (dark and light), the only palette that look carries
+const basesOf = (p) => (p === 'signal' ? Object.keys(BASES) : ['dark', 'light', 'console']);
 
 // ---- colour maths ----------------------------------------------------------------------------------------------------
 function parseColor(v) {
@@ -48,7 +52,10 @@ function base(name) {
   let bg, card;
   if (name === 'dark') { bg = tokens.dark['--bg']; card = tokens.dark['--card']; }
   else if (name === 'light') { bg = tokens.light['--bg']; card = tokens.light['--card']; }
-  else {
+  else if (name === 'wbdark' || name === 'wblight') {
+    const w = parseTokens(read('workbench.css')).rules[name === 'wbdark' ? '[data-hq-look=workbench][data-hq-theme]' : '[data-hq-look=workbench][data-hq-theme=light]'] || {};
+    bg = w['--bg']; card = w['--card'];
+  } else {
     bg = '#1f2023'; card = '#2c2e33';   // the documented Console charcoal
     if (existsSync(resolve(HERE, 'console.css'))) {
       const c = parseTokens(read('console.css')).rules['[data-hq-skin=console]'] || {};
@@ -76,8 +83,8 @@ function accent(name, p) {
 // ---- the rules -------------------------------------------------------------------------------------------------------
 test('every palette has exactly one rule per base (dark, light, Console), under the data-hq-accent attribute', () => {
   const sels = Object.keys(pal.rules).sort();
-  assert.deepEqual(sels, PALETTES.flatMap((p) => Object.keys(BASES).map((b) => BASES[b](p))).sort());
-  for (const s of sels) assert.match(s, /\[data-hq-accent=(ember|tide)\]$/, s + ' is scoped to a palette');
+  assert.deepEqual(sels, PALETTES.flatMap((p) => basesOf(p).map((b) => BASES[b](p))).sort());
+  for (const s of sels) assert.match(s, /\[data-hq-accent=(ember|tide|signal)\]$/, s + ' is scoped to a palette');
 });
 
 test('only the accent family is remapped: six custom properties per rule, nothing else', () => {
@@ -89,12 +96,16 @@ test('only the accent family is remapped: six custom properties per rule, nothin
   assert.equal(tokens.dark['--tone-gold'], 'var(--gold)');
 });
 
-test('the two palettes differ from each other and from the base accent in every base', () => {
-  for (const b of Object.keys(BASES)) {
+test('the palettes differ from each other and from the base accent in every base', () => {
+  for (const b of ['dark', 'light', 'console']) {
     const e = pal.rules[BASES[b]('ember')], t = pal.rules[BASES[b]('tide')];
     assert.notEqual(e['--accent-text'], t['--accent-text'], b);
     assert.notEqual(e['--accent-text'], (b === 'light' ? tokens.light : tokens.dark)['--accent-text'], b + ': ember changes something');
     assert.notEqual(t['--accent-text'], (b === 'light' ? tokens.light : tokens.dark)['--accent-text'], b + ': tide changes something');
+    const r = pal.rules[BASES[b]('signal')];
+    assert.notEqual(r['--accent-text'], e['--accent-text'], b + ': signal is not ember');
+    assert.notEqual(r['--accent-text'], t['--accent-text'], b + ': signal is not tide');
+    assert.notEqual(r['--accent-text'], (b === 'light' ? tokens.light : tokens.dark)['--accent-text'], b + ': signal changes something');
   }
 });
 
@@ -107,7 +118,7 @@ test('nothing animates and nothing moves: no @keyframes, transition, animation, 
 
 // ---- contrast --------------------------------------------------------------------------------------------------------
 for (const b of Object.keys(BASES)) {
-  for (const p of PALETTES) {
+  for (const p of PALETTES.filter((x) => basesOf(x).includes(b))) {
     test(`AA contrast: ${p} on the ${b} base — text tokens >= 4.5 on --card and --bg, fills >= 3 on --card`, () => {
       const { bg, card } = base(b);
       const get = accent(b, p);

@@ -12,11 +12,14 @@
 //   cslToggleOn() · cslToggleScan() · cslChooseSkin() · cslChooseBase(id)   the Settings actions
 //
 // Nothing here touches the DOM except cslSync, and cslSync goes through the layer (logic/console-layer.mjs), the only file allowed to attach.
-import { attach, detach, layerAttr, layerSheet, exposeProbe, normaliseConsoleLayer, consoleEffective, withConsoleLayer, withSkin, CONSOLE_SCAN_ATTR, CONSOLE_PALETTES_HREF, CONSOLE_DELIGHTS_HREF } from './console-layer.mjs';
+import { attach, detach, layerAttr, layerSheet, exposeProbe, normaliseConsoleLayer, consoleEffective, withConsoleLayer, withSkin, CONSOLE_SCAN_ATTR, CONSOLE_PALETTES_HREF, CONSOLE_DELIGHTS_HREF, WORKBENCH_HREF, WORKBENCH_LOOK } from './console-layer.mjs';
 
 export const CSL_TITLE = 'Console layer';
 export const CSL_LINE = 'Opt-in look and a few extras. Off = nothing loads.';
 export const CSL_CHIP = 'Console';
+export const WBN_CHIP = 'Workbench';
+export const WBN_SIGNAL_TITLE = 'Warm red accent';
+export const WBN_SIGNAL_LINE = 'A warm red for links and highlights. Off = the look’s own accent.';
 export const CSL_SCAN_TITLE = 'CRT scanlines';
 export const CSL_SCAN_LINE = 'A faint static line pattern over the window. It never moves and never blocks a click.';
 
@@ -34,13 +37,14 @@ export const consoleSkinLogic = {
     if (!cl.on) { detach(); return false; }
     if (!attach(e)) return false;
     layerAttr(CONSOLE_SCAN_ATTR, cl.scan ? 'on' : null);
+    layerSheet('workbench', cl.look === WORKBENCH_LOOK ? WORKBENCH_HREF : null);   // the Workbench look's one stylesheet exists only while that look is chosen (added before the palettes' so the red accent wins at equal weight)
     layerSheet('delights', CONSOLE_DELIGHTS_HREF);   // small delights: its one stylesheet rides with the layer (counted in the probe's links); detach() removes it
     layerSheet('palettes', cl.palette ? CONSOLE_PALETTES_HREF : null);   // the accent palettes' stylesheet exists only while a palette is chosen (cheat codes)
     return true;
   },
   cslLeaveSkin(S) {
     const cl = normaliseConsoleLayer(S && S.consoleLayer);
-    return cl.skin ? { consoleLayer: withSkin(cl, false) } : {};
+    return cl.skin || cl.look ? { consoleLayer: withConsoleLayer(cl, { skin: false, look: '' }) } : {};
   },
   cslToggleOn() {
     this.setState((s) => { const cl = normaliseConsoleLayer(s.consoleLayer); return { consoleLayer: withConsoleLayer(cl, { on: !cl.on }) }; });
@@ -50,6 +54,12 @@ export const consoleSkinLogic = {
   },
   cslChooseSkin() {
     this.setState((s) => (normaliseConsoleLayer(s.consoleLayer).on ? { consoleLayer: withSkin(s.consoleLayer, true) } : {}));
+  },
+  cslChooseLook() {
+    this.setState((s) => (normaliseConsoleLayer(s.consoleLayer).on ? { consoleLayer: withConsoleLayer(s.consoleLayer, { look: WORKBENCH_LOOK }) } : {}));
+  },
+  cslToggleSignal() {
+    this.setState((s) => { const cl = normaliseConsoleLayer(s.consoleLayer); return cl.on ? { consoleLayer: withConsoleLayer(cl, { palette: cl.palette === 'signal' ? '' : 'signal' }) } : {}; });
   },
   cslChooseBase(id) {
     this.setState((s) => ({ themePref: id, ...this.cslLeaveSkin(s) }));

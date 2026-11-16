@@ -1,10 +1,11 @@
 // Cheat codes: render values (batch 7). Every value is cht-prefixed and nested under ONE top-level key, chtv (the renderVals key ceiling).
-//   - chtAccent        '' | 'ember' | 'tide': the root's data-hq-accent attribute (an attribute, not a node; empty = no palette)
+//   - chtAccent        '' | 'ember' | 'tide' | 'signal' (the warm red chosen in Settings; the only one the Workbench look carries): the root's data-hq-accent attribute (an attribute, not a node; empty = no palette)
 //   - the timing overlay (chtDebug and the numbers): only while consoleLayer.on && consoleLayer.debug; otherwise the frozen OFF constant,
 //     so a render with the layer off allocates and reads nothing
 //   - the found list for Settings › Memory card: a count and the NAMES of found codes ('–' for the rest). Never a sequence, never an id.
 // The numbers come from the host (logic/cheats-host.js cheatsDebugStats): this module only formats them and never sets state.
 import { foundSummary } from '../logic/cheats.mjs';
+import { consoleEffective } from '../logic/console-layer.mjs';
 import { fmtMs, fmtAge } from '../logic/debug-ring.mjs';
 
 export const CHT_KEY_CEILING = 1015;   // renderVals' top-level key ceiling, said next to the live count in the overlay
@@ -33,7 +34,7 @@ function cheatsGroup() {
   const S = this.state || {};
   const L = S.consoleLayer && typeof S.consoleLayer === 'object' ? S.consoleLayer : null;
   if (!L || !L.on) return CHT_OFF;
-  const accent = L.palette === 'ember' || L.palette === 'tide' ? L.palette : '';
+  const accent = consoleEffective(L).palette;   // the layer's own rule: a stored palette is inert where the look does not carry it
   const base = stable(S.cheatsFound, accent);
   if (!L.debug) return base;
   const st = typeof this.cheatsDebugStats === 'function' ? this.cheatsDebugStats() : null;

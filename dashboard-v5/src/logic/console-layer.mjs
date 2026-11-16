@@ -2,7 +2,10 @@
 // at import time (the DOM, the timers and the frame loop are all handed in by attach(env)).
 //
 // ---- the pref (consoleLayer, an object in the renderer prefs; renderer-only, main never sees it) --------------------------------------
-//   { on:false, skin:false, scan:false, palette:'', debug:false, shelf:false }       EVERYTHING off by default
+//   { on:false, skin:false, scan:false, palette:'', debug:false, shelf:false, look:'' }       EVERYTHING off by default
+//       look ('' | 'workbench') is the second look (batch 8): flat vectors, warm field. It is mutually exclusive with the Console skin: a
+//       stored object that somehow carries both keeps the skin (the older choice) and drops the look; withConsoleLayer(raw, { look }) turns the skin off
+//       and withConsoleLayer(raw, { skin:true }) clears the look. Scanlines belong to the skin only, so they never run under the look.
 //   normaliseConsoleLayer(raw) -> a fresh, complete object. Missing, garbage, partial: the defaults. Only a strict `true` turns a flag on;
 //       palette is a short lowercase id ('' = none); unknown keys are dropped. Later dishes add their keys HERE, with a test.
 //   consoleEffective(raw)      what the rest of the app may act on: nothing at all while `on` is false (the stored sub-flags are kept
@@ -26,33 +29,48 @@
 // attach(env): env = { doc, win?, href?, setTimeout?, clearTimeout?, setInterval?, clearInterval?, requestAnimationFrame?,
 //   cancelAnimationFrame? }; the timers default to win's, then to globalThis's. Tests pass a fake doc and fake timers.
 
-export const CONSOLE_DEFAULTS = Object.freeze({ on: false, skin: false, scan: false, palette: '', debug: false, shelf: false });
+export const CONSOLE_DEFAULTS = Object.freeze({ on: false, skin: false, scan: false, palette: '', debug: false, shelf: false, look: '' });
 export const CONSOLE_KEYS = Object.freeze(Object.keys(CONSOLE_DEFAULTS));
 export const CONSOLE_LINK_ID = 'hq-console-css';
 export const CONSOLE_CSS_HREF = './styles/console.css';
 export const CONSOLE_SKIN = 'console';   // the value data-hq-skin carries while the skin is on ('' otherwise)
 export const CONSOLE_SCAN_ATTR = 'data-hq-scan';
+export const WORKBENCH_LOOK = 'workbench';   // the value data-hq-look carries while the Workbench look is on ('' otherwise)
+export const WORKBENCH_HREF = './styles/workbench.css';
 
 const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const flag = (x) => x === true;
-export const CONSOLE_PALETTES = Object.freeze(['ember', 'tide']);   // the two hidden accent palettes (cheat codes); anything else is none
+export const CONSOLE_PALETTES = Object.freeze(['ember', 'tide', 'signal']);   // ember and tide are the hidden accent palettes (cheat codes); signal is the warm red one, chosen from a Settings chip; anything else is none
+export const WORKBENCH_PALETTES = Object.freeze(['signal']);   // the only accent palette the Workbench look carries (ember and tide stay stored but do nothing under it)
 export const CONSOLE_PALETTES_HREF = './styles/palettes.css';
 export const CONSOLE_DELIGHTS_HREF = './styles/delights.css';   // small delights: the attract scene's and the back room lamp's only motion, attached with the layer (a second counted link)
 const paletteId = (x) => { const s = typeof x === 'string' ? x.trim().toLowerCase() : ''; return CONSOLE_PALETTES.includes(s) ? s : ''; };
 
+const lookId = (x) => (x === WORKBENCH_LOOK ? WORKBENCH_LOOK : '');
+
 export function normaliseConsoleLayer(raw) {
   const s = isObj(raw) ? raw : {};
-  return { on: flag(s.on), skin: flag(s.skin), scan: flag(s.scan), palette: paletteId(s.palette), debug: flag(s.debug), shelf: flag(s.shelf) };
+  const skin = flag(s.skin);
+  return { on: flag(s.on), skin, scan: flag(s.scan), palette: paletteId(s.palette), debug: flag(s.debug), shelf: flag(s.shelf), look: skin ? '' : lookId(s.look) };
 }
 
 export function consoleEffective(raw) {
   const n = normaliseConsoleLayer(raw);
   if (!n.on) return { ...CONSOLE_DEFAULTS };
-  return { ...n, scan: n.skin && n.scan };
+  // under the Workbench look only the red palette does anything; the cheat palettes are kept on disk but inert
+  const palette = n.look && !WORKBENCH_PALETTES.includes(n.palette) ? '' : n.palette;
+  return { ...n, palette, scan: n.skin && n.scan };
 }
 
-export const withConsoleLayer = (raw, patch) => normaliseConsoleLayer({ ...normaliseConsoleLayer(raw), ...(isObj(patch) ? patch : {}) });
+export function withConsoleLayer(raw, patch) {
+  const p = isObj(patch) ? patch : {};
+  const next = { ...normaliseConsoleLayer(raw), ...p };
+  if (p.skin === true && !('look' in p)) next.look = '';        // choosing the skin leaves the look
+  else if (lookId(p.look) && !('skin' in p)) next.skin = false;   // choosing the look leaves the skin
+  return normaliseConsoleLayer(next);
+}
 export const withSkin = (raw, skin) => withConsoleLayer(raw, { skin: skin === true });
+export const withLook = (raw, look) => withConsoleLayer(raw, { look: lookId(look) });
 
 // ---- the layer ----------------------------------------------------------------------------------------------------------------------
 const noop = () => {};

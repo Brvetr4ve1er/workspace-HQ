@@ -1,0 +1,76 @@
+/* The Workbench look (batch 8): flat vectors, thin outlines with round joins, 6 px screen corners, uppercase monospace readouts, a warm field and muted hardware.
+   Loaded ONLY by logic/console-layer.mjs (layerSheet 'workbench', <link id="hq-workbench-css">) while consoleLayer.look is 'workbench' (and the layer is on);
+   while the look is not chosen this file is not in the page at all. Every rule is under [data-hq-look="workbench"], the attribute the shell root carries then
+   (an EMPTY attribute otherwise, bound from vals/workbench.js wbnv.wbnLook).
+   Two token blocks: the first remaps the whole token contract over the dark base, the second (after it, same weight) over the light base. Both use two
+   attributes, so they beat the one-attribute theme blocks in tokens.css whatever the link order. The accent here is a muted steel blue; the warm red
+   accent (styles/palettes.css, id signal) is chosen from a Settings chip and wins over it because the palettes sheet is attached after this one and
+   its rules carry a third attribute.
+   Nothing here moves a box: no layout property on a real element, no position change on #tabs or .timemachine. The only motion is the screen cursor of the
+   small illustrations, inside ONE prefers-reduced-motion: no-preference block and also scoped to :root:not([data-hq-reduce]) (app.js setReduceFlag writes that
+   attribute while the Reduce motion pref is on). styles/workbench.test.mjs pins all of this and the WCAG AA contrast of the text tokens. */
+
+[data-hq-look="workbench"][data-hq-theme]{
+  --bg:#211c18;--bg2:#28221d;--panel:rgba(40,34,29,.9);--card:rgba(47,40,33,.94);--card-hi:#3a3128;--ink:#181410;
+  --frame:#4a4036;--frame-hi:#8a7b6a;
+  --text:#f0e8dc;--muted:#c2b6a5;--faint:#a3978a;
+  --gold:#8fb0c9;--gold-2:#b6cddf;--accent-text:#a9c4da;--link:#a9c4da;--link-hover:#d0e0ee;
+  --green:#8fc79a;--red:#f08a7e;--orange:#e8b26a;--yellow:#e6cf7a;--blue:#8fb0e0;--purple:#c0a8e0;--cyan:#86d0c8;
+  --scrim:rgba(16,12,9,.7);
+  --term:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --px:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted);
+}
+
+[data-hq-look="workbench"][data-hq-theme="light"]{
+  --bg:#ece3d3;--bg2:#e3d9c7;--panel:rgba(236,227,211,.9);--card:rgba(247,241,230,.95);--card-hi:#fbf7ee;--ink:#e0d4bf;
+  --frame:#bfae92;--frame-hi:#6f604c;
+  --text:#2f2820;--muted:#55493b;--faint:#6b5f51;
+  --gold:#3f6a8c;--gold-2:#2f5573;--accent-text:#2f5573;--link:#2f5573;--link-hover:#1c3a52;
+  --green:#3f7a4c;--red:#a33a2e;--orange:#8a5a14;--yellow:#756013;--blue:#34588f;--purple:#624a92;--cyan:#276a66;
+  --scrim:rgba(47,40,32,.3);
+  --term:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --px:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted);
+}
+
+/* flat vectors: 6 px screen corners on cards and buttons, a thin second outline drawn as an inset ring (no shadow depth, no gradient) */
+[data-hq-look="workbench"] section{
+  border-radius:6px !important;
+  box-shadow:inset 0 0 0 .5px var(--frame-hi) !important;
+}
+[data-hq-look="workbench"] button{
+  border-radius:6px !important;
+  background-image:none !important;
+  box-shadow:inset 0 0 0 .5px var(--frame-hi) !important;
+}
+[data-hq-look="workbench"] input,
+[data-hq-look="workbench"] textarea{border-radius:6px !important}
+
+/* readouts: uppercase monospace, spaced (the small illustrations' screens and any element that asks for it) */
+[data-hq-look="workbench"] [data-wbn="readout"]{
+  font-family:var(--term);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:var(--accent-text);
+}
+
+/* the focus ring stays a plain 2 px ring, outside the box (nothing is clipped under this look) */
+[data-hq-look="workbench"] :focus-visible{
+  outline:2px solid var(--gold-2) !important;
+  outline-offset:2px !important;
+}
+
+[data-hq-look="workbench"] ::selection{background:var(--gold);color:var(--ink)}
+[data-hq-look="workbench"] ::-webkit-scrollbar-thumb{background:var(--frame-hi)}
+
+/* the one piece of motion: the little screens' cursor blinks while the OS and the app both allow motion */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-hq-reduce]) [data-hq-look="workbench"] .wbn-cursor {
+    animation: wbn-cursor-blink 1.4s steps(1, end) infinite;
+  }
+  @keyframes wbn-cursor-blink {
+    0%, 55% { opacity: 1; }
+    56%, 100% { opacity: 0; }
+  }
+}

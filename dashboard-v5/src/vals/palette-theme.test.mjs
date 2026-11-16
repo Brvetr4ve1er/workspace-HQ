@@ -58,3 +58,25 @@ test('palette "theme light" with no skin leaves the layer pref object untouched'
   assert.equal(c.state.themePref, 'light');
   assert.equal(c.state.consoleLayer, before);
 });
+
+// batch 8: the Workbench look is left the same way, and the owner's red accent choice is kept
+test('palette "theme light|dark|os" leaves the Workbench look and sets the base theme; the layer and the red accent stay', () => {
+  for (const [word, pref] of [['light', 'light'], ['dark', 'dark'], ['os', 'os']]) {
+    const c = comp({ themePref: 'dark', consoleLayer: { on: true, skin: false, look: 'workbench', palette: 'signal' } });
+    const it = themeItem(c, word);
+    assert.ok(it, 'the Theme · ' + word + ' item exists');
+    it.run();
+    assert.equal(c.state.themePref, pref);
+    assert.equal(c.state.consoleLayer.look, '', 'the look is cleared: ' + word);
+    assert.equal(c.state.consoleLayer.on, true, 'the layer itself stays on');
+    assert.equal(c.state.consoleLayer.palette, 'signal', 'the accent choice is kept');
+  }
+});
+
+test('toggleTheme (the shell button and "Toggle light / dark") leaves the Workbench look too', () => {
+  const c = comp({ themePref: 'dark', consoleLayer: { on: true, look: 'workbench' } });
+  c.toggleTheme();
+  assert.equal(c.state.themePref, 'light');
+  assert.equal(c.state.consoleLayer.look, '');
+  assert.equal(c.state.consoleLayer.on, true);
+});
