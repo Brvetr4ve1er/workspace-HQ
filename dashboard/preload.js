@@ -194,6 +194,12 @@ contextBridge.exposeInMainWorld('hq', {
     start: (id) => ipcRenderer.invoke('hq:crew:start', { id }),
   },
 
+  // The Vault desk (IPC-CONTRACT hq:vault-desk:*): today's daily note read-only and one capture line. The renderer sends the line only.
+  vaultDesk: {
+    read: () => ipcRenderer.invoke('hq:vault-desk:read'),
+    capture: (text) => ipcRenderer.invoke('hq:vault-desk:capture', { text }),
+  },
+
   // Client delivery (IPC-CONTRACT hq:delivery:*): the card on each project page. The renderer sends a project id and validated intents only.
   delivery: {
     read: (projectId) => ipcRenderer.invoke('hq:delivery:read', projectId),
