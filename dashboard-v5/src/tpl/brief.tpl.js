@@ -5,6 +5,7 @@
 import { bhsFooter, bhsAllClear } from './brief-history.tpl.js';   // <!-- v5: Brief history --> the all-clear card under the empty line, the cleared/dismissed footer at the end
 import { dlxAttract } from './delights.tpl.js';   // <!-- v5: small delights --> the idle attract slot (a zero-size anchor inside the empty-Brief line; Console layer only)
 import batFragment, { batButton } from './brief-act.tpl.js';   // <!-- v5: Brief act --> the row's one local verb (dish brief-act-waiting)
+import { wbnArt } from './workbench.tpl.js';   // <!-- v5: Workbench art --> one small illustration, drawn only while the Workbench look is on
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
 const GOLD = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
@@ -19,7 +20,7 @@ export default String.raw`            <!-- v5: Operator Brief — the 1–3 thin
                 <sc-if value="{{ brfOffline }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">The Brief needs the desktop app’s brief module (hq.brief) — nothing is ranked without it.</div></sc-if>
                 <sc-if value="{{ brfError }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--red)">Couldn’t build the brief · {{ brfErrorText }}</div></sc-if>
                 <sc-if value="{{ brfLoading }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">Reading what needs you…</div></sc-if>
-                <sc-if value="{{ brfEmpty }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--green)">{{ brfEmptyText }}${dlxAttract}</div></sc-if>
+                <sc-if value="{{ brfEmpty }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--green)">{{ brfEmptyText }}${dlxAttract}${wbnArt('needyou')}</div></sc-if>
 ${bhsAllClear}                <sc-if value="{{ brfReady }}" hint-placeholder-val="{{ true }}">
                   <div role="list" style="display:flex;flex-direction:column;gap:8px">
                     <sc-for list="{{ brfItems }}" as="i" hint-placeholder-count="3">

@@ -84,9 +84,10 @@ import tpl from './app.tpl.js';
 // 2026-11-16 Strip and clean card (batch 8, dish 1c): +4789 chars / +4797 bytes, no line removed - tpl/brief-history.tpl.js gains the Brief strip (in the footer fragment), the clean-board card (in the all-clear fragment), the History strip and set-aside rows (in the Operator section) and one new fragment bhsSettings (Settings counts, read-only), interpolated once into ov-settings.tpl.js; each with its <!-- v5: reason --> marker.
 // 2026-11-16 The Crew (batch 8, dish 2): one new fragment (tpl/crew.tpl.js, 9724 chars / 9733 bytes - exactly the fragment's own length) interpolated into tpl/claude.tpl.js before the Sessions block, its <!-- v5: --> marker; it wraps itself in crwv.on (ONE vals key); nothing else moved
 // 2026-11-16 The Vault desk (batch 8, dish 3): one new fragment (tpl/vault-desk.tpl.js, 5898 chars / 5911 bytes - exactly the fragment's own length) interpolated into tpl/life.tpl.js at the head of the Notes branch, its <!-- v5: --> marker; it wraps itself in vdkv.on (ONE vals key); nothing else moved
-const SHA256 = 'c3505d01adf2af4ee1d08f93c428ac01f36b61c9e5cf701a6005feb323b909cb';
-const LENGTH = 523052;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 523758;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-16 The Workbench look (batch 8, dish 4): one new fragment file (tpl/workbench.tpl.js, a generator of five small illustrations, 949 + 939 + 929 + 949 + 959 = 4725 chars, each wrapped in an sc-if on wbnv.wbnOn so the look-off page has no node) interpolated into the five hosts (the clean-board card in tpl/brief-history.tpl.js, the Crew header, the Vault desk header, the empty Brief line, the empty Projects shelf line), plus the shell root div's data-hq-look="{{ wbnv.wbnLook }}" (an EMPTY attribute unless the owner chose the Workbench look, 34 chars) and 59 chars of line breaks; +4818 chars / +4818 bytes in all, no line removed
+const SHA256 = '3416ad0506094caff98c9b142dfe365f698ea84f3ea8851b68a1023a60e474c7';
+const LENGTH = 527870;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 528576;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
