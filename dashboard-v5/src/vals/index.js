@@ -48,12 +48,13 @@ import { securityVals } from './security.js';   // Security space (batch 4): ONE
 import { cosmosVals } from './cosmos.js';   // Cosmos space (key 0): the Feed, lightbox, index overlay and import report (cos*)
 import { briefHistoryVals } from './brief-history.js';   // what the Brief noticed and how it ended: Operator rows, footer, all-clear card (bhs*)
 import { todayVals } from './today.js';   // Home › Where today went: the ribbon (tdy*)
+import { vaultDeskVals } from './vault-desk.js';   // Life › Notes › Vault desk: today's daily note and one capture line: ONE top-level key vdkv
 import { crewVals } from './crew.js';   // Claude › Crew: the installed skills by role and Start: ONE top-level key crwv
 import { moneyStartVals } from './money-start.js';   // Money in one minute: the start card + the quick line (mst*)
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, versionCardVals, delightsVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, crewVals, consoleSkinVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, versionCardVals, delightsVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, crewVals, vaultDeskVals, consoleSkinVals,
 ];
 
 export function renderVals() {

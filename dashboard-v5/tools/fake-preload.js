@@ -691,6 +691,36 @@ function createFake(opts) {
     };
   })();
   // END crew-rows
+  // The Vault desk (hq.vaultDesk.read / capture): an INVENTED vault with one daily note. sessionStorage 'hqFake:vaultDesk' picks a state for a scenario:
+  // 'no-folder', 'no-note', 'error' (the read fails), 'refuse' (a capture is refused in main's words), 'no-open' (the scan does not list the vault); anything else is the ready note with 12 recent names.
+  const VDESK = (() => {
+    const SEED = '# Monday\n\n- slept well, started early\n- <b>not bold</b> <img src="x">\n\n%% workspacehq:start %%\n> [!summary]+ placeholder block\n%% workspacehq:end %%\n';
+    let note = SEED;
+    const mode = () => { try { return (storage && storage.getItem('hqFake:vaultDesk')) || ''; } catch (e) { return ''; } };
+    const recent = () => Array.from({ length: 12 }, (_, i) => ({ name: i === 0 ? '2026-11-16' : 'Placeholder note ' + String(i).padStart(2, '0') }));
+    return {
+      rows: [
+        ['vaultDesk.read', () => {
+          const m = mode();
+          if (m === 'error') return { error: 'vault not found' };
+          const base = { vaultName: 'Example Vault', canOpen: m !== 'no-open', folder: '10_Daily', folderFromSettings: false, settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '', truncated: false, recent: recent() };
+          if (m === 'no-folder') return { ...base, state: 'no-folder', recent: [] };
+          if (m === 'no-note') return { ...base, state: 'no-note' };
+          return { ...base, state: 'ready', text: note };
+        }],
+        ['vaultDesk.capture', (text) => {
+          if (mode() === 'refuse') return { error: 'the daily note is not a plain file' };
+          const t = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '';
+          if (!t) return { error: 'nothing to capture' };
+          if (t.length > 1000) return { error: 'that line is too long' };
+          if (note.indexOf('## Captured') < 0) note += '\n## Captured\n\n';
+          note += '- ' + t + '\n';
+          return { ok: true };
+        }],
+      ],
+      reset: () => { note = SEED; },
+    };
+  })();
 
   // Settings > Memory card (hq.memory.read): the INVENTED answer below is pasted from src/selftest-memory-card.mjs (tools/cdp-memory-card.mjs fakeMemorySource(); a test fails on drift).
   // Fixed numbers, read-only: reset(true) needs no state.
@@ -847,7 +877,7 @@ function createFake(opts) {
     }],
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
     ['sessionsBoard.onBoard', 'on:hq:sessions-board'],
-    ...CREW.rows,   // The Crew (hq.crew.read / start), after the sessions board and before delivery, as in dashboard/preload.js
+    ...CREW.rows, ...VDESK.rows,   // The Crew (hq.crew.read / start), after the sessions board and before delivery, as in dashboard/preload.js
     ['delivery.read', (id) => DLV.read(id)], ['delivery.apply', (intent) => DLV.apply(intent)], ['delivery.clients', () => DLV.clients()],
     ['deliveryCheck.detect', (id) => DCK.detect(id)], ['deliveryCheck.run', (id, url) => DCK.run(id, url)], ['deliveryCheck.read', (id) => DCK.read(id)], ['deliveryCheck.forget', (id) => DCK.forget(id)],
     ['money.read', () => ({ view: MONEY.full })],
@@ -926,7 +956,7 @@ function createFake(opts) {
     // END console-control
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }

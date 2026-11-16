@@ -1,6 +1,7 @@
 // Life screen (v.life): screen time, notes. (The Social tab was removed 2026-10-28.)
 // Cut verbatim from lines 702-769 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
+import vaultDesk from './vault-desk.tpl.js';   // 2026-11-16 Life › Notes › Vault desk (wraps itself in vdkv.on)
 export default String.raw`        <sc-if value="{{ v.life }}" hint-placeholder-val="{{ false }}">
           <div>
             <sc-if value="{{ isScreen }}" hint-placeholder-val="{{ true }}">
@@ -26,7 +27,7 @@ export default String.raw`        <sc-if value="{{ v.life }}" hint-placeholder-v
             <!-- v5: Social tab removed 2026-10-28 -->
             <sc-if value="{{ isNotes }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;flex-direction:column;gap:26px;max-width:860px">
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:16px">
+${vaultDesk}                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:16px">
                   <sc-for list="{{ vaults }}" as="vv" hint-placeholder-count="3">
                     <div style="padding:14px 16px;background:var(--card);border:1px solid var(--frame);border-radius:12px;display:flex;flex-direction:column;gap:8px">
                       <div style="font-size:18px">{{ vv.name }}</div>
