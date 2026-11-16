@@ -17,7 +17,7 @@
 // Assistant rulebook scenarios (--preload=fake; the fake's reach.read answers 4 placeholder rows, use() records its calls):
 //   reach-render · use-marks · use-space-marks
 // Act marks (batch 6; --preload=fake; tools/cdp-act-marks.mjs; ends with hqFake.reset(true) and Home shown):
-//   use-act-marks
+//   use-act-marks · use-act-effect (batch 8, counting fix: effect-only act marks, the commit hand-over, task Done)
 // Recall dish (--preload=fake; hqFake.set answers the Hub's refusal and a health with index-only chats):
 //   reindex-guard
 // Sessions board dish (--preload=fake; the fake's sessionsBoard.read answers an invented board of 8 sessions, one per state, 1 nightly run, 2 Codex threads;

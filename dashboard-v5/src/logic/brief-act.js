@@ -23,6 +23,10 @@ export const CONFIRM_TEXT = Object.freeze({
   'quest-done': 'Mark this quest done? It updates the quest list on this PC only; nothing is sent anywhere.',
   'confirm-balance': 'Type the balance you see in the account today. It re-anchors the account at now with that balance; the app never invents one.',
 });
+// Which verbs change a fact and so count as an act (renderer copy of brief-act-core.mjs VERBS[verb].marks; a parity test pins both). Commit only
+// hands over to the existing commit overlay: it marks 'handover', never 'act'. Open-folder changes nothing and marks nothing.
+export const VERB_MARKS = Object.freeze({ 'quest-done': true, 'confirm-balance': true, commit: false, 'open-folder': false });
+export const BAT_SURFACE = 'brief-act';
 export const ACTED_TAIL = 'clears when the next scan confirms';
 export const ACTED_TTL_MS = 24 * 3600e3;
 
@@ -71,6 +75,14 @@ export const briefActLogic = {
     }
     return this.batRun(item, verb);
   },
+  /** One use mark for a verb that took effect: 'act' for a fact-changing verb, 'handover' for the commit hand-over, nothing otherwise. Never blocks. */
+  _batMark(item, verb, handover) {
+    try {
+      if (typeof this.useActOnce !== 'function') return;
+      if (handover) this.useActOnce(BAT_SURFACE, item.key + '|' + verb, 'handover');
+      else if (VERB_MARKS[verb] === true) this.useActOnce(BAT_SURFACE, item.key + '|' + verb, 'act');
+    } catch { /* a usage mark is a bonus */ }
+  },
   async batRun(item, verb, value) {
     const api = this.hq && this.hq.brief;
     if (!api || typeof api.act !== 'function') { this.toast('error', 'Not done · this needs the desktop app’s brief module'); return false; }
@@ -82,14 +94,17 @@ export const briefActLogic = {
       if (!r || r.error) { this.toast('error', 'Not done · ' + ((r && r.error) || 'no answer from the app')); return false; }
       if (r.open === 'commit') {
         this.setState({ batOpen: null, batBal: '' });
+        this._batMark(item, verb, true);
         if (typeof r.projectId === 'string' && r.projectId) await this.openCommit(r.projectId);   // the existing overlay, guards and confirm untouched
         return true;
       }
       if (r.acted && typeof r.acted === 'object') {
+        this._batMark(item, verb, false);
         this.setState((s) => ({ batOpen: null, batBal: '', batDone: Object.assign({}, s.batDone || {}, { [item.key]: { verb: String(r.acted.verb || verb), at: String(r.acted.at || '') } }) }));
         return true;
       }
       this.setState({ batOpen: null, batBal: '' });
+      this._batMark(item, verb, false);
       if (verb === 'open-folder') this.toast('info', 'Opened its folder');
       return true;
     } catch (e) {

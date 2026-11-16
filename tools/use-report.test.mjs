@@ -49,15 +49,15 @@ test('counts opens and acts per surface for 7 and 14 days; a file outside the wi
   const rep = buildReport(collect({ dir, now: () => NOW }), [7, 14]);
   const [w7, w14] = rep.windows;
   assert.deepEqual(w7.rows, [
-    { surface: 'brief-panel', open: 1, act: 3, other: 0 },
-    { surface: 'cosmos', open: 1, act: 0, other: 0 },
+    { surface: 'brief-panel', open: 1, act: 3, handover: 0, other: 0 },
+    { surface: 'cosmos', open: 1, act: 0, handover: 0, other: 0 },
   ]);
   assert.equal(w7.marks, 5);
   assert.equal(w7.from, daysAgo(6));
   assert.deepEqual(w14.rows, [
-    { surface: 'brief-panel', open: 1, act: 3, other: 0 },
-    { surface: 'cosmos', open: 2, act: 0, other: 1 },
-    { surface: 'security', open: 1, act: 0, other: 0 },
+    { surface: 'brief-panel', open: 1, act: 3, handover: 0, other: 0 },
+    { surface: 'cosmos', open: 2, act: 0, handover: 0, other: 1 },
+    { surface: 'security', open: 1, act: 0, handover: 0, other: 0 },
   ]);
   assert.equal(w14.marks, 8);
   assert.equal(w14.from, daysAgo(13));
@@ -78,7 +78,7 @@ test('garbage lines, other events, unknown surfaces and unknown actions are igno
     use('cosmos', 'act'),
   ]);
   const rep = buildReport(collect({ dir, now: () => NOW }), [7]);
-  assert.deepEqual(rep.windows[0].rows, [{ surface: 'cosmos', open: 1, act: 1, other: 0 }]);
+  assert.deepEqual(rep.windows[0].rows, [{ surface: 'cosmos', open: 1, act: 1, handover: 0, other: 0 }]);
   assert.equal(rep.totalMarks, 2);
 });
 
@@ -90,7 +90,7 @@ test('file names that are not day logs, and future-dated files, are not read', (
   day(dir, daysAgo(2), [use('security', 'open')]);
   const col = collect({ dir, now: () => NOW });
   assert.equal(col.files.length, 1);
-  assert.deepEqual(buildReport(col, [14]).windows[0].rows, [{ surface: 'security', open: 1, act: 0, other: 0 }]);
+  assert.deepEqual(buildReport(col, [14]).windows[0].rows, [{ surface: 'security', open: 1, act: 0, handover: 0, other: 0 }]);
 });
 
 test('never-used list is exactly the allowlist minus the surfaces seen in that window', () => {
@@ -144,7 +144,8 @@ test('output holds only allowlisted surface ids, action words, numbers and dates
   assert.ok(!text.includes(FAKE_NAME) && !text.includes('Example') && !text.includes(FAKE_PATH) && !text.includes('secret'));
   const fixed = new Set(['WorkspaceHQ', 'use', 'report', 'counts', 'only', 'Day', 'logs', 'retained', 'to', 'First', 'below', 'means', 'first', 'in', 'these',
     'files', 'not', 'ever', 'Last', 'day', 'days', 'mark', 'marks', 'surface', 'open', 'act', 'other', 'never', 'seen', 'none', 'no', 'this', 'window',
-    'the', 'retained', 'Use', 'day', 'files']);
+    'the', 'retained', 'Use', 'day', 'files', 'handover', 'a', 'click', 'that', 'changed', 'fact', 'the', 'commit', 'overlay', 'opened', 'nothing', 'yet',
+    'From', 'Dismiss', 'and', 'Open', 'folder', 'longer', 'count', 'as', 'acts', 'so', 'counts', 'before', 'after', 'are', 'comparable', 'is', '2026-11-16']);
   const ids = new Set(surfaceList());
   for (const word of text.split(/[\s(),.":]+/).filter(Boolean)) {
     const ok = ids.has(word) || fixed.has(word) || /^\d+$/.test(word) || /^\d{4}-\d{2}-\d{2}$/.test(word) || word === '-' || word === ':';

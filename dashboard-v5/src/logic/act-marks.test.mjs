@@ -10,6 +10,9 @@ import { briefLogic } from './brief.js';
 import { cosmosLogic } from './cosmos.js';
 import { securityLogic } from './security.js';
 import { claudeVaultLogic } from './claude-vault.js';
+import { briefActLogic, VERB_MARKS, RULE_VERB } from './brief-act.js';
+import { tasksLogic } from './tasks.js';
+import { VERBS } from '../../../dashboard/brief-act-core.mjs';
 
 process.env.TZ = 'UTC';
 globalThis.window = globalThis.window || { HQFx: { sfx() {} } };
@@ -17,7 +20,7 @@ const useLogMain = createRequire(import.meta.url)('../../../dashboard/use-log.js
 
 function rig(o = {}) {
   const sent = [], calls = [], toasts = [];
-  const mixins = Object.assign({}, useLogLogic, briefLogic, cosmosLogic, securityLogic, claudeVaultLogic);
+  const mixins = Object.assign({}, useLogLogic, briefLogic, cosmosLogic, securityLogic, claudeVaultLogic, briefActLogic, tasksLogic);
   const self = Object.assign(Object.create(mixins), {
     state: { tab: 'home', route: null, sub: {}, brfBusy: false, cosLb: { id: 'e1' }, vault: null, ...(o.state || {}) },
     setState(p) { this.state = { ...this.state, ...(typeof p === 'function' ? p(this.state) : p) }; },
@@ -40,14 +43,14 @@ function rig(o = {}) {
 
 const acts = (sent, surface) => sent.filter(([s, a]) => s === surface && a === 'act').length;
 
-test('three Dismiss clicks on one screen send three act marks; the open is still once per arrival', async () => {
+test('Dismiss sets a row aside and sends no act mark; the open is still once per arrival', async () => {
   const { self, sent } = rig();
   self.useMark('brief-panel');
   self.useMark('brief-panel');
   assert.equal(sent.filter(([, a]) => a === 'open').length, 1, 'opens are deduped per arrival');
   for (const k of ['a:1', 'b:2', 'c:3']) assert.equal(await self.brfDismiss(k), true);
-  assert.equal(acts(sent, 'brief-panel'), 3);
-  assert.equal(sent.filter(([, a]) => a === 'open').length, 1, 'acts never disturb the open count');
+  assert.equal(acts(sent, 'brief-panel'), 0, 'a dismissed row is set aside, not an effect (batch 8)');
+  assert.equal(sent.filter(([, a]) => a === 'open').length, 1, 'dismisses never disturb the open count');
 });
 
 test('an act is sent while the window is hidden too (a click means someone is there)', () => {
@@ -139,15 +142,143 @@ test('a mark that throws or rejects never blocks the action', async () => {
 });
 
 test('every surface these act marks send is on the main-side allowlist, and act is an allowed action', async () => {
-  const { self, sent } = rig({ state: { vault: { id: 'c1', phase: 'ready', path: 'x.md', rel: 'x.md', draft: 'd', exists: false } } });
+  const { self, sent } = batRig({ state: { vault: { id: 'c1', phase: 'ready', path: 'x.md', rel: 'x.md', draft: 'd', exists: false } } });
   await self.brfDismiss('a:1');
+  await self.batRun({ key: 'quest-red:a:1', rule: 'quest-red' }, 'quest-done');
   self.brfAct({ kind: 'scan' });
   await self.cosFavorite('e1');
   await self.secTrashExport('plain-export.xml', 'Downloads');
   await self.saveVault();
-  assert.deepEqual([...new Set(sent.map((s) => s[0]))].sort(), ['brief-panel', 'claude-vault', 'cosmos', 'security-recycle']);
+  assert.deepEqual([...new Set(sent.map((s) => s[0]))].sort(), ['brief-act', 'brief-panel', 'claude-vault', 'cosmos', 'security-recycle']);
   for (const [surface, action] of sent) {
     assert.ok(useLogMain.SURFACES.includes(surface), surface);
     assert.ok(useLogMain.ACTIONS.includes(action), action);
+  }
+});
+
+// ---- batch 8, counting fix: effect-only marks, the commit hand-over, task Done, anti-farming ----
+
+const answer = (o) => (o.act || (async (key, verb) => (verb === 'commit' ? { ok: true, open: 'commit', projectId: 'p1' } : verb === 'open-folder' ? { ok: true } : { ok: true, acted: { verb, at: '2026-11-16T10:00:00.000Z' } })));
+function batRig(o = {}) {
+  const r = rig(o);
+  if (r.self.hq) r.self.hq.brief = { act: answer(o) };
+  r.self.openCommit = async (id) => r.calls.push(['openCommit', id]);
+  return r;
+}
+const rowOf = (rule, n = 1) => ({ key: rule + ':sample:' + n, rule });
+
+test('the renderer verb table matches main: VERB_MARKS is exactly VERBS[...].marks, and every offered verb exists', () => {
+  assert.deepEqual(Object.keys(VERB_MARKS).sort(), Object.keys(VERBS).sort());
+  for (const [verb, v] of Object.entries(VERBS)) assert.equal(VERB_MARKS[verb], v.marks, verb);
+  for (const verb of Object.values(RULE_VERB)) assert.ok(Object.prototype.hasOwnProperty.call(VERBS, verb), verb);
+});
+
+test('an effect verb sends one (brief-act, act); Open its folder, which changes nothing, sends nothing', async () => {
+  const { self, sent } = batRig();
+  assert.equal(await self.batRun(rowOf('quest-red'), 'quest-done'), true);
+  assert.deepEqual(sent, [['brief-act', 'act']]);
+  assert.equal(await self.batRun(rowOf('session-waiting'), 'open-folder'), true);
+  assert.deepEqual(sent, [['brief-act', 'act']], 'open-folder marks nothing');
+});
+
+test('Confirm balance is an effect: one act, sent only after main answers it', async () => {
+  const { self, sent } = batRig();
+  self.setState({ batBal: '120.50' });
+  assert.equal(await self.batYes(rowOf('money-stale')), true);
+  assert.deepEqual(sent, [['brief-act', 'act']]);
+  const bad = batRig();
+  bad.self.setState({ batBal: 'abc' });
+  assert.equal(await bad.self.batYes(rowOf('money-stale')), false);
+  assert.deepEqual(bad.sent, []);
+});
+
+test('Commit is a hand-over: one (brief-act, handover), never an act, and the overlay still opens', async () => {
+  const { self, sent, calls } = batRig();
+  assert.equal(await self.batRun(rowOf('dirty'), 'commit'), true);
+  assert.deepEqual(sent, [['brief-act', 'handover']]);
+  assert.deepEqual(calls, [['openCommit', 'p1']]);
+});
+
+test('a refused or failed verb marks nothing, and a mark that throws never blocks the verb', async () => {
+  const refused = batRig({ act: async () => ({ error: 'that item is not on the brief any more.' }) });
+  assert.equal(await refused.self.batRun(rowOf('quest-red'), 'quest-done'), false);
+  const thrown = batRig({ act: async () => { throw new Error('boom'); } });
+  assert.equal(await thrown.self.batRun(rowOf('quest-red'), 'quest-done'), false);
+  assert.deepEqual([...refused.sent, ...thrown.sent], []);
+  const throwing = batRig({ use: () => { throw new Error('bridge gone'); } });
+  assert.equal(await throwing.self.batRun(rowOf('quest-red'), 'quest-done'), true);
+  const noBridge = batRig({ noBridge: true });
+  noBridge.self.hq = { brief: { act: answer({}) } };
+  assert.equal(await noBridge.self.batRun(rowOf('quest-red'), 'quest-done'), true, 'no hq.use: the verb still runs');
+});
+
+test('anti-farming: one effect, one mark; the same click again inside a minute adds none; a different row or a later minute does', async () => {
+  const realNow = Date.now;
+  let t = 1e12;
+  Date.now = () => t;
+  try {
+    const { self, sent } = batRig();
+    await self.batRun(rowOf('quest-red', 1), 'quest-done');
+    t += 5e3;
+    await self.batRun(rowOf('quest-red', 1), 'quest-done');
+    assert.equal(sent.length, 1, 'an identical click inside a minute adds nothing');
+    await self.batRun(rowOf('quest-red', 2), 'quest-done');
+    assert.equal(sent.length, 2, 'another row is another effect');
+    t += 61e3;
+    await self.batRun(rowOf('quest-red', 1), 'quest-done');
+    assert.equal(sent.length, 3, 'after a minute the same row counts again');
+    const none = rig({ noBridge: true });
+    assert.equal(none.self.useActOnce('tasks-board', 'x'), false);
+    none.self.hq = { use: () => ({ ok: true }) };
+    assert.equal(none.self.useActOnce('tasks-board', 'x'), true, 'an unsent mark was not remembered');
+  } finally { Date.now = realNow; }
+});
+
+test('a task Done sends one (tasks-board, act) when the write goes out; Undo inside the window sends none', () => {
+  const mk = () => {
+    const r = rig();
+    r.self.M = { T0: [{ id: 'task-1', title: 'Sample task', xp: 10, proj: 'p1' }, { id: 'task-2', title: 'Other task', xp: 10, proj: 'p1' }], IDEAS: [] };
+    r.self.canWrite = () => true;
+    r.self.pt = () => ({ x: 0, y: 0 });
+    r.pending = {};
+    r.self._pending = r.pending;
+    r.self.defer = (key, fn) => { r.pending[key] = { fn }; };
+    r.self.call = (f) => f();
+    r.self.hq.markQuestDone = () => ({ ok: true });
+    r.self.hq.actedOn = () => {};
+    r.self.state = { ...r.self.state, completed: [], recentDone: [], focus: null, toasts: [], xp: 0 };
+    r.self.gainXp = () => {};
+    return r;
+  };
+  const fxSaved = window.HQFx;
+  window.HQFx = { sfx() {}, floatText() {}, asciiBurst() {}, event() {}, coinFly: () => new Promise(() => {}) };
+  try {
+    const a = mk();
+    a.self.completeTask('task-1');
+    assert.deepEqual(a.sent, [], 'nothing is marked while the write is still waiting (Undo can cancel it)');
+    a.pending['done:task-1'].fn();
+    assert.deepEqual(a.sent, [['tasks-board', 'act']]);
+    const b = mk();
+    b.self.completeTask('task-2');
+    delete b.pending['done:task-2'];   // what undoTask does to the waiting write
+    assert.deepEqual(b.sent, []);
+  } finally { window.HQFx = fxSaved; }
+});
+
+test('allowlist: every mark these paths send is exactly (surface, action), both on the main list, and no argument carries an id or a name', async () => {
+  const calls = [];
+  const { self } = batRig({ use: (...args) => { calls.push(args); return { ok: true }; } });
+  await self.batRun({ key: 'quest-red:Alpha Note:1', rule: 'quest-red' }, 'quest-done');
+  await self.batRun({ key: 'dirty:example-skill-name:1', rule: 'dirty' }, 'commit');
+  assert.equal(calls.length, 2);
+  for (const args of calls) {
+    assert.equal(args.length, 2, 'two arguments, nothing else');
+    assert.ok(useLogMain.SURFACES.includes(args[0]) && useLogMain.ACTIONS.includes(args[1]));
+    assert.equal(JSON.stringify(args).includes('Alpha') || JSON.stringify(args).includes('example-skill'), false);
+  }
+  // the Crew and Vault desk surfaces (later dishes) are held to the same shape: once on the allowlist, a skill or note name in the action slot is refused
+  const main = useLogMain.create({ appLog: { event() {} } });
+  for (const s of ['crew', 'crew-start', 'vault-desk', 'vault-desk-capture']) {
+    if (useLogMain.SURFACES.includes(s)) assert.equal(typeof main.mark(s, 'example-skill-name').error, 'string', s);
   }
 });

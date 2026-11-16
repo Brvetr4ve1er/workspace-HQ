@@ -9,7 +9,7 @@ export const briefLogic = {
     if (action.kind === 'scan') { this._brfMark(); return this.scanNow(); }
     if (action.kind === 'go') { this._brfMark(); return action.projectId ? this.openProject(action.projectId) : this.go(action.tab, action.sub); }
   },
-  // act marks (batch 6): a row button or a Dismiss that took effect is one ('brief-panel','act'); a mark never blocks or fails the click
+  // act marks (batch 6): a row button (go or scan) is one; Dismiss is not (batch 8) ('brief-panel','act'); a mark never blocks or fails the click
   _brfMark() { try { if (typeof this.useMark === 'function') this.useMark('brief-panel', 'act'); } catch { /* a usage mark is a bonus */ } },
   async brfDismiss(key) {
     if (this._brfBusy) return false;   // double click while the dismiss is in flight: one write, not two
@@ -18,8 +18,7 @@ export const briefLogic = {
     try {
       const r = await this.store.dismissBrief(key);
       if (r && r.error) { this.toast('error', 'Not dismissed · ' + r.error); return false; }
-      this._brfMark();
-      return true;
+      return true;   // Dismiss sets a row aside: it is not an effect, so it sends no act mark (batch 8)
     } catch (e) {
       this.toast('error', 'Not dismissed · ' + ((e && e.message) || e));
       return false;

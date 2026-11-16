@@ -11,6 +11,7 @@
 //   render and didUpdate does not matter (no double send).
 // An 'act' mark is one real click that took effect (batch 6, act marks): it is NOT deduped per arrival and does not wait for the window to be
 //   seen (a click means someone is there), so ten Dismiss clicks are ten acts. main still caps the channel at 30 a minute. Opens are unchanged.
+// useActOnce(surface, ref, action = 'act')  an effect mark that counts once per ref a minute (an identical click inside a minute adds none); ref never leaves the window.
 // A mark is counted only while the window can be SEEN (document.visibilityState === 'visible'): a window that loads hidden (--hidden, a login
 //   item, the tray) or reloads after a scan with nobody there is not an arrival. A mark made while hidden waits and is sent on the first real
 //   show, if the owner is still on the same screen. Without a document (a test rig) the page counts as visible.
@@ -55,6 +56,18 @@ export const useLogLogic = {
       if (r && typeof r.catch === 'function') r.catch(() => {});   // a usage mark never raises anything at the owner
     } catch { /* same */ }
     return true;
+  },
+  // an effect mark that cannot be farmed (batch 8): the same ref (kept in this window only, never sent) marks once a minute. A mark that was not
+  // sent (no bridge) is not remembered, so a later real click still counts.
+  useActOnce(surface, ref, action = 'act', windowMs = 60e3) {
+    const now = Date.now(), seen = this._useOnce || (this._useOnce = new Map());
+    for (const [k, t] of seen) if (now - t >= windowMs) seen.delete(k);
+    const id = surface + '|' + action + '|' + String(ref);
+    if (seen.has(id)) return false;
+    let sent = false;
+    try { sent = this.useMark(surface, action) === true; } catch { sent = false; }
+    if (sent) seen.set(id, now);
+    return sent;
   },
   useArrive() { this._useSync(); },
   useSpace(tab) { return typeof tab === 'string' && SPACE_MARKS.has(tab) ? this.useMark('space-' + tab) : false; },

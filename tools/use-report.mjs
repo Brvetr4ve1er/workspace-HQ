@@ -110,12 +110,12 @@ export function buildReport(col, days = DEFAULT_DAYS) {
       if (f.day < from || f.day > today) continue;
       for (const mk of f.marks) {
         marks++;
-        const r = rows.get(mk.surface) || { surface: mk.surface, open: 0, act: 0, other: 0 };
-        if (mk.action === 'open') r.open++; else if (mk.action === 'act') r.act++; else r.other++;
+        const r = rows.get(mk.surface) || { surface: mk.surface, open: 0, act: 0, handover: 0, other: 0 };
+        if (mk.action === 'open') r.open++; else if (mk.action === 'act') r.act++; else if (mk.action === 'handover') r.handover++; else r.other++;
         rows.set(mk.surface, r);
       }
     }
-    const list = [...rows.values()].sort((a, b) => (b.open + b.act + b.other) - (a.open + a.act + a.other) || (a.surface < b.surface ? -1 : 1));
+    const list = [...rows.values()].sort((a, b) => (b.open + b.act + b.handover + b.other) - (a.open + a.act + a.handover + a.other) || (a.surface < b.surface ? -1 : 1));
     const never = known.filter((s) => !rows.has(s));
     return { days: n, from, to: today, marks, rows: list, never };
   });
@@ -146,14 +146,15 @@ export function formatReport(rep) {
   if (!rep.totalMarks) return LINE_NO_MARKS(rep.retained.files) + '\n';
   const out = [];
   out.push('WorkspaceHQ use report (counts only)');
+  out.push('act means a click that changed a fact. handover means the commit overlay opened, nothing changed yet. From 2026-11-16 Dismiss and Open folder no longer count as acts, so act counts before and after are not comparable.');
   out.push(`Day logs retained: ${rep.retained.files} (${rep.retained.from} to ${rep.retained.to}). "First" below means first in these files, not first ever.`);
   for (const w of rep.windows) {
     out.push('');
     out.push(`Last ${w.days} day${w.days === 1 ? '' : 's'} (${w.from} to ${w.to}), ${w.marks} mark${w.marks === 1 ? '' : 's'}`);
     if (w.rows.length) {
       const width = Math.max(7, ...w.rows.map((r) => r.surface.length));
-      out.push('  ' + 'surface'.padEnd(width) + col('open', 7) + col('act', 7) + col('other', 7));
-      for (const r of w.rows) out.push('  ' + r.surface.padEnd(width) + col(r.open, 7) + col(r.act, 7) + col(r.other, 7));
+      out.push('  ' + 'surface'.padEnd(width) + col('open', 7) + col('act', 7) + col('handover', 10) + col('other', 7));
+      for (const r of w.rows) out.push('  ' + r.surface.padEnd(width) + col(r.open, 7) + col(r.act, 7) + col(r.handover, 10) + col(r.other, 7));
     } else {
       out.push('  no marks in this window');
     }

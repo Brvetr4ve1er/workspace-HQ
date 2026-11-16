@@ -17,6 +17,7 @@ export const tasksLogic = {
     FX().event('cheer', 'Nice. +' + t.xp + ' xp');
     this.toast('success', 'Done · ' + t.title, { undo: id });
     this.defer('done:' + id, () => {
+      try { if (typeof this.useActOnce === 'function') this.useActOnce('tasks-board', id); } catch { /* a usage mark is a bonus */ }   // the write is going out (Undo did not cancel it): one act
       this.hq.actedOn && this.hq.actedOn({ kind: 'quest', action_id: id, project_id: t.proj, resolved: true, marked_done: true, via: focused ? 'focus' : 'board', seconds: secs });
       this.call(() => this.hq.markQuestDone(id), 'Couldn’t save');   // main re-assembles today and reloads
     });
