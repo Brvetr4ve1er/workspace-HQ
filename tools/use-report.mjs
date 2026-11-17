@@ -21,6 +21,11 @@ const appLog = require('../dashboard/app-log.js');
 
 export const DEFAULT_DAYS = Object.freeze([7, 14]);
 export const MAX_DAYS = 366;
+// the Open workspace act bar (batch 9, plan: 3 acts on 3 separate local days inside 7): a surface named here before its sender exists reads 0 acts
+export const WORKSPACE_SURFACE = 'launcher-workspace';
+export const BAR_ACTS = 3;
+export const BAR_DAYS = 3;
+export const BAR_WINDOW = 7;
 export const MAX_WINDOWS = 4;
 export const MAX_READ = 8 * 1024 * 1024; // a day file is capped near 5 MiB by app-log; read it whole so counts are never silently short
 export const LINE_NO_DIR = 'Use report: no day logs found yet (nothing to count).';
@@ -105,17 +110,22 @@ export function buildReport(col, days = DEFAULT_DAYS) {
   const windows = days.map((n) => {
     const from = dayBefore(todayDate, n - 1);
     const rows = new Map();
+    const actDaySets = new Map();   // surface -> the distinct local days with an act inside this window
     let marks = 0;
     for (const f of files) {
       if (f.day < from || f.day > today) continue;
       for (const mk of f.marks) {
         marks++;
-        const r = rows.get(mk.surface) || { surface: mk.surface, open: 0, act: 0, handover: 0, other: 0 };
-        if (mk.action === 'open') r.open++; else if (mk.action === 'act') r.act++; else if (mk.action === 'handover') r.handover++; else r.other++;
+        const r = rows.get(mk.surface) || { surface: mk.surface, open: 0, act: 0, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 0 };
+        if (mk.action === 'act') { r.act++; (actDaySets.get(mk.surface) || actDaySets.set(mk.surface, new Set()).get(mk.surface)).add(f.day); }
+        else if (mk.action === 'open' || mk.action === 'handover' || mk.action === 'copy' || mk.action === 'log' || mk.action === 'resume') r[mk.action]++;
+        else r.other++;
         rows.set(mk.surface, r);
       }
     }
-    const list = [...rows.values()].sort((a, b) => (b.open + b.act + b.handover + b.other) - (a.open + a.act + a.handover + a.other) || (a.surface < b.surface ? -1 : 1));
+    for (const r of rows.values()) r.actDays = actDaySets.has(r.surface) ? actDaySets.get(r.surface).size : 0;
+    const total = (r) => r.open + r.act + r.handover + r.copy + r.log + r.resume + r.other;
+    const list = [...rows.values()].sort((a, b) => total(b) - total(a) || (a.surface < b.surface ? -1 : 1));
     const never = known.filter((s) => !rows.has(s));
     return { days: n, from, to: today, marks, rows: list, never };
   });
@@ -128,12 +138,23 @@ export function buildReport(col, days = DEFAULT_DAYS) {
       first.set(mk.surface, e);
     }
   }
+  // the act bar: Open workspace acts inside the last BAR_WINDOW local days, and the distinct days they fell on
+  const barFrom = dayBefore(todayDate, BAR_WINDOW - 1), barDays = new Set();
+  let barActs = 0;
+  for (const f of files) {
+    if (f.day < barFrom || f.day > today) continue;
+    for (const mk of f.marks) if (mk.surface === WORKSPACE_SURFACE && mk.action === 'act') { barActs++; barDays.add(f.day); }
+  }
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { tz = ''; }
   const totalMarks = files.reduce((a, f) => a + f.marks.length, 0);
   return {
     today,
     windows,
     retained: { files: files.length, from: files.length ? files[0].day : '', to: files.length ? files[files.length - 1].day : '' },
     totalMarks,
+    tz,
+    bar: { acts: barActs, days: barDays.size, from: barFrom, to: today, needActs: BAR_ACTS, needDays: BAR_DAYS, window: BAR_WINDOW },
     first: [...first.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([surface, e]) => ({ surface, open: e.open || '', act: e.act || '' })),
   };
 }
@@ -153,13 +174,17 @@ export function formatReport(rep) {
     out.push(`Last ${w.days} day${w.days === 1 ? '' : 's'} (${w.from} to ${w.to}), ${w.marks} mark${w.marks === 1 ? '' : 's'}`);
     if (w.rows.length) {
       const width = Math.max(7, ...w.rows.map((r) => r.surface.length));
-      out.push('  ' + 'surface'.padEnd(width) + col('open', 7) + col('act', 7) + col('handover', 10) + col('other', 7));
-      for (const r of w.rows) out.push('  ' + r.surface.padEnd(width) + col(r.open, 7) + col(r.act, 7) + col(r.handover, 10) + col(r.other, 7));
+      out.push('  ' + 'surface'.padEnd(width) + col('open', 7) + col('act', 7) + col('handover', 10) + col('copy', 7) + col('log', 6) + col('resume', 8) + col('other', 7) + col('act days', 10));
+      for (const r of w.rows) out.push('  ' + r.surface.padEnd(width) + col(r.open, 7) + col(r.act, 7) + col(r.handover, 10) + col(r.copy, 7) + col(r.log, 6) + col(r.resume, 8) + col(r.other, 7) + col(r.actDays, 10));
     } else {
       out.push('  no marks in this window');
     }
     out.push(`  never seen (${w.never.length}): ${w.never.length ? w.never.join(', ') : 'none'}`);
   }
+  out.push('');
+  const bar = rep.bar || { acts: 0, days: 0, from: '', to: '', needActs: BAR_ACTS, needDays: BAR_DAYS, window: BAR_WINDOW };
+  out.push(`Open workspace: ${bar.acts} act${bar.acts === 1 ? '' : 's'} on ${bar.days} day${bar.days === 1 ? '' : 's'} (bar ${bar.needActs} on ${bar.needDays}, window ${bar.window} days to ${bar.to})`);
+  out.push(`Act days are distinct local-time days${rep.tz ? ' (time zone ' + rep.tz + ')' : ''}.`);
   out.push('');
   out.push('First use in the retained day files');
   if (rep.first.length) {

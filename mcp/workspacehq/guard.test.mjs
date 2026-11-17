@@ -327,6 +327,23 @@ test('hq_activity: counts, recent, last scan trigger, skipped lines and the door
   } finally { await s.close(); }
 });
 
+test('hq_activity prints a third door: the running app\'s own launcher lines are counted by door and tool, and no path is in the answer', async () => {
+  const root = makeRoot();
+  const s = session(root);
+  try {
+    const line = (tool, extra = {}) => JSON.stringify({ v: 1, at: new Date().toISOString(), door: 'app', tool, tier: 'run', ok: true, ms: 5, pid: 1, ...extra });
+    fs.appendFileSync(path.join(root, 'data', 'assistant-audit.jsonl'), line('launcher_workspace') + '\n' + line('launcher_dev', { ok: false, reason: 'step-dev' }) + '\n');
+    await s.call('hq_brief');
+    const a = body(await s.call('hq_activity', { since: '24h' }));
+    assert.equal(a.counts.byDoor.app, 2);
+    assert.equal(a.counts.byDoor.mcp, 1);
+    assert.equal(a.counts.byTool.launcher_workspace, 1);
+    assert.ok(a.recent.some((r) => r.door === 'app' && r.tool === 'launcher_dev' && r.reason === 'step-dev'));
+    assert.match(a.doors.find((d) => d.id === 'calls').detail, /app 2/);
+    assert.equal(JSON.stringify(a).includes(root), false);
+  } finally { await s.close(); }
+});
+
 test('closing stdin right after the requests still delivers every reply (slow tools included)', async () => {
   const root = makeRoot();
   const child = spawn(process.execPath, [path.join(root, 'mcp', 'workspacehq', 'harness.mjs')], { cwd: os.tmpdir(), stdio: ['pipe', 'pipe', 'pipe'] });

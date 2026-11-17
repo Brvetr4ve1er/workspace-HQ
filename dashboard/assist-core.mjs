@@ -12,7 +12,8 @@
 //   summarize(entries, { now, since })     → counts by tool / tier / door, the last 20 calls, the last scan trigger
 
 export const TIERS = Object.freeze(['read', 'note', 'run', 'stage']);
-export const DOORS = Object.freeze(['mcp', 'browser']);
+// 'app' = the running app's own launcher (batch 9): it records through assist-audit.mjs directly, tools launcher_workspace and launcher_dev, tier run
+export const DOORS = Object.freeze(['mcp', 'browser', 'app']);
 export const HOUR_MS = 3600e3;
 export const LIMITS = Object.freeze({
   note: Object.freeze({ perHourPerTool: 30 }),

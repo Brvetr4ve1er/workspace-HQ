@@ -2,7 +2,7 @@
 //   node --test dashboard/assist-core.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TIERS, LIMITS, decide, auditEntry, isUnderWindowsDir, summarize, sinceWindow, safeName, HOUR_MS } from './assist-core.mjs';
+import { TIERS, DOORS, LIMITS, decide, auditEntry, isUnderWindowsDir, summarize, sinceWindow, safeName, HOUR_MS } from './assist-core.mjs';
 
 const NOW = Date.parse('2026-11-07T12:00:00Z');
 const ago = (ms) => new Date(NOW - ms).toISOString();
@@ -153,4 +153,22 @@ test('sinceWindow + summarize: counts by tool, tier and door; last 20 newest fir
   assert.equal(s.lastScanTrigger.at, ago(3 * day));
   assert.equal(summarize([], { now: NOW }).lastScanTrigger, null);
   assert.deepEqual(summarize(null, { now: NOW, since: '7d' }).counts, { byTool: {}, byTier: {}, byDoor: {} });
+});
+
+test('the app door (batch 9, launcher): a third door is kept by auditEntry and counted by summarize; a launcher line holds no path', () => {
+  assert.deepEqual([...DOORS], ['mcp', 'browser', 'app']);
+  const e = auditEntry({ at: NOW, door: 'app', tool: 'launcher_workspace', tier: 'run', ok: false, reason: 'step-editor', ms: 3, pid: 9, path: 'C:/work/alpha-site', args: ['C:/work/alpha-site'] });
+  assert.equal(e.door, 'app');
+  assert.equal(e.tool, 'launcher_workspace');
+  assert.equal(e.tier, 'run');
+  assert.deepEqual(Object.keys(e), ['v', 'at', 'door', 'tool', 'tier', 'ok', 'ms', 'pid', 'reason']);
+  assert.equal(JSON.stringify(e).includes('alpha-site'), false);
+  const s = summarize([
+    { ...e, at: ago(60e3) },
+    { ...entry('launcher_dev', 'run', 30e3), door: 'app' },
+    entry('hq_brief', 'read', 20e3),
+  ], { now: NOW, since: '24h' });
+  assert.deepEqual(s.counts.byDoor, { app: 2, mcp: 1 });
+  assert.deepEqual(s.counts.byTool, { launcher_workspace: 1, launcher_dev: 1, hq_brief: 1 });
+  assert.equal(s.recent.find((r) => r.tool === 'launcher_dev').door, 'app');
 });

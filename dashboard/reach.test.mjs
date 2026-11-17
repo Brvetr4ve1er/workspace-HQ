@@ -202,7 +202,7 @@ test('calls: this week by door from data/assistant-audit.jsonl, torn lines count
     fs.appendFileSync(path.join(e.dataDir, 'assistant-audit.jsonl'), '{"v":1,"at":"2026-1\n');
     const c = row(await mk(e).read(), 'calls');
     assert.equal(c.ok, true);
-    assert.equal(c.detail, 'mcp 2 · browser 1 this week · 1 unreadable line(s) skipped');
+    assert.equal(c.detail, 'mcp 2 · browser 1 · app 0 this week · 1 unreadable line(s) skipped');
     assert.equal(c.step, undefined);
   } finally { rm(e.root); }
 });

@@ -49,15 +49,15 @@ test('counts opens and acts per surface for 7 and 14 days; a file outside the wi
   const rep = buildReport(collect({ dir, now: () => NOW }), [7, 14]);
   const [w7, w14] = rep.windows;
   assert.deepEqual(w7.rows, [
-    { surface: 'brief-panel', open: 1, act: 3, handover: 0, other: 0 },
-    { surface: 'cosmos', open: 1, act: 0, handover: 0, other: 0 },
+    { surface: 'brief-panel', open: 1, act: 3, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 2 },
+    { surface: 'cosmos', open: 1, act: 0, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 0 },
   ]);
   assert.equal(w7.marks, 5);
   assert.equal(w7.from, daysAgo(6));
   assert.deepEqual(w14.rows, [
-    { surface: 'brief-panel', open: 1, act: 3, handover: 0, other: 0 },
-    { surface: 'cosmos', open: 2, act: 0, handover: 0, other: 1 },
-    { surface: 'security', open: 1, act: 0, handover: 0, other: 0 },
+    { surface: 'brief-panel', open: 1, act: 3, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 2 },
+    { surface: 'cosmos', open: 2, act: 0, handover: 0, copy: 0, log: 0, resume: 1, other: 0, actDays: 0 },
+    { surface: 'security', open: 1, act: 0, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 0 },
   ]);
   assert.equal(w14.marks, 8);
   assert.equal(w14.from, daysAgo(13));
@@ -78,7 +78,7 @@ test('garbage lines, other events, unknown surfaces and unknown actions are igno
     use('cosmos', 'act'),
   ]);
   const rep = buildReport(collect({ dir, now: () => NOW }), [7]);
-  assert.deepEqual(rep.windows[0].rows, [{ surface: 'cosmos', open: 1, act: 1, handover: 0, other: 0 }]);
+  assert.deepEqual(rep.windows[0].rows, [{ surface: 'cosmos', open: 1, act: 1, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 1 }]);
   assert.equal(rep.totalMarks, 2);
 });
 
@@ -90,7 +90,7 @@ test('file names that are not day logs, and future-dated files, are not read', (
   day(dir, daysAgo(2), [use('security', 'open')]);
   const col = collect({ dir, now: () => NOW });
   assert.equal(col.files.length, 1);
-  assert.deepEqual(buildReport(col, [14]).windows[0].rows, [{ surface: 'security', open: 1, act: 0, handover: 0, other: 0 }]);
+  assert.deepEqual(buildReport(col, [14]).windows[0].rows, [{ surface: 'security', open: 1, act: 0, handover: 0, copy: 0, log: 0, resume: 0, other: 0, actDays: 0 }]);
 });
 
 test('never-used list is exactly the allowlist minus the surfaces seen in that window', () => {
@@ -145,12 +145,29 @@ test('output holds only allowlisted surface ids, action words, numbers and dates
   const fixed = new Set(['WorkspaceHQ', 'use', 'report', 'counts', 'only', 'Day', 'logs', 'retained', 'to', 'First', 'below', 'means', 'first', 'in', 'these',
     'files', 'not', 'ever', 'Last', 'day', 'days', 'mark', 'marks', 'surface', 'open', 'act', 'other', 'never', 'seen', 'none', 'no', 'this', 'window',
     'the', 'retained', 'Use', 'day', 'files', 'handover', 'a', 'click', 'that', 'changed', 'fact', 'the', 'commit', 'overlay', 'opened', 'nothing', 'yet',
-    'From', 'Dismiss', 'and', 'Open', 'folder', 'longer', 'count', 'as', 'acts', 'so', 'counts', 'before', 'after', 'are', 'comparable', 'is', '2026-11-16']);
+    'copy', 'log', 'resume', 'Open', 'workspace', 'Act', 'distinct', 'local-time', 'time', 'zone', 'bar', 'on', 'window', 'From', 'Dismiss', 'and', 'Open', 'folder', 'longer', 'count', 'as', 'acts', 'so', 'counts', 'before', 'after', 'are', 'comparable', 'is', '2026-11-16']);
   const ids = new Set(surfaceList());
+  fixed.add(Intl.DateTimeFormat().resolvedOptions().timeZone);
   for (const word of text.split(/[\s(),.":]+/).filter(Boolean)) {
     const ok = ids.has(word) || fixed.has(word) || /^\d+$/.test(word) || /^\d{4}-\d{2}-\d{2}$/.test(word) || word === '-' || word === ':';
     assert.ok(ok, `unexpected word in report: ${word}`);
   }
+});
+
+test('act days count distinct local days; the Open workspace line states acts, days, the bar and the window', () => {
+  const dir = tmp();
+  day(dir, daysAgo(0), [use('brief-act', 'act'), use('brief-act', 'act')]);
+  day(dir, daysAgo(2), [use('brief-act', 'act'), use('brief-act', 'handover'), use('brief-act', 'open')]);
+  day(dir, daysAgo(9), [use('brief-act', 'act')]);   // outside 7
+  const rep = buildReport(collect({ dir, now: () => NOW }), [7, 14]);
+  const row = rep.windows[0].rows.find((r) => r.surface === 'brief-act');
+  assert.equal(row.act, 3); assert.equal(row.actDays, 2); assert.equal(row.handover, 1);
+  assert.equal(rep.windows[1].rows.find((r) => r.surface === 'brief-act').actDays, 3);
+  assert.deepEqual(rep.bar, { acts: 0, days: 0, from: daysAgo(6), to: daysAgo(0), needActs: 3, needDays: 3, window: 7 });
+  const text = formatReport(rep);
+  assert.match(text, /Open workspace: 0 acts on 0 days \(bar 3 on 3, window 7 days to 2026-11-14\)/);
+  assert.match(text, /act days/);
+  assert.match(text, /time zone /);
 });
 
 test('the report never writes: every day file is byte-for-byte unchanged and no file appears', () => {
