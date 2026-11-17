@@ -254,3 +254,21 @@ test('cli: --days 3 prints one window; HQ_APP_LOG_DIR works; an empty folder and
   assert.equal(bad.status, 0);
   assert.equal(bad.stdout, LINE_BAD_DAYS + '\n');
 });
+
+test('the act bar counts Open workspace acts inside the 7 local days only: today to six days ago, one day with two acts counts as one day, other actions do not count', () => {
+  const dir = tmp();
+  day(dir, daysAgo(0), [use('launcher-workspace', 'act')]);
+  day(dir, daysAgo(3), [use('launcher-workspace', 'act'), use('launcher-workspace', 'act'), use('launcher-workspace', 'open'), use('launcher-workspace', 'handover')]);
+  day(dir, daysAgo(6), [use('launcher-workspace', 'act')]);   // the last day of the window
+  day(dir, daysAgo(7), [use('launcher-workspace', 'act'), use('launcher-workspace', 'act')]);   // one day too old
+  day(dir, daysAgo(1), [use('brief-panel', 'act')]);   // another surface
+  const rep = buildReport(collect({ dir, now: () => NOW }), [7]);
+  assert.deepEqual(rep.bar, { acts: 4, days: 3, from: daysAgo(6), to: daysAgo(0), needActs: 3, needDays: 3, window: 7 });
+  assert.match(formatReport(rep), /Open workspace: 4 acts on 3 days \(bar 3 on 3, window 7 days to 2026-11-14\)/);
+  // two acts on a single day are two acts on one day
+  const dir2 = tmp();
+  day(dir2, daysAgo(2), [use('launcher-workspace', 'act'), use('launcher-workspace', 'act')]);
+  const one = buildReport(collect({ dir: dir2, now: () => NOW }), [7]).bar;
+  assert.deepEqual([one.acts, one.days], [2, 1]);
+  assert.match(formatReport(buildReport(collect({ dir: dir2, now: () => NOW }), [7])), /Open workspace: 2 acts on 1 day \(/);
+});
