@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto';
 
 export const WORDS = Object.freeze({ started: 'started', running: 'running', unconfirmed: 'unconfirmed', refused: 'refused', busy: 'busy' });
 export const ALLOW_WORDS = Object.freeze({ allowed: 'allowed', changed: 'changed', refused: 'refused', busy: 'busy' });
+export const FORGET_WORDS = Object.freeze({ removed: 'removed', none: 'none', refused: 'refused', busy: 'busy' });
 export const WHY = Object.freeze({ empty: 'empty', long: 'long', control: 'control', runner: 'runner', shape: 'shape', option: 'option', name: 'name', file: 'file', suffix: 'suffix' });
 
 export const MAX_LINE = 200;

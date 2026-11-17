@@ -299,9 +299,9 @@ function ipcRig(t) {
   return { r, handlers, wc, main, api, killed: () => killed };
 }
 
-test('the four channels exist, and a call from another window, a subframe or a gone frame is refused with a fixed word and does nothing', async (t) => {
+test('the five channels exist, and a call from another window, a subframe or a gone frame is refused with a fixed word and does nothing', async (t) => {
   const { r, handlers, wc, main } = ipcRig(t);
-  assert.deepEqual([...handlers.keys()].sort(), ['hq:dev-allow', 'hq:dev-start', 'hq:dev-stop', 'hq:kill-servers']);
+  assert.deepEqual([...handlers.keys()].sort(), ['hq:dev-allow', 'hq:dev-forget', 'hq:dev-start', 'hq:dev-stop', 'hq:kill-servers']);
   const cast = { sender: { mainFrame: {} }, senderFrame: {} };
   const sub = { sender: wc, senderFrame: { url: 'file:///app/index.html' } };
   const gone = { sender: wc, senderFrame: null };
@@ -309,6 +309,7 @@ test('the four channels exist, and a call from another window, a subframe or a g
   for (const ev of [cast, sub, gone, undefined]) {
     assert.equal(await handlers.get('hq:dev-start')(ev, { id: 'proj-a' }), 'refused');
     assert.equal(await handlers.get('hq:dev-allow')(ev, { id: 'proj-a', shownHash: hashShown('npm run dev') }), 'refused');
+    assert.equal(await handlers.get('hq:dev-forget')(ev, { id: 'proj-a' }), 'refused');
     assert.equal(await handlers.get('hq:dev-stop')(ev, 'proj-a'), false);
     assert.equal(await handlers.get('hq:kill-servers')(ev), 0);
   }
@@ -387,5 +388,40 @@ test('state: none without a command, unconfirmed before an allow, allowed after,
   assert.equal(await r.dev.state('proj-a'), 'unconfirmed');
   r.scan.projects[0].dev_cmd = 'npx something';
   assert.equal(await r.dev.state('proj-a'), 'refused');
+  assert.equal(r.calls.length, 0);
+});
+
+// ---- Remove permission (the Launcher screens' hq:dev-forget) --------------------------------------
+test('forget: removes the stored allow, so the next Start asks again; it never stops a running server', async (t) => {
+  const r = rig(t);
+  assert.equal(await r.dev.forget('proj-a'), 'none', 'nothing stored yet');
+  assert.equal(await r.allowNow(), 'allowed');
+  assert.equal(await r.dev.state('proj-a'), 'allowed');
+  assert.equal(await r.dev.start('proj-a'), 'started');
+  assert.equal(await r.dev.forget('proj-a'), 'removed');
+  assert.equal(await r.dev.state('proj-a'), 'unconfirmed');
+  assert.equal(r.servers.size, 1, 'the running server is left alone');
+  assert.equal(r.sync.length, 0, 'nothing was killed');
+  r.servers.clear();
+  assert.equal(await r.dev.start('proj-a'), 'unconfirmed');
+  assert.equal(await r.dev.forget('proj-a'), 'none', 'a second remove finds nothing');
+});
+
+test('forget: a bad id is refused, 20 an hour then busy, the hour rolls', async (t) => {
+  const r = rig(t);
+  for (const bad of [undefined, null, 5, '', '../x', 'A B', 'x'.repeat(90)]) assert.equal(await r.dev.forget(bad), 'refused', String(bad));
+  for (let i = 0; i < 20; i++) assert.equal(await r.dev.forget('proj-a'), 'none');
+  assert.equal(await r.dev.forget('proj-a'), 'busy');
+  r.tick(3600e3 + 1);
+  assert.equal(await r.dev.forget('proj-a'), 'none');
+});
+
+test('forget over IPC: { id } or a bare id from the main window only; the answer is a fixed word', async (t) => {
+  const { r, handlers, main } = ipcRig(t);
+  assert.equal(await handlers.get('hq:dev-allow')(main, { id: 'proj-a', shownHash: hashShown('npm run dev') }), 'allowed');
+  assert.equal(await handlers.get('hq:dev-forget')(main, { id: 5 }), 'refused');
+  assert.equal(await handlers.get('hq:dev-forget')(main, null), 'refused');
+  assert.equal(await handlers.get('hq:dev-forget')(main, { id: 'proj-a' }), 'removed');
+  assert.equal(await handlers.get('hq:dev-start')(main, { id: 'proj-a' }), 'unconfirmed');
   assert.equal(r.calls.length, 0);
 });

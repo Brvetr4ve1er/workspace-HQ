@@ -13,6 +13,7 @@
 //     hash of the project's current scanned text, else nothing is stored and the answer is 'changed'. The key binds the allow to the
 //     resolved folder, the package.json script entries the command runs (the named script plus its pre and post) and the runner's own
 //     config files (.npmrc, .yarnrc.yml, bunfig.toml): change any of them and the next Start asks again.
+//   forget(id) -> 'removed' | 'none' | 'refused' | 'busy'   (the owner's Remove permission: drops the stored allow; never stops a running server; 20 an hour)
 //   stop(id)   -> true | false     (true when a process was killed: a live child, or a leftover one this app started earlier)
 //   killAll()  -> the number of trees killed
 //
@@ -33,6 +34,7 @@ const { pathToFileURL } = require('node:url');
 const HOUR_MS = 3600e3;
 const MAX_STARTS = 10;
 const MAX_ALLOWS = 20;
+const MAX_FORGETS = 20;
 const MAX_JSON = 512 * 1024;
 const MAX_ENTRIES = 200;
 const START_SLOP_MS = 15e3;
@@ -52,7 +54,7 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
   const dir = path.join(dataDir, 'launcher');
   const storeFile = path.join(dir, 'dev-commands.json');
   const runningFile = path.join(dir, 'running.json');
-  const starts = [], allows = [];
+  const starts = [], allows = [], forgets = [];
   const getCore = () => (coreIn ? Promise.resolve(coreIn) : loadCore());
 
   const hourOk = (list, cap) => { const t = now(); while (list.length && t - list[0] >= HOUR_MS) list.shift(); if (list.length >= cap) return false; list.push(t); return true; };
@@ -241,6 +243,21 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
     } catch { return 'refused'; }
   }
 
+  // forget(id) -> 'removed' | 'none' | 'refused' | 'busy'. The owner's "Remove permission": the stored allow for that project goes and nothing else
+  // changes (a running server keeps running; the scan text is untouched). The id is checked by the same pattern as everywhere else; 20 an hour.
+  async function forget(id) {
+    try {
+      const core = await getCore();
+      if (typeof id !== 'string' || !core.ID_RE.test(id)) return core.FORGET_WORDS.refused;
+      if (!hourOk(forgets, MAX_FORGETS)) return core.FORGET_WORDS.busy;
+      const store = readStore(core);
+      if (!store[id]) return core.FORGET_WORDS.none;
+      delete store[id];
+      writeStore(store);
+      return core.FORGET_WORDS.removed;
+    } catch { return 'refused'; }
+  }
+
   // state(id) -> 'allowed' | 'unconfirmed' | 'refused' | 'none'   (read only: starts nothing, stores nothing; the launcher's project rows and its Open workspace step read it)
   async function state(id) {
     try {
@@ -298,7 +315,7 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
     try { writeRunning({}); } catch { /* ignore */ }
     return n;
   }
-  return { start, allow, state, stop, killAll, orphan, _clear() { starts.length = 0; allows.length = 0; } };
+  return { start, allow, forget, state, stop, killAll, orphan, _clear() { starts.length = 0; allows.length = 0; forgets.length = 0; } };
 }
 
 function init({ ipcMain, getWin, gate = require('./main-gate').fromMain, afterKill = () => {}, ...deps } = {}) {
@@ -306,6 +323,7 @@ function init({ ipcMain, getWin, gate = require('./main-gate').fromMain, afterKi
   const idOf = (arg) => (isObj(arg) && typeof arg.id === 'string' ? arg.id : typeof arg === 'string' ? arg : '');
   ipcMain.handle('hq:dev-start', async (event, arg) => (gate(event, getWin) ? dev.start(idOf(arg)) : 'refused'));
   ipcMain.handle('hq:dev-allow', async (event, arg) => (gate(event, getWin) ? dev.allow(idOf(arg), isObj(arg) && typeof arg.shownHash === 'string' ? arg.shownHash : '') : 'refused'));
+  ipcMain.handle('hq:dev-forget', async (event, arg) => (gate(event, getWin) ? dev.forget(idOf(arg)) : 'refused'));
   ipcMain.handle('hq:dev-stop', (event, id) => (gate(event, getWin) ? dev.stop(typeof id === 'string' ? id : '') : false));
   ipcMain.handle('hq:kill-servers', (event) => { if (!gate(event, getWin)) return 0; const n = dev.killAll(); try { afterKill(n); } catch { /* a refresh hook */ } return n; });
   return dev;

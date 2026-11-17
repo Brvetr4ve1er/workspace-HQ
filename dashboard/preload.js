@@ -119,6 +119,7 @@ contextBridge.exposeInMainWorld('hq', {
   },
   devStart: (id) => ipcRenderer.invoke('hq:dev-start', { id }),   // answers a fixed word: started running unconfirmed refused busy
   devAllow: (id, shownHash) => ipcRenderer.invoke('hq:dev-allow', { id, shownHash }),   // the owner's Allow: allowed changed refused busy
+  devForget: (id) => ipcRenderer.invoke('hq:dev-forget', { id }),   // the owner's Remove permission: removed none refused busy
   devStop: (id) => ipcRenderer.invoke('hq:dev-stop', id),
   saveNote: (id, note) => ipcRenderer.invoke('hq:note-save', id, note),
   onDevStatus: (callback) => {
