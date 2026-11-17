@@ -375,3 +375,17 @@ test('fromMain accepts the main frame by identity or by its ids, and refuses ano
   assert.equal(fromMain({ sender: wc, senderFrame: { url: 'file:///app/index.html' } }, () => win), false, 'no ids, not the same object');
   assert.equal(fromMain({ sender: {}, senderFrame: mainFrame }, () => win), false, 'another webContents');
 });
+
+test('state: none without a command, unconfirmed before an allow, allowed after, unconfirmed again once the script changes; it spawns nothing', async (t) => {
+  const r = rig(t);
+  assert.equal(await r.dev.state('nope'), 'none');
+  assert.equal(await r.dev.state('../x'), 'none');
+  assert.equal(await r.dev.state('proj-a'), 'unconfirmed');
+  assert.equal(await r.allowNow(), 'allowed');
+  assert.equal(await r.dev.state('proj-a'), 'allowed');
+  fs.writeFileSync(path.join(r.proj, 'package.json'), JSON.stringify({ scripts: { dev: 'vite --other' } }));
+  assert.equal(await r.dev.state('proj-a'), 'unconfirmed');
+  r.scan.projects[0].dev_cmd = 'npx something';
+  assert.equal(await r.dev.state('proj-a'), 'refused');
+  assert.equal(r.calls.length, 0);
+});

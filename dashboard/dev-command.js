@@ -241,6 +241,18 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
     } catch { return 'refused'; }
   }
 
+  // state(id) -> 'allowed' | 'unconfirmed' | 'refused' | 'none'   (read only: starts nothing, stores nothing; the launcher's project rows and its Open workspace step read it)
+  async function state(id) {
+    try {
+      const core = await getCore();
+      if (typeof id !== 'string' || !core.ID_RE.test(id) || !project(id)) return 'none';
+      const ev = await evaluate(id);
+      if (ev.word) return 'refused';
+      const e = readStore(core)[id];
+      return e && e.key === ev.key && e.words.join(' ') === ev.parsed.words.join(' ') ? 'allowed' : 'unconfirmed';
+    } catch { return 'refused'; }
+  }
+
   // ---- leftovers and stopping --------------------------------------------------------------------
   const alive = isAlive || ((pid) => { try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === 'EPERM'); } });
   const startedAtOf = procStart || ((pid) => {
@@ -286,7 +298,7 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
     try { writeRunning({}); } catch { /* ignore */ }
     return n;
   }
-  return { start, allow, stop, killAll, orphan, _clear() { starts.length = 0; allows.length = 0; } };
+  return { start, allow, state, stop, killAll, orphan, _clear() { starts.length = 0; allows.length = 0; } };
 }
 
 function init({ ipcMain, getWin, gate = require('./main-gate').fromMain, afterKill = () => {}, ...deps } = {}) {

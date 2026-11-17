@@ -11,7 +11,7 @@ const useLog = require('./use-log.js');
 const fakeLog = () => { const lines = []; return { lines, event: (name, f) => { lines.push([name, f]); return true; } }; };
 
 test('every allowlisted surface and action passes, and writes exactly appLog.event("use", {surface, action})', () => {
-  assert.deepEqual([...useLog.SURFACES], ['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh', 'claude-vault', 'security-recycle', 'home-more', 'projects-archived', 'system-hub-panel', 'automations-library', 'tasks-board', 'crew', 'crew-start', 'vault-desk', 'vault-desk-capture', 'space-home', 'space-projects', 'space-tasks', 'space-automations', 'space-claude', 'space-history', 'space-system', 'space-life', 'space-money', 'space-cosmos', 'space-security']);
+  assert.deepEqual([...useLog.SURFACES], ['brief-panel', 'sessions-board', 'sessions-strip', 'delivery-card', 'money-start', 'money-quick', 'palette-money-line', 'reach', 'cosmos', 'delivery-check', 'clients-list', 'brief-act', 'quick-jump', 'money-access', 'today-ribbon', 'brief-history', 'machine-drift', 'security', 'security-refresh', 'claude-vault', 'security-recycle', 'home-more', 'projects-archived', 'system-hub-panel', 'automations-library', 'tasks-board', 'crew', 'crew-start', 'vault-desk', 'vault-desk-capture', 'launcher-workspace', 'space-home', 'space-projects', 'space-tasks', 'space-automations', 'space-claude', 'space-history', 'space-system', 'space-life', 'space-money', 'space-cosmos', 'space-security']);
   assert.deepEqual([...useLog.ACTIONS], ['open', 'act', 'resume', 'copy', 'log', 'handover']);
   // spaced out so the per-minute cap never interferes: every surface x every action is accepted
   const log = fakeLog();
@@ -114,8 +114,8 @@ test('a mark is only ever (surface, action): an extra argument, an id or a name 
   assert.deepEqual(u.mark('tasks-board', 'act', 'task-id-7', { name: 'Alpha Note' }), { ok: true });
   assert.deepEqual(Object.keys(log.lines[0][1]), ['surface', 'action']);
   assert.equal(JSON.stringify(log.lines).includes('task-id-7') || JSON.stringify(log.lines).includes('Alpha'), false);
-  // the later dishes' surfaces (crew, crew-start, vault-desk, vault-desk-capture) get the same shape: a skill or note name in the action slot is refused
-  for (const s of useLog.SURFACES.filter((x) => /^(crew|vault-desk)/.test(x))) {
+  // the later dishes' surfaces (crew, crew-start, vault-desk, vault-desk-capture, launcher-workspace) get the same shape: a skill or note name in the action slot is refused
+  for (const s of useLog.SURFACES.filter((x) => /^(crew|vault-desk|launcher)/.test(x))) {
     for (const bad of ['example-skill-name', 'Alpha Note.md', 'plugin:example-skill']) assert.equal(typeof u.mark(s, bad).error, 'string', s + ' / ' + bad);
   }
   for (const s of ['example-skill-name', 'Alpha Note']) assert.equal(typeof u.mark(s, 'act').error, 'string');
