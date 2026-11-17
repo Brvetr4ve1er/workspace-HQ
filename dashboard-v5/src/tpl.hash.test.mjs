@@ -87,9 +87,10 @@ import tpl from './app.tpl.js';
 // 2026-11-16 The Workbench look (batch 8, dish 4): one new fragment file (tpl/workbench.tpl.js, a generator of five small illustrations, 949 + 939 + 929 + 949 + 959 = 4725 chars, each wrapped in an sc-if on wbnv.wbnOn so the look-off page has no node) interpolated into the five hosts (the clean-board card in tpl/brief-history.tpl.js, the Crew header, the Vault desk header, the empty Brief line, the empty Projects shelf line), plus the shell root div's data-hq-look="{{ wbnv.wbnLook }}" (an EMPTY attribute unless the owner chose the Workbench look, 34 chars) and 59 chars of line breaks; +4818 chars / +4818 bytes in all, no line removed
 // 2026-11-16 Batch 8 taster fixes: +349 chars / +351 bytes, three fragments and nothing removed - tpl/crew.tpl.js (aria-label on the Start button, in the one row fragment used twice), tpl/vault-desk.tpl.js (tabindex, role and name on the note box, and the empty-note line) and tpl/workbench.tpl.js (each picture wraps in its own wbnv.<kind>.show flag instead of wbnv.wbnOn, so no picture is drawn before its number is read)
 // 2026-11-17 Launcher screens (batch 9, dish 1b-2): +10229 chars / +10231 bytes, nothing removed, two fragments changed - tpl/ov-settings.tpl.js gains one new fragment (tpl/launcher.tpl.js, 9213 chars / 9215 bytes, the Settings > Launcher section, wrapped in lnchv.show so no node exists while Settings is closed) after the Money block, and tpl/project-page.tpl.js gains the Open workspace button beside Resume and its one-line answer under the hint (1016 chars); both carry their <!-- v5: --> marker; all values nest under ONE vals key (lnchv, and pg.workspace)
-const SHA256 = '55f06716a705174937faa7b5f03abc2ffb11f02f190cc1d0ccbcd08b8f28b703';
-const LENGTH = 538448;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 539158;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-17 Batch 9 reviewer fixes: +6 chars / +6 bytes, one fragment - tpl/launcher.tpl.js: the Use as my editor button reads e.editorOff (off while busy or when it is already the editor) instead of e.off.
+const SHA256 = '0f9e9f99fb679cc5b86b147a2777e955257926d8e2f327f800de1732eaf162f4';
+const LENGTH = 538454;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 539164;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');

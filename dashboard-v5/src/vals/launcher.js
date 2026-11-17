@@ -52,10 +52,10 @@ export function launcherVals(ctx) {
 
   const entries = data.entries.map((e) => ({
     key: e.id, id: e.id, icon: KIND_ICON[e.kind], kindText: KIND_NOTE[e.kind], name: e.name, host: e.host, hasHost: !!e.host && e.kind === 'url',
-    isApp: e.kind === 'app', isEditor: e.id === data.editor, off: busy,
+    isApp: e.kind === 'app', isEditor: e.id === data.editor, off: busy, editorOff: busy || e.id === data.editor,
     open: () => this.lnchOpen(e.id), remove: () => this.lnchRemove(e.id), setEditor: () => this.lnchSetEditor(e.id),
     openLabel: 'Open', removeLabel: 'Remove', editorLabel: e.id === data.editor ? 'My editor' : 'Use as my editor',
-    openAria: 'Open ' + e.name, removeAria: 'Remove ' + e.name + ' from the Launcher', editorAria: 'Use ' + e.name + ' as my editor',
+    openAria: 'Open ' + e.name, removeAria: 'Remove ' + e.name + ' from the Launcher', editorAria: (e.id === data.editor ? 'My editor: ' : 'Use as my editor: ') + e.name,
   }));
   const ed = data.entries.find((e) => e.id === data.editor) || null;
   const byId = new Map((typeof this.projectsAt === 'function' ? this.projectsAt(0) : []).map((p) => [p.id, p]));
@@ -66,7 +66,7 @@ export function launcherVals(ctx) {
       key: p.id, id: p.id, name: p.name, text: text || '(the scan has no text for this command)', allowed, refused, canAllow: p.dev === 'unconfirmed' && !!text,
       stateText: allowed ? 'Allowed' : refused ? REFUSED_TEXT : 'Not allowed yet', stateColor: allowed ? 'var(--green)' : refused ? 'var(--orange)' : 'var(--muted)',
       allowLabel: 'Allow this command', forgetLabel: 'Remove permission', off: busy,
-      allowAria: 'Allow the dev command of ' + p.name, forgetAria: 'Remove permission for the dev command of ' + p.name,
+      allowAria: 'Allow this command: ' + p.name, forgetAria: 'Remove permission: ' + p.name,
       allow: () => this.lnchAllow(p.id, text), forget: () => this.lnchForget(p.id), note: ALLOW_NOTE,
     };
   });
@@ -95,6 +95,6 @@ export function workspaceVals(p) {
     on: can && !busy,
     label: busy ? 'Opening…' : '⌂ Open workspace',
     busy,
-    line: typeof w.line === 'string' ? w.line : '',
+    line: typeof w.line === 'string' && w.line ? w.line : !can ? 'Open workspace needs the desktop app' : '',
   };
 }

@@ -18,6 +18,7 @@ const path = require('node:path');
 const nodeCrypto = require('node:crypto');
 const childProcess = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+const { makeKeyStore, sealerFrom } = require('./launcher-key');
 
 const HOUR_MS = 3600e3;
 const LIMITS = Object.freeze({ add: 20, remove: 30, setEditor: 10, open: 30, workspace: 10 });
@@ -38,13 +39,10 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
   fsApi = fs, env = process.env, platform = process.platform, now = () => Date.now(), driveType, randomBytes = nodeCrypto.randomBytes, core: coreIn, log = () => {} } = {}) {
   const dir = path.join(dataDir, 'launcher');
   const entriesFile = path.join(dir, 'entries.json');
-  const keyFile = path.join(dir, 'key.json');
   const hits = { add: [], remove: [], setEditor: [], open: [], workspace: [] };
   const fixed = new Map();   // drive letter -> true once the system said "fixed" (a failure is never cached)
   let busy = false;
   const getCore = () => (coreIn ? Promise.resolve(coreIn) : loadCore());
-  const enc = crypto && typeof crypto.encrypt === 'function' ? crypto.encrypt : () => null;
-  const dec = crypto && typeof crypto.decrypt === 'function' ? crypto.decrypt : () => null;
 
   const hourOk = (k) => { const t = now(), l = hits[k]; while (l.length && t - l[0] >= HOUR_MS) l.shift(); if (l.length >= LIMITS[k]) return false; l.push(t); return true; };
   const norm = (p) => lower(path.win32.normalize(String(p)));
@@ -64,22 +62,8 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
     fsApi.writeFileSync(tmp, JSON.stringify(obj, null, 2));
     fsApi.renameSync(tmp, file);
   }
-  // the signing key: 32 random bytes, sealed by the OS. null = locked.
-  function getKey() {
-    const k = readJson(keyFile);
-    if (k && typeof k.key === 'string' && k.key.startsWith('enc:')) {
-      let hex = null;
-      try { hex = dec(k.key.slice(4)); } catch { hex = null; }
-      if (typeof hex === 'string' && /^[0-9a-f]{64}$/.test(hex)) return hex;
-      return null;   // a key that no longer opens is never replaced silently: the old entries would all fail, and a new key would hide that
-    }
-    let sealed = null;
-    const hex = randomBytes(32).toString('hex');
-    try { sealed = enc(hex); } catch { sealed = null; }
-    if (typeof sealed !== 'string' || !sealed) return null;
-    try { writeJson(keyFile, { v: 1, key: 'enc:' + sealed }); } catch { return null; }
-    return hex;
-  }
+  // the signing key (launcher-key.js: shared with the dev server's allows). null = locked.
+  const getKey = makeKeyStore({ dir, fsApi, crypto, randomBytes });
 
   // ---- drives: asked of the system once per letter, off the main thread's critical path ----------------
   const askDrive = driveType || (async (letter) => {
@@ -279,6 +263,7 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
       const core = await getCore();
       const id = isObj(arg) && typeof arg.id === 'string' ? arg.id : '';
       if (!core.ID_RE.test(id)) return { state: 'refused' };
+      if (busy) return { state: 'working' };   // another launch is still running: not a use of the hour's allowance
       if (!hourOk('open')) return { state: 'busy' };
       const res = await locked(async () => {
         const cur = await loadEntries();
@@ -293,27 +278,29 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
         else { let msg = 'x'; try { msg = await shell.openPath(e.path); } catch { msg = 'x'; } ok = msg === ''; }
         return { state: ok ? 'opened' : 'failed', kind: e.kind };
       });
-      if (res === null) return { state: 'busy' };
+      if (res === null) return { state: 'working' };
       await record('launcher_open', res.state === 'opened', res.kind + ':' + res.state, now() - t0);
       return { state: res.state };
     } catch { return { state: 'failed' }; }
   }
 
   // the project's folder, only when the scan names it, it resolves, it is a real directory and it is not reached through a link
+  //   -> { folder } | { why: 'missing' | 'link' }
   function projectFolder(core, projectId) {
     let s = null;
     try { s = latest(); } catch { s = null; }
     const p = s && Array.isArray(s.projects) ? s.projects.find((x) => x && x.id === projectId) : null;
-    if (!p) return null;
+    if (!p) return { why: 'missing' };
     let abs = null;
     try { abs = resolveProjectPath(p.path); } catch { abs = null; }
-    if (!abs || typeof abs !== 'string') return null;
+    if (!abs || typeof abs !== 'string') return { why: 'missing' };
     try {
       const resolved = path.win32.normalize(path.resolve(abs));
       const real = fsApi.realpathSync(resolved);
-      if (norm(real) !== norm(resolved) || !fsApi.statSync(real).isDirectory()) return null;
-      return real;
-    } catch { return null; }
+      if (!fsApi.statSync(real).isDirectory()) return { why: 'missing' };
+      if (norm(real) !== norm(resolved)) return { why: 'link' };   // a junction, a link or a substituted drive: the folder exists, but not at the place the scan names
+      return { folder: real };
+    } catch { return { why: 'missing' }; }
   }
 
   async function openWorkspace(arg) {
@@ -322,13 +309,16 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
       const core = await getCore();
       const projectId = isObj(arg) && typeof arg.projectId === 'string' ? arg.projectId : '';
       if (!core.PROJECT_ID_RE.test(projectId)) return { ok: false, steps: [], line: '', state: 'refused' };
+      if (busy) return { ok: false, steps: [], line: '', state: 'working' };   // another launch is still running: not a use of the hour's allowance
       if (!hourOk('workspace')) return { ok: false, steps: [], line: '', state: 'busy' };
       const res = await locked(async () => {
-        const folder = projectFolder(core, projectId);
+        const pf = projectFolder(core, projectId);
+        const folder = pf.folder || null;
         const fa = folder ? core.folderArg(folder) : { ok: false };
         if (!folder || !fa.ok) {
           const steps = core.STEPS.map((step) => ({ step, state: 'skipped' }));
-          return { ok: false, steps, line: core.FOLDER_MISSING, missing: true };
+          const why = !folder ? pf.why : 'odd';
+          return { ok: false, steps, line: why === 'link' ? core.FOLDER_LINK : why === 'odd' ? core.FOLDER_ODD : core.FOLDER_MISSING, missing: why };
         }
         const steps = [];
         // 1. the dev server (dev-command.js decides: allowed commands only)
@@ -355,8 +345,8 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
         if (word === 'started' || edState === 'opened') { try { useMark('launcher-workspace', 'act'); } catch { /* a mark never breaks a launch */ } }
         return { ok: core.stepsOk(steps), steps, line: core.buildLine(steps) };
       });
-      if (res === null) return { ok: false, steps: [], line: '', state: 'busy' };
-      await record('launcher_workspace', res.ok, res.missing ? 'folder:missing' : core.stepWords(res.steps), now() - t0);
+      if (res === null) return { ok: false, steps: [], line: '', state: 'working' };
+      await record('launcher_workspace', res.ok, res.missing ? 'folder:' + res.missing : core.stepWords(res.steps), now() - t0);
       return { ok: res.ok, steps: res.steps, line: res.line };
     } catch { return { ok: false, steps: [], line: '', state: 'failed' }; }
   }
@@ -365,10 +355,7 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
 }
 
 function init({ ipcMain, getWin, safeStorage, gate = require('./main-gate').fromMain, ...deps } = {}) {
-  const crypto = safeStorage ? {
-    encrypt: (s) => { try { return safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(String(s)).toString('base64') : null; } catch { return null; } },
-    decrypt: (b) => { try { return safeStorage.decryptString(Buffer.from(String(b), 'base64')); } catch { return null; } },
-  } : deps.crypto;
+  const crypto = safeStorage ? sealerFrom(safeStorage) : deps.crypto;
   const l = create({ ...deps, crypto, getWin });
   const arg = (a) => (isObj(a) ? a : {});
   ipcMain.handle('hq:launcher:read', async (event) => (gate(event, getWin) ? l.read() : { error: NOT_HERE }));

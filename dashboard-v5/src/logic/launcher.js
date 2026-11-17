@@ -20,11 +20,12 @@ export const ADD_LABEL = Object.freeze({ folder: 'Add folder', file: 'Add file',
 export const ID_RE = /^[a-z0-9]{8,16}$/;
 export const PROJECT_ID_RE = /^[a-z0-9._-]{1,64}$/;
 export const DEV_STATES = Object.freeze(['allowed', 'unconfirmed', 'refused', 'none']);
-export const LOCKED_TEXT = 'This computer cannot keep the Launcher list safely, so nothing can be added or shown.';
+export const LOCKED_TEXT = 'This computer cannot keep the Launcher list safely, so nothing can be added or shown. Sign in to the normal Windows account the app runs under, then restart the app.';
 export const CHANGED_TEXT = 'The scan changed this command. Look at the new one and allow it again.';
 export const BUSY_TEXT = 'Too many tries this hour. Try again later.';
 export const WS_BUSY_TEXT = 'Too many Open workspace clicks this hour. Try again later.';
-export const WS_FAILED_TEXT = 'Open workspace did not work. Nothing was changed.';
+export const WS_WORKING_TEXT = 'Another launch is still running. Try again in a moment.';
+export const WS_FAILED_TEXT = 'Open workspace did not work. Nothing was changed. Try again, or open the folder yourself.';
 
 const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const CTRL = /[\u0000-\u001f\u007f-\u009f]+/g;
@@ -62,6 +63,7 @@ export function addText(r, kind) {
 export function workspaceLine(r) {
   if (!isObj(r)) return WS_FAILED_TEXT;
   if (r.state === 'busy') return WS_BUSY_TEXT;
+  if (r.state === 'working') return WS_WORKING_TEXT;
   if (r.state === 'refused' || r.state === 'failed') return WS_FAILED_TEXT;
   const line = str(r.line, 400);
   return line || (r.ok === true ? 'Opened.' : WS_FAILED_TEXT);
@@ -155,7 +157,7 @@ export const launcherLogic = {
     const r = await this._lnchDo(async () => {
       const a = await api.open(id);
       const s = a && a.state;
-      this._lnchSay(s === 'opened' ? 'Opened' : s === 'missing' ? 'It is not there any more. Remove it from the list.' : s === 'busy' ? BUSY_TEXT : s === 'refused' ? 'Not opened: it is no longer what was added' : 'Not opened', s !== 'opened');
+      this._lnchSay(s === 'opened' ? 'Opened' : s === 'missing' ? 'It is not there any more. Remove it from the list.' : s === 'busy' ? BUSY_TEXT : s === 'working' ? WS_WORKING_TEXT : s === 'refused' ? 'Not opened: it is no longer what was added' : 'Not opened', s !== 'opened');
       return a;
     });
     return !!(r && r.state === 'opened');
@@ -185,6 +187,14 @@ export const launcherLogic = {
       return a;
     });
     return r === 'removed';
+  },
+
+  // The line under Open workspace is about the last click only: it goes when the owner opens the project page again or starts the dev server from
+  // there (a click still running keeps its place).
+  lnchClearLine(projectId) {
+    const w = this.state && this.state.lnch && this.state.lnch.ws && this.state.lnch.ws[projectId];
+    if (!w || w.busy || !w.line) return;
+    this.setState((s) => { const l = s.lnch || lnchInit(); const cur = l.ws[projectId]; return cur && !cur.busy ? { lnch: Object.assign({}, l, { ws: Object.assign({}, l.ws, { [projectId]: { busy: false, line: '' } }) }) } : null; });
   },
 
   // Open workspace: one call per project at a time (a double click is one call). Main runs the dev server, the editor and the terminal in that order and

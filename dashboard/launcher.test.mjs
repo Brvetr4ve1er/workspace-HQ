@@ -260,7 +260,7 @@ test('open re-checks the disk: a missing file is "missing", a folder swapped for
   assert.equal(r.spawns.length, 0);
 });
 
-test('open: a failing opener or spawn answers failed; two opens at once, the second is busy', async (t) => {
+test('open: a failing opener or spawn answers failed; two opens at once, the second says another launch is running', async (t) => {
   const r = rig(t, { openPathMsg: 'no handler' });
   const e = await r.addVia('file', r.mk('a.pdf'));
   assert.equal((await r.l.open({ id: e.id })).state, 'failed');
@@ -270,7 +270,7 @@ test('open: a failing opener or spawn answers failed; two opens at once, the sec
   const g = await r3.addVia('file', r3.mk('a.pdf'));
   const first = r3.l.open({ id: g.id });
   await new Promise((res) => setTimeout(res, 20));
-  assert.equal((await r3.l.open({ id: g.id })).state, 'busy');
+  assert.equal((await r3.l.open({ id: g.id })).state, 'working');
   release();
   assert.equal((await first).state, 'opened');
 });
@@ -309,7 +309,7 @@ test('no editor chosen: the line says so and the terminal still opens; a termina
   const r = rig(t, { devState: 'unconfirmed', devStart: 'unconfirmed' });
   const out = await r.l.openWorkspace({ projectId: 'proj-a' });
   assert.deepEqual(out.steps, [{ step: 'dev', state: 'unconfirmed' }, { step: 'editor', state: 'none' }, { step: 'terminal', state: 'opened' }]);
-  assert.equal(out.line, 'Dev server: not allowed yet. Editor: none chosen. Pick one in Launcher. Terminal: opened.');
+  assert.equal(out.line, 'Dev server: not allowed yet. Press Allow and run. Editor: none chosen. Pick one in Settings > Launcher. Terminal: opened.');
   assert.equal(out.ok, true);
   assert.equal(r.marks.length, 0);
   assert.equal(r.spawns.length, 1);
@@ -332,7 +332,7 @@ test('a failed step never stops the next one: the editor spawn throws, the termi
   await withEditor(r);
   const out = await r.l.openWorkspace({ projectId: 'proj-a' });
   assert.deepEqual(out.steps.map((s) => s.state), ['started', 'failed', 'opened']);
-  assert.equal(out.line, "Dev server: started. Editor: didn't open. Terminal: opened.");
+  assert.equal(out.line, "Dev server: started. Editor: didn't open. Check the editor in Settings > Launcher. Terminal: opened.");
   assert.ok(!JSON.stringify(out).includes(r.root), 'no path or error text in the answer');
   assert.equal(r.marks.length, 1, 'the dev server really started');
 });
@@ -369,7 +369,7 @@ test('without Windows Terminal the console opens with the folder as its working 
   assert.equal((await r.l.read()).terminal, 'console');
 });
 
-test('a project whose folder is gone, unknown, or reached through a junction: "Folder not found: rescan", all three skipped, nothing spawned', async (t) => {
+test('a project whose folder is gone, unknown, or reached through a junction: its own fixed sentence, all three skipped, nothing spawned', async (t) => {
   const r = rig(t);
   const real = path.join(r.root, 'real'); fs.mkdirSync(real);
   const link = path.join(r.root, 'link');
@@ -380,7 +380,7 @@ test('a project whose folder is gone, unknown, or reached through a junction: "F
   for (const projectId of ids) {
     const out = await r.l.openWorkspace({ projectId });
     assert.equal(out.ok, false, projectId);
-    assert.equal(out.line, 'Folder not found: rescan');
+    assert.equal(out.line, projectId === 'proj-d' ? core.FOLDER_LINK : core.FOLDER_MISSING, projectId + ': a link is not called missing');
     assert.deepEqual(out.steps.map((s) => s.state), ['skipped', 'skipped', 'skipped']);
   }
   assert.equal(r.spawns.length, 0);
@@ -422,17 +422,19 @@ test('the real audit writer takes the line and keeps it names only', async (t) =
   assert.ok(!text.includes(r.root));
 });
 
-test('two Open workspace calls at once: the second is busy and spawns nothing more', async (t) => {
+test('two Open workspace calls at once: the second says another launch is running, spawns nothing more and uses none of the hour\'s allowance', async (t) => {
   let release;
   const slow = new Promise((res) => { release = res; });
   const r = rig(t);
   r.dev.start = async () => { await slow; return 'started'; };
   const first = r.l.openWorkspace({ projectId: 'proj-a' });
   await new Promise((res) => setTimeout(res, 20));
-  assert.equal((await r.l.openWorkspace({ projectId: 'proj-a' })).state, 'busy');
-  assert.equal((await r.l.open({ id: 'aaaaaaaa' })).state, 'busy');
+  // more clicks than the hour allows, all while the first runs: none is "too many this hour", and none is counted
+  for (let i = 0; i < 12; i += 1) assert.equal((await r.l.openWorkspace({ projectId: 'proj-a' })).state, 'working');
+  assert.equal((await r.l.open({ id: 'aaaaaaaa' })).state, 'working');
   release();
   assert.equal((await first).ok, true);
+  assert.equal((await r.l.openWorkspace({ projectId: 'proj-a' })).ok, true, 'the allowance is still there');
 });
 
 // ---- the doors -------------------------------------------------------------------------------------------

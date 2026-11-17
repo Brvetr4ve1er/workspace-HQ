@@ -103,10 +103,13 @@ test('ids are random 12-hex words that pass the id check; entries are signed and
 
 test('the inline line uses the fixed sentences, in step order, and the folder-missing sentence stands alone', () => {
   const steps = [{ step: 'dev', state: 'unconfirmed' }, { step: 'editor', state: 'none' }, { step: 'terminal', state: 'opened' }];
-  assert.equal(c.buildLine(steps), 'Dev server: not allowed yet. Editor: none chosen. Pick one in Launcher. Terminal: opened.');
+  assert.equal(c.buildLine(steps), 'Dev server: not allowed yet. Press Allow and run. Editor: none chosen. Pick one in Settings > Launcher. Terminal: opened.');
   assert.equal(c.buildLine([{ step: 'dev', state: 'started' }, { step: 'editor', state: 'failed' }, { step: 'terminal', state: 'skipped' }]),
-    "Dev server: started. Editor: didn't open. Terminal: skipped, the folder name has a symbol Windows Terminal can't take.");
-  assert.equal(c.buildLine([], true), 'Folder not found: rescan');
+    "Dev server: started. Editor: didn't open. Check the editor in Settings > Launcher. Terminal: skipped, the folder name has a symbol Windows Terminal can't take.");
+  assert.equal(c.buildLine([], true), c.FOLDER_MISSING);
+  assert.match(c.FOLDER_MISSING, /^Folder not found\. Scan again/);
+  assert.match(c.FOLDER_LINK, /reached through a link/);
+  assert.match(c.FOLDER_ODD, /Rename it/);
   assert.equal(c.buildLine([{ step: 'x', state: 'y' }, { step: 'dev', state: 'bogus' }]), '');
   assert.equal(c.stepWords(steps), 'dev:unconfirmed editor:none terminal:opened');
   assert.equal(c.stepWords([{ step: 'dev', state: 'C:\\secret' }]), '', 'a word outside the tables never reaches the audit reason');

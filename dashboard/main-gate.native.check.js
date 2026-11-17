@@ -9,6 +9,8 @@
      an iframe inside the main window .................. false   (a subframe)
      the main frame of a second window ................. false   (another webContents, the cast window's case)
      the main frame of the main window, address not file: false   (an https page the page navigated to is refused: tested with allowUrl)
+     a PINNED main window (main-window-guard.js) in a folder with a space: its own page true (the real frame address equals the pinned one),
+       another local page false, and a script that sets location.href to that other page never leaves the app page
 
    Nothing is shown: show:false windows, a temp userData folder (HQ_MAINGATE_CHECK_PROFILE), no single-instance lock, no tray, no
    network. It cannot touch the owner's running app.
@@ -22,6 +24,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { fromMain } = require('./main-gate.js');
+const { pin } = require('./main-window-guard.js');
 
 app.setPath('userData', path.join(os.tmpdir(), process.env.HQ_MAINGATE_CHECK_PROFILE || 'hq-maingate-check-profile'));
 app.on('window-all-closed', () => { /* the check windows come and go */ });
@@ -73,6 +76,20 @@ app.whenReady().then(async () => {
   else if (by('sub').ok !== false) failures.push('a subframe of the main window was accepted');
   if (!by('other')) failures.push('the second window never asked');
   else if (by('other').ok !== false) failures.push('another window was accepted');
+  // a pinned window: the real frame address must equal what pin() computed, or the gate would refuse every Start
+  const pdir = fs.mkdtempSync(path.join(os.tmpdir(), 'hq pinned-'));
+  fs.writeFileSync(path.join(pdir, 'app page.html'), '<!doctype html><title>app</title>');
+  fs.writeFileSync(path.join(pdir, 'other.html'), '<!doctype html><title>other</title>');
+  const pinned = new BrowserWindow({ show: false, width: 400, height: 300, webPreferences: webPrefs });
+  const appPath = path.join(pdir, 'app page.html');
+  pin(pinned, appPath);
+  await pinned.loadFile(appPath);
+  const frameOf = () => ({ sender: pinned.webContents, senderFrame: pinned.webContents.mainFrame });
+  if (fromMain(frameOf(), () => pinned) !== true) failures.push('a pinned window own page was refused (the pinned address differs from the real one)');
+  await pinned.webContents.executeJavaScript("location.href = " + JSON.stringify(require('node:url').pathToFileURL(path.join(pdir, 'other.html')).href)).catch(() => {});
+  await new Promise((r) => setTimeout(r, 800));
+  if (!/app%20page.html$/i.test(pinned.webContents.getURL())) failures.push('a script moved the pinned window to another page: ' + pinned.webContents.getURL().slice(-40));
+  try { pinned.destroy(); fs.rmSync(pdir, { recursive: true, force: true }); } catch { /* temp */ }
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* temp */ }
   if (failures.length) { for (const f of failures) say('FAIL ' + f); return finish(1, '[main-gate-native] ' + failures.length + ' check(s) failed'); }
   say('main frame accepted; iframe, second window and a refused address rejected');

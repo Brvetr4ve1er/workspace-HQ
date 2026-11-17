@@ -28,7 +28,7 @@ export default String.raw`        <!-- v5: Launcher (batch 9) — your folders, 
                       <div data-lnch="entry" data-lnch-id="{{ e.id }}" style="${ROW}">
                         <span aria-hidden="true" style="width:18px;text-align:center;color:var(--gold)">{{ e.icon }}</span>
                         <span style="flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere"><span data-lnch="name">{{ e.name }}</span> <span style="${SUB}">{{ e.kindText }}</span><sc-if value="{{ e.hasHost }}" hint-placeholder-val="{{ false }}"> <span style="${SUB}">{{ e.host }}</span></sc-if></span>
-                        <sc-if value="{{ e.isApp }}" hint-placeholder-val="{{ false }}"><button type="button" data-lnch="set-editor" onClick="{{ e.setEditor }}" disabled="{{ e.off }}" aria-label="{{ e.editorAria }}" style="${BTN}" ${BTN_HOVER}>{{ e.editorLabel }}</button></sc-if>
+                        <sc-if value="{{ e.isApp }}" hint-placeholder-val="{{ false }}"><button type="button" data-lnch="set-editor" onClick="{{ e.setEditor }}" disabled="{{ e.editorOff }}" aria-label="{{ e.editorAria }}" style="${BTN}" ${BTN_HOVER}>{{ e.editorLabel }}</button></sc-if>
                         <button type="button" data-lnch="open" onClick="{{ e.open }}" disabled="{{ e.off }}" aria-label="{{ e.openAria }}" style="${BTN}" ${BTN_HOVER}>{{ e.openLabel }}</button>
                         <button type="button" data-lnch="remove" onClick="{{ e.remove }}" disabled="{{ e.off }}" aria-label="{{ e.removeAria }}" style="${BTN};color:var(--red)" ${BTN_HOVER}>{{ e.removeLabel }}</button>
                       </div>

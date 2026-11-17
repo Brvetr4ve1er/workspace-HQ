@@ -147,11 +147,13 @@ export const STATES = Object.freeze({
   terminal: ['opened', 'skipped', 'failed'],
 });
 export const SENTENCES = Object.freeze({
-  dev: { started: 'Dev server: started', running: 'Dev server: already running', unconfirmed: 'Dev server: not allowed yet', refused: "Dev server: can't run this command", busy: 'Dev server: too many starts this hour', none: 'Dev server: no command scanned for this project', skipped: '' },
-  editor: { opened: 'Editor: opened', none: 'Editor: none chosen. Pick one in Launcher', failed: "Editor: didn't open", skipped: '' },
-  terminal: { opened: 'Terminal: opened', skipped: "Terminal: skipped, the folder name has a symbol Windows Terminal can't take", failed: "Terminal: didn't open" },
+  dev: { started: 'Dev server: started', running: 'Dev server: already running', unconfirmed: 'Dev server: not allowed yet. Press Allow and run', refused: "Dev server: can't run this command. Start it in the terminal", busy: 'Dev server: too many starts this hour', none: 'Dev server: no command scanned for this project', skipped: '' },
+  editor: { opened: 'Editor: opened', none: 'Editor: none chosen. Pick one in Settings > Launcher', failed: "Editor: didn't open. Check the editor in Settings > Launcher", skipped: '' },
+  terminal: { opened: 'Terminal: opened', skipped: "Terminal: skipped, the folder name has a symbol Windows Terminal can't take", failed: "Terminal: didn't open. Open one yourself at the folder" },
 });
-export const FOLDER_MISSING = 'Folder not found: rescan';
+export const FOLDER_MISSING = 'Folder not found. Scan again from Home, or check the folder is still there.';
+export const FOLDER_LINK = 'This folder is reached through a link, so Open workspace will not use it. Open the folder directly.';
+export const FOLDER_ODD = 'This folder has a name Open workspace cannot pass on safely. Rename it, then scan again.';
 
 export function stepsOk(steps) {
   return Array.isArray(steps) && steps.some((s) => s && ((s.step === 'dev' && (s.state === 'started' || s.state === 'running')) || (s.step === 'editor' && s.state === 'opened') || (s.step === 'terminal' && s.state === 'opened')));

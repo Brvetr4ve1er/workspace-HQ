@@ -156,6 +156,7 @@ function createWindow(show = true) {
   if (uiSwitch.isLegacy(uiv)) { console.log(`[ui] renderer ${uiv} was removed 2026-10-28 — loading v5`); appLog.event('ui-legacy-removed', { asked: uiv }); }
   else win.setBackgroundColor('#0d0d0f');   // v5's page colour, so the pre-paint frame doesn't flash
   win.loadFile(uiSwitch.rendererPage(SCAN_DIR, uiv));
+  require('./main-window-guard').pin(win, uiSwitch.rendererPage(SCAN_DIR, uiv));   // the window never leaves its page (the gate then accepts only that page)
   // Close-to-tray: keep the app (and tray) alive when the user closes the window,
   // unless they explicitly quit. The dead app.isQuitting flag now drives this.
   win.on('close', (e) => {

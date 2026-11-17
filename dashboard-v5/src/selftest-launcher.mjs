@@ -41,7 +41,7 @@ export function launcherStates({ projectId = 'a' } = {}) {
     ['launcher-console', Object.assign({}, base, { data: data({ terminal: 'console' }) }), open],
     ['launcher-workspace-idle', Object.assign({}, base), {}],
     ['launcher-workspace-busy', Object.assign({}, base, { ws: { [projectId]: { busy: true, line: '' } } }), {}],
-    ['launcher-workspace-line', Object.assign({}, base, { ws: { [projectId]: { busy: false, line: 'Dev server: not allowed yet. Editor: opened. Terminal: opened.' } } }), {}],
-    ['launcher-workspace-line-long', Object.assign({}, base, { ws: { [projectId]: { busy: false, line: 'Dev server: not allowed yet. Editor: none chosen. Pick one in Launcher. ' + "Terminal: skipped, the folder name has a symbol Windows Terminal can't take. " + 'x'.repeat(120) } } }), {}],
+    ['launcher-workspace-line', Object.assign({}, base, { ws: { [projectId]: { busy: false, line: 'Dev server: not allowed yet. Press Allow and run. Editor: opened. Terminal: opened.' } } }), {}],
+    ['launcher-workspace-line-long', Object.assign({}, base, { ws: { [projectId]: { busy: false, line: 'Dev server: not allowed yet. Press Allow and run. Editor: none chosen. Pick one in Settings > Launcher. ' + "Terminal: skipped, the folder name has a symbol Windows Terminal can't take. " + 'x'.repeat(120) } } }), {}],
   ];
 }

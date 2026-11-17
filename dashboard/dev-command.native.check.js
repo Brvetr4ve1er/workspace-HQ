@@ -27,6 +27,8 @@ const os = require('node:os');
 const net = require('node:net');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+// a stand-in for the OS sealing (safeStorage): reversible, so the signing key persists in a temp folder
+const FAKE_CRYPTO = { encrypt: (s) => 'sealed' + Buffer.from(String(s)).toString('base64'), decrypt: (b) => Buffer.from(String(b).slice(6), 'base64').toString() };
 
 if (process.platform !== 'win32') { console.log('[dev-native] not Windows: nothing to check here'); process.exit(0); }
 
@@ -57,7 +59,7 @@ watchdog.unref();
   const { create } = require('./dev-command.js');
   const servers = new Map();
   const scan = { projects: [{ id: 'invented', name: 'Invented', path: proj, dev_cmd: '' }] };
-  const dev = create({ dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers, core });
+  const dev = create({ crypto: FAKE_CRYPTO, dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers, core });
   const started = [];
 
   async function round(label, cmd, port, inst = dev) {
@@ -89,7 +91,7 @@ watchdog.unref();
     const spaceDir = path.join(root, 'a folder with spaces'); fs.mkdirSync(spaceDir);
     fs.writeFileSync(path.join(spaceDir, 'yarn.cmd'), ['@echo off', '"' + process.execPath + '" "' + path.join(proj, 'server.js') + '" --port ' + p3, ''].join('\r\n'));
     const sysRoot = process.env.SystemRoot || 'C:\\Windows';
-    const dev3 = create({ dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers: new Map(), core, env: { PATH: spaceDir, SystemRoot: sysRoot } });
+    const dev3 = create({ crypto: FAKE_CRYPTO, dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers: new Map(), core, env: { PATH: spaceDir, SystemRoot: sysRoot } });
     await round('yarn shim in a folder with spaces', 'yarn dev', p3, dev3);
 
     // a leftover: a second instance (an app restarted: empty Map) sees the first one's child as running through the real pid check and
@@ -100,7 +102,7 @@ watchdog.unref();
     else {
       started.push(servers.get('invented'));
       if (!await until(() => probe(p4), 15000)) fail('leftover: nothing answered');
-      const again = create({ dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers: new Map(), core });
+      const again = create({ crypto: FAKE_CRYPTO, dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers: new Map(), core });
       const w = await again.start('invented');
       if (w !== 'running') fail('leftover: a restarted app answered ' + w + ', want running');
       else note('leftover: seen as running by a restarted app');

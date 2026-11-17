@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { WS_WORKING_TEXT } from './launcher.js';
 import { launcherLogic, cleanRead, addText, workspaceLine, devUnconfirmed, lnchInit, LNCH_OFF, CHANGED_TEXT, WS_BUSY_TEXT, WS_FAILED_TEXT, LOCKED_TEXT } from './launcher.js';
 import { paletteLogic } from './palette.js';
 import { launcherVals, workspaceVals } from '../vals/launcher.js';
@@ -64,6 +65,11 @@ test('addText and workspaceLine say main\'s fixed words; a forged state says not
   assert.equal(addText(null, 'app').text, 'Not added');
   assert.equal(workspaceLine({ ok: true, steps: [], line: 'Dev server: started. Editor: opened.' }), 'Dev server: started. Editor: opened.');
   assert.equal(workspaceLine({ state: 'busy' }), WS_BUSY_TEXT);
+  assert.equal(workspaceLine({ state: 'working' }), WS_WORKING_TEXT, 'another launch running is not the hour\'s limit');
+  assert.notEqual(WS_WORKING_TEXT, WS_BUSY_TEXT);
+  assert.match(WS_WORKING_TEXT, /still running/);
+  assert.match(WS_FAILED_TEXT, /Try again/);
+  assert.match(LOCKED_TEXT, /restart the app/);
   assert.equal(workspaceLine({ state: 'refused' }), WS_FAILED_TEXT);
   assert.equal(workspaceLine(null), WS_FAILED_TEXT);
   assert.equal(devUnconfirmed({ steps: [{ step: 'dev', state: 'unconfirmed' }] }), true);
@@ -171,7 +177,7 @@ test('Open workspace: one call per project, the line is main\'s own sentence, no
   assert.equal(r.calls.filter((c) => c.startsWith('openWorkspace')).length, 1);
   assert.equal(r.self.state.lnch.ws.a.busy, false);
   assert.equal(r.self.state.lnch.ws.a.line, ans.line);
-  assert.match(ans.line, /Dev server: not allowed yet\./);
+  assert.match(ans.line, /Dev server: not allowed yet\. Press Allow and run\./);
   assert.deepEqual(r.self.state.devAsk.a, { kind: 'allow', text: 'npm run dev', hash: hashShown('npm run dev') });
   assert.equal(r.marks.filter((m) => m !== 'launcher-workspace/act').length, 0, 'the renderer writes no mark of its own');
   assert.equal(rig({ noMethod: true }).self.lnchCanWorkspace(), false);
@@ -303,4 +309,46 @@ test('every {{ lnchv.x }} the template reads exists in the vals, and every row k
   rowKeys('c', r.vals().cmds);
   assert.ok(!/\{\{[^}]*(\|\||&&|\?|\()/.test(tpl.replace(/\$\{[^}]*\}/g, '')), 'dc-lite: no expressions in bindings');
   assert.ok(!/transition|animation/.test(tpl), 'nothing animates');
+});
+
+// ------------------------------------------------------------------ batch 9 reviewer fixes
+test('the line under Open workspace goes when the project page opens or its dev server starts, and never while a click is running', async () => {
+  const r = rig();
+  r.self.state.lnch = { ...lnchInit(), ws: { a: { busy: false, line: 'Dev server: not allowed yet. Press Allow and run.' } } };
+  r.self.lnchClearLine('a');
+  assert.deepEqual(r.self.state.lnch.ws.a, { busy: false, line: '' });
+  r.self.state.lnch = { ...lnchInit(), ws: { a: { busy: true, line: '' }, b: { busy: false, line: 'x' } } };
+  r.self.lnchClearLine('a');
+  assert.equal(r.self.state.lnch.ws.a.busy, true, 'a running click keeps its place');
+  r.self.lnchClearLine('nope');
+  assert.equal(r.self.state.lnch.ws.b.line, 'x', 'another project is untouched');
+});
+
+test('a button for the editor already chosen is off; every label starts with what is shown on the button', () => {
+  const r = rig();
+  r.self.state.settingsOpen = true;
+  r.self.state.lnch = { ...lnchInit(), loaded: true, data: { entries: [{ id: 'aaaa0001', kind: 'app', name: 'Example editor', host: '' }, { id: 'aaaa0002', kind: 'app', name: 'Other app', host: '' }], editor: 'aaaa0001', projects: [{ id: 'a', name: 'Project A', dev: 'unconfirmed' }], terminal: 'wt', locked: false, limit: 40 } };
+  const v = r.vals();
+  const cur = v.entries.find((e) => e.isEditor), other = v.entries.find((e) => !e.isEditor);
+  assert.equal(cur.editorOff, true, 'pressing it again would only spend the hour\'s allowance');
+  assert.equal(other.editorOff, false);
+  assert.equal(cur.editorLabel, 'My editor');
+  assert.ok(cur.editorAria.startsWith(cur.editorLabel), cur.editorAria);
+  assert.ok(other.editorAria.startsWith(other.editorLabel), other.editorAria);
+  for (const c of v.cmds) { assert.ok(c.allowAria.startsWith(c.allowLabel), c.allowAria); assert.ok(c.forgetAria.startsWith(c.forgetLabel), c.forgetAria); }
+});
+
+test('with no Launcher bridge the Open workspace line says why the button is off', () => {
+  const none = workspaceVals.call(rig({ noBridge: true }).self, { id: 'a' });
+  assert.equal(none.on, false);
+  assert.equal(none.line, 'Open workspace needs the desktop app');
+  const r = rig();
+  r.self.state.lnch = { ...lnchInit(), ws: { a: { busy: false, line: 'Opened.' } } };
+  assert.equal(workspaceVals.call(r.self, { id: 'a' }).line, 'Opened.');
+});
+
+test('lnchOpen says another launch is running for the working answer, not a limit', async () => {
+  const r = rig({ answers: { open: { state: 'working' } } });
+  await r.self.lnchOpen('aaaa0001');
+  assert.equal(r.self.state.lnch.notice, WS_WORKING_TEXT);
 });

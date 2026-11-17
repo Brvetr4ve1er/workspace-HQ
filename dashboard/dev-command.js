@@ -17,6 +17,10 @@
 //   stop(id)   -> true | false     (true when a process was killed: a live child, or a leftover one this app started earlier)
 //   killAll()  -> the number of trees killed
 //
+// A stored allow is SIGNED (HMAC with the Launcher's own key, sealed by the OS; launcher-key.js): a hand-written or edited entry, or a computer that
+// cannot keep the key, counts as "not allowed". A project folder reached through a link or a network path, and a runner config file that is a link
+// or too big to hash, are refused (never hashed as "absent"). Stop and Kill servers forget a record only once its process is gone.
+//
 // What runs. The runner is resolved to an absolute path HERE (the app's own PATH search: absolute entries only, never the current folder,
 // a hit inside the project folder is skipped). npm prefers `node.exe <npm-cli.js>` from the same folder as npm.cmd; any other .cmd shim goes
 // through the System32 cmd.exe with a verbatim command line built only from words the grammar already allowed. The child runs with
@@ -30,6 +34,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+const { makeKeyStore, sealerFrom } = require('./launcher-key');
 
 const HOUR_MS = 3600e3;
 const MAX_STARTS = 10;
@@ -49,13 +54,23 @@ const lower = (p) => String(p).toLowerCase();
 const within = (child, parent) => { const c = lower(path.resolve(child)), p = lower(path.resolve(parent)); return c === p || c.startsWith(p.endsWith(path.sep) ? p : p + path.sep); };
 
 function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () => {}, spawn = childProcess.spawn, spawnSync = childProcess.spawnSync, fsApi = fs,
-  env = process.env, platform = process.platform, now = () => Date.now(), isAlive, procStart, core: coreIn, log = () => {} } = {}) {
+  env = process.env, platform = process.platform, now = () => Date.now(), isAlive, procStart, core: coreIn, crypto: sealer, randomBytes, log = () => {} } = {}) {
   const WIN = platform === 'win32';
   const dir = path.join(dataDir, 'launcher');
   const storeFile = path.join(dir, 'dev-commands.json');
   const runningFile = path.join(dir, 'running.json');
   const starts = [], allows = [], forgets = [];
   const getCore = () => (coreIn ? Promise.resolve(coreIn) : loadCore());
+  // The stored allows are signed (HMAC over id, words, key and time) with the Launcher's own key, sealed by the OS. No key = locked: nothing is
+  // allowed and nothing stored counts. An entry whose signature does not match (a hand-written or edited file) is as good as not there.
+  const getKey = makeKeyStore({ dir, fsApi, crypto: sealer, randomBytes });
+  const signAllow = (key, id, e) => crypto.createHmac('sha256', key).update(JSON.stringify(['dev-allow', 1, id, e.words, e.key, e.confirmedAt])).digest('hex');
+  const verifyAllow = (key, id, e) => {
+    try {
+      if (typeof e.sig !== 'string' || !/^[0-9a-f]{64}$/.test(e.sig)) return false;
+      return crypto.timingSafeEqual(Buffer.from(signAllow(key, id, e), 'hex'), Buffer.from(e.sig, 'hex'));
+    } catch { return false; }
+  };
 
   const hourOk = (list, cap) => { const t = now(); while (list.length && t - list[0] >= HOUR_MS) list.shift(); if (list.length >= cap) return false; list.push(t); return true; };
 
@@ -78,11 +93,13 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
     const raw = readJson(storeFile);
     const out = Object.create(null);
     if (!raw) return out;
+    const key = getKey();
+    if (!key) return out;   // locked: no stored allow counts
     let n = 0;
     for (const k of Object.keys(raw)) {
       if (!core.ID_RE.test(k) || n >= MAX_ENTRIES) continue;
       const e = core.cleanEntry(raw[k]);
-      if (e) { out[k] = e; n += 1; }
+      if (e && verifyAllow(key, k, { ...e, sig: raw[k].sig })) { out[k] = { ...e, sig: raw[k].sig }; n += 1; }
     }
     return out;
   }
@@ -110,8 +127,15 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
   function folderOf(p) {
     let abs = null;
     try { abs = resolveProjectPath(p.path); } catch { abs = null; }
-    if (!abs) return null;
-    try { const real = fsApi.realpathSync(abs); return fsApi.statSync(real).isDirectory() ? real : null; } catch { return null; }
+    if (!abs || typeof abs !== 'string') return null;
+    if (/^[\\/]{2}/.test(abs)) return null;   // a network share or a device path
+    try {
+      const real = fsApi.realpathSync(abs);
+      // reached through a link or a junction: the folder the key hashes would be somewhere else than the one the scan names (the Launcher refuses the same)
+      const same = (a, b) => (WIN ? lower(path.win32.normalize(a)) === lower(path.win32.normalize(b)) : path.resolve(a) === path.resolve(b));
+      if (!same(real, path.resolve(abs))) return null;
+      return fsApi.statSync(real).isDirectory() ? real : null;
+    } catch { return null; }
   }
   function readText(file, cap = MAX_JSON) {
     try {
@@ -119,6 +143,15 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
       if (!st.isFile() || st.size > cap) return null;
       return fsApi.readFileSync(file, 'utf8');
     } catch { return null; }
+  }
+  // A runner's config file: its text, or null when there is none (only a missing file is "absent"). A link, a folder, a file over the cap or one that
+  // cannot be read is UNHASHABLE: the command is refused, so a change behind a link can never keep an old allow alive.
+  const UNHASHABLE = Symbol('unhashable');
+  function readRc(file, cap) {
+    let st;
+    try { st = fsApi.lstatSync(file); } catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? null : UNHASHABLE; }
+    if (!st.isFile() || st.size > cap) return UNHASHABLE;
+    try { return fsApi.readFileSync(file, 'utf8'); } catch { return UNHASHABLE; }
   }
   // the parts a key hashes; null when the command cannot be bound to anything (refused)
   function parts(core, parsed, folder) {
@@ -136,7 +169,7 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
       try { const real = fsApi.realpathSync(f); if (!within(real, folder) || !fsApi.statSync(real).isFile()) return null; } catch { return null; }
     }
     const rc = {};
-    for (const n of RC_FILES) rc[n] = readText(path.join(folder, n), 64 * 1024);
+    for (const n of RC_FILES) { const t = readRc(path.join(folder, n), 64 * 1024); if (t === UNHASHABLE) return null; rc[n] = t; }
     return { folder: WIN ? lower(folder) : folder, words: parsed.words, scripts, rc };
   }
 
@@ -236,8 +269,12 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
       const ev = await evaluate(id);
       if (ev.word) return core.ALLOW_WORDS.refused;
       if (core.hashShown(ev.p.dev_cmd) !== shownHash) return core.ALLOW_WORDS.changed;
+      const sk = getKey();
+      if (!sk) return core.ALLOW_WORDS.refused;   // the OS cannot keep a signing key: nothing is stored
       const store = readStore(core);
-      store[id] = { words: ev.parsed.words.slice(), key: ev.key, confirmedAt: new Date(now()).toISOString() };
+      const rec = { words: ev.parsed.words.slice(), key: ev.key, confirmedAt: new Date(now()).toISOString() };
+      rec.sig = signAllow(sk, id, rec);
+      store[id] = rec;
       writeStore(store);
       return core.ALLOW_WORDS.allowed;
     } catch { return 'refused'; }
@@ -299,27 +336,49 @@ function create({ dataDir, resolveProjectPath, latest, servers, sendStatus = () 
     const proc = servers.get(id);
     if (proc && proc.pid) {
       const ok = killTree(proc.pid);
-      servers.delete(id);
-      try { dropRunning(id, proc.pid); } catch { /* ignore */ }
-      sendStatus({ id, running: false });
+      // a kill that failed leaves the child tracked (so the owner can try again); it is forgotten only once it is gone
+      if (ok || !alive(proc.pid)) {
+        servers.delete(id);
+        try { dropRunning(id, proc.pid); } catch { /* ignore */ }
+        sendStatus({ id, running: false });
+      }
       return ok;
     }
     const o = orphan(id);
-    if (o) { const ok = killTree(o.pid); try { dropRunning(id); } catch { /* ignore */ } sendStatus({ id, running: false }); return ok; }
+    if (o) { const ok = killTree(o.pid); if (ok || !alive(o.pid)) { try { dropRunning(id); } catch { /* ignore */ } sendStatus({ id, running: false }); } return ok; }
     return false;
   }
+  // Kill servers: every child this run started AND every leftover of an earlier run that is verified (pid and start time). A record goes only when
+  // its process is gone; a tree that would not die stays tracked so it can still be stopped. Returns the number of trees killed.
   function killAll() {
     let n = 0;
-    for (const [, proc] of servers) if (proc && proc.pid) { killTree(proc.pid); n += 1; }
-    servers.clear();
-    try { writeRunning({}); } catch { /* ignore */ }
+    const ours = new Set();
+    for (const [id, proc] of Array.from(servers)) {
+      ours.add(id);
+      if (!proc || !proc.pid) { servers.delete(id); continue; }
+      const ok = killTree(proc.pid);
+      if (ok) n += 1;
+      if (ok || !alive(proc.pid)) { servers.delete(id); try { dropRunning(id, proc.pid); } catch { /* ignore */ } }
+    }
+    let left = {};
+    try { left = readRunning(); } catch { left = {}; }
+    for (const id of Object.keys(left)) {
+      if (ours.has(id)) continue;
+      const o = orphan(id);   // a dead or reused pid is dropped by orphan() itself
+      if (!o) continue;
+      const ok = killTree(o.pid);
+      if (ok) n += 1;
+      if (ok || !alive(o.pid)) { try { dropRunning(id); } catch { /* ignore */ } }
+    }
     return n;
   }
   return { start, allow, forget, state, stop, killAll, orphan, _clear() { starts.length = 0; allows.length = 0; forgets.length = 0; } };
 }
 
-function init({ ipcMain, getWin, gate = require('./main-gate').fromMain, afterKill = () => {}, ...deps } = {}) {
-  const dev = create(deps);
+function init({ ipcMain, getWin, gate = require('./main-gate').fromMain, afterKill = () => {}, safeStorage, ...deps } = {}) {
+  let ss = safeStorage;
+  if (!ss && !deps.crypto) { try { ss = require('electron').safeStorage; } catch { ss = null; } }   // main.js passes none: Electron's own is read here
+  const dev = create({ ...deps, crypto: deps.crypto || sealerFrom(ss) });
   const idOf = (arg) => (isObj(arg) && typeof arg.id === 'string' ? arg.id : typeof arg === 'string' ? arg : '');
   ipcMain.handle('hq:dev-start', async (event, arg) => (gate(event, getWin) ? dev.start(idOf(arg)) : 'refused'));
   ipcMain.handle('hq:dev-allow', async (event, arg) => (gate(event, getWin) ? dev.allow(idOf(arg), isObj(arg) && typeof arg.shownHash === 'string' ? arg.shownHash : '') : 'refused'));

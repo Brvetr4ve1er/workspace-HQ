@@ -351,7 +351,7 @@ export class Component extends DCLogic {
   go(tab, sub) {
     this.setState((s) => ({ tab, route: null, sub: sub ? Object.assign({}, s.sub, { [tab]: sub }) : s.sub, moreOpen: false, ambientOverlay: false, paletteOpen: false, cosLb: null, cosIdx: false, cosReportOpen: false }));
   }
-  openProject(id) { if (!id) return; this.setState({ route: { type: 'project', id }, diagTab: 'git', pageMore: false, paletteOpen: false, ambientOverlay: false, journalDraft: '' }); FX().sfx('open'); }
+  openProject(id) { if (!id) return; if (typeof this.lnchClearLine === 'function') this.lnchClearLine(id); this.setState({ route: { type: 'project', id }, diagTab: 'git', pageMore: false, paletteOpen: false, ambientOverlay: false, journalDraft: '' }); FX().sfx('open'); }
   setSub(sub) { this.setState((s) => ({ sub: Object.assign({}, s.sub, { [s.tab]: sub }) })); }
   denied(why) { this.toast('error', why || this.writeReason()); FX().sfx('error'); FX().event('look', 'Can’t do that here.'); }
   notWired(what) { this.toast('info', what + ' isn’t wired in this version yet'); }

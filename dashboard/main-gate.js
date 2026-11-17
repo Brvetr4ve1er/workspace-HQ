@@ -5,9 +5,14 @@
 // True only when ALL of these hold:
 //   - event.sender is the main window's webContents (the cast palette uses the same preload and is a different webContents: refused);
 //   - event.senderFrame is that window's MAIN frame (a subframe, or a frame that is already gone, is refused);
-//   - the frame's address is an app page: a file: address (the app loads its own files; the default `allowUrl`).
+//   - the frame's address is THE app page: once main-window-guard.js has named the page the window loaded (setAppPage), the address must be
+//     that exact page (query and hash ignored); until then any file: address passes (tests, and a window that has not loaded yet).
 // Never throws. Six older handlers keep their own copy of the first check; this one adds the frame and the address.
-const defaultAllowUrl = (url) => typeof url === 'string' && url.startsWith('file:');
+let appPage = null;   // the exact file: address of the page the main window loaded, lower-cased and without query or hash
+const bare = (url) => String(url).split('#')[0].split('?')[0].toLowerCase();
+const samePage = (a, b) => typeof a === 'string' && typeof b === 'string' && bare(a) === bare(b);
+const setAppPage = (url) => { appPage = typeof url === 'string' && url.startsWith('file:') ? bare(url) : null; };
+const defaultAllowUrl = (url) => typeof url === 'string' && url.startsWith('file:') && (appPage === null || bare(url) === appPage);
 
 function fromMain(event, getWin, { allowUrl = defaultAllowUrl } = {}) {
   try {
@@ -26,4 +31,4 @@ function fromMain(event, getWin, { allowUrl = defaultAllowUrl } = {}) {
   } catch { return false; }
 }
 
-module.exports = { fromMain, defaultAllowUrl };
+module.exports = { fromMain, defaultAllowUrl, setAppPage, samePage };

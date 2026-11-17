@@ -78,7 +78,7 @@ function projectPage(p, { off, live, tasks, cantWrite, tabStyle, actText, viewed
     try { raw = await this.hq.devStart(p.id); }
     catch (e) { this.toast('error', 'Dev server didn’t start · ' + ((e && e.message) || e)); return null; }
     const w = startAnswer(raw);
-    if (w === 'started' || w === 'running') { if (ask) setAsk(null); }
+    if (w === 'started' || w === 'running') { if (ask) setAsk(null); if (typeof this.lnchClearLine === 'function') this.lnchClearLine(p.id); }
     if (w === 'running' && !devOn) setAsk({ kind: 'orphan' });   // alive but not ours to show as running: offer an owner-click Stop
     if (w === 'unconfirmed') setAsk({ kind: 'allow', text: p.dev, hash: hashShown(p.dev) });
     return w;

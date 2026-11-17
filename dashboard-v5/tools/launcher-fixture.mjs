@@ -16,11 +16,11 @@ export function makeLauncherFake({ mode, record, devAllowed }) {
   const KINDS = ['folder', 'file', 'app', 'url'];
   const WHY = 'that is not a full path on a drive';
   const SENT = {
-    dev: { started: 'Dev server: started', running: 'Dev server: already running', unconfirmed: 'Dev server: not allowed yet', refused: "Dev server: can't run this command", busy: 'Dev server: too many starts this hour', none: 'Dev server: no command scanned for this project', skipped: '' },
-    editor: { opened: 'Editor: opened', none: 'Editor: none chosen. Pick one in Launcher', failed: "Editor: didn't open", skipped: '' },
-    terminal: { opened: 'Terminal: opened', skipped: "Terminal: skipped, the folder name has a symbol Windows Terminal can't take", failed: "Terminal: didn't open" },
+    dev: { started: 'Dev server: started', running: 'Dev server: already running', unconfirmed: 'Dev server: not allowed yet. Press Allow and run', refused: "Dev server: can't run this command. Start it in the terminal", busy: 'Dev server: too many starts this hour', none: 'Dev server: no command scanned for this project', skipped: '' },
+    editor: { opened: 'Editor: opened', none: 'Editor: none chosen. Pick one in Settings > Launcher', failed: "Editor: didn't open. Check the editor in Settings > Launcher", skipped: '' },
+    terminal: { opened: 'Terminal: opened', skipped: "Terminal: skipped, the folder name has a symbol Windows Terminal can't take", failed: "Terminal: didn't open. Open one yourself at the folder" },
   };
-  const FOLDER_MISSING = 'Folder not found: rescan';
+  const FOLDER_MISSING = 'Folder not found. Scan again from Home, or check the folder is still there.';
   const lineOf = (steps) => steps.map((s) => (SENT[s.step][s.state] ? SENT[s.step][s.state] + '.' : '')).filter(Boolean).join(' ');
   let entries = SEED(), editor = 'aaaa0002', seq = 3;
   let running = {};

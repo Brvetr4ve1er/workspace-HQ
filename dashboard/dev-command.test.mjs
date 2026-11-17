@@ -17,6 +17,8 @@ const { create, init, MAX_STARTS, MAX_ALLOWS } = require('./dev-command.js');
 const { fromMain } = require('./main-gate.js');
 
 const SYS = 'C:\\Windows';
+// a stand-in for the OS sealing (safeStorage): reversible, so the signing key persists in a temp folder
+const FAKE_CRYPTO = { encrypt: (s) => 'sealed' + Buffer.from(String(s)).toString('base64'), decrypt: (b) => Buffer.from(String(b).slice(6), 'base64').toString() };
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'hq-devcmd-'));
 const cleanup = (t, d) => t.after(() => { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* temp */ } });
 
@@ -40,8 +42,8 @@ function rig(t, o = {}) {
   };
   const proc_path = () => proj;
   const dev = create({
-    dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers, sendStatus: (s) => status.push(s),
-    spawn, spawnSync: (file, args, opts) => { sync.push({ file, args, opts }); return { status: 0, stdout: '' }; }, env: { PATH: o.path ?? bin, SystemRoot: SYS, GITHUB_TOKEN: 'placeholder', npm_config_x: 'y', TEMP: os.tmpdir() },
+    crypto: FAKE_CRYPTO, dataDir: data, resolveProjectPath: (p) => (path.resolve(p) === path.resolve(proj) ? proj : null), latest: () => scan, servers, sendStatus: (s) => status.push(s),
+    spawn, spawnSync: (file, args, opts) => { sync.push({ file, args, opts }); return { status: o.killStatus == null ? 0 : o.killStatus, stdout: '' }; }, env: { PATH: o.path ?? bin, SystemRoot: SYS, GITHUB_TOKEN: 'placeholder', npm_config_x: 'y', TEMP: os.tmpdir() },
     platform: 'win32', now: () => clock, isAlive: o.isAlive, procStart: o.procStart, core,
   });
   const allowNow = async (text = scan.projects[0].dev_cmd) => dev.allow('proj-a', hashShown(text));
@@ -177,7 +179,7 @@ test('a node file that points outside the folder through a link is refused', asy
 test('a runner found only inside the project folder is not used; a relative PATH entry is never searched', async (t) => {
   const r = rig(t, { binFiles: [] });
   fs.writeFileSync(path.join(r.proj, 'npm.cmd'), '');
-  const inside = create({ dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: new Map(), spawn: () => { throw new Error('must not spawn'); }, env: { PATH: r.proj + ';.;;..;relative\\dir', SystemRoot: SYS }, platform: 'win32', core });
+  const inside = create({ crypto: FAKE_CRYPTO, dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: new Map(), spawn: () => { throw new Error('must not spawn'); }, env: { PATH: r.proj + ';.;;..;relative\\dir', SystemRoot: SYS }, platform: 'win32', core });
   assert.equal(await inside.allow('proj-a', hashShown('npm run dev')), 'allowed');
   assert.equal(await inside.start('proj-a'), 'refused');
   const none = rig(t, { binFiles: [] });
@@ -188,7 +190,7 @@ test('a runner found only inside the project folder is not used; a relative PATH
 test('a runner path with a character cmd.exe would read is refused', async (t) => {
   const r = rig(t, { binFiles: [] });
   const odd = path.join(r.root, 'b&d'); fs.mkdirSync(odd); fs.writeFileSync(path.join(odd, 'npm.cmd'), '');
-  const dev = create({ dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: new Map(), spawn: () => { throw new Error('must not spawn'); }, env: { PATH: odd, SystemRoot: SYS }, platform: 'win32', core });
+  const dev = create({ crypto: FAKE_CRYPTO, dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: new Map(), spawn: () => { throw new Error('must not spawn'); }, env: { PATH: odd, SystemRoot: SYS }, platform: 'win32', core });
   assert.equal(await dev.allow('proj-a', hashShown('npm run dev')), 'allowed');
   assert.equal(await dev.start('proj-a'), 'refused');
 });
@@ -294,7 +296,7 @@ function ipcRig(t) {
   const wc = { isDestroyed: () => false, mainFrame: { url: 'file:///app/index.html' } };
   const win = { isDestroyed: () => false, webContents: wc };
   let killed = 0;
-  const api = init({ ipcMain: { handle: (ch, fn) => handlers.set(ch, fn) }, getWin: () => win, dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: r.servers, sendStatus: (s) => r.status.push(s), spawn: (f, a, o) => { const p = new EventEmitter(); p.pid = 1; r.calls.push({ file: f, args: a, options: o, proc: p }); return p; }, spawnSync: (f, a) => { r.sync.push({ file: f, args: a }); return { status: 0 }; }, env: { PATH: r.bin, SystemRoot: SYS }, platform: 'win32', core, afterKill: () => { killed += 1; } });
+  const api = init({ crypto: FAKE_CRYPTO, ipcMain: { handle: (ch, fn) => handlers.set(ch, fn) }, getWin: () => win, dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: r.servers, sendStatus: (s) => r.status.push(s), spawn: (f, a, o) => { const p = new EventEmitter(); p.pid = 1; r.calls.push({ file: f, args: a, options: o, proc: p }); return p; }, spawnSync: (f, a) => { r.sync.push({ file: f, args: a }); return { status: 0 }; }, env: { PATH: r.bin, SystemRoot: SYS }, platform: 'win32', core, afterKill: () => { killed += 1; } });
   const main = { sender: wc, senderFrame: wc.mainFrame };
   return { r, handlers, wc, main, api, killed: () => killed };
 }
@@ -359,7 +361,7 @@ test('a shim in a folder with a space keeps the outer quote pair that cmd /s str
   const r = rig(t, { binFiles: [] });
   const spaced = path.join(r.root, 'a folder with spaces'); fs.mkdirSync(spaced); fs.writeFileSync(path.join(spaced, 'yarn.cmd'), '');
   const calls = [];
-  const dev = create({ dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => ({ projects: [{ id: 'proj-a', path: r.proj, dev_cmd: 'yarn dev --port 4000' }] }), servers: new Map(), spawn: (f, a, o) => { const p = new EventEmitter(); p.pid = 1; calls.push({ f, a, o }); return p; }, env: { PATH: spaced, SystemRoot: SYS }, platform: 'win32', core });
+  const dev = create({ crypto: FAKE_CRYPTO, dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => ({ projects: [{ id: 'proj-a', path: r.proj, dev_cmd: 'yarn dev --port 4000' }] }), servers: new Map(), spawn: (f, a, o) => { const p = new EventEmitter(); p.pid = 1; calls.push({ f, a, o }); return p; }, env: { PATH: spaced, SystemRoot: SYS }, platform: 'win32', core });
   assert.equal(await dev.allow('proj-a', hashShown('yarn dev --port 4000')), 'allowed');
   assert.equal(await dev.start('proj-a'), 'started');
   assert.deepEqual(calls[0].a, ['/d', '/s', '/c', '""' + path.join(spaced, 'yarn.cmd') + '" dev --port 4000"']);
@@ -424,4 +426,95 @@ test('forget over IPC: { id } or a bare id from the main window only; the answer
   assert.equal(await handlers.get('hq:dev-forget')(main, { id: 'proj-a' }), 'removed');
   assert.equal(await handlers.get('hq:dev-start')(main, { id: 'proj-a' }), 'unconfirmed');
   assert.equal(r.calls.length, 0);
+});
+
+// ---- batch 9 reviewer fixes -------------------------------------------------------------------
+test('a hand-written allow (a plain hash, no signature, or a wrong one) never starts anything; the owner\'s own Allow still does', async (t) => {
+  const r = rig(t, { cli: true });
+  assert.equal(await r.allowNow(), 'allowed');
+  const file = path.join(r.data, 'launcher', 'dev-commands.json');
+  const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.match(stored['proj-a'].sig, /^[0-9a-f]{64}$/, 'the stored allow is signed');
+  // the same entry, signature removed: whoever can write the file knows the key hash, not the signing key
+  const forged = { ...stored['proj-a'] }; delete forged.sig;
+  fs.writeFileSync(file, JSON.stringify({ 'proj-a': forged }));
+  assert.equal(await r.dev.start('proj-a'), 'unconfirmed');
+  assert.equal(await r.dev.state('proj-a'), 'unconfirmed');
+  fs.writeFileSync(file, JSON.stringify({ 'proj-a': { ...forged, sig: 'a'.repeat(64) } }));
+  assert.equal(await r.dev.start('proj-a'), 'unconfirmed', 'a wrong signature');
+  // an edited time breaks the signature of a real entry
+  fs.writeFileSync(file, JSON.stringify({ 'proj-a': { ...stored['proj-a'], confirmedAt: '2026-01-01T00:00:00.000Z' } }));
+  assert.equal(await r.dev.start('proj-a'), 'unconfirmed', 'a signed entry that was edited');
+  assert.equal(r.calls.length, 0, 'nothing was spawned');
+  fs.writeFileSync(file, JSON.stringify(stored));
+  assert.equal(await r.dev.start('proj-a'), 'started', 'the untouched entry still works');
+});
+
+test('with no signing key (the OS cannot seal one) nothing can be allowed and a stored allow does not count', async (t) => {
+  const r = rig(t, { cli: true });
+  assert.equal(await r.allowNow(), 'allowed');
+  const locked = create({ crypto: { encrypt: () => null, decrypt: () => null }, dataDir: path.join(r.root, 'data2'), resolveProjectPath: () => r.proj, latest: () => r.scan, servers: new Map(), env: { PATH: r.bin, SystemRoot: SYS }, platform: 'win32', core });
+  assert.equal(await locked.allow('proj-a', hashShown(r.scan.projects[0].dev_cmd)), 'refused');
+  // the stored file read with a key that no longer opens
+  const bad = create({ crypto: { encrypt: FAKE_CRYPTO.encrypt, decrypt: () => null }, dataDir: r.data, resolveProjectPath: () => r.proj, latest: () => r.scan, servers: new Map(), spawn: () => { throw new Error('must not spawn'); }, env: { PATH: r.bin, SystemRoot: SYS }, platform: 'win32', core });
+  assert.equal(await bad.start('proj-a'), 'unconfirmed');
+});
+
+test('a runner config that is a link or a folder, or over 64 KB, refuses the command instead of hashing as absent', async (t) => {
+  const r = rig(t);
+  assert.equal(await r.allowNow(), 'allowed');
+  assert.equal(await r.dev.start('proj-a'), 'started');
+  r.servers.clear();
+  // a junction named .npmrc (a link: lstat says it is not a plain file)
+  const target = path.join(r.root, 'elsewhere'); fs.mkdirSync(target);
+  fs.symlinkSync(target, path.join(r.proj, '.npmrc'), 'junction');
+  assert.equal(await r.dev.start('proj-a'), 'refused', 'a linked .npmrc');
+  assert.equal(await r.allowNow(), 'refused', 'and it cannot be allowed');
+  fs.rmdirSync(path.join(r.proj, '.npmrc'));
+  fs.writeFileSync(path.join(r.proj, '.npmrc'), 'x'.repeat(70 * 1024));
+  assert.equal(await r.dev.start('proj-a'), 'refused', 'a .npmrc over the cap');
+  fs.writeFileSync(path.join(r.proj, '.npmrc'), 'registry=placeholder');
+  assert.equal(await r.dev.start('proj-a'), 'unconfirmed', 'a small plain file is a changed file, so it asks again');
+});
+
+test('a project folder reached through a link, or a network or device path, is refused', async (t) => {
+  const r = rig(t);
+  const link = path.join(r.root, 'proj-link');
+  fs.symlinkSync(r.proj, link, 'junction');
+  const mk = (p) => create({ crypto: FAKE_CRYPTO, dataDir: r.data, resolveProjectPath: () => p, latest: () => r.scan, servers: new Map(), spawn: () => { throw new Error('must not spawn'); }, env: { PATH: r.bin, SystemRoot: SYS }, platform: 'win32', core });
+  assert.equal(await mk(link).allow('proj-a', hashShown('npm run dev')), 'refused', 'a junction');
+  assert.equal(await mk('\\\\host\\share\\proj').allow('proj-a', hashShown('npm run dev')), 'refused', 'a network share');
+  assert.equal(await mk('\\\\?\\C:\\proj').allow('proj-a', hashShown('npm run dev')), 'refused', 'a device path');
+  assert.equal(await mk(r.proj).allow('proj-a', hashShown('npm run dev')), 'allowed', 'the plain folder is fine');
+});
+
+test('Kill servers also kills a verified leftover of an earlier run, and keeps a record whose process would not die', async (t) => {
+  const startedAt = 1_799_999_990_000;
+  const r = rig(t, { isAlive: () => true, procStart: () => startedAt + 1000 });
+  fs.mkdirSync(path.join(r.data, 'launcher'), { recursive: true });
+  const rec = path.join(r.data, 'launcher', 'running.json');
+  fs.writeFileSync(rec, JSON.stringify({ 'proj-old': { pid: 555, startedAt } }));
+  assert.equal(r.dev.killAll(), 1);
+  assert.deepEqual(r.sync[0].args, ['/pid', '555', '/f', '/t']);
+  assert.deepEqual(JSON.parse(fs.readFileSync(rec, 'utf8')), {}, 'the record goes once it is killed');
+  // a leftover with another start time (a reused pid) is not ours: not killed
+  fs.writeFileSync(rec, JSON.stringify({ 'proj-old': { pid: 556, startedAt: startedAt - 3600e3 } }));
+  r.sync.length = 0;
+  assert.equal(r.dev.killAll(), 0);
+  assert.equal(r.sync.length, 0);
+});
+
+test('a kill that failed leaves the server tracked and recorded, for Stop and Kill servers alike', async (t) => {
+  const r = rig(t, { killStatus: 1, isAlive: () => true });
+  await r.allowNow(); await r.dev.start('proj-a');
+  assert.equal(r.dev.stop('proj-a'), false);
+  assert.equal(r.servers.size, 1, 'still tracked');
+  assert.ok(JSON.parse(fs.readFileSync(path.join(r.data, 'launcher', 'running.json'), 'utf8'))['proj-a'], 'still recorded');
+  assert.equal(r.dev.killAll(), 0, 'nothing was killed');
+  assert.equal(r.servers.size, 1);
+  // the same call once the process is gone forgets it
+  const r2 = rig(t, { killStatus: 1, isAlive: () => false });
+  await r2.allowNow(); await r2.dev.start('proj-a');
+  r2.dev.stop('proj-a');
+  assert.equal(r2.servers.size, 0);
 });
