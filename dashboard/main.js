@@ -1139,50 +1139,9 @@ function sendDevStatus(payload) {
   try { updateTray(); } catch (e) { console.error('[tray] refresh failed', e); }   // v5 M4: keeps "Stop all running dev servers (N)" current
 }
 
-ipcMain.handle('hq:dev-start', (_e, id) => {
-  try {
-    if (activeDevServers.has(id)) return false;
-    const s = latest();
-    if (!s) return false;
-    const prod = (s.projects || []).find((p) => p.id === id);   // data key is `projects`, not `products`
-    if (!prod || !prod.dev_cmd) { dialog.showErrorBox('Dev server', `No dev command for "${id}".`); return false; }
-
-    const cwd = resolveProjectPath(prod.path);
-    if (!cwd) { dialog.showErrorBox('Dev server', `Invalid project path for "${id}": ${prod.path}`); return false; }
-
-    // dev_cmd may contain quoted paths / spaces; spawn with shell:true and pass it whole.
-    const proc = spawn(prod.dev_cmd, { cwd, shell: true });
-    proc.__hqStartedAt = Date.now();   // hq:live-state reports it, so a reloaded window knows how long it has run
-    activeDevServers.set(id, proc);
-
-    proc.on('close', (code) => {
-      activeDevServers.delete(id);
-      sendDevStatus({ id, running: false, code });
-    });
-    proc.on('error', (err) => {
-      activeDevServers.delete(id);
-      console.error(`Dev server error for ${id}:`, err);
-      sendDevStatus({ id, running: false, error: String(err.message || err) });
-    });
-
-    sendDevStatus({ id, running: true });
-    return true;
-  } catch (err) {
-    dialog.showErrorBox('Dev server failed to start', String(err && err.message || err));
-    return false;
-  }
-});
-
-ipcMain.handle('hq:dev-stop', (_e, id) => {
-  const proc = activeDevServers.get(id);
-  if (proc && proc.pid) {
-    const r = spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS);
-    activeDevServers.delete(id);
-    sendDevStatus({ id, running: false });
-    return r.status === 0;
-  }
-  return false;
-});
+// Dev server (batch 9): hq:dev-start / hq:dev-allow / hq:dev-stop / hq:kill-servers live in dev-command.js (an allowed command as an argument list, never a shell;
+// main window only). The Map stays this file's: the tray, live-state, the delivery check and quit all read it.
+const devCmd = require('./dev-command').init({ ipcMain, getWin: () => win, dataDir: DATA, resolveProjectPath, latest, servers: activeDevServers, sendStatus: sendDevStatus, afterKill: () => pushMachine() });
 
 ipcMain.handle('hq:note-save', (_e, id, note) => {
   const notesFile = path.join(DATA, 'project-notes.json');
@@ -1201,12 +1160,6 @@ ipcMain.handle('hq:note-save', (_e, id, note) => {
 
 // satellite IPC (quick-run palette)
 ipcMain.handle('hq:show-main', () => { if (!win) createWindow(true); else win.show(); if (win) win.focus(); return true; });
-ipcMain.handle('hq:kill-servers', () => {
-  let n = 0;
-  for (const [, proc] of activeDevServers) { if (proc && proc.pid) { spawnSync('taskkill', ['/pid', String(proc.pid), '/f', '/t'], TASKKILL_OPTS); n++; } }
-  activeDevServers.clear(); pushMachine();
-  return n;
-});
 
 // Single-instance lock: a second launch (e.g. autostart + manual) just focuses the
 // running window instead of opening a duplicate tray / racing the pipeline writers.

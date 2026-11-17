@@ -117,7 +117,8 @@ contextBridge.exposeInMainWorld('hq', {
     ipcRenderer.on('hq:claude-sessions', handler);
     return () => ipcRenderer.removeListener('hq:claude-sessions', handler);
   },
-  devStart: (id) => ipcRenderer.invoke('hq:dev-start', id),
+  devStart: (id) => ipcRenderer.invoke('hq:dev-start', { id }),   // answers a fixed word: started running unconfirmed refused busy
+  devAllow: (id, shownHash) => ipcRenderer.invoke('hq:dev-allow', { id, shownHash }),   // the owner's Allow: allowed changed refused busy
   devStop: (id) => ipcRenderer.invoke('hq:dev-stop', id),
   saveNote: (id, note) => ipcRenderer.invoke('hq:note-save', id, note),
   onDevStatus: (callback) => {
