@@ -9,7 +9,7 @@
  * installed on the machine.) Theme: popup-theme.js sets data-hq-theme from the
  * OS light/dark preference; the popup can't see the app's own theme setting. */
 [data-hq-theme]{--bg:#0d0d0f;--bg2:#121214;--panel:rgba(16,16,18,.78);--card:rgba(22,22,24,.9);--card-hi:#1f1e21;--ink:#0a0a0b;--frame:#2c2a27;--frame-hi:#4d4841;--text:#e8e4dc;--muted:#a39d92;--faint:#6e695f;--gold:#d97757;--gold-2:#e8916f;--accent-text:#e8916f;--green:#86b98a;--red:#e5645a;--orange:#e0a35a;--yellow:#d8c26a;--blue:#7aa2d6;--purple:#b39ddb;--cyan:#7cc4c0;--link:#e8916f;--link-hover:#f2b394;--scrim:rgba(8,8,9,.62);--term:'IBM Plex Mono',ui-monospace,Menlo,monospace;--px:'IBM Plex Mono',ui-monospace,Menlo,monospace;--tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted)}
-[data-hq-theme="light"]{--bg:#e6e1d1;--bg2:#ddd7c5;--panel:rgba(228,223,206,.82);--card:rgba(241,237,226,.92);--card-hi:#f5f2e8;--ink:#dcd6c3;--frame:#bbb39e;--frame-hi:#7d7563;--text:#38342c;--muted:#5d584c;--faint:#847e6e;--gold:#b5583a;--gold-2:#9c4a30;--accent-text:#9c4a30;--green:#4f7a52;--red:#a83a30;--orange:#94601f;--yellow:#7d6a1c;--blue:#3d5f8f;--purple:#6b5694;--cyan:#2f706c;--link:#9c4a30;--link-hover:#38342c;--scrim:rgba(58,54,46,.3)}
+[data-hq-theme="light"]{--bg:#e6e1d1;--bg2:#ddd7c5;--panel:rgba(228,223,206,.82);--card:rgba(241,237,226,.92);--card-hi:#f5f2e8;--ink:#dcd6c3;--frame:#bbb39e;--frame-hi:#7d7563;--text:#38342c;--muted:#5d584c;--faint:#847e6e;--gold:#9d4d32;--gold-2:#9c4a30;--accent-text:#9c4a30;--green:#4f7a52;--red:#a83a30;--orange:#94601f;--yellow:#7d6a1c;--blue:#3d5f8f;--purple:#6b5694;--cyan:#2f706c;--link:#9c4a30;--link-hover:#38342c;--scrim:rgba(58,54,46,.3)}
 
 /* ---- popup ---------------------------------------------------------------- */
 * { box-sizing: border-box; }
@@ -75,6 +75,7 @@ button { font: inherit; color: inherit; }
 .btn:disabled { opacity: .55; cursor: default; }
 .btn.gold { flex: 1; background: var(--gold); border-color: var(--gold); color: #1a0f0a; font-weight: 600; }
 .btn.gold:hover:not(:disabled) { background: var(--gold-2); border-color: var(--gold-2); }
+[data-hq-theme="light"] .btn.gold { color: #ffffff; }
 .btn.quiet { color: var(--muted); }
 .c-status { font-size: 11px; color: var(--muted); margin-top: 8px; min-height: 15px; word-break: break-word; }
 .c-status[data-tone="ok"] { color: var(--green); }
