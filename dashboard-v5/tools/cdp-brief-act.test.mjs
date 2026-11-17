@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { makeBriefActScenarios, PAGE, ITEMS, briefOf, QUEST, STALE, DIRTY, WAIT } from './cdp-brief-act.mjs';
 
-const NAMES = ['brief-act-done', 'brief-act-commit', 'brief-act-balance', 'brief-act-forged', 'brief-waiting-render'];
+const NAMES = ['brief-act-done', 'brief-act-commit', 'brief-act-balance', 'brief-act-forged', 'brief-open-workspace', 'brief-waiting-render'];
 
-test('the factory returns exactly the five scenarios, each an async function of one argument', () => {
+test('the factory returns exactly the six scenarios, each an async function of one argument', () => {
   const S = makeBriefActScenarios({ fresh: async () => null, sleep: async () => {} });
   assert.deepEqual(Object.keys(S).sort(), NAMES.slice().sort());
   for (const [name, fn] of Object.entries(S)) { assert.equal(typeof fn, 'function', name); assert.equal(fn.length, 1, name); }

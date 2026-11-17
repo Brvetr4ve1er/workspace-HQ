@@ -526,6 +526,7 @@ export async function run(W = window.WHQ) {
         const AD = aText(bItem('dirty:p:12', 'low', { kind: 'go', tab: 'projects', projectId: (M.P0[0] || {}).id || 'p' }), 'Selftest Project has 12 uncommitted files');
         const AW = aText(bItem('session-waiting:s1:2026-11-05T08:00:00.000Z', 'med', { kind: 'go', tab: 'claude', sub: 'sessions' }), 'Selftest Studio: a Claude session has waited on a tool for 40 min', { source: 'claude-code', age: 'sessions board' });
         const aDone = new Date(Date.now() - 2 * 60e3).toISOString();
+        const ADW = Object.assign({}, AD, { secondary: ['open-workspace'] });   // batch 10: main offered Open workspace on this dirty row
         for (const [name, brief, extra] of [
           ['brief-empty', BV([])],
           ['brief-standing-1', BSTD(BI, STD.slice(0, 1))],
@@ -545,6 +546,8 @@ export async function run(W = window.WHQ) {
           ['brief-act-balance-confirm', BV([AM, AD]), { batOpen: AM.key, batBal: '2 500' }],
           ['brief-act-acted', BV([Object.assign({}, AQ, { acted: { verb: 'quest-done', at: aDone } }), AD])],
           ['brief-act-busy', BV([AQ, AW]), { batOpen: AQ.key, batBusy: true }],
+          ['brief-act-workspace', BV([AQ, ADW])],
+          ['brief-act-workspace-line', BV([AQ, ADW]), { batLine: { [ADW.key]: { text: 'Dev server started. Terminal opened.', bad: false, at: Date.now() } } }],
           ['brief-overflow', BV(BI, 4, [], SI.slice(1))],
           ['brief-overflow-one', BV(BI, 1, [], SI.slice(2))],
           ['brief-overflow-source-errors', BV(BI, 2, [{ source: 'github', error: 'data/github.json is partial — its checks were skipped' }], SI.slice(0, 2))],

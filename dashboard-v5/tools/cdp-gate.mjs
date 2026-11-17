@@ -41,7 +41,7 @@
 // Clients list (batch 2; --preload=fake; tools/cdp-clients-list.mjs; the fake's hq.delivery.clients answers three invented client jobs and one gone from the scan; each scenario ends with hqFake.reset(true)):
 //   clients-list-open · clients-list-open-card · clients-list-empty
 // Brief act in place + waiting session (batch 2; --preload=fake; tools/cdp-brief-act.mjs; the fake's hq.brief.act answers like main's table; each scenario serves its own placeholder brief and ends with hqFake.reset(true)):
-//   brief-act-done · brief-act-commit · brief-act-balance · brief-act-forged · brief-waiting-render
+//   brief-act-done · brief-act-commit · brief-act-balance · brief-act-forged · brief-open-workspace · brief-waiting-render
 // Money for Claude sessions (batch 2; --preload=fake; tools/cdp-money-access.mjs; the fake's hq.moneyAccess starts OFF and answers set(on) with { on }; each scenario ends with hqFake.reset(true) and Settings closed):
 //   money-access-off-by-default · money-access-toggle
 // Today ribbon (batch 3; --preload=fake; tools/cdp-today.mjs; the fake's hq.today.read answers invented days: offsets 0..3 full, 4..6 partial, others refused; each scenario ends with hqFake.reset(true) and day 0 shown):

@@ -8,10 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { briefActLogic, verbFor, needsConfirm, balanceOk, actedText, RULE_VERB, VERB_LABEL, CONFIRM_TEXT, ACTED_TAIL } from './brief-act.js';
+import { briefActLogic, verbFor, secondaryFor, needsConfirm, balanceOk, actedText, RULE_VERB, RULE_SECONDARY, VERB_LABEL, VERB_MARKS, CONFIRM_TEXT, ACTED_TAIL } from './brief-act.js';
 import { briefActRow, briefActVals } from '../vals/brief-act.js';
-import tpl, { batButton } from '../tpl/brief-act.tpl.js';
-import { VERBS, RULE_VERBS, checkBalance } from '../../../dashboard/brief-act-core.mjs';
+import tpl, { batButton, batSecondary } from '../tpl/brief-act.tpl.js';
+import { VERBS, RULE_VERBS, SECONDARY, checkBalance } from '../../../dashboard/brief-act-core.mjs';
 
 const NOW = Date.parse('2026-11-10T12:00:00.000Z');
 const item = (rule, key, extra = {}) => ({ key, rule, severity: 'med', text: 'Placeholder ' + rule, why: 'why', source: 'scan', age: 'scan 1 h ago', action: { kind: 'scan' }, ...extra });
@@ -36,7 +36,7 @@ function rig(o = {}) {
 
 test('every key is bat-prefixed (one shared namespace with the other surfaces)', () => {
   const r = rig({ state: { batOpen: MONEY.key } });
-  for (const it of [QUEST, MONEY, DIRTY, WAIT]) for (const k of Object.keys(r.row(it))) assert.match(k, /^bat[A-Z]/, k);
+  for (const it of [QUEST, MONEY, DIRTY, WAIT]) for (const k of Object.keys(r.row(it))) assert.match(k, /^(bat[A-Z]|verbs$)/, k);   // `verbs` is the ONE per-row key the second button and its line live under (batch 10)
   for (const k of Object.keys(briefActVals.call(r.self, { S: r.self.state }))) assert.match(k, /^bat[A-Z]/, k);
 });
 
@@ -236,11 +236,13 @@ test('the acted line: minutes, hours, just now; the tail is always there; gone a
 test('the templates bind only keys the vals provide, and say nothing outbound', () => {
   const r = rig({ state: { batOpen: MONEY.key } });
   const keys = new Set(Object.keys(r.row(MONEY)));
-  for (const m of (tpl + batButton).matchAll(/\{\{\s*i\.(\w+)\s*\}\}/g)) assert.ok(keys.has(m[1]), 'template binds i.' + m[1]);
+  const vkeys = new Set(Object.keys(r.row(MONEY).verbs));
+  for (const m of (tpl + batButton + batSecondary).matchAll(/\{\{\s*i\.(\w+)\s*\}\}/g)) assert.ok(keys.has(m[1]), 'template binds i.' + m[1]);
+  for (const m of (tpl + batButton + batSecondary).matchAll(/\{\{\s*i\.verbs\.(\w+)\s*\}\}/g)) assert.ok(vkeys.has(m[1]), 'template binds i.verbs.' + m[1]);
   for (const k of ['batActedText', 'batConfirmText', 'batBalance', 'batVerbLabel', 'batYesLabel']) assert.ok((tpl + batButton).includes('{{ i.' + k + ' }}'), k);
   assert.ok(!/\b(push|send|post)\b/i.test(tpl + batButton));
   // dc-lite dialect only: no expressions beyond dotted paths
-  for (const m of (tpl + batButton).matchAll(/\{\{([^}]*)\}\}/g)) assert.match(m[1].trim(), /^(i\.)?\w+$|^(true|false)$/, m[0]);
+  for (const m of (tpl + batButton).matchAll(/\{\{([^}]*)\}\}/g)) assert.match(m[1].trim(), /^(i\.)?(verbs\.)?\w+$|^(true|false)$/, m[0]);
 });
 
 test('the module is plain ES with no network or storage access (public repo, local-only verbs)', () => {
@@ -249,4 +251,71 @@ test('the module is plain ES with no network or storage access (public repo, loc
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     assert.ok(!/\bfetch\(|XMLHttpRequest|localStorage|require\(/.test(src), f);
   }
+});
+
+// ---- batch 10: the second button on a dirty row (Open workspace) ----
+const OFFERED = { ...DIRTY, secondary: ['open-workspace'] };
+
+test('four-table parity: the renderer verb tables equal main core for Open workspace (label, marks, rule, second-verb map)', () => {
+  assert.equal(VERB_LABEL['open-workspace'], VERBS['open-workspace'].label);
+  assert.equal(VERB_MARKS['open-workspace'], VERBS['open-workspace'].marks);
+  assert.equal(VERB_MARKS['open-workspace'], false);
+  assert.deepEqual(RULE_SECONDARY, SECONDARY);
+  for (const [rule, verb] of Object.entries(RULE_SECONDARY)) assert.ok(RULE_VERBS[rule].includes(verb) && VERBS[verb].rules.includes(rule), rule);
+  assert.equal(RULE_VERB.dirty, 'commit', 'the first verb of dirty is unchanged');
+});
+
+test('the second button shows only when main offered it on the row; no offer, no bridge, or a wrong rule gives nothing', () => {
+  const r = rig();
+  assert.equal(r.row(OFFERED).verbs.secHas, true);
+  assert.equal(r.row(OFFERED).verbs.secLabel, 'Open workspace');
+  assert.equal(r.row(OFFERED).batVerbLabel, 'Commit…', 'Commit stays the first verb');
+  assert.equal(r.row(DIRTY).verbs.secHas, false, 'main did not offer it');
+  assert.equal(r.row({ ...OFFERED, secondary: ['commit'] }).verbs.secHas, false);
+  assert.equal(r.row({ ...QUEST, secondary: ['open-workspace'] }).verbs.secHas, false, 'only the rule the table names');
+  assert.equal(secondaryFor({ ...DIRTY, secondary: 'open-workspace' }), null);
+  assert.equal(rig({ noBridge: true }).row(OFFERED).verbs.secHas, false);
+  assert.equal(rig({ noAct: true }).row(OFFERED).verbs.secHas, false);
+});
+
+test('a click goes straight to main (no confirm, one call), sends no mark of its own, and the Launcher line shows in the row', async () => {
+  const marks = [];
+  const r = rig({ act: async () => ({ ok: true, workspace: { ok: true, line: 'Dev server started. Terminal opened.' } }) });
+  r.self.useMark = (...a) => marks.push(a);
+  assert.equal(await r.self.batStartSecondary(OFFERED), true);
+  assert.deepEqual(r.calls, [[OFFERED.key, 'open-workspace']]);
+  assert.deepEqual(marks, [], 'main (the Launcher) writes the one act');
+  assert.deepEqual(r.toasts, []);
+  const row = r.row(OFFERED, { nowMs: Date.now() });
+  assert.equal(row.verbs.lineGood, true); assert.equal(row.verbs.lineBad, false);
+  assert.equal(row.verbs.line, 'Dev server started. Terminal opened.');
+  assert.equal(row.batActed, false, 'this is not a done-and-clears marker');
+});
+
+test('a not-ok Launcher line is shown as bad; a refusal from main is a toast and no line; a line expires after ten minutes', async () => {
+  const bad = rig({ act: async () => ({ ok: true, workspace: { ok: false, line: 'The folder is not there.' } }) });
+  await bad.self.batStartSecondary(OFFERED);
+  assert.equal(bad.row(OFFERED, { nowMs: Date.now() }).verbs.lineBad, true);
+  assert.equal(bad.row(OFFERED, { nowMs: Date.now() + 11 * 60e3 }).verbs.line, '', 'a stale line is dropped');
+  const no = rig({ act: async () => ({ error: 'this project’s dev command is not allowed right now — nothing was opened.' }) });
+  assert.equal(await no.self.batStartSecondary(OFFERED), false);
+  assert.match(no.toasts[0][1], /not allowed right now/);
+  assert.equal(no.row(OFFERED, { nowMs: Date.now() }).verbs.line, '');
+  const none = rig();
+  assert.equal(await none.self.batStartSecondary(DIRTY), false, 'an unoffered row never calls main');
+  assert.deepEqual(none.calls, []);
+});
+
+test('a double click is one call while main is working', async () => {
+  let release; const gate = new Promise((res) => { release = res; });
+  const r = rig({ act: async () => { await gate; return { ok: true, workspace: { ok: true, line: 'x' } }; } });
+  const a = r.self.batStartSecondary(OFFERED);
+  assert.equal(await r.self.batStartSecondary(OFFERED), false);
+  release(); await a;
+  assert.equal(r.calls.length, 1);
+});
+
+test('the second-button template is plain dc-lite and says nothing outbound', () => {
+  assert.match(batSecondary, /i\.verbs\.secHas/);
+  assert.ok(!/\b(push|send|post)\b/i.test(batSecondary));
 });

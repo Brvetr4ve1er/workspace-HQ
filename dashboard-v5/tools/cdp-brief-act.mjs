@@ -2,7 +2,7 @@
 //   Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 // This file imports nothing from cdp-gate.mjs (the helpers are passed in) and does nothing on import: no socket, no timer, no process hook.
 //
-//   node tools/cdp-gate.mjs --port 9342 --scenario brief-act-done,brief-act-commit,brief-act-balance,brief-act-forged,brief-waiting-render   (needs --preload=fake)
+//   node tools/cdp-gate.mjs --port 9342 --scenario brief-act-done,brief-act-commit,brief-act-balance,brief-act-forged,brief-open-workspace,brief-waiting-render   (needs --preload=fake)
 //
 // The fake preload answers hq.brief.act like main's table does (tools/fake-preload.js, 'brief.act'): the rule comes from the key's first segment, a key no
 // rule owns is refused with main's own words, quest-done and confirm-balance answer an acted marker, commit answers { open:'commit', projectId }, open-folder
@@ -12,6 +12,7 @@
 //   brief-act-commit      Commit... on the dirty row opens the existing commit overlay for that project, its .env guard text intact; nothing is committed
 //   brief-act-balance     Confirm balance: the inline field, a bad balance is refused before main, the typed balance reaches main exactly, the row reads done
 //   brief-act-forged      a row whose key no rule owns: main refuses, the toast says so, the row does not read done
+//   brief-open-workspace  (batch 10) a dirty row main offered Open workspace on shows the second button beside Commit…; one click reaches main ONCE, the Launcher's line shows in the row, the ONE launcher-workspace act is the only mark (none from brief-act); a dirty row main did not offer has no such button
 //   brief-waiting-render  the waiting-session row renders its honest text and an Open its folder button that reaches main once, and never says a title or a tool
 
 const SEC = `document.querySelector('section[aria-label="Brief: what needs you now"]')`;
@@ -23,8 +24,8 @@ export const PAGE = Object.freeze({
   click: (i, label) => `(() => { const it = [...((${SEC}) || document).querySelectorAll('[role="listitem"]')][${i}]; const b = it ? [...it.querySelectorAll('button')].find((x) => x.textContent.trim() === ${JSON.stringify(label)}) : null; if (!b) return false; b.click(); return true; })()`,
   calls: `hqFake.calls('brief.act')`,
   toasts: `JSON.stringify((WHQ.app.logic.state.toasts || []))`,
-  serve: (brief) => `(() => { const L = WHQ.app.logic; hqFake.set('brief.read', { brief: ${JSON.stringify(brief)} }); L.setState({ brfBusy: false, batOpen: null, batBal: '', batBusy: false, batDone: {}, toasts: [] }); L._brfBusy = false; L._batBusy = false; WHQ.store.refreshBrief(); L.go('home'); return true; })()`,
-  reset: `(() => { hqFake.reset(true); const L = WHQ.app.logic; L.setState({ brfBusy: false, batOpen: null, batBal: '', batBusy: false, batDone: {}, toasts: [], commit: null }); L._brfBusy = false; L._batBusy = false; WHQ.store.refreshBrief(); L.go('home'); return true; })()`,
+  serve: (brief) => `(() => { const L = WHQ.app.logic; hqFake.set('brief.read', { brief: ${JSON.stringify(brief)} }); L.setState({ brfBusy: false, batOpen: null, batBal: '', batBusy: false, batDone: {}, batLine: {}, toasts: [] }); L._brfBusy = false; L._batBusy = false; WHQ.store.refreshBrief(); L.go('home'); return true; })()`,
+  reset: `(() => { hqFake.reset(true); const L = WHQ.app.logic; L.setState({ brfBusy: false, batOpen: null, batBal: '', batBusy: false, batDone: {}, batLine: {}, toasts: [], commit: null }); L._brfBusy = false; L._batBusy = false; WHQ.store.refreshBrief(); L.go('home'); return true; })()`,
 });
 
 const item = (key, severity, text, action, extra) => Object.assign({ key, rule: key.split(':')[0], severity, text, why: 'Placeholder reason.', source: 'scan', age: 'scan 1 h ago', action, count: 0 }, extra || {});
@@ -33,6 +34,7 @@ export const briefOf = (items) => ({ v: 1, generatedAt: '2026-11-05T09:00:00.000
 export const ITEMS = Object.freeze({
   quest: item(QUEST, 'high', 'Acme: rotate the leaked key', { kind: 'go', tab: 'tasks' }),
   stale: item(STALE, 'med', 'Confirm Cash — last confirmed 9 days ago', { kind: 'go', tab: 'money', sub: 'today' }, { source: 'money', age: 'live' }),
+  dirtyOffered: item(DIRTY, 'low', 'Project A has 12 uncommitted files', { kind: 'go', tab: 'projects', projectId: 'p1' }, { secondary: ['open-workspace'] }),
   dirty: item(DIRTY, 'low', 'Project A has 12 uncommitted files', { kind: 'go', tab: 'projects', projectId: 'p1' }),
   wait: item(WAIT, 'med', 'Acme Studio: a Claude session has waited on a tool for 40 min', { kind: 'go', tab: 'claude', sub: 'sessions' }, { source: 'claude-code', age: 'sessions board', why: 'It may be a long-running tool or a permission prompt. Check its own terminal window.' }),
 });
@@ -128,6 +130,34 @@ export function makeBriefActScenarios({ fresh, sleep }) {
         if (!await t.waitFor(`${PAGE.calls}.length >= 1`, 3000)) return out.concat('the click never reached the bridge');
         if (!await t.waitFor(`${PAGE.toasts}.includes('not on the brief any more')`, 3000)) out.push('main’s refusal was not shown: ' + await t.evaluate(PAGE.toasts));
         if (await t.evaluate(`${PAGE.texts}[0].includes('clears when the next scan confirms')`)) out.push('a refused row reads done');
+        out.push(...t.errors());
+      } finally { await leave(t); }
+      return out;
+    },
+
+    async 'brief-open-workspace'(t) {
+      const pre = await fresh(t); if (pre) return pre;
+      const out = [];
+      try {
+        // the dirty row main did NOT offer the verb on: Commit… only
+        if (!await show(t, [ITEMS.quest, ITEMS.dirty])) return ['the Brief never rendered the two placeholder rows'];
+        if (await t.evaluate(PAGE.btn(1, 'Open workspace') + ' ? true : false')) out.push('an unoffered dirty row shows Open workspace');
+        if (!await t.evaluate(PAGE.btn(1, 'Commit…') + ' ? true : false')) out.push('the dirty row lost Commit…');
+        // the dirty row main offered it on: the second button beside Commit…
+        if (!await show(t, [ITEMS.quest, ITEMS.dirtyOffered])) return out.concat('the Brief never rendered the offered row');
+        if (await t.evaluate(PAGE.btn(0, 'Open workspace') + ' ? true : false')) out.push('the quest row shows Open workspace');
+        if (!await t.evaluate(PAGE.btn(1, 'Commit…') + ' ? true : false')) out.push('the offered row lost Commit…');
+        if (!await t.evaluate(PAGE.btn(1, 'Open workspace') + ' ? true : false')) return out.concat('the offered row has no Open workspace button: ' + JSON.stringify(await t.evaluate(PAGE.texts)));
+        await t.evaluate(PAGE.click(1, 'Open workspace'));
+        if (!await t.waitFor(`${PAGE.calls}.length >= 1`, 3000)) return out.concat('Open workspace never reached main');
+        await pause(250);
+        const calls = await t.evaluate(`${PAGE.calls}.map((c) => c.args)`);
+        if (JSON.stringify(calls) !== JSON.stringify([[DIRTY, 'open-workspace']])) out.push('hq.brief.act calls ' + JSON.stringify(calls) + ', want exactly one open-workspace for ' + DIRTY);
+        if (!await t.waitFor(`${PAGE.texts}[1].includes('Dev server started. Terminal opened.')`, 3000)) out.push('the row does not show the Launcher line: ' + (await t.evaluate(PAGE.texts))[1]);
+        if (await t.evaluate(`${PAGE.texts}[1].includes('clears when the next scan confirms')`)) out.push('a launch was written as a done-and-clears row');
+        const marks = await t.evaluate(`hqFake.calls('use').map((c) => c.args.join('/'))`);
+        if (JSON.stringify(marks) !== JSON.stringify(['launcher-workspace/act'])) out.push('use marks ' + JSON.stringify(marks) + ', want exactly launcher-workspace/act');
+        if (await t.evaluate(`${PAGE.toasts}.includes('Not done')`)) out.push('the click raised an error toast');
         out.push(...t.errors());
       } finally { await leave(t); }
       return out;

@@ -330,3 +330,12 @@ test('the Crew Start and the Vault desk capture send exactly (surface, action): 
   assert.equal(await self.vdkCapture(LINE), false);
   assert.equal(calls.length, before);
 });
+
+test('batch 10: Open workspace is a marks:false verb: the renderer sends no mark, and a refusal marks nothing either', async () => {
+  const ok = batRig({ act: async () => ({ ok: true, workspace: { ok: true, line: 'Dev server started.' } }) });
+  assert.equal(await ok.self.batRun({ ...rowOf('dirty'), secondary: ['open-workspace'] }, 'open-workspace'), true);
+  assert.deepEqual(ok.sent, [], 'main (the Launcher) writes the one launcher-workspace act');
+  const no = batRig({ act: async () => ({ error: 'this project’s dev command is not allowed right now — nothing was opened.' }) });
+  assert.equal(await no.self.batRun({ ...rowOf('dirty'), secondary: ['open-workspace'] }, 'open-workspace'), false);
+  assert.deepEqual(no.sent, []);
+});

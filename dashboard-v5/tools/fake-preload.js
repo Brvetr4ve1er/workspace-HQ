@@ -927,7 +927,7 @@ function createFake(opts) {
     // commit answers { open:'commit', projectId: 'p1' }, open-folder answers { ok }.
     ['brief.act', (key, verb, value) => {
       if ((verb === 'quest-done' || verb === 'confirm-balance') && actedKeys.has(key)) return { error: 'already done — the row clears when the next scan confirms.' };   // main's repeat refusal
-      const VERBS = { 'quest-red': ['quest-done'], 'money-stale': ['confirm-balance'], dirty: ['commit'], 'session-left-dirty': ['commit'], 'session-waiting': ['open-folder'] };
+      const VERBS = { 'quest-red': ['quest-done'], 'money-stale': ['confirm-balance'], dirty: ['commit', 'open-workspace'], 'session-left-dirty': ['commit'], 'session-waiting': ['open-folder'] };
       const rule = typeof key === 'string' ? key.split(':')[0] : '';
       if (!Object.prototype.hasOwnProperty.call(VERBS, rule)) return { error: 'that item is not on the brief any more.' };
       if (!VERBS[rule].includes(verb)) return { error: 'that action is not offered for this item.' };
@@ -935,6 +935,8 @@ function createFake(opts) {
       // main writes the use mark (dashboard/brief-act.js): act for a fact-changing verb, handover for commit, nothing for open-folder
       if (verb === 'commit') { record('use', ['brief-act', 'handover']); return { ok: true, open: 'commit', projectId: 'p1' }; }
       if (verb === 'open-folder') return { ok: true };
+      // Open workspace: main calls the Launcher, which writes the ONE 'launcher-workspace' act and answers its own result line; the verb itself marks nothing
+      if (verb === 'open-workspace') { record('use', ['launcher-workspace', 'act']); return { ok: true, workspace: { ok: true, line: 'Dev server started. Editor opened. Terminal opened.' } }; }
       actedKeys.add(key);
       record('use', ['brief-act', 'act']);
       return { ok: true, acted: { verb, at: new Date().toISOString() } };

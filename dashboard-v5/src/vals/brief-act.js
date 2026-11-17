@@ -3,7 +3,7 @@
 // reads them as i.batXxx inside the existing sc-for). briefActVals(ctx) is the panel-wide busy mirror: NOT registered in vals/index.js (the template reads the per-row i.batBusy; registering it would add a key to every golden scenario).
 // Honest states: no bridge or an unknown rule gives no verb at all (never a dead button); acted: the row says "done ... clears when the
 // next scan confirms" and offers nothing more; the inline balance field exists only for money-stale.
-import { verbFor, needsConfirm, VERB_LABEL, CONFIRM_TEXT, actedText } from '../logic/brief-act.js';
+import { verbFor, secondaryFor, needsConfirm, VERB_LABEL, CONFIRM_TEXT, actedText, LINE_TTL_MS } from '../logic/brief-act.js';
 
 const fn = () => {};
 
@@ -17,7 +17,17 @@ export function briefActRow(item, ctx = {}) {
   const said = acted ? actedText(acted, typeof ctx.nowMs === 'number' ? ctx.nowMs : Date.now()) : '';
   const confirming = !!verb && !said && S.batOpen === key && needsConfirm(verb);
   const balance = confirming && verb === 'confirm-balance';
+  // the second button and the Launcher's result line live under ONE per-row key, `verbs` (the golden moves only there)
+  const sec = can && key && !said ? secondaryFor(item) : null;
+  const ln = key && S.batLine && S.batLine[key] ? S.batLine[key] : null;
+  const nowMs = typeof ctx.nowMs === 'number' ? ctx.nowMs : Date.now();
+  const lineOn = !!ln && typeof ln.text === 'string' && ln.text !== '' && nowMs - Number(ln.at || 0) < LINE_TTL_MS;
+  const verbs = {
+    secHas: !!sec && !confirming, secLabel: sec ? VERB_LABEL[sec] : '', sec: sec ? () => this.batStartSecondary(item) : fn,
+    lineGood: lineOn && !ln.bad, lineBad: lineOn && !!ln.bad, line: lineOn ? ln.text : '',
+  };
   return {
+    verbs,
     batHasVerb: !!verb && !said && !confirming,
     batVerbLabel: verb ? VERB_LABEL[verb] : '',
     batVerb: verb ? () => this.batStart(item) : fn,
