@@ -4,7 +4,7 @@ Append-only, **newest entry on top**. Entry format (keep it under ~15 lines):
 
 ```
 ## 2026-11-17 · FROM frontend (batch 9, dish "amended freeze wording") · main (not pushed)
-DONE: the owner's amended freeze wording is in CLAUDE.md line 3, README's Freeze rule paragraph and `tools/thesis.test.mjs` (patterns replaced by the eight in the plan: freeze rule, no new space, no new MCP tool, views inside an existing space are allowed, one stage at a time, the use report is read before every stage, the next stage waits for the previous act bar, fewer than 3 uses in 14 days is deleted; fixtures follow). README keeps "nothing is deleted without a yes", so a deletion under the new rule still needs the owner's yes. Test: `node --test tools/thesis.test.mjs` 5/0. No code, no golden, no other doc touched. IN-FLIGHT: none. ASKS: none. BREAKS: none.
+DONE: the owner's amended freeze wording is in CLAUDE.md line 3, README's Freeze rule paragraph and `tools/thesis.test.mjs` (patterns replaced by the eight in the plan: freeze rule, no new space, no new MCP tool, views inside an existing space are allowed, one stage at a time, the use report is read before every stage, the next stage waits for the previous act bar, fewer than 3 uses in 14 days is deleted; fixtures follow). README keeps "nothing is deleted without a yes", so a deletion under the new rule still needs the owner's yes. Test: `node --test tools/thesis.test.mjs` 5/0. Full gate `node tools/gates.mjs` green after the last code commit: main 1892/0, hub 205/0, money 261/0, cosmos 473/0, renderer 1921/0 (1 skip), tools 279/0 (1 skip), selftest combos 3625 0/0/0, cdp 170/170; no flakes, no golden change. No code, no golden, no other doc touched. IN-FLIGHT: none. ASKS: none. BREAKS: none.
 
 ---
 
