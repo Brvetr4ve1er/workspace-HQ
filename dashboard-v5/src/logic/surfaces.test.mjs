@@ -9,6 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Component } from '../app.js';
+import { hashShown } from './dev-allow.mjs';
 import { createStore } from '../live/store.js';
 import { proj, scan, spell, spellbook, telemetry } from '../live/__fixtures__/synthetic.mjs';
 import tasksTpl from '../tpl/tasks.tpl.js';
@@ -74,6 +75,7 @@ function fakeHq(o = {}) {
     actedOn: rec('actedOn', true),
     markQuestDone: rec('markQuestDone', true),
     devStart: rec('devStart', or('devStart', true)),
+    devAllow: rec('devAllow', or('devAllow', 'allowed')),
     devStop: rec('devStop', true),
     openRepo: rec('openRepo', or('openRepo', '')),
     openFile: rec('openFile', ''),
@@ -207,6 +209,78 @@ test('Start dev: devStart false → honest toast; true → "starting"', async (t
   c = make(fakeHq({ devStart: true }), page('a'));
   await c.renderVals().pg.dev();
   assert.ok(hasToast(c, 'success', 'Dev server starting · npm run dev -- --port 5173'), toasts(c).join('\n'));
+});
+
+// ---- batch 9: the dev command as an argument list; the owner's Allow ---------------------------------
+test('Start dev: an unconfirmed command shows the text with one "Allow and run"; that click allows (with the hash of the text shown) and starts', async (t) => {
+  timers(t);
+  let first = true;
+  const hq = fakeHq({ devStart: 'unconfirmed' });
+  hq.devStart = (id) => { hq.calls.push(['devStart', id]); const r = first ? 'unconfirmed' : 'started'; first = false; return Promise.resolve(r); };
+  const c = make(hq, page('a'));
+  assert.match(c.renderVals().pg.devLabel, /Start dev/);
+  await c.renderVals().pg.dev();
+  assert.ok(hasToast(c, 'info', 'not allowed yet'), toasts(c).join('\n'));
+  let pg = c.renderVals().pg;
+  assert.equal(pg.devLabel, '▶ Allow and run');
+  assert.match(pg.resumeHint, /^Allow and run “npm run dev -- --port 5173”\? It runs this project’s own scripts\./);
+  assert.ok(!hq.calls.some((x) => x[0] === 'devAllow'), 'nothing is allowed by the first click');
+  await pg.dev();
+  const allow = hq.calls.find((x) => x[0] === 'devAllow');
+  assert.deepEqual(allow, ['devAllow', 'a', hashShown('npm run dev -- --port 5173')]);
+  assert.equal(hq.calls.filter((x) => x[0] === 'devStart').length, 2, 'the same click starts it');
+  assert.ok(hasToast(c, 'success', 'Dev server starting · npm run dev -- --port 5173'), toasts(c).join('\n'));
+  assert.match(c.renderVals().pg.devLabel, /Start dev/, 'the ask is gone once it started');
+});
+
+test('Allow and run: a scan that changed the text since it was shown says so and stores nothing', async (t) => {
+  timers(t);
+  const hq = fakeHq({ devStart: 'unconfirmed', devAllow: 'changed' });
+  const c = make(hq, page('a'));
+  await c.renderVals().pg.dev();
+  await c.renderVals().pg.dev();
+  assert.ok(hasToast(c, 'info', 'The scan changed this command'), toasts(c).join('\n'));
+  assert.equal(hq.calls.filter((x) => x[0] === 'devStart').length, 1, 'no start after a changed answer');
+  assert.match(c.renderVals().pg.devLabel, /Start dev/);
+});
+
+test('a refused command says why in the owner’s words; busy says the hour is used', async (t) => {
+  timers(t);
+  let c = make(fakeHq({ devStart: 'refused' }), page('a'));
+  await c.renderVals().pg.dev();
+  assert.ok(hasToast(c, 'error', 'Can’t run this one: it needs a runner or syntax I don’t run; open the terminal.'), toasts(c).join('\n'));
+  c = make(fakeHq({ devStart: 'busy' }), page('a'));
+  await c.renderVals().pg.dev();
+  assert.ok(hasToast(c, 'error', 'Too many dev server starts this hour'), toasts(c).join('\n'));
+  c = make(fakeHq({ devStart: 'running' }), page('a'));
+  await c.renderVals().pg.dev();
+  assert.ok(hasToast(c, 'success', 'Dev server already running'), toasts(c).join('\n'));
+});
+
+test('a leftover server (running, but not on the live list) turns the button into an owner-click Stop', async (t) => {
+  timers(t);
+  const hq = fakeHq({ devStart: 'running' });
+  const c = make(hq, page('a'));
+  await c.renderVals().pg.dev();
+  assert.equal(c.renderVals().pg.devLabel, '■ Stop leftover server');
+  const stopped = [];
+  c.stopDev = async (id) => { stopped.push(id); };
+  await c.renderVals().pg.dev();
+  assert.deepEqual(stopped, ['a']);
+  assert.match(c.renderVals().pg.devLabel, /Start dev/);
+});
+
+test('Resume skips an unconfirmed dev step with "not allowed yet" and a refused one with the plain reason', async (t) => {
+  timers(t);
+  const c = make(fakeHq({ devStart: 'unconfirmed' }), page('a'));
+  await c.renderVals().pg.resume();
+  const text = toasts(c).join('\n');
+  assert.match(text, /Opened the folder/);
+  assert.match(text, /dev server: not allowed yet/i);
+  assert.equal(c.renderVals().pg.devLabel, '▶ Allow and run', 'Resume leaves the ask on the button');
+  const r = make(fakeHq({ devStart: 'refused' }), page('a'));
+  await r.renderVals().pg.resume();
+  assert.match(toasts(r).join('\n'), /can’t run the dev command: it needs a runner or syntax I don’t run/i);
 });
 
 test('Stop dev goes through stopDev when the hydrated LIVE.dev says it runs', async (t) => {

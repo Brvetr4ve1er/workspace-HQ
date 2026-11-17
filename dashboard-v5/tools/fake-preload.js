@@ -812,6 +812,7 @@ function createFake(opts) {
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
   let macOn = false;   // the Money-access switch (hq.moneyAccess); control.reset puts it back off
+  const devAllowed = new Set();   // projects whose dev command the owner allowed in this fake session (main keeps this in data/launcher); control.reset empties it
   const actedKeys = new Set();   // Brief rows whose fact-changing verb already took effect (main refuses a repeat); control.reset empties it
   let SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the Security fake (state: edits, ticks, trashed files); control.reset re-creates it
   const SPEC = [
@@ -851,7 +852,7 @@ function createFake(opts) {
     ['healthScan', () => ({ organs: [] })], ['healthFix', () => ({ ok: true, output: 'fake fix ran' })], ['pcOpenFolder', () => true], ['githubRefresh', () => ({ state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' })], ['githubOpen', () => true], ['accountsRefresh', () => ({ v: 1, vercel: { state: 'signed-out', at: '2026-01-01T00:00:00.000Z', error: 'fake' }, supabase: { state: 'no-cli', at: '2026-01-01T00:00:00.000Z', error: 'fake' } })], ['accountsOpen', () => true], ['vaultOpen', (name, how) => ({ ok: true, how })],
     ['getSessions', () => []], ['sessionStart', () => ({ jobId: 'j-fake' })], ['sessionKill', WRITE],
     ['sessionDiff', () => ({ files: [], stat: '' })], ['onSessionOutput', 'on:hq:session-output'], ['onClaudeSessions', 'on:hq:claude-sessions'],
-    ['devStart', WRITE], ['devStop', WRITE], ['saveNote', WRITE], ['onDevStatus', 'on:hq:dev-status'],
+    ['devStart', (id) => (devAllowed.has(id) ? 'started' : 'unconfirmed')], ['devAllow', (id) => { devAllowed.add(id); return 'allowed'; }], ['devStop', WRITE], ['saveNote', WRITE], ['onDevStatus', 'on:hq:dev-status'],
     ['castSpell', cast], ['cancelCast', WRITE], ['getSpellbook', () => ({ spells: [] })], ['favoriteSpell', WRITE], ['rescanSpellbook', () => ({ ok: true })],
     ['getSpellTelemetry', () => ({ casts: [], favorites: [], confirmed_hashes: {} })], ['hideCastPalette', WRITE],
     ['onCastOutput', 'on:hq:cast-output'], ['onCastDone', 'on:hq:cast-done'],
@@ -961,7 +962,7 @@ function createFake(opts) {
     // END console-control
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; actedKeys.clear(); DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; actedKeys.clear(); devAllowed.clear(); DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }

@@ -29,6 +29,8 @@ const CLEAR = { dlxRoom: false, dlxRun: false, /* batch 7: the back room is shut
   macOn: false, macLoaded: false, macAskedAt: null, macBusy: false, macErr: '',
   // Home › Where today went: back to today before every combo
   tdyOffset: 0, tdyNamesAt: 0,
+  // the dev button's ask (Allow and run / leftover Stop), back to none before every combo
+  devAsk: {},
   // Brief history: the ledger answer as main last said it, back to unloaded before every combo
   bhsLoaded: false, bhsData: null, bhsErr: '', bhsBusy: false };
 const RESTORE = Object.keys(CLEAR).concat(['tab', 'sub', 'route', 'snapOffset', 'themePref', 'sound', 'askHistory', 'askInclude', 'askDraft', 'confirmAsk', 'commitSel', 'diagTab', 'journalDraft']);
@@ -166,6 +168,7 @@ export async function run(W = window.WHQ) {
       const cleanText = clutter ? 'Clean up: ' + clutter.rows[0].label : '';
       const gapP = M.P0.find((p) => gapsOf(p).length);
       const gapText = gapP ? gapsOf(gapP)[0].text : '';
+      const devP = M.P0.find((p) => p.dev);   // batch 9: the dev button's states on a project that has a scanned dev command
       const inter = (M.INTERACTIVE || [])[0];
       // H1 Claude Hub card (System > Machine): every state the Hub can be in, injected into the store (never window.hq).
       // The card shows only with a bridge: dev-main.js --preload=fake, or the real app (without one these render it hidden).
@@ -208,6 +211,10 @@ export async function run(W = window.WHQ) {
         ...['saving', 'noted', 'failed'].map((st) => cleanText && ['clutter-' + st, at('system', 'clutter'), { sysSaves: { [cleanText]: st } }]),
         ['project-security', at('projects', 'grid', (M.P0[0] || {}).id), { diagTab: 'security' }],
         ...['saving', 'noted', 'failed'].map((st) => gapP && ['project-gaps-' + st, at('projects', 'grid', gapP.id), { sysSaves: { [gapText]: st } }]),
+        // the dev command as an argument list (logic/dev-allow.mjs): main said 'unconfirmed' (Allow and run + the command text), or a leftover server is alive (owner-click Stop)
+        devP && ['project-dev-allow', at('projects', 'grid', devP.id), { devAsk: { [devP.id]: { kind: 'allow', text: devP.dev, hash: '0a1b2c3d' } } }],
+        devP && ['project-dev-allow-long', at('projects', 'grid', devP.id), { devAsk: { [devP.id]: { kind: 'allow', text: 'npm run dev -- --port 5173 ' + 'x'.repeat(150), hash: '0a1b2c3d' } } }],
+        devP && ['project-dev-leftover', at('projects', 'grid', devP.id), { devAsk: { [devP.id]: { kind: 'orphan' } } }],
         ['auto-interactive', at('automations', 'runnable'), { libKind: 'interactive' }],
         ['auto-skills', at('automations', 'runnable'), { libSource: 'skill', libShow: 400 }],
         ['auto-category', at('automations', 'runnable'), { libSchool: (M.AUTOS[0] || {}).cat || 'Other' }],

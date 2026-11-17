@@ -109,6 +109,7 @@ export class Component extends DCLogic {
       // What's new · trailers (logic/whats-new.js): open, and trailers whose video failed to play (id → true)
       whatsNewOpen: false, whatsNewMissing: {},
       vault: null,   // Save to vault dialog (Claude Hub H5, logic/claude-vault.js)
+      devAsk: {},    // project id -> { kind:'allow', text, hash } | { kind:'orphan' }: what the dev button offers after main said 'unconfirmed' or a leftover is alive (vals/project-page.js; not saved)
       // Phase 3 surface state (contract K-4; each reader also treats undefined as these defaults):
       // System (logic/system.js): Re-examine running · per-capture-text save state ('saving'|'noted'|'failed')
       sysExamining: false, sysSaves: {},

@@ -1,6 +1,7 @@
 // Project page render values ("pg") and its journal composer.
 import { FX, normText } from '../logic/shared.js';
 import { gapsOf } from '../live/adapter.mjs';
+import { hashShown, startAnswer, REFUSED_TEXT, NOT_ALLOWED_TEXT, BUSY_TEXT, ALLOW_NOTE } from '../logic/dev-allow.mjs';
 
 // the same text twice in Next is one item: case, spacing and trailing punctuation don't count
 // (logic/shared.js normText, the key the capture buttons use too)
@@ -65,14 +66,35 @@ function projectPage(p, { off, live, tasks, cantWrite, tabStyle, actText, viewed
   // shell.openPath answers '' on success and an error string on failure; main answers false when it refuses
   const opened = (r) => r !== null && r !== false && !(typeof r === 'string' && r);
   const openFailed = (r, what) => { if (r !== null && !opened(r)) this.toast('error', 'Couldn’t open ' + what + (typeof r === 'string' && r ? ' · ' + r : '')); };
-  // main answers true when it spawned the dev command, false when it didn't (already running, no
-  // command, bad path) · null = it threw, and the toast here already said why
+  // main answers a fixed word (logic/dev-allow.mjs): started · running · unconfirmed (the owner has not allowed this command yet) · refused · busy.
+  // An older main answered true/false. null = it threw, and the toast here already said why. 'unconfirmed' and a leftover 'running' remember
+  // what to offer in S.devAsk[id]; nothing in the scan text runs until the owner's click on "Allow and run".
+  const ask = (S.devAsk || {})[p.id] || null;
+  const setAsk = (v) => this.setState((s) => ({ devAsk: { ...(s.devAsk || {}), [p.id]: v } }));
   const startDev = async () => {
     if (!this.hq || !this.hq.devStart) { this.notWired('Starting dev servers'); return null; }
-    try { return (await this.hq.devStart(p.id)) === true; }
+    let raw;
+    try { raw = await this.hq.devStart(p.id); }
     catch (e) { this.toast('error', 'Dev server didn’t start · ' + ((e && e.message) || e)); return null; }
+    const w = startAnswer(raw);
+    if (w === 'started' || w === 'running') { if (ask) setAsk(null); }
+    if (w === 'running' && !devOn) setAsk({ kind: 'orphan' });   // alive but not ours to show as running: offer an owner-click Stop
+    if (w === 'unconfirmed') setAsk({ kind: 'allow', text: p.dev, hash: hashShown(p.dev) });
+    return w;
   };
   const DEV_NO = 'Dev server didn’t start — it may already be running';
+  const devWhy = (w) => (w === 'unconfirmed' ? 'Dev server: ' + NOT_ALLOWED_TEXT : w === 'refused' ? REFUSED_TEXT : w === 'busy' ? BUSY_TEXT : DEV_NO);
+  // the owner's Allow: main stores it only when the text shown still equals the current scan, then the same click starts it
+  const allowAndRun = async () => {
+    if (!this.hq || !this.hq.devAllow) { this.notWired('Allowing a dev command'); return null; }
+    let a;
+    try { a = await this.hq.devAllow(p.id, (ask && ask.hash) || hashShown(p.dev)); }
+    catch (e) { this.toast('error', 'Couldn’t allow the command · ' + ((e && e.message) || e)); return null; }
+    if (a === 'changed') { setAsk(null); this.toast('info', 'The scan changed this command. Look at the new one and allow it again.'); return 'changed'; }
+    if (a !== 'allowed') { this.toast('error', a === 'busy' ? 'Too many allows this hour. Try again later.' : REFUSED_TEXT); return 'refused'; }
+    setAsk(null);
+    return startDev();
+  };
   const diagTabs = [['git', 'Git'], ['security', 'Security'], ['standing', 'Standing'], ['insights', 'Insights'], ['roadmap', 'Roadmap']].map(([id, l]) => ({ label: l, go: () => this.setState({ diagTab: id }), style: Object.assign(tabStyle(S.diagTab === id), { height: 30, padding: '0 9px', fontSize: 12 }) }));
   const ins = p.insights.length ? p.insights.slice(0, 4).map((i) => ['Insight', i.text, i.severity === 'danger' ? 'var(--red)' : i.severity === 'warning' ? 'var(--orange)' : 'var(--text)', true]) : [['Insight', 'No insights in this snapshot', 'var(--muted)', false]];
   const road = p.roadmap.length ? p.roadmap.slice(0, 3).flatMap((r) => [[r.status === 'done' ? 'Done' : r.status === 'in_progress' ? 'In progress' : 'Planned', r.milestone + (r.pct != null ? ' · ~' + r.pct + '%' : ''), 'var(--text)', true]].concat(r.items.length ? [['Items', r.items.slice(0, 4).join(' · '), 'var(--muted)', true]] : [])) : [['Roadmap', 'No roadmap in this snapshot', 'var(--muted)', false]];
@@ -101,22 +123,24 @@ function projectPage(p, { off, live, tasks, cantWrite, tabStyle, actText, viewed
       const done = [], failed = [];
       const folder = await this.call(() => this.hq.openRepo(p.path), 'Couldn’t open the folder');
       if (opened(folder)) done.push('Opened the folder'); else failed.push('Couldn’t open the folder');
-      if (p.dev && !devOn) { const r = await startDev(); if (r) done.push('started ' + p.dev); else failed.push(r === false ? DEV_NO : 'Dev server didn’t start'); }
+      if (p.dev && !devOn) { const r = await startDev(); if (r === 'started' || r === 'running') done.push((r === 'running' ? 'dev server already running · ' : 'started ') + p.dev); else if (r === 'unconfirmed') failed.push('dev server: ' + NOT_ALLOWED_TEXT); else if (r === 'refused') failed.push('can’t run the dev command: it needs a runner or syntax I don’t run'); else failed.push(r === null ? 'Dev server didn’t start' : r === 'busy' ? 'too many dev server starts this hour' : DEV_NO); }
       if (p.recent[0] && this.hq.openFile) { const f = await this.call(() => this.hq.openFile(p.path, p.recent[0]), 'Couldn’t open ' + p.recent[0]); if (opened(f)) done.push('opened ' + p.recent[0]); else failed.push('couldn’t open ' + p.recent[0]); }
       const text = done.concat(failed).map((s, i) => (i ? s.charAt(0).toLowerCase() : s.charAt(0).toUpperCase()) + s.slice(1)).join(' · ');
       this.toast(!failed.length ? 'success' : done.length ? 'info' : 'error', text, { ms: failed.length ? 6000 : 3600 });
       if (done.length) FX().event('cheer', 'Back to work!');
     },
-    resumeHint: 'Resume opens the folder' + (p.dev ? ', starts ' + p.dev : '') + (p.recent[0] ? ' and opens ' + p.recent[0] : '') + '.',
+    resumeHint: ask && ask.kind === 'allow' ? 'Allow and run “' + ask.text + '”? ' + ALLOW_NOTE + ' Resume skips it until you allow it.' : 'Resume opens the folder' + (p.dev ? ', starts ' + p.dev + ' once you have allowed it' : '') + (p.recent[0] ? ' and opens ' + p.recent[0] : '') + '.',
     // the commit preview decides what is in the set, so a clean scan doesn't disable it
     dirty: p.dirty || 0, cantCommit: cantWrite || !p.hasGit, commit: () => this.openCommit(p.id),
-    devLabel: p.dev ? (devOn ? '■ Stop' + (p.port ? ' :' + p.port : '') : '▶ Start dev') : 'No dev command', noDev: cantWrite || !p.dev,
+    devLabel: p.dev ? (devOn ? '■ Stop' + (p.port ? ' :' + p.port : '') : ask && ask.kind === 'orphan' ? '■ Stop leftover server' : ask && ask.kind === 'allow' ? '▶ Allow and run' : '▶ Start dev') : 'No dev command', noDev: cantWrite || !p.dev,
     dev: async () => {
       if (!can()) return;
       if (devOn) return this.stopDev(p.id);
-      const r = await startDev();
-      if (r) this.toast('success', 'Dev server starting · ' + p.dev);
-      else if (r === false) this.toast('error', DEV_NO);
+      if (ask && ask.kind === 'orphan') { await this.stopDev(p.id); setAsk(null); return; }
+      const r = ask && ask.kind === 'allow' ? await allowAndRun() : await startDev();
+      if (r === 'started' || r === 'running') this.toast('success', r === 'running' ? 'Dev server already running · ' + p.dev : 'Dev server starting · ' + p.dev);
+      else if (r === 'unconfirmed') this.toast('info', 'Dev server: ' + NOT_ALLOWED_TEXT + '. Press Allow and run to start “' + p.dev + '”.');
+      else if (r === 'refused' || r === 'busy' || r === 'failed') this.toast('error', devWhy(r));
     },
     openFolder: async () => { if (!this.hq) return; openFailed(await this.call(() => this.hq.openRepo(p.path), 'Couldn’t open the folder'), 'the folder'); },
     snapshot: () => { if (!can()) return; this.call(() => this.hq.snapshot(p.path, p.name), 'Snapshot failed'); },
