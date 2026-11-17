@@ -142,6 +142,7 @@ export async function run(W = window.WHQ) {
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
     const { workbenchInitState, workbenchStates, workbenchSeen, workbenchProblems } = await import('./selftest-workbench.mjs');   // batch 8: the Workbench look (look attribute, the red accent, the five small pictures with real numbers)
     const { consoleInitState, consoleStates, consoleSeen, consoleProblems } = await import('./selftest-console.mjs');   // Console layer: off (probe zeros), on, skin, scanlines
+    const { launcherStates, LNCH_OFFLINE_ROWS, LNCH_PAGE_ROWS } = await import('./selftest-launcher.mjs');   // batch 9: Settings > Launcher and Open workspace on the project page (invented entries)
     const { homeOneStates } = await import('./selftest-home-one.mjs');   // Home as one decision: the card follows the Brief or the fixed rules, More on Home closed and open
     const base = { askHistory: initial.askHistory };
 
@@ -439,6 +440,23 @@ export async function run(W = window.WHQ) {
               L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, dft }, extra || {}));
             });
           } finally { W.store.hq = hq6; L._dftAsked = false; L._dftExam = false; }
+        }
+        // Settings > Launcher and the project page's Open workspace (batch 9; src/selftest-launcher.mjs): every state on INVENTED entries. row[1] IS the whole lnch state; the
+        // arrival read is held (_lnchAsked) so the fake's own answer never replaces it; launcher-offline hides hq.launcher for one combo (the store's hq, never window.hq).
+        // The workspace rows open the page of a project that has a scanned dev command; Settings and the page go back to closed afterwards.
+        {
+          const hq8 = W.store.hq;
+          const lnP = M.P0.find((p) => p.dev) || M.P0[0];
+          for (const [name, lnch, extra] of launcherStates({ projectId: lnP ? lnP.id : 'a' })) {
+            try {
+              await combo([theme, 'p3:' + name].join(' '), () => {
+                if (LNCH_OFFLINE_ROWS.includes(name) && hq8) W.store.hq = Object.assign({}, hq8, { launcher: undefined });
+                L._lnchAsked = true;
+                if (LNCH_PAGE_ROWS.includes(name) && lnP) { L.go('projects', 'grid'); L.openProject(lnP.id); } else L.go('home', null);
+                L.setState(Object.assign({}, CLEAR, base, { themePref: theme, snapOffset: 0, lnch }, extra || {}));
+              });
+            } finally { W.store.hq = hq8; L._lnchAsked = false; L.setState({ settingsOpen: false, lnch: null, route: null }); }
+          }
         }
         // Settings > Memory card (batch 7; src/selftest-memory-card.mjs): every state of the card on invented kinds. row[3] IS the whole `mcd` state and row[4] opens Settings
         // with the Console layer on; the arrival read is held (_mcdAsked) so the fake's own answer never replaces the preset state; memory-offline hides hq.memory for one

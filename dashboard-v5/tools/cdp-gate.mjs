@@ -32,6 +32,8 @@
 //   crew-render · crew-start · crew-search
 // The dev command as an argument list (batch 9; --preload=fake; tools/cdp-dev-command.mjs; the fake's hq.devStart answers 'unconfirmed' until hq.devAllow, then 'started'; each scenario ends with hqFake.reset(true)):
 //   dev-start-unconfirmed · dev-start-confirmed
+// The Launcher screens (batch 9; --preload=fake; tools/cdp-launcher.mjs; the fake's hq.launcher.* answer three invented entries and the gate's own projects, sessionStorage hqFake:launcher = locked | error | refuse picks a state; each scenario ends with hqFake.reset(true) and the page on Home):
+//   launcher-render · launcher-add · launcher-remove · launcher-allow-command · launcher-open-workspace · launcher-refuse · launcher-palette · launcher-setup-row
 // The Vault desk (batch 8; --preload=fake; tools/cdp-vault-desk.mjs; the fake's hq.vaultDesk answers an invented vault with one note and twelve recent names, sessionStorage hqFake:vaultDesk picks a state; each scenario ends with hqFake.reset(true) and the state back to its default):
 //   vault-desk-read · vault-desk-capture · vault-desk-missing-note · vault-desk-open
 // The Workbench look (batch 8; --preload=fake; tools/cdp-workbench.mjs; the second Console-layer look: its sheet, the red accent, the five small pictures with real numbers, the reduced-motion rule, leaving it; each scenario ends with hqFake.reset(true) and the layer put back)
@@ -102,6 +104,7 @@ import { makeDeliveryCheckScenarios } from './cdp-delivery-check.mjs';
 import { makeClientsListScenarios } from './cdp-clients-list.mjs';
 import { makeCrewScenarios } from './cdp-crew.mjs';
 import { makeDevCommandScenarios } from './cdp-dev-command.mjs';
+import { makeLauncherScenarios } from './cdp-launcher.mjs';   // batch 9: the Launcher screens (launcher-*)
 import { makeVaultDeskScenarios } from './cdp-vault-desk.mjs';
 import { makeWorkbenchScenarios } from './cdp-workbench.mjs';   // batch 8: workbench-skin, workbench-art, workbench-reduced-motion, workbench-leave
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
@@ -2145,6 +2148,7 @@ Object.assign(SCENARIOS, makeDeliveryCheckScenarios({ fresh, sleep, settleWait }
 Object.assign(SCENARIOS, makeClientsListScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeCrewScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeDevCommandScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeLauncherScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultDeskScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeWorkbenchScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
