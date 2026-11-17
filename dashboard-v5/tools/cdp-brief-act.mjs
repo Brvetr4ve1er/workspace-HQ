@@ -148,9 +148,11 @@ export function makeBriefActScenarios({ fresh, sleep }) {
         if (await t.evaluate(PAGE.btn(0, 'Open workspace') + ' ? true : false')) out.push('the quest row shows Open workspace');
         if (!await t.evaluate(PAGE.btn(1, 'Commit…') + ' ? true : false')) out.push('the offered row lost Commit…');
         if (!await t.evaluate(PAGE.btn(1, 'Open workspace') + ' ? true : false')) return out.concat('the offered row has no Open workspace button: ' + JSON.stringify(await t.evaluate(PAGE.texts)));
+        await t.evaluate(`(${PAGE.btn(1, 'Open workspace')}).focus()`);
         await t.evaluate(PAGE.click(1, 'Open workspace'));
         if (!await t.waitFor(`${PAGE.calls}.length >= 1`, 3000)) return out.concat('Open workspace never reached main');
         await pause(250);
+        if (!await t.evaluate(`(document.activeElement && document.activeElement.textContent || '').includes('Open workspace')`)) out.push('keyboard focus left the Open workspace button after the run');
         const calls = await t.evaluate(`${PAGE.calls}.map((c) => c.args)`);
         if (JSON.stringify(calls) !== JSON.stringify([[DIRTY, 'open-workspace']])) out.push('hq.brief.act calls ' + JSON.stringify(calls) + ', want exactly one open-workspace for ' + DIRTY);
         if (!await t.waitFor(`${PAGE.texts}[1].includes('Dev server started. Editor opened. Terminal opened.')`, 3000)) out.push('the row does not show the Launcher line: ' + (await t.evaluate(PAGE.texts))[1]);

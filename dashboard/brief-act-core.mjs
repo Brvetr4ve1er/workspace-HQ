@@ -139,7 +139,7 @@ export function planAct(req, ctx) {
     if (!projectId) return { error: 'this item does not name a project to open.' };
     // the id is looked up again in the live scan, and the dev command must be allowed right now (main read it a moment ago)
     if (!src || !arr(src.projects).some((p) => isObj(p) && p.id === projectId)) return { error: GONE };
-    if (c.devAllowed !== true) return { error: 'this project’s dev command is not allowed right now — nothing was opened.' };
+    if (c.devAllowed !== true) return { error: 'this project’s dev command is not allowed right now — nothing was opened. Allow it under Settings > Launcher, then try again.' };
     return { ok: true, rule: item.rule, item, plan: { kind: 'open-workspace', projectId } };
   }
   if (!src) return { error: 'the live records could not be read — try again after the next scan.' };

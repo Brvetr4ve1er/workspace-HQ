@@ -319,3 +319,8 @@ test('the second-button template is plain dc-lite and says nothing outbound', ()
   assert.match(batSecondary, /i\.verbs\.secHas/);
   assert.ok(!/\b(push|send|post)\b/i.test(batSecondary));
 });
+
+test('the second button stays focusable while main works (aria-disabled, never the disabled attribute)', () => {
+  assert.match(batSecondary, /aria-disabled="\{\{ i\.batBusy \}\}"/);
+  assert.ok(!/\sdisabled=/.test(batSecondary));
+});

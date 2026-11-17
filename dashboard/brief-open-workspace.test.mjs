@@ -61,6 +61,7 @@ test('planAct: allowed + project in the scan = a plan with the id; not allowed, 
   const key = 'dirty:proj-a:12';
   assert.deepEqual(planAct({ key, verb: 'open-workspace' }, ctx()).plan, { kind: 'open-workspace', projectId: 'proj-a' });
   assert.match(planAct({ key, verb: 'open-workspace' }, ctx({ devAllowed: false })).error, /not allowed right now/);
+  assert.match(planAct({ key, verb: 'open-workspace' }, ctx({ devAllowed: false })).error, /Settings > Launcher, then try again/);
   assert.match(planAct({ key, verb: 'open-workspace' }, ctx({ devAllowed: undefined })).error, /not allowed right now/);
   assert.match(planAct({ key, verb: 'open-workspace' }, ctx({ sources: { projects: [{ id: 'other' }] } })).error, /no longer matches/);
   assert.match(planAct({ key, verb: 'open-workspace' }, ctx({ sources: null })).error, /no longer matches/);

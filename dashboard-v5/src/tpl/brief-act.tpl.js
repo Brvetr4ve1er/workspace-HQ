@@ -10,7 +10,7 @@ const INPUT = 'flex:1 1 160px;min-width:0;height:28px;padding:0 10px;background:
 
 export const batButton = String.raw`<sc-if value="{{ i.batHasVerb }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ i.batVerb }}" disabled="{{ i.batBusy }}" style="${BTN}" ${BTN_HOVER}>{{ i.batVerbLabel }}</button></sc-if>`;
 
-export const batSecondary = String.raw`<sc-if value="{{ i.verbs.secHas }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ i.verbs.sec }}" disabled="{{ i.batBusy }}" style="${BTN}" ${BTN_HOVER}>{{ i.verbs.secLabel }}</button></sc-if>`;
+export const batSecondary = String.raw`<sc-if value="{{ i.verbs.secHas }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ i.verbs.sec }}" aria-disabled="{{ i.batBusy }}" style="${BTN}" ${BTN_HOVER}>{{ i.verbs.secLabel }}</button></sc-if>`;
 
 export default String.raw`                          <!-- v5: Brief act — the row's one local verb: the done line, or its inline confirm -->
                           <sc-if value="{{ i.verbs.lineGood }}" hint-placeholder-val="{{ false }}"><div role="status" style="font-size:12px;color:var(--green)">{{ i.verbs.line }}</div></sc-if>

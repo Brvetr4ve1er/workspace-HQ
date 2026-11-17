@@ -89,9 +89,10 @@ import tpl from './app.tpl.js';
 // 2026-11-17 Launcher screens (batch 9, dish 1b-2): +10229 chars / +10231 bytes, nothing removed, two fragments changed - tpl/ov-settings.tpl.js gains one new fragment (tpl/launcher.tpl.js, 9213 chars / 9215 bytes, the Settings > Launcher section, wrapped in lnchv.show so no node exists while Settings is closed) after the Money block, and tpl/project-page.tpl.js gains the Open workspace button beside Resume and its one-line answer under the hint (1016 chars); both carry their <!-- v5: --> marker; all values nest under ONE vals key (lnchv, and pg.workspace)
 // 2026-11-17 Batch 9 reviewer fixes: +6 chars / +6 bytes, one fragment - tpl/launcher.tpl.js: the Use as my editor button reads e.editorOff (off while busy or when it is already the editor) instead of e.off.
 // 2026-11-18 Brief verb Open workspace (batch 10): +1075 chars / +1075 bytes, nothing removed, one fragment file (tpl/brief-act.tpl.js) interpolated twice into the Brief row (tpl/brief.tpl.js): the second button (batSecondary, an sc-if on i.verbs.secHas) beside Commit and the Launcher's one result line (two sc-if lines on i.verbs.lineGood / lineBad) under the row text. Every value sits under the ONE per-row key verbs.
-const SHA256 = 'c1e38cfe78ff24c6b9d6a9f4e525db079c011fcded24d6e6c10439e3ad7451c3';
-const LENGTH = 539529;        // tpl.length (UTF-16 code units)
-const UTF8_BYTES = 540239;    // Buffer.byteLength(tpl, 'utf8')
+// 2026-11-17 Batch 10 reviewer fixes: +5 chars / +5 bytes, one fragment - tpl/brief-act.tpl.js: the Open workspace button carries aria-disabled instead of disabled while main works, so keyboard focus stays on it.
+const SHA256 = '38b762c4755799109d99268e821ff9db7318b9c43155d1b228272b2a1d55ee82';
+const LENGTH = 539534;        // tpl.length (UTF-16 code units)
+const UTF8_BYTES = 540244;    // Buffer.byteLength(tpl, 'utf8')
 
 test('app.tpl.js default export is identical to the recorded template', () => {
   assert.equal(typeof tpl, 'string', 'app.tpl.js must default-export the template string');
