@@ -3,6 +3,27 @@
 Append-only, **newest entry on top**. Entry format (keep it under ~15 lines):
 
 ```
+## <date> <time> · FROM <lane> · <branch> @ <short-sha>
+DONE: what landed (commits)
+IN-FLIGHT: what's half-done / uncommitted
+ASKS: what I need from the other lane
+BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
+```
+
+---
+
+## 2026-11-17 · FROM frontend (BATCH 9 DONE: truth, then the Launcher) · main @ af88e95 plus this entry
+DONE: batch 9 is complete, 34 commits on top of 4720290 (plan `docs/superpowers/plans/2026-11-17-batch9-launcher.md`), six dishes each with its own full gate, then three reviewers with a skeptic per finding (15 confirmed, 2 refuted), a fixer, a read-only check of the fixer (2 more, both fixed). (1) The gate's selftest and browser steps read invented data (`dashboard-v5/tools/gate-data.mjs`, `HQ_V5_DATA_FILE`), so a scan landing in the running app can no longer change a gate run. (2) The freeze rule as the owner amended it on 2026-11-17 is in CLAUDE.md, README and `tools/thesis.test.mjs`. (3) Act baseline: main alone writes a Brief verb's mark; the use report prints every action, act days and the Open workspace bar line. (4) The dev server runs only a command the owner allowed, as a list of words with no shell (`dev-command-core.mjs`, `dev-command.js`, `main-gate.js`). (5) The Launcher core (`launcher-core.mjs`, `launcher.js`, six `hq:launcher:*` channels, signed entries) and (6) its screens (Settings > Launcher, Open workspace beside Resume, two Ctrl+K rows). Stamp `2026-11-17.batch9`. renderVals 989 of 1015 (counted from a golden dump; new key `lnchv`).
+REVIEWER FIXES worth knowing: a stored dev allow is signed with the Launcher's key (`launcher-key.js`; a damaged `key.json` is locked, never replaced); the main window is pinned to its own page (`main-window-guard.js`: the gate accepts only that page, a navigation, redirect or new window is refused); Kill servers keeps what it could not kill; a runner config that cannot be hashed, or a folder reached through a link, refuses the command; `working` (another launch is running) is not the hour's limit; each Open workspace sentence names the next step.
+CLOSING GATE on 979c2f5 (af88e95 after it changes one test pattern; that test file rerun alone 6/0), `node tools/gates.mjs --native`, read from the result table: main 2004/0, hub 204/1, money 261/0, cosmos 473/0, renderer 1965/0 (1 skip), tools 282/0 (1 skip), selftest combos=3677 0/0/0, cdp 180/180, cosmos-native, delivery-native, dev-native, main-gate-native and launcher-native exit 0, bridge skipped (no test files), total 982 s. The one hub failure is the known timing flake `snapshot op` in `dashboard/claude-hub/hub.test.mjs` (no file under `dashboard/claude-hub` changed in this batch); `node tools/gates.mjs --only hub` then passed 205/0 three times in a row. Privacy scan of the range: 0 real hits (one test pattern named the vault and the machine; removed in af88e95).
+USE REPORT 2026-11-17 (counts only): 76 marks in 7 days, all opens, 0 acts; 23 surfaces never seen, `launcher-workspace` among them. Open workspace: 0 acts on 0 days. ACT BAR: 3 or more Open workspace acts on 3 separate days in 7; the window starts the day the first real click works; read 2026-11-24 at the earliest. A short bar delays the next stage; deletion needs the owner's yes.
+NOT VERIFIED IN THE GATE (nothing may open on the owner's desktop in a test, so these wait for the owner's own clicks in the restarted app): the real folder, file, app and shortcut dialogs; that the App dialog starts in Program Files; that Windows Terminal opens at the folder; that the chosen editor takes a folder; Allow this command and Remove permission against the real store and the real safeStorage key; that the real main window's address equals the pinned page (if every Start dev and Open workspace answers "refused" at once, look at `main-window-guard.js` first); one Open workspace click on a throwaway folder.
+HOUSEKEEPING: the entries from the batch 8 close onward had been inserted inside this file's format example block (my insert helper matched the example's own heading). They are moved back out, text unchanged; the example is at the top again.
+OPEN: the Brief verb "open workspace" on the `dirty` row is its own release, not built. Narrowed by the fixer, with reasons in the entry below: the Allow card does not show the resolved folder; the status line is not an always-present live region; "none chosen" is a sentence, not a button; yarn's parent `.yarnrc.yml` is not hashed. The tray's "Stop all running dev servers" still kills only what this run started (the in-app Kill servers also takes a verified leftover). Known timing flakes seen under full-gate load, each green alone: `cheats-reduced-motion`, `workbench-skin`, the nightly-lock wait test, the chat-index `snapshot op`. Some batch 9 commits carry the fleet's Sonnet trailer; not amended.
+IN-FLIGHT: none. ASKS (structure lane): unchanged (the collector's fixed daily folder; re-read the daily note before writing). BREAKS: none. A dev server started from the app before this build needs one Allow per project; `hq:dev-start` now takes `{ id }` (a bare id is still read) and answers a word, not a boolean.
+
+---
+
 ## 2026-11-17 · FROM frontend (batch 9 last fixes) · main (not pushed)
 DONE: two findings checked, both real, both fixed with a test. (1) Open workspace no longer disables itself while it runs: `workspaceVals` keeps `on` true whenever the bridge exists (the label already says "Opening…", and `lnchWorkspace` ignores a second click through its `_lnchWs` set), so a focused button keeps keyboard focus; the test now expects `on` true while busy and false with no bridge. (2) `dashboard/launcher-key.js` makes a new key only when the key file is missing (lstat says ENOENT); a file that exists but is garbage, not an object, has no `enc:` prefix, is over 256 KB, is a link or a folder, or cannot be read is locked (null) and left as it is, so the Launcher list and dev allows show the locked words instead of being silently revoked. New `dashboard/launcher-key.test.mjs` (7 tests).
 GATE (`node tools/gates.mjs --native`, result table): main 2004/0, hub 205/0, money 261/0, cosmos 473/0, renderer 1965/0 (1 skip), tools 282/0 (1 skip), selftest combos=3677 0/0/0, cdp 179/180 with `cheats-reduced-motion` failing once (known timing flake; `node tools/gates.mjs --only cdp` re-run: 180/180), cosmos-native, delivery-native, dev-native, main-gate-native, launcher-native PASS, bridge skipped, total 943 s.
@@ -151,15 +172,6 @@ OPEN: (1) Owner: the daily folder when the vault has no daily notes settings. To
 IN-FLIGHT: none. The app was closed by the owner on 2026-11-16 and is restarted on this build with `tools\rollback.ps1 v5` after the push.
 ASKS (structure lane): (a) `collector/assemble.mjs` rewrites today's daily note by read-then-write, so a Vault desk capture landing between its read and its write is lost; re-read just before writing. (b) the collector config still names a daily folder that the real vault does not have; decide with the owner's answer to OPEN 1 so both lanes look in the same place.
 BREAKS: none. Contract changes are additive (CONTRACT "Batch 8 additions", IPC-CONTRACT rows for hq:crew:read, hq:crew:start, hq:vault-desk:read, hq:vault-desk:capture and the extra hq:brief-history:read fields).
-
----
-
-## <date> <time> · FROM <lane> · <branch> @ <short-sha>
-DONE: what landed (commits)
-IN-FLIGHT: what's half-done / uncommitted
-ASKS: what I need from the other lane
-BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
-```
 
 ---
 
