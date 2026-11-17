@@ -189,6 +189,15 @@ contextBridge.exposeInMainWorld('hq', {
     },
   },
 
+  // The Launcher (IPC-CONTRACT hq:launcher:*; main window only): the owner's folders, files, apps and links, and Open workspace. The renderer sends an id or a kind only; answers are fixed words.
+  launcher: {
+    read: () => ipcRenderer.invoke('hq:launcher:read'),
+    add: (kind) => ipcRenderer.invoke('hq:launcher:add', { kind }),
+    remove: (id) => ipcRenderer.invoke('hq:launcher:remove', { id }),
+    setEditor: (id) => ipcRenderer.invoke('hq:launcher:set-editor', { id }),
+    open: (id) => ipcRenderer.invoke('hq:launcher:open', { id }),
+    openWorkspace: (projectId) => ipcRenderer.invoke('hq:launcher:open-workspace', { projectId }),
+  },
   // The Crew (IPC-CONTRACT hq:crew:*): installed Claude skills as plain rows, and Start opens a terminal session. The renderer sends a skill id only.
   crew: {
     read: () => ipcRenderer.invoke('hq:crew:read'),

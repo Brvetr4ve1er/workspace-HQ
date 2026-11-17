@@ -49,6 +49,7 @@ export function buildCatalog() {
     { id: 'delivery-native', kind: 'native', title: 'Delivery check native check', cmd: 'electron', cwd: '.', args: ['dashboard/delivery-check.native.check.js'], profileEnv: 'HQ_DCK_CHECK_PROFILE', timeoutMs: 120000, native: true },
     { id: 'dev-native', kind: 'native', title: 'Dev command native check', cmd: 'node', cwd: '.', args: ['dashboard/dev-command.native.check.js'], profileEnv: 'HQ_DEVCMD_CHECK_PROFILE', timeoutMs: 120000, native: true },
     { id: 'main-gate-native', kind: 'native', title: 'Main-window gate native check', cmd: 'electron', cwd: '.', args: ['dashboard/main-gate.native.check.js'], profileEnv: 'HQ_MAINGATE_CHECK_PROFILE', timeoutMs: 120000, native: true },
+    { id: 'launcher-native', kind: 'native', title: 'Launcher native check', cmd: 'node', cwd: '.', args: ['dashboard/launcher.native.check.js'], profileEnv: 'HQ_LAUNCHER_CHECK_PROFILE', timeoutMs: 120000, native: true },
   ];
 }
 

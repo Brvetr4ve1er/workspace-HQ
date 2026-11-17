@@ -722,6 +722,48 @@ function createFake(opts) {
     };
   })();
 
+  // BEGIN launcher-rows (hand-written fake for the Launcher's six channels; INVENTED entries and projects; the screens that use it come with the next dish)
+  // sessionStorage 'hqFake:launcher' picks a state: 'locked' (the list cannot be kept), 'error' (the read fails), 'refuse' (every add is refused in main's words); anything else is the ready list.
+  const LNCH = (() => {
+    const mode = () => { try { return (storage && storage.getItem('hqFake:launcher')) || ''; } catch (e) { return ''; } };
+    const SEED = () => [{ id: 'aaaa0001', kind: 'folder', name: 'Placeholder folder', host: '', editor: false }, { id: 'aaaa0002', kind: 'app', name: 'Example editor', host: '', editor: true }, { id: 'aaaa0003', kind: 'url', name: 'docs.example.test', host: 'docs.example.test', editor: false }];
+    let entries = SEED(), editor = 'aaaa0002', seq = 3;
+    const projects = [{ id: 'proj-a', name: 'Project A', dev: 'unconfirmed' }, { id: 'proj-b', name: 'Project B', dev: 'allowed' }, { id: 'proj-c', name: 'Project C', dev: 'none' }];
+    const WHY = 'that is not a full path on a drive';
+    return {
+      rows: [
+        ['launcher.read', () => {
+          const m = mode();
+          if (m === 'error') return { error: 'the launcher could not be read' };
+          if (m === 'locked') return { entries: [], editor: null, projects: [], terminal: 'console', locked: true, limit: 40 };
+          return { entries: entries.map((e) => ({ ...e, editor: e.id === editor })), editor, projects: projects.map((p) => ({ ...p })), terminal: 'wt', locked: false, limit: 40 };
+        }],
+        ['launcher.add', (kind) => {
+          if (!['folder', 'file', 'app', 'url'].includes(kind)) return { state: 'refused', why: 'that kind of entry does not exist' };
+          if (mode() === 'refuse') return { state: 'refused', why: WHY };
+          if (entries.length >= 40) return { state: 'full' };
+          seq += 1; const id = 'aaaa' + String(seq).padStart(4, '0');
+          entries.push({ id, kind, name: 'Placeholder ' + kind + ' ' + seq, host: kind === 'url' ? 'docs.example.test' : '', editor: false });
+          return { state: 'added', id };
+        }],
+        ['launcher.remove', (id) => { const n = entries.length; entries = entries.filter((e) => e.id !== id); if (editor === id) editor = null; return { state: entries.length < n ? 'removed' : 'unknown' }; }],
+        ['launcher.setEditor', (id) => { const e = entries.find((x) => x.id === id); if (!e) return { state: 'unknown' }; if (e.kind !== 'app') return { state: 'refused', why: 'an app must be an .exe file' }; editor = id; return { state: 'set' }; }],
+        ['launcher.open', (id) => ({ state: entries.some((e) => e.id === id) ? 'opened' : 'unknown' })],
+        ['launcher.openWorkspace', (projectId) => {
+          const p = projects.find((x) => x.id === projectId);
+          if (!p) return { ok: false, steps: ['dev', 'editor', 'terminal'].map((step) => ({ step, state: 'skipped' })), line: 'Folder not found: rescan' };
+          const dev = p.dev === 'allowed' ? 'started' : p.dev === 'none' ? 'none' : 'unconfirmed';
+          const ed = editor ? 'opened' : 'none';
+          const steps = [{ step: 'dev', state: dev }, { step: 'editor', state: ed }, { step: 'terminal', state: 'opened' }];
+          if (dev === 'started' || ed === 'opened') record('use', ['launcher-workspace', 'act']);
+          return { ok: true, steps, line: '' };
+        }],
+      ],
+      reset: () => { entries = SEED(); editor = 'aaaa0002'; seq = 3; },
+    };
+  })();
+  // END launcher-rows
+
   // Settings > Memory card (hq.memory.read): the INVENTED answer below is pasted from src/selftest-memory-card.mjs (tools/cdp-memory-card.mjs fakeMemorySource(); a test fails on drift).
   // Fixed numbers, read-only: reset(true) needs no state.
   const inventedMemoryRead = function inventedMemoryRead(opts) {
@@ -883,7 +925,7 @@ function createFake(opts) {
     }],
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
     ['sessionsBoard.onBoard', 'on:hq:sessions-board'],
-    ...CREW.rows, ...VDESK.rows,   // The Crew (hq.crew.read / start), after the sessions board and before delivery, as in dashboard/preload.js
+    ...CREW.rows, ...VDESK.rows, ...LNCH.rows,   // The Crew (hq.crew.read / start), after the sessions board and before delivery, as in dashboard/preload.js
     ['delivery.read', (id) => DLV.read(id)], ['delivery.apply', (intent) => DLV.apply(intent)], ['delivery.clients', () => DLV.clients()],
     ['deliveryCheck.detect', (id) => DCK.detect(id)], ['deliveryCheck.run', (id, url) => DCK.run(id, url)], ['deliveryCheck.read', (id) => DCK.read(id)], ['deliveryCheck.forget', (id) => DCK.forget(id)],
     ['money.read', () => ({ view: MONEY.full })],
@@ -962,7 +1004,7 @@ function createFake(opts) {
     // END console-control
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; actedKeys.clear(); devAllowed.clear(); DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; actedKeys.clear(); devAllowed.clear(); DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); LNCH.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }
