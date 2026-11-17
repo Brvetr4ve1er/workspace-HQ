@@ -192,13 +192,13 @@ test('applyDone throwing is an error, not a mark; a no-op (false) is still a cle
   assert.equal((await noop.a.act(ask('quest-red:wq:abc', 'quest-done'))).ok, true);
 });
 
-test('the use log gets one brief-act / act mark per successful action, and only that', async () => {
+test('the use log gets one mark per click that took effect: act for a fact, handover for commit, nothing for open-folder', async () => {
   const r = rig();
   await r.a.act(ask('quest-red:wq:abc', 'quest-done'));
   await r.a.act(ask('session-waiting:sess-1:' + LAST, 'open-folder'));
   await r.a.act(ask('dirty:proj-a:12', 'commit'));
   await r.a.act(ask('quest-red:forged', 'quest-done'));
-  assert.deepEqual(r.calls.useMark, [['brief-act', 'act'], ['brief-act', 'act'], ['brief-act', 'act']]);
+  assert.deepEqual(r.calls.useMark, [['brief-act', 'act'], ['brief-act', 'handover']]);
   // the app log keeps the rule id and the verb: fixed vocabulary, no name, id, path or amount
   assert.ok(r.calls.appLog.some((l) => /done · quest-red · quest-done/.test(l)), r.calls.appLog.join('|'));
   logsClean(r.calls);

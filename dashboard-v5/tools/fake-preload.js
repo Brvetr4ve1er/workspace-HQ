@@ -812,6 +812,7 @@ function createFake(opts) {
   // subscribes · a function is the canned answer. Mirrors dashboard/preload.js
   // top to bottom (tools/cdp-gate.mjs --scenario fake-parity diffs the two).
   let macOn = false;   // the Money-access switch (hq.moneyAccess); control.reset puts it back off
+  const actedKeys = new Set();   // Brief rows whose fact-changing verb already took effect (main refuses a repeat); control.reset empties it
   let SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the Security fake (state: edits, ticks, trashed files); control.reset re-creates it
   const SPEC = [
     ['runScan', WRITE], ['openRepo', WRITE], ['openFile', WRITE], ['reclaim', WRITE], ['snapshot', WRITE],
@@ -866,13 +867,17 @@ function createFake(opts) {
     // owns (a forged one), a verb of another rule and a bad balance are refused with main's own words. quest-done and confirm-balance answer an acted marker,
     // commit answers { open:'commit', projectId: 'p1' }, open-folder answers { ok }.
     ['brief.act', (key, verb, value) => {
+      if ((verb === 'quest-done' || verb === 'confirm-balance') && actedKeys.has(key)) return { error: 'already done — the row clears when the next scan confirms.' };   // main's repeat refusal
       const VERBS = { 'quest-red': ['quest-done'], 'money-stale': ['confirm-balance'], dirty: ['commit'], 'session-left-dirty': ['commit'], 'session-waiting': ['open-folder'] };
       const rule = typeof key === 'string' ? key.split(':')[0] : '';
       if (!Object.prototype.hasOwnProperty.call(VERBS, rule)) return { error: 'that item is not on the brief any more.' };
       if (!VERBS[rule].includes(verb)) return { error: 'that action is not offered for this item.' };
       if (verb === 'confirm-balance' && !(typeof value === 'string' && /^[0-9\s.,]+$/.test(value.trim()) && /[0-9]/.test(value))) return { error: 'type a balance as a number.' };
-      if (verb === 'commit') return { ok: true, open: 'commit', projectId: 'p1' };
+      // main writes the use mark (dashboard/brief-act.js): act for a fact-changing verb, handover for commit, nothing for open-folder
+      if (verb === 'commit') { record('use', ['brief-act', 'handover']); return { ok: true, open: 'commit', projectId: 'p1' }; }
       if (verb === 'open-folder') return { ok: true };
+      actedKeys.add(key);
+      record('use', ['brief-act', 'act']);
       return { ok: true, acted: { verb, at: new Date().toISOString() } };
     }],
     ['sessionsBoard.read', () => ({ board: SESSIONS_BOARD })], ['sessionsBoard.resume', () => ({ ok: true })], ['sessionsBoard.openFolder', () => ({ ok: true })],
@@ -956,7 +961,7 @@ function createFake(opts) {
     // END console-control
     calls: (method) => log.filter((c) => !method || c.method === method).map((c) => ({ ...c })),
     reset: (all) => {
-      log.length = 0; casts = 0; DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
+      log.length = 0; casts = 0; actedKeys.clear(); DLV.reset(); DCK.reset(); COSMOS.reset(); CREW.reset(); VDESK.reset(); macOn = false; SECF = createFakeSecurity(FAKE_SECURITY_FIXTURE, FAKE_SECURITY_EXPORTS);   // the client delivery fixture goes back to its seed
       for (const id of [...chats.keys()]) cancelChat(id);
       for (const t of turns.values()) t.timers.forEach(clearTimeout); turns.clear();   // Claude Hub H3 fake chat turns
       if (all) { overrides.clear(); prefs = { ...DEFAULT_PREFS }; if (storage) writePersisted({}); }

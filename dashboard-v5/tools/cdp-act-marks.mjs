@@ -7,7 +7,7 @@
 //   use-act-marks   the fake's hq.use records every call. A Cosmos favourite and a Save to vault each add exactly ONE
 //                   ('<surface>','act') call; Dismiss, and a Brief row's Go or Scan button, add NONE (batch 8: only a click that changed a fact is an act); and opening
 //                   the same screen twice still adds ONE 'open'. No act mark from any other surface appears.
-//   use-act-effect  (batch 8, counting fix) Mark done on a Brief row adds ONE ('brief-act','act') and the same click again inside a minute adds none;
+//   use-act-effect  (batch 8, counting fix; batch 9: main writes the Brief verb marks, the fake brief.act stands in for it) Mark done on a Brief row adds ONE ('brief-act','act') and the same click again inside a minute adds none;
 //                   Open its folder adds none; a task Done adds ONE ('tasks-board','act') once the Undo window has passed. Nothing else marks 'act'.
 //                   Ends with hqFake.reset(true), Cosmos and the vault dialog closed, Home shown.
 

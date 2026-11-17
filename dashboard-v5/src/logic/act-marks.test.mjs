@@ -148,12 +148,11 @@ test('a mark that throws or rejects never blocks the action', async () => {
 test('every surface these act marks send is on the main-side allowlist, and act is an allowed action', async () => {
   const { self, sent } = batRig({ state: { vault: { id: 'c1', phase: 'ready', path: 'x.md', rel: 'x.md', draft: 'd', exists: false } } });
   await self.brfDismiss('a:1');
-  await self.batRun({ key: 'quest-red:a:1', rule: 'quest-red' }, 'quest-done');
   self.brfAct({ kind: 'scan' });
   await self.cosFavorite('e1');
   await self.secTrashExport('plain-export.xml', 'Downloads');
   await self.saveVault();
-  assert.deepEqual([...new Set(sent.map((s) => s[0]))].sort(), ['brief-act', 'brief-panel', 'claude-vault', 'cosmos', 'security-recycle']);
+  assert.deepEqual([...new Set(sent.map((s) => s[0]))].sort(), ['brief-panel', 'claude-vault', 'cosmos', 'security-recycle']);
   for (const [surface, action] of sent) {
     assert.ok(useLogMain.SURFACES.includes(surface), surface);
     assert.ok(useLogMain.ACTIONS.includes(action), action);
@@ -177,30 +176,20 @@ test('the renderer verb table matches main: VERB_MARKS is exactly VERBS[...].mar
   for (const verb of Object.values(RULE_VERB)) assert.ok(Object.prototype.hasOwnProperty.call(VERBS, verb), verb);
 });
 
-test('an effect verb sends one (brief-act, act); Open its folder, which changes nothing, sends nothing', async () => {
-  const { self, sent } = batRig();
+test('the renderer sends no mark for any Brief verb: main is the one writer (batch 9, act baseline)', async () => {
+  const { self, sent, calls } = batRig();
   assert.equal(await self.batRun(rowOf('quest-red'), 'quest-done'), true);
-  assert.deepEqual(sent, [['brief-act', 'act']]);
   assert.equal(await self.batRun(rowOf('session-waiting'), 'open-folder'), true);
-  assert.deepEqual(sent, [['brief-act', 'act']], 'open-folder marks nothing');
-});
-
-test('Confirm balance is an effect: one act, sent only after main answers it', async () => {
-  const { self, sent } = batRig();
   self.setState({ batBal: '120.50' });
   assert.equal(await self.batYes(rowOf('money-stale')), true);
-  assert.deepEqual(sent, [['brief-act', 'act']]);
+  assert.equal(await self.batRun(rowOf('dirty'), 'commit'), true);
+  assert.deepEqual(sent, [], 'a verb, a hand-over and an open-folder all leave the marking to main');
+  assert.deepEqual(calls, [['openCommit', 'p1']], 'the commit overlay still opens');
   const bad = batRig();
   bad.self.setState({ batBal: 'abc' });
   assert.equal(await bad.self.batYes(rowOf('money-stale')), false);
   assert.deepEqual(bad.sent, []);
-});
-
-test('Commit is a hand-over: one (brief-act, handover), never an act, and the overlay still opens', async () => {
-  const { self, sent, calls } = batRig();
-  assert.equal(await self.batRun(rowOf('dirty'), 'commit'), true);
-  assert.deepEqual(sent, [['brief-act', 'handover']]);
-  assert.deepEqual(calls, [['openCommit', 'p1']]);
+  assert.equal(typeof self._batMark, 'undefined', 'the renderer writer is gone');
 });
 
 test('a refused or failed verb marks nothing, and a mark that throws never blocks the verb', async () => {
@@ -216,21 +205,22 @@ test('a refused or failed verb marks nothing, and a mark that throws never block
   assert.equal(await noBridge.self.batRun(rowOf('quest-red'), 'quest-done'), true, 'no hq.use: the verb still runs');
 });
 
-test('anti-farming: one effect, one mark; the same click again inside a minute adds none; a different row or a later minute does', async () => {
+test('anti-farming: useActOnce still counts a repeated effect once a minute (task Done and the others); Brief verbs no longer use it', async () => {
   const realNow = Date.now;
   let t = 1e12;
   Date.now = () => t;
   try {
     const { self, sent } = batRig();
     await self.batRun(rowOf('quest-red', 1), 'quest-done');
+    await self.batRun(rowOf('quest-red', 1), 'quest-done');
+    assert.equal(sent.length, 0, 'main counts a Brief verb, so two clicks here add nothing');
+    assert.equal(self.useActOnce('tasks-board', 'x'), true);
     t += 5e3;
-    await self.batRun(rowOf('quest-red', 1), 'quest-done');
-    assert.equal(sent.length, 1, 'an identical click inside a minute adds nothing');
-    await self.batRun(rowOf('quest-red', 2), 'quest-done');
-    assert.equal(sent.length, 2, 'another row is another effect');
+    assert.equal(self.useActOnce('tasks-board', 'x'), false, 'an identical click inside a minute adds nothing');
+    assert.equal(self.useActOnce('tasks-board', 'y'), true, 'another ref is another effect');
     t += 61e3;
-    await self.batRun(rowOf('quest-red', 1), 'quest-done');
-    assert.equal(sent.length, 3, 'after a minute the same row counts again');
+    assert.equal(self.useActOnce('tasks-board', 'x'), true, 'after a minute the same ref counts again');
+    assert.equal(sent.length, 3);
     const none = rig({ noBridge: true });
     assert.equal(none.self.useActOnce('tasks-board', 'x'), false);
     none.self.hq = { use: () => ({ ok: true }) };
@@ -292,7 +282,10 @@ test('allowlist: every mark these paths send is exactly (surface, action), both 
   const { self } = batRig({ use: (...args) => { calls.push(args); return { ok: true }; } });
   await self.batRun({ key: 'quest-red:Alpha Note:1', rule: 'quest-red' }, 'quest-done');
   await self.batRun({ key: 'dirty:example-skill-name:1', rule: 'dirty' }, 'commit');
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 0, 'a Brief verb sends nothing from the renderer');
+  await self.brfDismiss('a:1');
+  await self.cosFavorite('e1');
+  assert.equal(calls.length, 1);
   for (const args of calls) {
     assert.equal(args.length, 2, 'two arguments, nothing else');
     assert.ok(useLogMain.SURFACES.includes(args[0]) && useLogMain.ACTIONS.includes(args[1]));

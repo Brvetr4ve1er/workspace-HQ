@@ -8,7 +8,7 @@
 //   applyDone(ids)  → main.js applyDone: quest-overrides.json + assemble only, never render
 //   moneyApply(i)   → the money engine's apply (money.js): one intent, account-save, which re-anchors at now with the typed balance
 //   openFolder(id)  → { ok } | { error }: the sessions board's own open-folder rule (shell.openPath only — it never runs anything)
-//   useMark(s, a)   → use-log's mark (surface 'brief-act', action 'act': nothing else is logged to the use log)
+//   useMark(s, a)   → use-log's mark (surface 'brief-act': 'act' for a fact-changing verb, 'handover' for commit, nothing for open-folder)
 //   appLog(line)    → one app-log line; rule ids and verbs only, never a name, id, path or amount
 //   onActed()       → called after a state-changing verb so the brief re-decorates and pushes (brief.recompute)
 //   now()           → ms
@@ -31,7 +31,9 @@ function create({ getBrief, sources, applyDone, moneyApply, openFolder, useMark,
   const inflight = new Set();
   let acted = {};
   const log = (line) => { try { if (typeof appLog === 'function') appLog(line); } catch { /* logging never fails a click */ } };
-  const mark = () => { try { if (typeof useMark === 'function') useMark('brief-act', 'act'); } catch { /* a usage mark is a bonus */ } };
+  // The ONE writer of a Brief verb's use mark (batch 9, act baseline): 'act' only for a verb whose table entry marks (it changed a fact),
+  // 'handover' for the commit hand-over, nothing for opening a folder. The renderer sends no mark of its own for these.
+  const mark = (action) => { try { if (typeof useMark === 'function' && action) useMark('brief-act', action); } catch { /* a usage mark is a bonus */ } };
   const tell = () => { try { if (typeof onActed === 'function') onActed(); } catch { /* a refresh is a courtesy */ } };
 
   async function act(req) {
@@ -57,7 +59,7 @@ function create({ getBrief, sources, applyDone, moneyApply, openFolder, useMark,
       const plan = p.plan;
       if (plan.kind === 'commit') {
         // performed by the renderer through the existing commit overlay (its .env guard and Commit confirm stay as they are)
-        mark(); log('[brief-act] handed over · ' + rule + ' · ' + verb);
+        mark('handover'); log('[brief-act] handed over · ' + rule + ' · ' + verb);
         return { ok: true, open: 'commit', projectId: plan.projectId };
       }
       if (plan.kind === 'open-folder') {
@@ -65,7 +67,7 @@ function create({ getBrief, sources, applyDone, moneyApply, openFolder, useMark,
         try { r = typeof openFolder === 'function' ? await openFolder(plan.sessionId) : { error: 'opening a folder is not available.' }; }
         catch (e) { r = { error: msg(e) }; }
         if (!isObj(r) || r.error) { log('[brief-act] failed · ' + rule + ' · ' + verb); return { error: (isObj(r) && r.error) || 'could not open the folder.' }; }
-        mark(); log('[brief-act] done · ' + rule + ' · ' + verb);
+        log('[brief-act] done · ' + rule + ' · ' + verb);   // opening a folder changes nothing: no mark
         return { ok: true };
       }
       if (plan.kind === 'quest-done') {
@@ -79,7 +81,8 @@ function create({ getBrief, sources, applyDone, moneyApply, openFolder, useMark,
       }
       const at = new Date(now());
       acted = L.markActed(acted, key, verb, at);
-      mark(); log('[brief-act] done · ' + rule + ' · ' + verb);
+      mark(L.VERBS[verb] && L.VERBS[verb].marks === true ? 'act' : '');
+      log('[brief-act] done · ' + rule + ' · ' + verb);
       tell();
       return { ok: true, acted: { verb, at: acted[key].at } };
     } finally { inflight.delete(key); }
