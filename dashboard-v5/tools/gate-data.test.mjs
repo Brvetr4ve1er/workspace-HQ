@@ -21,6 +21,9 @@ test('the fixture builds a store with what the scenarios need', () => {
   assert.ok(M.AUTOS.some((a) => !a.destructive), 'a non-destructive automation');
   assert.ok(M.AUTOS.some((a) => a.destructive), 'a destructive one');
   assert.ok(M.INTERACTIVE.length >= 1, 'an interactive claude automation');
+  assert.ok(M.T0.length >= 2, 'open tasks which Home reads');
+  assert.ok(M.T0.some((t) => t.project || t.proj || t.pid), 'an open task that belongs to a project');
+  assert.ok(D.weeklyRecap && D.weeklyRecap.stats, 'a weekly recap');
   assert.deepEqual(D.latest.changes_since_prev, []);
   assert.deepEqual(D.scans.map((s) => s.scan.id), [...D.scans.map((s) => s.scan.id)].sort());
 });
