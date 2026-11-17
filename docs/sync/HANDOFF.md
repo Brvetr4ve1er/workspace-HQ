@@ -13,6 +13,14 @@ IN-FLIGHT: none. The owner's app was not touched. ASKS (structure lane): none. B
 
 ---
 
+## 2026-11-17 · FROM frontend (integrator, batch 9 dish "launcher core and IO") · main (not pushed)
+DONE: read launcher.js and launcher-core.mjs line by line, no code change needed. All six channels go through main-gate (main window only); every argument is checked in main (ids by pattern, kind from a fixed list); no scan or repo text becomes a command, option or argument (the editor is [exe, folder] from a signed entry, the terminal is wt.exe -d folder after a drive-path check, spawns are argument lists with shell false); answers are fixed words, no path.
+FULL GATE (integrator, `node tools/gates.mjs --native`, read from the result table, exit 0): main 1984/0, hub 205/0, money 261/0, cosmos 473/0, renderer 1928/0 (1 skip), tools 281/0 (1 skip), selftest combos=3637 0/0/0, cdp 172/172, cosmos-native, delivery-native, dev-native, main-gate-native and launcher-native PASS (bridge skipped, no test files), total 933.8 s. No flake seen. Goldens: none moved.
+NOT VERIFIED IN THE GATE: unchanged from the entry below (one Open workspace click on a throwaway folder in the owner's restarted app).
+IN-FLIGHT: none. ASKS: none.
+
+---
+
 ## 2026-11-17 · FROM frontend (integrator, batch 9 dish "dev command as an argument list") · main (not pushed)
 DONE: read the main-side code line by line, no code change needed. All four channels go through `main-gate.js` (main window, main frame, `file:` page); `id` and `shownHash` are checked in main; the command text is parsed by the per-runner grammar and only then built into an argument list (`shell:false`; the one .cmd shim path wraps words the grammar already allowed); answers are fixed words, no path. Scan text cannot become an option or an argument outside that grammar.
 FULL GATE (integrator, `node tools/gates.mjs --native`, read from the result table): main 1941/0, hub 205/0, money 261/0, cosmos 473/0, renderer 1928/0 (1 skip), tools 281/0 (1 skip), selftest combos=3637 0/0/0, cdp 171/172, cosmos-native, delivery-native, dev-native and main-gate-native PASS (bridge skipped). The one cdp red was `workbench-skin` (a colour read that showed two equal values, a load timing flake in a file this dish did not touch); it passed 3 of 3 alone. Goldens: none moved here.
