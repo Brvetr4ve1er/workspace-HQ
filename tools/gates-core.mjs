@@ -47,6 +47,8 @@ export function buildCatalog() {
     nodeTest('bridge', 'browser-bridge tests', ['browser-bridge/*.test.mjs'], { native: true, requireFiles: 'browser-bridge/*.test.mjs' }),
     { id: 'cosmos-native', kind: 'native', title: 'Cosmos native check', cmd: 'electron', cwd: '.', args: ['dashboard/cosmos-native.check.js'], profileEnv: 'HQ_COSMOS_CHECK_PROFILE', timeoutMs: 120000, native: true },
     { id: 'delivery-native', kind: 'native', title: 'Delivery check native check', cmd: 'electron', cwd: '.', args: ['dashboard/delivery-check.native.check.js'], profileEnv: 'HQ_DCK_CHECK_PROFILE', timeoutMs: 120000, native: true },
+    { id: 'dev-native', kind: 'native', title: 'Dev command native check', cmd: 'node', cwd: '.', args: ['dashboard/dev-command.native.check.js'], profileEnv: 'HQ_DEVCMD_CHECK_PROFILE', timeoutMs: 120000, native: true },
+    { id: 'main-gate-native', kind: 'native', title: 'Main-window gate native check', cmd: 'electron', cwd: '.', args: ['dashboard/main-gate.native.check.js'], profileEnv: 'HQ_MAINGATE_CHECK_PROFILE', timeoutMs: 120000, native: true },
   ];
 }
 

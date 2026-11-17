@@ -74,8 +74,8 @@ test('parseArgs: defaults, both flag forms, and every error is an error value', 
 
 test('the catalog follows README order and keeps electron and native steps apart', () => {
   const c = buildCatalog();
-  assert.deepEqual(c.map((s) => s.id), ['main', 'hub', 'money', 'cosmos', 'renderer', 'tools', 'selftest', 'cdp', 'bridge', 'cosmos-native', 'delivery-native']);
-  assert.deepEqual(c.filter((s) => s.native).map((s) => s.id), ['bridge', 'cosmos-native', 'delivery-native']);
+  assert.deepEqual(c.map((s) => s.id), ['main', 'hub', 'money', 'cosmos', 'renderer', 'tools', 'selftest', 'cdp', 'bridge', 'cosmos-native', 'delivery-native', 'dev-native', 'main-gate-native']);
+  assert.deepEqual(c.filter((s) => s.native).map((s) => s.id), ['bridge', 'cosmos-native', 'delivery-native', 'dev-native', 'main-gate-native']);
   const main = c.find((s) => s.id === 'main');
   assert.deepEqual(main.args, ['--test', '--test-reporter=tap', 'dashboard/*.test.mjs']);
   assert.deepEqual(c.find((s) => s.id === 'tools').args.slice(2), ['tools/*.test.mjs', 'tools/trailer/*.test.mjs', 'mcp/workspacehq/*.test.mjs']);
@@ -88,7 +88,7 @@ test('the catalog follows README order and keeps electron and native steps apart
 test('selectSteps: default is the non-native steps; --native adds; --only/--skip pick; unknown ids refuse', () => {
   const c = buildCatalog();
   assert.deepEqual(selectSteps(c, parseArgs([]).opts).steps.map((s) => s.id), ['main', 'hub', 'money', 'cosmos', 'renderer', 'tools', 'selftest', 'cdp']);
-  assert.equal(selectSteps(c, parseArgs(['--native']).opts).steps.length, 11);
+  assert.equal(selectSteps(c, parseArgs(['--native']).opts).steps.length, 13);
   assert.deepEqual(selectSteps(c, parseArgs(['--only', 'tools,main']).opts).steps.map((s) => s.id), ['main', 'tools'], 'catalog order, not the order typed');
   assert.deepEqual(selectSteps(c, parseArgs(['--skip', 'cdp,selftest']).opts).steps.map((s) => s.id), ['main', 'hub', 'money', 'cosmos', 'renderer', 'tools']);
   assert.deepEqual(selectSteps(c, parseArgs(['--only', 'cosmos-native']).opts).steps.map((s) => s.id), ['cosmos-native']);
