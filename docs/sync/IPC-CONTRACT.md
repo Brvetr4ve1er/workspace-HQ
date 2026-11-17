@@ -49,9 +49,10 @@ grep the channel name).
 | `markQuestDone(id)` | `hq:quest-done` | quest id | `true`/`false` | main |
 | `actedOn(entry)` | `hq:acted-on` | ledger entry object (normalized main-side) | `true`/`false` | main |
 | **Dev servers** | | | | |
-| `devStart(id)` | `hq:dev-start` | project id | — | main |
-| `devStop(id)` | `hq:dev-stop` | project id | — | main |
-| `killServers()` | `hq:kill-servers` | — | — | mini HUD |
+| `devStart(id)` | `hq:dev-start` | `{ id }` (a bare id string is still read) | a fixed word, never a path or an error text: `started` · `running` (a live child, or a leftover one this app started earlier that is still alive) · `unconfirmed` (the owner has not allowed this command yet) · `refused` (not a command this app runs, a script or file that is not there, a runner it cannot find, a bad id or a bad folder, a caller that is not the main window) · `busy` (10 starts an hour). Runs ONLY an allowed command, as an argument list with `shell:false`, `stdio:'ignore'`, `windowsHide` and an environment allowlist; the scanned `dev_cmd` text is never given to a shell. The renderer reads `started` and `running` as the old `true`; an older main answered a boolean. | main window only (`dashboard/main-gate.js`: the sender is the main window's contents, the frame is its main frame, the address is a `file:` page) |
+| `devAllow(id, shownHash)` | `hq:dev-allow` | `{ id, shownHash }` — `shownHash` is 8 hex chars, the hash of the command text the owner was SHOWN (`hashShown`, mirrored in `dashboard-v5/src/logic/dev-allow.mjs`) | `allowed` · `changed` (the scan's text is no longer the text shown: nothing is stored) · `refused` · `busy` (20 an hour). Stores `{ words, key, confirmedAt }` in `data/launcher/dev-commands.json` (gitignored); the key binds the allow to the resolved folder, the `scripts` entries the command runs (the named one plus its `pre` and `post`) and `.npmrc` / `.yarnrc.yml` / `bunfig.toml`: change any and the next Start asks again | main window only |
+| `devStop(id)` | `hq:dev-stop` | project id | `true` when a process tree was killed (a live child, or a leftover recorded in `data/launcher/running.json` whose pid AND real start time still match); `false` otherwise. Never kills anything on its own | main window only (was ungated) |
+| `killServers()` | `hq:kill-servers` | — | the number of trees killed | main window only (was ungated; the tray and quit paths do not use this channel) |
 | **Notes** | | | | |
 | `saveNote(id, note)` | `hq:note-save` | project id, note text | — | main |
 | **Spellbook (casting engine)** | | | | |

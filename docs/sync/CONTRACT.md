@@ -38,6 +38,7 @@ plus a matching golden-fixture update in `collector/lib/__fixtures__/`.
 - `account.totals.{products, open_quests, red_quests, achievements_unlocked, open_side_quests, learnings, knowledge_xp, archived}`
 - `account.daily_top3[] {kind, label, reason, project_id, quest_id}`
 - `account.spellcraft.{spell_of_day{id,name,icon,school,rarity,bonus_xp}, ever_cast, spells_known, ever_cast_pct, lifetime_casts, per_school}`
+- (batch 9) `projects[].dev_cmd` is a SUGGESTION in plain text: display only, no shape change. It is never run as written; main turns it into an argument list for a few runners (npm, pnpm, yarn, bun, node) only after the owner allows it, and refuses everything else (see IPC-CONTRACT `hq:dev-start`).
 - `projects[] {id, name, path, stack, dev_cmd, canonical_branch, completion{pct,basis,delta}, level, xp,`
   `activity{state, days_since_commit, last_commit}, signals{has_readme,has_tests,has_ci,…},`
   `metrics{code_health{build,tests,files,loc,recent_files}, git_safety{…, last_commit_subject}, risk_security{…}},`

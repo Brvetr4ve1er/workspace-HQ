@@ -106,6 +106,15 @@ The client site check (project page, under the delivery card) has the same kind 
 dashboard\node_modules\electron\dist\electron.exe dashboard\delivery-check.native.check.js
 ```
 
+The dev server runs an owner-allowed command as an argument list, never through a shell (`dashboard/dev-command.js`). Its unit tests use a fake spawn, so one real-process check proves the list works: it starts an invented server through the real code (`node server.js --port N`, and `npm run dev -- --port N` when npm is on the PATH), asks the loopback port, stops it and asks again (the second round proves the whole process tree is taken). Hidden children only, loopback only, a temp folder, no window. `node tools/gates.mjs --native` runs it as step `dev-native`; by hand:
+
+```powershell
+node dashboarddev-command.native.check.js
+```
+
+The main-window gate that guards those channels (`dashboard/main-gate.js`) has a hidden real-Electron check too: it asks one handler from the main frame, an iframe and a second window and expects true, false, false. Step `main-gate-native`; by hand `dashboard
+ode_moduleselectrondistelectron.exe dashboardmain-gate.native.check.js`.
+
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
 
 ```powershell

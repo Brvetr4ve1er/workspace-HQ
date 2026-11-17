@@ -115,3 +115,5 @@ data/disk-history.json*
 data/intents/
 # Security space (batch 4, 2026-11-11): the account map, the owner's edits, status and snapshots - owner data, never committed
 data/security/
+# (2026-11-17) the dev command allow list and the leftover-server record (batch 9; the launcher's entries join them)
+data/launcher/
