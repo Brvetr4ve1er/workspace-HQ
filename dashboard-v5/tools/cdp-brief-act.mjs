@@ -153,7 +153,7 @@ export function makeBriefActScenarios({ fresh, sleep }) {
         await pause(250);
         const calls = await t.evaluate(`${PAGE.calls}.map((c) => c.args)`);
         if (JSON.stringify(calls) !== JSON.stringify([[DIRTY, 'open-workspace']])) out.push('hq.brief.act calls ' + JSON.stringify(calls) + ', want exactly one open-workspace for ' + DIRTY);
-        if (!await t.waitFor(`${PAGE.texts}[1].includes('Dev server started. Terminal opened.')`, 3000)) out.push('the row does not show the Launcher line: ' + (await t.evaluate(PAGE.texts))[1]);
+        if (!await t.waitFor(`${PAGE.texts}[1].includes('Dev server started. Editor opened. Terminal opened.')`, 3000)) out.push('the row does not show the Launcher line: ' + (await t.evaluate(PAGE.texts))[1]);
         if (await t.evaluate(`${PAGE.texts}[1].includes('clears when the next scan confirms')`)) out.push('a launch was written as a done-and-clears row');
         const marks = await t.evaluate(`hqFake.calls('use').map((c) => c.args.join('/'))`);
         if (JSON.stringify(marks) !== JSON.stringify(['launcher-workspace/act'])) out.push('use marks ' + JSON.stringify(marks) + ', want exactly launcher-workspace/act');
