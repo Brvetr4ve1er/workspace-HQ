@@ -115,6 +115,8 @@ node dashboarddev-command.native.check.js
 The main-window gate that guards those channels (`dashboard/main-gate.js`) has a hidden real-Electron check too: it asks one handler from the main frame, an iframe and a second window and expects true, false, false. Step `main-gate-native`; by hand `dashboard
 ode_moduleselectrondistelectron.exe dashboardmain-gate.native.check.js`.
 
+The Launcher (`dashboard/launcher.js`, pure rules in `launcher-core.mjs`) keeps the owner's own folders, files, apps and links and opens a project's workspace (dev server, editor, terminal). Its unit tests use a fake spawn, shell and dialog, so its real-process check only proves what a hidden child can: the real drive lookup, that the Windows Terminal alias is found (looked up, never started), and that a hidden `node` child starts as `[exe, folder]` through the launcher's own options and is stopped. It never opens a terminal, an editor, a dialog or a browser. Step `launcher-native`; by hand `node dashboardlauncher.native.check.js`.
+
 The Claude library scenarios run against the v5 harness with the fake preload (from `dashboard-v5`, own `HQ_V5_PROFILE`):
 
 ```powershell
