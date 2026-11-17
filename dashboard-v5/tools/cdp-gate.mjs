@@ -312,6 +312,9 @@ const SCENARIOS = {
     if (s.failures !== 0) out.push('runtime render failures: ' + s.failures);
     if (s.panel) out.push('the first-render error panel is showing');
     if (!s.text) out.push('#app has elements but no text');
+    // dev-main adds ?gatedata=1 when HQ_V5_DATA_FILE is set: the page must then be on the gate's invented data, not the owner's scans
+    const g = await t.evaluate(`(() => ({ asked: new URLSearchParams(location.search).get('gatedata') === '1', fixture: !!(window.DATA && window.DATA.gate_fixture === true) }))()`);
+    if (g.asked && !g.fixture) out.push('the page is not on the gate's invented data (HQ_V5_DATA_FILE was set but window.DATA is not the fixture)');
     return out.concat(t.errors());
   },
 

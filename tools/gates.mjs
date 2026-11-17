@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildCatalog, parseArgs, runGates, runSweepCompare, USAGE } from './gates-core.mjs';
+import { writeGateData } from '../dashboard-v5/tools/gate-data.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_OUTPUT = 8 * 1024 * 1024;   // keep the last 8 MB of a step's output
@@ -83,6 +84,13 @@ export function makeRealIo({ log = (l) => console.log(l) } = {}) {
       const name = 'hq-gates-' + String(tag).replace(/[^a-z0-9-]/gi, '') + '-' + process.pid + '-' + Date.now().toString(36);
       profiles.add(name);
       return name;
+    },
+    async gateDataFile(profile) {
+      // the invented data goes inside the throwaway profile folder (removed with it); never data/, never the owner's folders
+      if (!profiles.has(profile)) throw new Error('gateDataFile: not a profile this run named');
+      const dir = path.join(os.tmpdir(), profile);
+      fs.mkdirSync(dir, { recursive: true });
+      return writeGateData(path.join(dir, 'gate-data.js'));
     },
     async cleanupProfile(name) {
       // only a folder this run named itself, only directly under the OS temp dir

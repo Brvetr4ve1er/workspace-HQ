@@ -19,6 +19,8 @@
 //   io.freePort()                 -> number
 //   io.uniqueProfile(tag)         -> string (a throwaway userData folder NAME, never a path the owner uses)
 //   io.cleanupProfile(name)       -> removes only that throwaway folder
+//   io.gateDataFile(profile)      -> path of the invented window.DATA written inside that throwaway profile folder (the selftest and cdp steps
+//                                    pass it as HQ_V5_DATA_FILE, so a scan landing in the owner's app never changes a gate run)
 //   io.countFiles(pattern)        -> number of files a glob matches (used only by steps with requireFiles)
 
 import { parseSettleLine } from '../dashboard-v5/tools/cdp-settle.mjs';
@@ -227,13 +229,14 @@ export async function runStep(step, io, opts = {}) {
       body = nodeTestResult(step, await io.run({ cmd: step.cmd, args: step.args, cwd: step.cwd, env }, { timeoutMs: step.timeoutMs }));
     } else if (step.kind === 'selftest' || step.kind === 'native') {
       env[step.profileEnv] = profile;
+      if (step.kind === 'selftest') env.HQ_V5_DATA_FILE = await io.gateDataFile(profile);
       const r = await io.run({ cmd: step.cmd, args: step.args, cwd: step.cwd, env }, { timeoutMs: step.timeoutMs });
       body = step.kind === 'selftest' ? selftestResult(step, r) : nativeResult(step, r);
     } else if (step.kind === 'cdp') {
       const port = await io.freePort();
       const settle = step.settle !== undefined ? !!step.settle : !!opts.settle;
       // the ONE electron this step owns: its own profile, its own port, stopped in the finally below
-      child = await io.start({ cmd: 'electron', cwd: step.cwd, args: ['dev-main.js', '--preload=fake', '--hidden', '--remote-debugging-port=' + port], env: { HQ_V5_PROFILE: profile } });
+      child = await io.start({ cmd: 'electron', cwd: step.cwd, args: ['dev-main.js', '--preload=fake', '--hidden', '--remote-debugging-port=' + port], env: { HQ_V5_PROFILE: profile, HQ_V5_DATA_FILE: await io.gateDataFile(profile) } });
       const scenario = step.scenarios === 'all' && opts.scenario ? opts.scenario : step.scenarios;
       const args = ['tools/cdp-gate.mjs', '--port', String(port), '--scenario', scenario, '--wait', '30000'].concat(settle ? ['--settle'] : []);
       const r = await io.run({ cmd: 'node', args, cwd: step.cwd, env: {} }, { timeoutMs: step.timeoutMs });

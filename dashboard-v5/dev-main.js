@@ -8,9 +8,13 @@
 //   --remote-debugging-port=9342                 CDP for tools/cdp-gate.mjs
 //   --selftest                                   load ?selftest=1; exit 0 clean · 1 broken · 2 timed out (180 s)
 // Env HQ_V5_PROFILE names the throwaway userData folder (give concurrent runs their own).
-const { app, BrowserWindow } = require('electron');
+// Env HQ_V5_DATA_FILE names a file the page loads in place of ../dashboard/data.js (the gate's invented data,
+//   tools/gate-data.mjs); unset means the real file, as before. Only that one request is redirected.
+const { app, BrowserWindow, session } = require('electron');
 const path = require('node:path');
 const os = require('node:os');
+const fs = require('node:fs');
+const { pathToFileURL } = require('node:url');
 
 const argv = process.argv;
 const opt = (k) => { const a = argv.find((x) => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : null; };
@@ -43,7 +47,23 @@ function verdict(msg) {
   finish(clean ? 0 : 1, msg + extra + '\n[selftest] ' + (clean ? 'PASS' : 'FAIL'));
 }
 
+// The gate must not read the owner's real scans (the running app rebakes dashboard/data.js after every scan).
+// A file-to-file redirect of that one request; any other request is untouched.
+function useDataFile() {
+  const file = process.env.HQ_V5_DATA_FILE;
+  if (!file) return;
+  const real = (p) => { try { return fs.realpathSync.native(p).toLowerCase(); } catch { return null; } };
+  const dataJs = real(path.join(__dirname, '..', 'dashboard', 'data.js'));
+  const target = pathToFileURL(path.resolve(file)).href;
+  session.defaultSession.webRequest.onBeforeRequest({ urls: ['file:///*/data.js'] }, (d, cb) => {
+    let p = null;
+    try { p = real(decodeURIComponent(new URL(d.url).pathname.slice(1))); } catch { /* not a path we can compare */ }
+    cb(dataJs && p === dataJs ? { redirectURL: target } : {});
+  });
+}
+
 function create() {
+  useDataFile();
   const pre = opt('preload');
   if (pre && !PRELOADS[pre]) console.warn('[dev] unknown --preload=' + pre + ' (v2 | fake); running without a preload');
   const win = new BrowserWindow({
@@ -81,6 +101,7 @@ function create() {
     if (m) query[m[1]] = m[2];
   }
   if (SELFTEST) query.selftest = '1';
+  if (process.env.HQ_V5_DATA_FILE) query.gatedata = '1';   // lets the boot scenario prove the redirect took
   win.loadFile(path.join(__dirname, 'index.html'), Object.keys(query).length ? { query } : undefined);
 }
 

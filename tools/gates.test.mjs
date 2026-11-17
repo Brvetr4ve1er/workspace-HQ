@@ -46,6 +46,7 @@ function fakeIo(over = {}) {
     async freePort() { const p = ++portSeq; rec.ports.push(p); return p; },
     uniqueProfile(tag) { const n = 'hq-gates-' + tag + '-' + (++profSeq); rec.profiles.push(n); return n; },
     async cleanupProfile(name) { rec.cleaned.push(name); },
+    async gateDataFile(profile) { return '/fake-tmp/' + profile + '/gate-data.js'; },
     async countFiles(pattern) { return over.files === undefined ? 3 : (typeof over.files === 'function' ? over.files(pattern) : over.files); },
   };
   // anything outside the contract (a kill-by-name, a process listing, ...) throws instead of being silently accepted
