@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { gateData, writeGateData } from './gate-data.mjs';
 import { createStore } from '../src/live/store.js';
 import { runStep, buildCatalog } from '../../tools/gates-core.mjs';
@@ -68,4 +69,9 @@ test('dev-main redirects only with the variable set, and the boot scenario prove
   const gate = fs.readFileSync(new URL('./cdp-gate.mjs', import.meta.url), 'utf8');
   assert.match(gate, /gate_fixture === true/);
   assert.equal(gateData().gate_fixture, true);
+});
+
+test('cdp-gate.mjs and dev-main.js still parse', async () => {
+  const { execFileSync } = await import('node:child_process');
+  for (const f of ['./cdp-gate.mjs', '../dev-main.js']) execFileSync(process.execPath, ['--check', fileURLToPath(new URL(f, import.meta.url))], { stdio: 'pipe' });
 });
