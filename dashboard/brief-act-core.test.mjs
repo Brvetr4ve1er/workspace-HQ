@@ -26,10 +26,10 @@ const SRC = {
 };
 const plan = (req, over = {}) => planAct(req, { brief: brief([questItem('wq:abc'), moneyItem('acc-1', ANCHOR), waitItem('sess-1', LAST), dirtyItem('proj-a'), leftItem('proj-b')]), sources: SRC, acted: {}, now: NOW, ...over });
 
-test('the VERBS table: four verbs, each belongs to exactly its rule(s), and none is an outbound verb', () => {
-  assert.deepEqual(Object.keys(VERBS).sort(), ['commit', 'confirm-balance', 'open-folder', 'quest-done']);
-  assert.deepEqual(RULE_VERBS, { 'quest-red': ['quest-done'], 'money-stale': ['confirm-balance'], dirty: ['commit'], 'session-left-dirty': ['commit'], 'session-waiting': ['open-folder'] });
-  for (const rule of Object.keys(RULE_VERBS)) assert.equal(RULE_VERBS[rule].length, 1, rule + ' offers one verb');
+test('the VERBS table: five verbs, each belongs to exactly its rule(s) (dirty has a second, Open workspace), and none is an outbound verb', () => {
+  assert.deepEqual(Object.keys(VERBS).sort(), ['commit', 'confirm-balance', 'open-folder', 'open-workspace', 'quest-done']);
+  assert.deepEqual(RULE_VERBS, { 'quest-red': ['quest-done'], 'money-stale': ['confirm-balance'], dirty: ['commit', 'open-workspace'], 'session-left-dirty': ['commit'], 'session-waiting': ['open-folder'] });
+  for (const rule of Object.keys(RULE_VERBS)) assert.equal(RULE_VERBS[rule].length, rule === 'dirty' ? 2 : 1, rule + ' offers ' + (rule === 'dirty' ? 'two verbs' : 'one verb'));
   for (const [name, v] of Object.entries(VERBS)) assert.doesNotMatch(name + ' ' + v.label, /push|publish|send|post|upload|deploy|delete|remove/i, name);
   assert.ok(Object.isFrozen(VERBS) && Object.isFrozen(VERBS.commit) && Object.isFrozen(RULE_VERBS));
 });

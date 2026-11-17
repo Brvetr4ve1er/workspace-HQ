@@ -4,7 +4,10 @@
 //   KEYS                    the one place a brief key is BUILT. brief-core.mjs re-exports it and its rule functions call it
 //                           (the strings are byte-identical to what they emitted before). Keys are never PARSED: money-stale ends in an
 //                           ISO anchorAt full of colons, quest ids can be 'wq:<id>', session-waiting ends in an ISO lastAt.
-//   VERBS / RULE_VERBS      the closed table of what a row may do. Four verbs; none leaves the machine (no push, no send, no post).
+//   VERBS / RULE_VERBS      the closed table of what a row may do. Five verbs; none leaves the machine (no push, no send, no post).
+//   SECONDARY / workspaceTarget(item)   the second button a row MAY carry beside its first verb (batch 10: 'dirty' -> Open workspace). Main OFFERS it
+//                           (an additive item.secondary:['open-workspace'] while that project's dev command is allowed) and planAct ACCEPTS it only when
+//                           ctx.devAllowed === true and the project is in ctx.sources.projects. Never for a collapsed group row.
 //   planAct(req, ctx)       → { ok:true, rule, item, plan } | { error }. req = { key, verb, value? }; ctx = { brief, sources, acted?, now }.
 //                           The record a key stands for is found by REBUILDING keys from the live source records and comparing for
 //                           equality; its id is read from that record, never from the key string. A forged key, a verb of another rule,
@@ -33,7 +36,11 @@ export const VERBS = deep({
   'confirm-balance': { rules: ['money-stale'], label: 'Confirm balance', takesValue: true, marks: true },
   commit: { rules: ['dirty', 'session-left-dirty'], label: 'Commit…', takesValue: false, marks: false },
   'open-folder': { rules: ['session-waiting'], label: 'Open its folder', takesValue: false, marks: false },
+  // marks:false on purpose: the Launcher (dashboard/launcher.js openWorkspace) writes its own 'launcher-workspace' act, once, in the same code path as the Settings button
+  'open-workspace': { rules: ['dirty'], label: 'Open workspace', takesValue: false, marks: false },
 });
+/** The second verb a rule may offer beside its first (RULE_VERBS lists both; the renderer's RULE_VERB maps the first). */
+export const SECONDARY = Object.freeze({ dirty: 'open-workspace' });
 export const RULE_VERBS = Object.freeze(Object.fromEntries(
   [...new Set(Object.values(VERBS).flatMap((v) => v.rules))].map((r) => [r, Object.freeze(Object.keys(VERBS).filter((k) => VERBS[k].rules.includes(r)))]),
 ));
@@ -62,6 +69,13 @@ export function briefKeys(brief) {
   if (!isObj(brief)) return out;
   for (const i of arr(brief.items).concat(arr(brief.overflow), arr(brief.standing))) if (isObj(i) && typeof i.key === 'string') out.add(i.key);
   return out;
+}
+
+/** The project a 'dirty' row names for Open workspace: from the item's own action field (never the key), and never for a collapsed group row. */
+export function workspaceTarget(item) {
+  if (!isObj(item) || item.rule !== 'dirty' || isObj(item.group)) return null;
+  const a = item.action;
+  return isObj(a) && a.kind === 'go' && a.tab === 'projects' ? idStr(a.projectId) : null;
 }
 
 export function checkBalance(value) {
@@ -119,6 +133,14 @@ export function planAct(req, ctx) {
     const projectId = isObj(a) && a.kind === 'go' && a.tab === 'projects' ? idStr(a.projectId) : null;
     if (!projectId) return { error: 'this item does not name a project to commit.' };
     return { ok: true, rule: item.rule, item, plan: { kind: 'commit', projectId } };
+  }
+  if (verb === 'open-workspace') {
+    const projectId = workspaceTarget(item);
+    if (!projectId) return { error: 'this item does not name a project to open.' };
+    // the id is looked up again in the live scan, and the dev command must be allowed right now (main read it a moment ago)
+    if (!src || !arr(src.projects).some((p) => isObj(p) && p.id === projectId)) return { error: GONE };
+    if (c.devAllowed !== true) return { error: 'this project’s dev command is not allowed right now — nothing was opened.' };
+    return { ok: true, rule: item.rule, item, plan: { kind: 'open-workspace', projectId } };
   }
   if (!src) return { error: 'the live records could not be read — try again after the next scan.' };
   if (verb === 'quest-done') {

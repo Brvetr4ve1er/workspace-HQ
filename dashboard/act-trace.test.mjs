@@ -39,13 +39,17 @@ function trace(o = {}) {
     { key: 'dirty:proj-a:12', rule: 'dirty', severity: 'med', text: 'd', why: 'w', source: 's', age: 'now', action: { kind: 'go', tab: 'projects', projectId: 'proj-a' }, count: 0 },
   ];
   const brief = { v: 1, generatedAt: new Date(T0).toISOString(), items, more: 0, overflow: [], standing: [], errors: [] };
-  const effects = { applyDone: [], money: [], folder: [] };
+  const effects = { applyDone: [], money: [], folder: [], workspace: [] };
   const mainAct = briefAct.create({
     getBrief: async () => brief,
     sources: async () => ({ redQuests: quests, staleAccounts: [{ id: 'acc-1', anchorAt: ANCHOR }], waitingSessions: [{ id: 'sess-1', lastAt: LAST }] }),
     applyDone: async (ids) => { effects.applyDone.push(ids); return true; },
     moneyApply: async (i) => { effects.money.push(i); return { view: {}, note: 'saved' }; },
     openFolder: async (id) => { effects.folder.push(id); return { ok: true }; },
+    // batch 10: Open workspace is ONE call into the Launcher, which writes its own 'launcher-workspace' act (the fake does what launcher.js does)
+    latest: () => ({ projects: [{ id: 'proj-a' }] }),
+    devState: async () => 'allowed',
+    openWorkspace: async (id) => { effects.workspace.push(id); mainUse.mark('launcher-workspace', 'act'); return { ok: true, steps: [], line: 'Dev server started.' }; },
     useMark: (s, a) => mainUse.mark(s, a),
     appLog: () => {},
     now: () => clock,
@@ -137,5 +141,20 @@ test('act days are local days: acts a day apart count as two days in the report'
     const row = t.report().rows.find((r) => r.surface === 'brief-act');
     assert.equal(row.act, 2);
     assert.equal(row.actDays, 2);
+  } finally { t.cleanup(); }
+});
+
+test('batch 10: Open workspace is one launcher-workspace act and nothing under brief-act (a marks:false verb leaves no second mark)', async () => {
+  const t = trace();
+  try {
+    const row = { ...t.rowOf('dirty'), secondary: ['open-workspace'] };
+    assert.equal(await t.self.batStartSecondary(row), true);
+    assert.deepEqual(t.effects.workspace, ['proj-a'], 'exactly one launcher call');
+    assert.equal(t.count('launcher-workspace', 'act'), 1);
+    for (const a of ['act', 'handover']) assert.equal(t.count('brief-act', a), 0, 'brief-act writes no ' + a);
+    assert.equal(t.report().marks, 1, 'one mark in all');
+    // a refused click (the command is no longer offered) adds none
+    assert.equal(await t.self.batRun(t.rowOf('quest-red'), 'open-workspace'), false);
+    assert.equal(t.report().marks, 1);
   } finally { t.cleanup(); }
 });
