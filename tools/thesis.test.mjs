@@ -1,8 +1,9 @@
 // node --test tools/thesis.test.mjs
 // The thesis, said out loud in the two files a stranger reads first (batch 7, subtraction):
 //   WorkspaceHQ says what needs the owner, where they are, then lets them act in place;
-//   and the FREEZE RULE: no new space, no new MCP tool; new views live inside existing spaces or Settings; each batch ends with a use report
-//   that decides the next.
+//   and the FREEZE RULE (amended by the owner 2026-11-17): no new space and no new MCP tool; views inside an existing space are allowed, one stage
+//   at a time; each carries an act mark, the use report is read before every stage, the next stage waits for the previous act bar, and a view
+//   with fewer than 3 uses in 14 days is deleted.
 // README.md: the opening, everything above "## Status". CLAUDE.md: its first paragraph (the first block of text under the title).
 //
 // The real-file check starts as a `todo` while NEITHER file says the thesis yet (the shared edit has not landed); the moment either does, both
@@ -20,9 +21,11 @@ const FREEZE = [
   [/freeze rule/i, 'names itself the freeze rule'],
   [/no new space/i, 'no new space'],
   [/no new MCP tool/i, 'no new MCP tool'],
-  [/new views live inside existing spaces or Settings/i, 'new views live inside existing spaces or Settings'],
-  [/each batch ends with a use report/i, 'each batch ends with a use report'],
-  [/decides the next/i, 'that decides the next'],
+  [/views inside an existing space are allowed/i, 'views inside an existing space are allowed'],
+  [/one stage at a time/i, 'one stage at a time'],
+  [/the use report is read before every stage/i, 'the use report is read before every stage'],
+  [/the next stage waits for the previous act bar/i, 'the next stage waits for the previous act bar'],
+  [/fewer than 3 uses in 14 days is deleted/i, 'fewer than 3 uses in 14 days is deleted'],
 ];
 const PLACEHOLDERS = [/\{\{[^}]*\}\}/, /<owner[^>]*>/i, /\bOWNER_NAME\b/, /\[owner name\]/i, /\bYOUR NAME\b/, /\bTODO\b/, /\blorem ipsum\b/i, /\bJohn Doe\b/, /\bJane Doe\b/];
 const MACHINE = [/[A-Za-z]:\\Users\\[^\\\s]+/, /\/Users\/[^/\s]+\//, /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/];
@@ -57,13 +60,13 @@ export function checkThesis(readme, claude) {
 const GOOD_README = [
   '# WorkspaceHQ', '',
   'WorkspaceHQ says what needs you, where you are, then lets you act in place.', '',
-  'Freeze rule: no new space and no new MCP tool; new views live inside existing spaces or Settings; each batch ends with a use report that decides the next.', '',
+  'Freeze rule: No new space and no new MCP tool. Views inside an existing space are allowed, one stage at a time; each carries an act mark, the use report is read before every stage, the next stage waits for the previous act bar, and a view with fewer than 3 uses in 14 days is deleted.', '',
   '> **The trailers show placeholder data.**', '',
   '## Status', '', '- A personal tool, built for one machine. Windows only, no installer.', '',
 ].join('\n');
 const GOOD_CLAUDE = [
   '# WorkspaceHQ — session contract', '',
-  'WorkspaceHQ says what needs the owner, where they are, then lets them act in place. FREEZE RULE: no new space, no new MCP tool; new views live inside existing spaces or Settings; each batch ends with a use report that decides the next.', '',
+  'WorkspaceHQ says what needs the owner, where they are, then lets them act in place. FREEZE RULE: No new space and no new MCP tool. Views inside an existing space are allowed, one stage at a time; each carries an act mark, the use report is read before every stage, the next stage waits for the previous act bar, and a view with fewer than 3 uses in 14 days is deleted.', '',
   'Two sessions work this repo.', '',
 ].join('\n');
 
@@ -78,7 +81,7 @@ test('fixture: each missing part is named', () => {
     const claude = GOOD_CLAUDE.replace(new RegExp(re.source, 'gi'), 'x');
     assert.ok(checkThesis(GOOD_README, claude).some((m) => m.includes(what)), 'CLAUDE.md without: ' + what);
   }
-  const lateRule = GOOD_README.replace(/Freeze rule:[^\n]*\n\n/, '').replace('## Status', '## Status\n\nFreeze rule: no new space, no new MCP tool; new views live inside existing spaces or Settings; each batch ends with a use report that decides the next.');
+  const lateRule = GOOD_README.replace(/Freeze rule:[^\n]*\n\n/, '').replace('## Status', '## Status\n\nFreeze rule: No new space and no new MCP tool. Views inside an existing space are allowed, one stage at a time; each carries an act mark, the use report is read before every stage, the next stage waits for the previous act bar, and a view with fewer than 3 uses in 14 days is deleted.');
   assert.ok(checkThesis(lateRule, GOOD_CLAUDE).some((m) => /README\.md opening lacks the freeze rule/.test(m)), 'the rule below Status is not in the opening');
   assert.ok(checkThesis(GOOD_README.replace('## Status', '## Elsewhere'), GOOD_CLAUDE).some((m) => /no "## Status" heading/.test(m)));
 });

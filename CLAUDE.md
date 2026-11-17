@@ -1,6 +1,6 @@
 # WorkspaceHQ — session contract
 
-WorkspaceHQ says what needs the owner, where they are, then lets them act in place. FREEZE RULE: no new space, no new MCP tool; new views live inside existing spaces or Settings; each batch ends with a use report (`node tools/use-report.mjs`) that decides the next.
+WorkspaceHQ says what needs the owner, where they are, then lets them act in place. FREEZE RULE: No new space and no new MCP tool. Views inside an existing space are allowed, one stage at a time; each carries an act mark, the use report is read before every stage, the next stage waits for the previous act bar, and a view with fewer than 3 uses in 14 days is deleted. The use report is `node tools/use-report.mjs`.
 
 Two Claude sessions work this repo in parallel. **Read `docs/sync/HANDOFF.md` before
 editing anything; append an entry there when you finish a work block.**

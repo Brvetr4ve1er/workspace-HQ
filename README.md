@@ -7,8 +7,7 @@ recent activity). An Electron app turns that into one screen: what changed since
 next thing that needs you, and where the risks are. It has a light game layer on top: levels, XP and a
 pixel mascot called Bit.
 
-**Freeze rule:** no new space, no new MCP tool. New views live inside existing spaces or Settings, and
-each batch ends with a use report (`node tools/use-report.mjs`) that decides the next. Anything nobody
+**Freeze rule:** No new space and no new MCP tool. Views inside an existing space are allowed, one stage at a time; each carries an act mark, the use report is read before every stage, the next stage waits for the previous act bar, and a view with fewer than 3 uses in 14 days is deleted. The use report is `node tools/use-report.mjs`. Anything nobody
 opens for 14 days can be folded behind Settings > Show everything; nothing is deleted without a yes.
 
 [![WorkspaceHQ trailer: the wordmark](dashboard-v5/media/hq-trailer-1.jpg)](dashboard-v5/media/hq-trailer-1.webm)
