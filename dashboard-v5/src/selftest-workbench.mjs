@@ -21,7 +21,7 @@ const emptyBrief = { brief: { v: 1, generatedAt: '2026-11-16T09:00:00.000Z', ite
 const CREW_ROLES = [['developers', 'Developers'], ['designers', 'Designers'], ['other', 'Other']].map((r) => ({ id: r[0], label: r[1] }));
 const crewRow = (i) => ({ id: 'selftest-skill-' + i, name: 'selftest-skill-' + i, description: 'A placeholder skill for the selftest, number ' + i + '.', role: CREW_ROLES[i % CREW_ROLES.length].id, plugin: '', canStart: true });
 const CREW = { crw: { rows: Array.from({ length: 9 }, (_, i) => crewRow(i)), roles: CREW_ROLES, error: '', loaded: true, busy: false, at: '', q: '', page: 1, open: {} } };
-const NOTE = { state: 'ready', vaultName: 'Selftest Vault', canOpen: true, folder: 'Daily', folderFromSettings: false, settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a placeholder line\n', truncated: false, recent: ['Note A', 'Note B', 'Note C', 'Note D'].map((name) => ({ name })) };
+const NOTE = { state: 'ready', vaultName: 'Selftest Vault', canOpen: true, folder: 'Daily', folderFromSettings: true, folderSource: 'daily-notes', settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a placeholder line\n', truncated: false, recent: ['Note A', 'Note B', 'Note C', 'Note D'].map((name) => ({ name })), noteCount: 4, noteCountCapped: false };
 const NOTES = { vdk: { data: NOTE, error: '', loaded: true, busy: false, draft: '', sending: false } };
 
 export function workbenchStates() {

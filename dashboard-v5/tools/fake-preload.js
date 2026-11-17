@@ -703,8 +703,8 @@ function createFake(opts) {
         ['vaultDesk.read', () => {
           const m = mode();
           if (m === 'error') return { error: 'vault not found' };
-          const base = { vaultName: 'Example Vault', canOpen: m !== 'no-open', folder: '10_Daily', folderFromSettings: false, settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '', truncated: false, recent: recent() };
-          if (m === 'no-folder') return { ...base, state: 'no-folder', recent: [] };
+          const base = { vaultName: 'Example Vault', canOpen: m !== 'no-open', folder: '10_Daily', folderFromSettings: true, folderSource: 'daily-notes', settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '', truncated: false, recent: recent(), noteCount: 87, noteCountCapped: false };
+          if (m === 'no-folder') return { ...base, state: 'no-folder', recent: [], noteCount: 0 };
           if (m === 'no-note') return { ...base, state: 'no-note' };
           return { ...base, state: 'ready', text: note };
         }],

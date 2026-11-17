@@ -4,13 +4,13 @@
 // traced, vectorized or read from a reference picture, and no picture names a product. Each one is a generic bench instrument with a small screen:
 //   cleared   a tray with a screen         "N CLEARED"     (the clean-board card on Home)
 //   skills    a pegboard of tools          "N SKILLS"      (the Crew header)
-//   notes     a stack of note cards        "N NOTES"       (the Vault desk header)
+//   notes     a stack of note cards        "N NOTES"       (the Vault desk header; "N+ NOTES" when the desk's count stopped at its limit)
 //   needyou   a signal lamp                "0 NEED YOU"    (the empty Brief)
 //   projects  a set of drawers             "N PROJECTS"    (the empty Projects shelf)
 // Only these five readouts exist. The number in a readout is the number the host passed in, floored and clamped to 0 to 99999; anything that is
 // not a finite number reads 0. Colours are the app's tokens only (var(--...)); a shape carries no literal colour.
 //
-//   workbenchArt(kind, n)  -> { kind, n, label, aria, viewBox, w, h, shapes: [{ key, prim, d, fill, stroke, sw }], screen: { x, y, w, h }, cursor: { x, y, w, h } }
+//   workbenchArt(kind, n, more?)  -> { kind, n, label, aria, viewBox, w, h, shapes: [{ key, prim, d, fill, stroke, sw }], screen: { x, y, w, h }, cursor: { x, y, w, h } }
 //                             the screen box and the cursor are in viewBox units; the host overlays the readout text on the screen box
 //   READOUTS               the five readout builders, the only strings that ever reach a screen
 //   WBN_PRIMS              the primitive set; WBN_KINDS the five kinds; WBN_TOKENS the colour tokens a shape may use
@@ -23,7 +23,7 @@ export const WBN_MAX = 99999;
 export const READOUTS = Object.freeze({
   cleared: (n) => n + ' CLEARED',
   skills: (n) => n + (n === 1 ? ' SKILL' : ' SKILLS'),
-  notes: (n) => n + (n === 1 ? ' NOTE' : ' NOTES'),
+  notes: (n, more) => (more ? n + '+ NOTES' : n + (n === 1 ? ' NOTE' : ' NOTES')),   // more: the count is a floor (the walk was capped)
   needyou: (n) => n + ' NEED YOU',
   projects: (n) => n + (n === 1 ? ' PROJECT' : ' PROJECTS'),
 });
@@ -115,12 +115,12 @@ const BUILD = {
   },
 };
 
-/** One illustration with its real number. An unknown kind is null (the host draws nothing). */
-export function workbenchArt(kind, n) {
+/** One illustration with its real number. An unknown kind is null (the host draws nothing). `more` (notes only) says the number is a floor: "N+". */
+export function workbenchArt(kind, n, more = false) {
   if (!WBN_KINDS.includes(kind)) return null;
   const count = readoutCount(n);
   const b = BUILD[kind]();
-  const label = READOUTS[kind](count);
+  const label = READOUTS[kind](count, more === true);
   const shapes = b.s.shapes.concat(b.shapes).map((x, i) => ({ key: kind + i, prim: x.prim, d: x.d, fill: x.fill, stroke: x.stroke, sw: x.sw }));
   return {
     kind, n: count, label, aria: label.toLowerCase(), show: true,
@@ -137,8 +137,8 @@ export const WBN_EMPTY_ART = Object.freeze({
 });
 
 /** The art a host binds: the pure picture plus the two things a template cannot compute (the readout box as a CSS style, the cursor's numbers). */
-export function bindArt(kind, n) {
-  const a = workbenchArt(kind, n);
+export function bindArt(kind, n, more = false) {
+  const a = workbenchArt(kind, n, more);
   if (!a) return WBN_EMPTY_ART;
   const pw = (v) => (Math.round((v / a.w) * 10000) / 100) + '%';
   const ph = (v) => (Math.round((v / a.h) * 10000) / 100) + '%';

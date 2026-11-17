@@ -12,8 +12,8 @@ import tpl from '../tpl/vault-desk.tpl.js';
 
 globalThis.window = globalThis.window || { HQFx: { sfx() {} } };
 
-const ANSWER = (o = {}) => ({ state: 'ready', vaultName: 'Example Vault', canOpen: true, folder: '10_Daily', folderFromSettings: false, settingsIgnored: false,
-  noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a line\n', truncated: false, recent: [{ name: '2026-11-16' }, { name: 'Placeholder note' }], ...o });
+const ANSWER = (o = {}) => ({ state: 'ready', vaultName: 'Example Vault', canOpen: true, folder: '10_Daily', folderFromSettings: true, folderSource: 'daily-notes', settingsIgnored: false,
+  noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a line\n', truncated: false, recent: [{ name: '2026-11-16' }, { name: 'Placeholder note' }], noteCount: 2, noteCountCapped: false, ...o });
 
 function rig(o = {}) {
   const calls = [], toasts = [], marks = [], opened = [];
@@ -41,15 +41,24 @@ test('clean: a known state, bounded strings, at most twelve recent names, line b
   assert.equal(c.recent.length, 12);
   assert.equal(c.vaultName.length, 100);
   assert.equal(vdkClean(ANSWER({ canOpen: 'yes' })).canOpen, false, 'only a real true opens');
+  assert.deepEqual([vdkClean(ANSWER({ noteCount: 40, noteCountCapped: true })).noteCount, vdkClean(ANSWER({ noteCount: 40, noteCountCapped: true })).noteCountCapped], [40, true]);
+  assert.equal(vdkClean(ANSWER({ noteCount: 1e9 })).noteCount, 99999);
+  assert.equal(vdkClean(ANSWER({ noteCount: -3 })).noteCount, 0);
+  assert.equal(vdkClean(ANSWER({ noteCount: '7' })).noteCount, null, 'a count that is not a number is no count');
+  assert.equal(vdkClean(ANSWER({ noteCount: undefined, noteCountCapped: true })).noteCountCapped, false, 'no count, no capped claim');
 });
 
-test('words: where it looked, from settings or the app\'s own name, and what each missing state means', () => {
-  assert.match(vdkWhere(vdkClean(ANSWER())), /“10_Daily”.*app’s own daily folder name/);
-  assert.match(vdkWhere(vdkClean(ANSWER({ folderFromSettings: true, folder: 'Journal' }))), /“Journal”.*daily notes settings/);
+test('words: where it looked, per source, and what each missing state means', () => {
+  assert.match(vdkWhere(vdkClean(ANSWER({ folder: 'Journal' }))), /“Journal”.*from the vault’s daily notes settings/);
+  assert.match(vdkWhere(vdkClean(ANSWER({ folder: 'Inbox', folderSource: 'vault-new-notes', folderFromSettings: false }))), /“Inbox”.*the vault’s own folder for new notes.*daily notes settings name no folder/);
+  assert.match(vdkWhere(vdkClean(ANSWER({ folder: '', folderSource: 'vault-top', folderFromSettings: false }))), /the top of the vault.*Obsidian’s default when no folder is set/);
   assert.match(vdkWhere(vdkClean(ANSWER({ settingsIgnored: true }))), /not safe to use/);
-  assert.match(vdkWhere(vdkClean(ANSWER({ folder: '' }))), /top of the vault/);
+  // an answer without a source (an older main): the old flag decides
+  assert.match(vdkWhere(vdkClean(ANSWER({ folderSource: undefined, folderFromSettings: false, folder: '' }))), /top of the vault/);
+  assert.equal(vdkClean(ANSWER({ folderSource: undefined, folderFromSettings: true })).folderSource, 'daily-notes');
+  assert.equal(vdkClean(ANSWER({ folderSource: 'invented' })).folderSource, 'daily-notes', 'an unknown source is not trusted');
   assert.match(vdkStateWords(vdkClean(ANSWER({ state: 'no-folder' }))), /never makes folders/);
-  assert.match(vdkStateWords(vdkClean(ANSWER({ state: 'no-note' }))), /never makes notes/);
+  assert.match(vdkStateWords(vdkClean(ANSWER({ state: 'no-note' }))), /Make today’s note in Obsidian first \(the app never makes notes\), then it shows here/);
   assert.equal(vdkStateWords(vdkClean(ANSWER())), '');
   assert.deepEqual(vdkLineInfo('  '), { n: 0, empty: true, long: false });
   assert.equal(vdkLineInfo('x'.repeat(VDK_LINE_MAX + 1)).long, true);

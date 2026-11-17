@@ -797,7 +797,7 @@ export async function run(W = window.WHQ) {
         // arrival read is held (the fake's own answer would replace it); vault-desk-offline hides hq.vaultDesk for one combo. Invented names only.
         {
           const hq5 = W.store.hq;
-          const vdAns = (o) => Object.assign({ state: 'ready', vaultName: 'Selftest Vault', canOpen: true, folder: '10_Daily', folderFromSettings: false, settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a placeholder line\n- another placeholder line\n', truncated: false, recent: Array.from({ length: 12 }, (_, i) => ({ name: 'Selftest note ' + i })) }, o);
+          const vdAns = (o) => Object.assign({ state: 'ready', vaultName: 'Selftest Vault', canOpen: true, folder: '10_Daily', folderFromSettings: true, folderSource: 'daily-notes', settingsIgnored: false, noteName: '2026-11-16', date: '2026-11-16', text: '# Monday\n\n- a placeholder line\n- another placeholder line\n', truncated: false, recent: Array.from({ length: 12 }, (_, i) => ({ name: 'Selftest note ' + i })), noteCount: 87, noteCountCapped: false }, o);
           const vdk = (o) => ({ vdk: Object.assign({ data: null, error: '', loaded: true, busy: false, draft: '', sending: false }, o) });
           for (const [name, offline, patch] of [
             ['vault-desk-offline', true, vdk({})],
@@ -810,6 +810,8 @@ export async function run(W = window.WHQ) {
             ['vault-desk-no-open', false, vdk({ data: vdAns({ canOpen: false, recent: [{ name: 'Only note' }] }) })],
             ['vault-desk-no-folder', false, vdk({ data: vdAns({ state: 'no-folder', text: '', recent: [] }) })],
             ['vault-desk-no-note', false, vdk({ data: vdAns({ state: 'no-note', text: '', folderFromSettings: true, folder: 'Journal' }) })],
+            ['vault-desk-new-notes-folder', false, vdk({ data: vdAns({ folder: 'Inbox', folderFromSettings: false, folderSource: 'vault-new-notes' }) })],
+            ['vault-desk-vault-top', false, vdk({ data: vdAns({ folder: '', folderFromSettings: false, folderSource: 'vault-top', recent: [{ name: 'Only note' }], noteCount: 1 }) })],
             ['vault-desk-settings-ignored', false, vdk({ data: vdAns({ settingsIgnored: true }) })],
             ['vault-desk-ready-error', false, vdk({ data: vdAns(), error: 'vault not found' })],
           ]) {

@@ -4,14 +4,18 @@
 //   create({ env?, vaultDir, readLatest?, vaultOpen?, fsApi?, now?, coreLoader? }) -> { read(), capture(text), open(), _clear() }
 //   init({ ipcMain, getWin, dataDir, ...create deps }) -> the same object; registers the two channels
 //
-//   hq:vault-desk:read    ()           -> { state, vaultName, canOpen, folder, folderFromSettings, settingsIgnored, noteName, date, text, truncated, recent:[{name}] } | { error }
+//   hq:vault-desk:read    ()           -> { state, vaultName, canOpen, folder, folderFromSettings, folderSource, settingsIgnored, noteName, date, text, truncated, recent:[{name}],
+//                                          noteCount, noteCountCapped } | { error }
 //   hq:vault-desk:capture { text }     -> { ok: true } | { error }
 //     Main window only (event.sender === getWin().webContents, the security.js pattern). Answers are fixed words, never an error message or a path.
 //     state is 'ready' (the note is there), 'no-folder' (the daily folder is not in the vault) or 'no-note' (no note for today yet).
+//     folderSource is 'daily-notes' | 'vault-new-notes' | 'vault-top'. noteCount is how many .md notes the bounded walk saw; noteCountCapped is true when it
+//     stopped at its file or depth limit (the real number is then larger).
 //
 // The vault. When env.HQ_VAULT_DIR is set it is the ONLY vault: a missing folder answers "vault not found" and never falls back to the default.
-// The daily folder and the date format come from <vault>/.obsidian/daily-notes.json, treated as untrusted (vault-desk-core parseDailySettings);
-// with none, the app's own folder name is used and the card says which folder it looks in.
+// The daily folder and the date format come from <vault>/.obsidian/daily-notes.json, treated as untrusted (vault-desk-core parseDailySettings); with
+// no daily folder it follows Obsidian: the vault's folder for new notes (<vault>/.obsidian/app.json, read the same careful way), else the top of the vault.
+// The card says which folder it looks in and why.
 //
 // What a capture may do. Append ONE line at the very end of today's note, and nothing else: it never creates a folder or a note, never
 // rewrites a note, refuses a symlink or a junction as the note, and requires the note's folder to resolve (realpath) inside the vault's own
@@ -66,13 +70,15 @@ function create({ env = process.env, vaultDir, readLatest = () => null, vaultOpe
     if (typeof root !== 'string' || !root || !isDir(root)) return null;
     const realRoot = realOf(root);
     if (!realRoot) return null;
-    let raw = null;
-    try {
-      const f = path.join(root, '.obsidian', 'daily-notes.json');
-      const st = fsApi.lstatSync(f);
-      if (st.isFile() && st.size <= 20000) raw = fsApi.readFileSync(f, 'utf8');
-    } catch { raw = null; }
-    const settings = core.parseDailySettings(raw);
+    // a settings file is read only when it is a plain file (never a link) of at most 20 KB; anything else reads as "not there"
+    const settingsText = (name) => {
+      try {
+        const f = path.join(root, '.obsidian', name);
+        const st = fsApi.lstatSync(f);
+        return st.isFile() && st.size <= 20000 ? fsApi.readFileSync(f, 'utf8') : null;
+      } catch { return null; }
+    };
+    const settings = core.parseDailySettings(settingsText('daily-notes.json'), settingsText('app.json'));
     return { root, realRoot, settings, name: path.basename(path.resolve(root)) };
   }
 
@@ -89,24 +95,29 @@ function create({ env = process.env, vaultDir, readLatest = () => null, vaultOpe
     return { plan, abs, parent, parentOk, lst };
   }
 
+  // a bounded walk of the vault's notes: the twelve newest names, how many notes it saw, and whether a limit stopped it
   function recentNotes(core, v) {
     const found = [];
-    let visited = 0;
+    let visited = 0, capped = false;
     const walk = (dir, depth) => {
-      if (depth > WALK_DEPTH || visited >= WALK_FILES) return;
       let ents;
       try { ents = fsApi.readdirSync(dir, { withFileTypes: true }); } catch { return; }
       for (const e of ents) {
-        if (visited >= WALK_FILES) return;
         if (!e || typeof e.name !== 'string' || e.name.startsWith('.')) continue;
-        if (e.isDirectory()) { walk(path.join(dir, e.name), depth + 1); continue; }
+        if (e.isDirectory()) {
+          if (depth >= WALK_DEPTH) { capped = true; continue; }   // a folder below the depth limit is not entered: the count is then a floor
+          if (visited >= WALK_FILES) { capped = true; return; }
+          walk(path.join(dir, e.name), depth + 1);
+          continue;
+        }
         if (!e.isFile() || !/\.md$/i.test(e.name)) continue;   // a symlink is neither: never followed
+        if (visited >= WALK_FILES) { capped = true; return; }
         visited++;
         try { found.push({ name: e.name, mtimeMs: fsApi.statSync(path.join(dir, e.name)).mtimeMs }); } catch { /* gone */ }
       }
     };
     walk(v.root, 0);
-    return core.sortRecent(found, core.RECENT_MAX).map((r) => ({ name: r.name }));
+    return { recent: core.sortRecent(found, core.RECENT_MAX).map((r) => ({ name: r.name })), noteCount: visited, noteCountCapped: capped };
   }
 
   function readHead(file, bytes) {
@@ -136,11 +147,11 @@ function create({ env = process.env, vaultDir, readLatest = () => null, vaultOpe
       const ns = noteState(core, v);
       const out = {
         state: 'no-folder', vaultName: v.name.slice(0, 100), canOpen: canOpenOf(v.name), folder: v.settings.folder, folderFromSettings: !!v.settings.fromSettings,
-        settingsIgnored: !!v.settings.ignored, noteName: '', date: core.formatDate(now(), 'YYYY-MM-DD'), text: '', truncated: false, recent: [],
+        folderSource: v.settings.source,
+        settingsIgnored: !!v.settings.ignored, noteName: '', date: core.formatDate(now(), 'YYYY-MM-DD'), text: '', truncated: false, recent: [], noteCount: 0, noteCountCapped: false,
       };
       if (ns.plan) out.noteName = ns.plan.name.replace(/\.md$/i, '');
-      if (ns.error) return { ...out, recent: recentNotes(core, v) };
-      if (!ns.parentOk) return { ...out, recent: recentNotes(core, v) };
+      if (ns.error || !ns.parentOk) return { ...out, ...recentNotes(core, v) };
       out.state = 'no-note';
       if (ns.lst && ns.lst.isFile() && !ns.lst.isSymbolicLink()) {
         const head = readHead(ns.abs, core.READ_MAX);
@@ -152,8 +163,7 @@ function create({ env = process.env, vaultDir, readLatest = () => null, vaultOpe
           out.text = mask(t);
         }
       }
-      out.recent = recentNotes(core, v);
-      return out;
+      return { ...out, ...recentNotes(core, v) };
     } catch { return { error: WORDS.read }; }
   }
 

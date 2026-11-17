@@ -52,7 +52,7 @@ export function makeVaultDeskScenarios({ fresh, sleep }) {
         if (await t.evaluate(PAGE.calls('vaultDesk.read')) !== 1) out.push('the desk was read ' + await t.evaluate(PAGE.calls('vaultDesk.read')) + ' times on arrival, want exactly 1');
         if (await t.evaluate(PAGE.marks('vault-desk', 'open')) !== 1) out.push('arriving sent ' + await t.evaluate(PAGE.marks('vault-desk', 'open')) + ' open marks, want 1');
         const where = await t.evaluate(PAGE.where);
-        if (!/10_Daily/.test(where) || !/own daily folder name/.test(where)) out.push('the card does not say which folder it looked in: ' + where);
+        if (!/10_Daily/.test(where) || !/from the vault’s daily notes settings/.test(where)) out.push('the card does not say which folder it looked in: ' + where);
         const recent = await t.evaluate(PAGE.recent);
         if (recent.length !== 12) out.push('the recent notes are ' + recent.length + ', want 12');
         if (recent.some((n) => /\.md$/.test(n))) out.push('a recent name still has .md: ' + JSON.stringify(recent.slice(0, 3)));

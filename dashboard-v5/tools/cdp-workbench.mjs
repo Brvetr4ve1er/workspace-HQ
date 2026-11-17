@@ -49,7 +49,7 @@ export const PAGE = Object.freeze({
   // every gold-filled control on screen (the inline style Chromium writes reads "background: var(--gold);"): the first one with text, and how many have a background that is not the --gold token
   goldFills: `(() => { const els = [...document.querySelectorAll('[style*="background: var(--gold);"]')]; const probe = document.createElement('div'); probe.style.background = 'var(--gold)'; (els[0] ? els[0].parentElement : document.body).appendChild(probe); const want = getComputedStyle(probe).backgroundColor; probe.remove(); const withText = els.find((e) => e.tagName === 'BUTTON' && e.textContent.trim()); const cs = withText && getComputedStyle(withText); return JSON.stringify({ n: els.length, want, label: cs ? cs.color : null, bg: cs ? cs.backgroundColor : null, wrongBg: els.filter((e) => getComputedStyle(e).backgroundColor !== want).length, attr: withText ? withText.getAttribute('style').match(/background: var\\(--gold\\);/) !== null : null }); })()`,
   cursor: `(() => { const c = document.querySelector('.wbn-cursor'); if (!c) return null; const cs = getComputedStyle(c); return JSON.stringify({ name: cs.animationName, iter: cs.animationIterationCount }); })()`,
-  heldCount: (key) => `(() => { const s = WHQ.app.logic.state; return ${key === 'crw' ? "(s.crw && s.crw.rows ? s.crw.rows.length : -1)" : "(s.vdk && s.vdk.data && s.vdk.data.recent ? s.vdk.data.recent.length : -1)"}; })()`,
+  heldCount: (key) => `(() => { const s = WHQ.app.logic.state; return ${key === 'crw' ? "(s.crw && s.crw.rows ? s.crw.rows.length : -1)" : "(s.vdk && s.vdk.data && s.vdk.data.recent ? (typeof s.vdk.data.noteCount === 'number' ? s.vdk.data.noteCount : s.vdk.data.recent.length) : -1)"}; })()`,
   setState: (o) => `(() => { WHQ.app.logic.setState(${q(o)}); return true; })()`,
   tokenNow: (name) => C.cssVar(name),
   chips: `(() => { const d = document.querySelector('[role="dialog"][aria-label="Settings"]'); return d ? JSON.stringify([...d.querySelectorAll('button')].map((b) => b.textContent.trim()).filter((x) => ['Dark', 'Light', 'Follow system', 'Console', 'Workbench'].includes(x))) : null; })()`,
@@ -150,7 +150,12 @@ export function makeWorkbenchScenarios({ fresh, sleep }) {
         if (!await t.waitFor(`${PAGE.artText('notes')} !== null`, 8000)) out.push('the Vault desk header never drew its picture under the look');
         else {
           const n = await t.evaluate(PAGE.heldCount('vdk'));
-          if (await t.evaluate(PAGE.artText('notes')) !== n + ' NOTES') out.push('the Vault desk readout is ' + JSON.stringify(await t.evaluate(PAGE.artText('notes'))) + ', the desk lists ' + n);
+          if (await t.evaluate(PAGE.artText('notes')) !== n + ' NOTES') out.push('the Vault desk readout is ' + JSON.stringify(await t.evaluate(PAGE.artText('notes'))) + ', the desk counted ' + n);
+          // the desk's count is the walk's count, not the twelve names it lists; a capped walk reads N+
+          if (!(n > 12)) out.push('the fake desk counted ' + n + ' notes, want more than the twelve it lists');
+          await t.evaluate("(() => { const L = WHQ.app.logic, s = L.state; L.setState({ vdk: { ...s.vdk, data: { ...s.vdk.data, noteCountCapped: true } } }); return true; })()");
+          if (!await t.waitFor(PAGE.artText('notes') + ' === ' + q(n + '+ NOTES'), 4000)) out.push('a capped count did not read "' + n + '+ NOTES": ' + JSON.stringify(await t.evaluate(PAGE.artText('notes'))));
+          await t.evaluate("(() => { const L = WHQ.app.logic, s = L.state; L.setState({ vdk: { ...s.vdk, data: { ...s.vdk.data, noteCountCapped: false } } }); return true; })()");
           if (await t.evaluate(PAGE.artCount) !== 1) out.push('more than one picture is on the Vault desk screen: ' + await t.evaluate(PAGE.artCount));
         }
         // the label on a gold-filled control (Crew Start): dark on the dark look, white on the light look and on the light red accent, dark again on the plain light base

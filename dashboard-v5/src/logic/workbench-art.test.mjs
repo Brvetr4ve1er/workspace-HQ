@@ -44,6 +44,11 @@ test('the label is the number the host passed in: floored, clamped to 0..99999, 
   for (const bad of [NaN, Infinity, -Infinity, '5', null, undefined, {}, [], true]) assert.equal(readoutCount(bad), 0, String(bad));
   for (const n of [0, 1, 12, 345, 99999]) assert.equal(workbenchArt('skills', n).n, n);
   assert.equal(workbenchArt('notes', 5).aria, '5 notes', 'the accessible name is the readout in lower case');
+  assert.equal(workbenchArt('notes', 4000, true).label, '4000+ NOTES', 'a capped count is a floor');
+  assert.equal(workbenchArt('notes', 4000, true).aria, '4000+ notes');
+  assert.equal(workbenchArt('notes', 1, true).label, '1+ NOTES');
+  assert.equal(workbenchArt('notes', 1, false).label, '1 NOTE', 'one note stays singular');
+  assert.equal(workbenchArt('skills', 3, true).label, '3 SKILLS', 'only the notes readout has a plus');
   assert.equal(workbenchArt('nope', 3), null, 'an unknown kind draws nothing');
 });
 
@@ -117,6 +122,21 @@ test('wbnv: ONE top-level key, the same key set off and on, off is one frozen co
   // a throwing getter on the state is never touched while the look is off
   const trap = { get bhsData() { throw new Error('read while off'); }, consoleLayer: { on: true } };
   assert.doesNotThrow(() => workbenchVals.call({ state: trap }, { S: trap }));
+});
+
+test('wbnv: the notes readout uses the Vault desk count, not the capped recent list, and says N+ when the count was capped', () => {
+  const recent = Array.from({ length: 12 }, (_, i) => ({ name: 'n' + i }));
+  assert.equal(valsOn({ vdk: { data: { recent, noteCount: 87, noteCountCapped: false } } }).notes.label, '87 NOTES');
+  assert.equal(valsOn({ vdk: { data: { recent, noteCount: 4000, noteCountCapped: true } } }).notes.label, '4000+ NOTES');
+  assert.equal(valsOn({ vdk: { data: { recent, noteCount: 4000, noteCountCapped: true } } }).notes.aria, '4000+ notes');
+  assert.equal(valsOn({ vdk: { data: { recent: [{ name: 'a' }], noteCount: 1, noteCountCapped: false } } }).notes.label, '1 NOTE');
+  assert.equal(valsOn({ vdk: { data: { recent: [{ name: 'a' }], noteCount: 0, noteCountCapped: false } } }).notes.label, '0 NOTES');
+  assert.equal(valsOn({ vdk: { data: { recent, noteCount: 12 } } }).notes.label, '12 NOTES');
+  // an answer without a count (an older main): the recent list stands in; no held answer: no picture
+  assert.equal(valsOn({ vdk: { data: { recent: [{}, {}, {}] } } }).notes.label, '3 NOTES');
+  assert.equal(valsOn({ vdk: { data: null } }).notes.show, false);
+  assert.equal(valsOn({}).notes.show, false);
+  assert.deepEqual(workbenchNumbers({ vdk: { data: { recent, noteCount: 87 } } }, {}).notes, 87);
 });
 
 test('wbnv: each readout shows a real number the app already holds (and 0 for the empty Brief)', () => {

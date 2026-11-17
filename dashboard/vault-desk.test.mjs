@@ -18,14 +18,19 @@ const DAY = new Date(2026, 10, 16, 9, 0, 0);
 let counter = 0;
 
 // a fresh world: <tmp>/<n>/vault (the invented vault), <tmp>/<n>/outside (a sentinel that must never change)
-function world({ daily = true, note = '# Monday\n\nplain text\n', settings = null, extra = null, folder = '10_Daily' } = {}) {
+// settings: undefined writes a daily-notes.json naming the daily folder, null writes no settings file, anything else is the daily-notes.json text.
+// app: the text of .obsidian/app.json, or null for none.
+function world({ daily = true, note = '# Monday\n\nplain text\n', settings, app = null, extra = null, folder = '10_Daily' } = {}) {
   const base = path.join(tmp, String(++counter));
   const vault = path.join(base, 'Example Vault');
   const outside = path.join(base, 'outside');
   fs.mkdirSync(vault, { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(outside, 'sentinel.md'), 'keep me\n');
-  if (settings !== null) { fs.mkdirSync(path.join(vault, '.obsidian')); fs.writeFileSync(path.join(vault, '.obsidian', 'daily-notes.json'), typeof settings === 'string' ? settings : JSON.stringify(settings)); }
+  const eff = settings === undefined ? { folder } : settings;
+  if (eff !== null || app !== null) fs.mkdirSync(path.join(vault, '.obsidian'));
+  if (eff !== null) fs.writeFileSync(path.join(vault, '.obsidian', 'daily-notes.json'), typeof eff === 'string' ? eff : JSON.stringify(eff));
+  if (app !== null) fs.writeFileSync(path.join(vault, '.obsidian', 'app.json'), typeof app === 'string' ? app : JSON.stringify(app));
   if (daily) fs.mkdirSync(path.join(vault, folder), { recursive: true });
   if (daily && note !== null) fs.writeFileSync(path.join(vault, folder, '2026-11-16.md'), note);
   if (extra) extra(vault);
@@ -44,7 +49,10 @@ test('read: today\'s note as plain text, the recent names, and the words for whe
   assert.equal(r.state, 'ready');
   assert.equal(r.text, '# Monday\n\nplain text\n');
   assert.equal(r.folder, '10_Daily');
-  assert.equal(r.folderFromSettings, false);
+  assert.equal(r.folderFromSettings, true);
+  assert.equal(r.folderSource, 'daily-notes');
+  assert.equal(r.noteCount, 1);
+  assert.equal(r.noteCountCapped, false);
   assert.equal(r.noteName, '2026-11-16');
   assert.equal(r.vaultName, 'Example Vault');
   assert.equal(r.canOpen, false);
@@ -113,10 +121,11 @@ test('read: the vault\'s own daily-notes settings decide the folder and the name
   assert.equal(r.folderFromSettings, true);
   ok.untouched();
   for (const bad of [{ folder: '../x', format: 'YYYY-MM-DD' }, { folder: 'a:b' }, { format: '../x' }, { format: 'a:b' }, '{broken']) {
-    const w = world({ settings: bad });
+    const w = world({ settings: bad, folder: '' });   // nothing usable is named: the top of the vault, where Obsidian puts it
     const rr = await w.make().read();
     assert.equal(rr.state, 'ready', JSON.stringify(bad));
-    assert.equal(rr.folder, '10_Daily');
+    assert.equal(rr.folder, '');
+    assert.equal(rr.folderSource, 'vault-top');
     if (typeof bad !== 'string') assert.equal(rr.settingsIgnored, true, JSON.stringify(bad));
     assert.equal(rr.text, '# Monday\n\nplain text\n');
     w.untouched();
@@ -132,8 +141,8 @@ test('read: HQ_VAULT_DIR set but missing answers "vault not found" and never fal
   assert.equal(readNote(w), before, 'the default vault was not written');
   // and when set and present it is the only vault
   const other = path.join(w.base, 'Other Vault');
-  fs.mkdirSync(path.join(other, '10_Daily'), { recursive: true });
-  fs.writeFileSync(path.join(other, '10_Daily', '2026-11-16.md'), 'other note\n');
+  fs.mkdirSync(other, { recursive: true });
+  fs.writeFileSync(path.join(other, '2026-11-16.md'), 'other note\n');   // no settings files: the top of the vault
   w.resnap();
   const r = await w.make({ env: { HQ_VAULT_DIR: other } }).read();
   assert.equal(r.vaultName, 'Other Vault');
@@ -216,15 +225,15 @@ test('capture: a missing note and a missing daily folder are said in words and n
   const noFolder = world({ daily: false });
   assert.deepEqual(await noFolder.make().capture('hello'), { error: WORDS.noFolder });
   assert.equal(fs.existsSync(path.join(noFolder.vault, '10_Daily')), false);
-  assert.deepEqual(fs.readdirSync(noFolder.vault), []);
+  assert.deepEqual(fs.readdirSync(noFolder.vault), ['.obsidian'], 'only the settings file the test wrote; no folder was made');
   noFolder.untouched();
 });
 
-test('capture: a settings file that asks for ../x or a:b writes into the default folder only', async () => {
+test('capture: a settings file that asks for ../x or a:b writes at the top of the vault only', async () => {
   for (const bad of [{ folder: '../x', format: 'YYYY-MM-DD' }, { folder: 'a:b' }, { format: '../x' }, { format: 'a:b' }]) {
-    const w = world({ settings: bad, extra: (v) => fs.mkdirSync(path.join(path.dirname(v), 'x'), { recursive: true }) });
+    const w = world({ settings: bad, folder: '', extra: (v) => fs.mkdirSync(path.join(path.dirname(v), 'x'), { recursive: true }) });
     assert.deepEqual(await w.make().capture('safe'), { ok: true }, JSON.stringify(bad));
-    assert.match(fs.readFileSync(path.join(w.vault, '10_Daily', '2026-11-16.md'), 'utf8'), /- safe\n$/);
+    assert.match(fs.readFileSync(path.join(w.vault, '2026-11-16.md'), 'utf8'), /- safe\n$/);
     assert.deepEqual(fs.readdirSync(path.join(w.base, 'x')), [], 'nothing was written beside the vault');
   }
 });
@@ -354,4 +363,106 @@ test('answers are fixed words: no error message, no path, from a failing file sy
   assert.equal(JSON.stringify(r).includes('EACCES'), false);
   assert.equal(JSON.stringify(r).includes(w.vault), false);
   w.untouched();
+});
+
+// ---- where the note is looked for: Obsidian's own order ------------------------------------------------------------------------------------
+
+test('read: no daily folder anywhere means the top of the vault, and the card source says so', async () => {
+  const w = world({ settings: null, folder: '' });   // no settings files at all; today's note sits at the top
+  const r = await w.make().read();
+  assert.equal(r.state, 'ready');
+  assert.equal(r.folder, '');
+  assert.equal(r.folderSource, 'vault-top');
+  assert.equal(r.folderFromSettings, false);
+  assert.equal(r.settingsIgnored, false);
+  assert.equal(r.text, '# Monday\n\nplain text\n');
+  w.untouched();
+  // a blank daily folder is Obsidian's "use the folder for new notes", and app.json says root
+  const root = world({ settings: { folder: '' }, app: { newFileLocation: 'root' }, folder: '' });
+  const rr = await root.make().read();
+  assert.equal(rr.state, 'ready');
+  assert.equal(rr.folderSource, 'vault-top');
+  root.untouched();
+});
+
+test('read: the vault own folder for new notes is used when the daily notes settings name none', async () => {
+  const w = world({ settings: { format: 'YYYY-MM-DD' }, app: { newFileLocation: 'folder', newFileFolderPath: 'Inbox/' }, folder: 'Inbox' });
+  const r = await w.make().read();
+  assert.equal(r.state, 'ready');
+  assert.equal(r.folder, 'Inbox');
+  assert.equal(r.folderSource, 'vault-new-notes');
+  assert.equal(r.folderFromSettings, true, 'the daily notes settings still supplied the format');
+  assert.deepEqual(await w.make().capture('into the new-notes folder'), { ok: true });
+  assert.match(readNote(w), /- into the new-notes folder\n$/);
+  w.untouched();
+  // no daily-notes.json at all
+  const none = world({ settings: null, app: { newFileLocation: 'folder', newFileFolderPath: 'Inbox' }, folder: 'Inbox' });
+  const rn = await none.make().read();
+  assert.equal(rn.state, 'ready');
+  assert.equal(rn.folderSource, 'vault-new-notes');
+  assert.equal(rn.folderFromSettings, false);
+  none.untouched();
+});
+
+test('read: a daily folder in daily-notes.json wins over app.json', async () => {
+  const w = world({ settings: { folder: 'Journal' }, app: { newFileLocation: 'folder', newFileFolderPath: 'Inbox' }, folder: 'Journal' });
+  const r = await w.make().read();
+  assert.equal(r.folder, 'Journal');
+  assert.equal(r.folderSource, 'daily-notes');
+  w.untouched();
+});
+
+test('read: an unsafe folder in app.json is ignored and said; "current" falls through to the top of the vault; a big app.json is not read', async () => {
+  for (const bad of ['../x', 'a:b', '/abs', 'a/../b', 7]) {
+    const w = world({ settings: null, app: { newFileLocation: 'folder', newFileFolderPath: bad }, folder: '' });
+    const r = await w.make().read();
+    assert.equal(r.state, 'ready', String(bad));
+    assert.equal(r.folder, '');
+    assert.equal(r.folderSource, 'vault-top');
+    assert.equal(r.settingsIgnored, true, String(bad));
+    w.untouched();
+  }
+  const cur = world({ settings: null, app: { newFileLocation: 'current', newFileFolderPath: 'Inbox' }, folder: '' });
+  const rc = await cur.make().read();
+  assert.equal(rc.state, 'ready');
+  assert.equal(rc.folderSource, 'vault-top');
+  assert.equal(rc.settingsIgnored, false);
+  cur.untouched();
+  const big = world({ settings: null, app: '{"newFileLocation":"folder","newFileFolderPath":"Inbox","pad":"' + 'x'.repeat(21000) + '"}', folder: '' });
+  const rb = await big.make().read();
+  assert.equal(rb.folderSource, 'vault-top');
+  assert.equal(rb.state, 'ready');
+  big.untouched();
+});
+
+test('read: the note count is what the bounded walk saw, and it says so when a limit stopped it', async () => {
+  const w = world({ extra: (v) => {
+    fs.mkdirSync(path.join(v, 'Projects'));
+    for (let i = 0; i < 15; i++) fs.writeFileSync(path.join(v, 'Projects', 'idea ' + i + '.md'), 'x');
+  } });
+  const r = await w.make().read();
+  assert.equal(r.recent.length, 12);
+  assert.equal(r.noteCount, 16, 'the daily note and fifteen more: the list is capped at twelve, the count is not');
+  assert.equal(r.noteCountCapped, false);
+  w.untouched();
+  // a folder five levels down is past the walk's depth limit: the count is a floor
+  const deep = world({ extra: (v) => { const d = path.join(v, 'a', 'b', 'c', 'd'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, 'deep.md'), 'x'); fs.mkdirSync(path.join(d, 'e')); fs.writeFileSync(path.join(d, 'e', 'deeper.md'), 'x'); } });
+  const rd = await deep.make().read();
+  assert.equal(rd.noteCountCapped, true);
+  assert.equal(rd.noteCount, 2, 'the daily note and the note four folders down; the folder below is not entered');
+  deep.untouched();
+  // 4,000 notes is the file limit
+  const many = world({ extra: (v) => { fs.mkdirSync(path.join(v, 'Many')); for (let i = 0; i < 4005; i++) fs.writeFileSync(path.join(v, 'Many', 'n' + i + '.md'), ''); } });
+  const rm = await many.make().read();
+  assert.equal(rm.noteCount, 4000);
+  assert.equal(rm.noteCountCapped, true);
+  assert.equal(rm.recent.length, 12);
+  many.untouched();
+  // no daily folder: the count is still there
+  const nofolder = world({ daily: false, extra: (v) => fs.writeFileSync(path.join(v, 'one.md'), 'x') });
+  const rn = await nofolder.make().read();
+  assert.equal(rn.state, 'no-folder');
+  assert.equal(rn.noteCount, 1);
+  assert.equal(rn.noteCountCapped, false);
+  nofolder.untouched();
 });

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import {
-  formatDate, parseDailySettings, pathOk, planNotePath, normalizeLine, planAppend, sortRecent, DEFAULT_FOLDER, DEFAULT_FORMAT, LINE_MAX,
+  formatDate, parseDailySettings, pathOk, planNotePath, normalizeLine, planAppend, sortRecent, DEFAULT_FORMAT, LINE_MAX,
 } from './vault-desk-core.mjs';
 
 const require = createRequire(import.meta.url);
@@ -19,19 +19,54 @@ test('formatDate: the daily-note tokens, [literal] parts and other characters as
   assert.equal(formatDate(new Date(2026, 0, 5), 'D/M'), '5/1');
 });
 
-test('parseDailySettings: none means the app defaults; a good file is used; an unsafe folder or format is ignored and said so', () => {
-  assert.deepEqual(parseDailySettings(null), { folder: DEFAULT_FOLDER, format: DEFAULT_FORMAT, fromSettings: false, ignored: false });
-  assert.deepEqual(parseDailySettings('not json'), { folder: DEFAULT_FOLDER, format: DEFAULT_FORMAT, fromSettings: false, ignored: false });
-  assert.deepEqual(parseDailySettings('{"folder":"Journal/Days/","format":"YYYY-MM-DD dddd"}'), { folder: 'Journal/Days', format: 'YYYY-MM-DD dddd', fromSettings: true, ignored: false });
-  assert.equal(parseDailySettings('{"folder":""}').folder, '');
+test('parseDailySettings: no settings means the top of the vault; a good file is used; an unsafe folder or format is ignored and said so', () => {
+  const TOP = { folder: '', format: DEFAULT_FORMAT, fromSettings: false, ignored: false, source: 'vault-top' };
+  assert.deepEqual(parseDailySettings(null), TOP);
+  assert.deepEqual(parseDailySettings('not json'), TOP);
+  assert.deepEqual(parseDailySettings('{"folder":"Journal/Days/","format":"YYYY-MM-DD dddd"}'), { folder: 'Journal/Days', format: 'YYYY-MM-DD dddd', fromSettings: true, ignored: false, source: 'daily-notes' });
+  assert.deepEqual(parseDailySettings('{"folder":""}'), TOP, 'a blank folder means the vault folder for new notes, which is the top here');
   for (const folder of ['../x', '/abs', 'C:/x', 'a/../b', 'a\\b', 'a:b', 'ends.', 'a//b', '.hidden']) {
     const s = parseDailySettings({ folder });
-    assert.equal(s.folder, DEFAULT_FOLDER, folder);
+    assert.equal(s.folder, '', folder);
+    assert.equal(s.source, 'vault-top', folder);
     assert.equal(s.ignored, true, folder);
   }
   for (const format of ['../x', 'a:b', 'plain text', 'x'.repeat(80)]) assert.equal(parseDailySettings({ format }).format, DEFAULT_FORMAT, format);
-  assert.deepEqual(parseDailySettings([1, 2]), { folder: DEFAULT_FOLDER, format: DEFAULT_FORMAT, fromSettings: false, ignored: true });
+  assert.deepEqual(parseDailySettings([1, 2]), { ...TOP, ignored: true });
   assert.equal(parseDailySettings({ folder: 7, format: {} }).ignored, true);
+});
+
+test('parseDailySettings: with no daily folder the answer follows the vault folder for new notes (app.json), in Obsidian order', () => {
+  const app = (o) => JSON.stringify(o);
+  const NEW = app({ newFileLocation: 'folder', newFileFolderPath: 'Inbox/Today/' });
+  // 1. a safe folder in daily-notes.json wins
+  assert.deepEqual(parseDailySettings('{"folder":"Journal"}', NEW), { folder: 'Journal', format: DEFAULT_FORMAT, fromSettings: true, ignored: false, source: 'daily-notes' });
+  // 2. else app.json newFileLocation "folder" with a safe path
+  assert.deepEqual(parseDailySettings(null, NEW), { folder: 'Inbox/Today', format: DEFAULT_FORMAT, fromSettings: false, ignored: false, source: 'vault-new-notes' });
+  assert.deepEqual(parseDailySettings('{"folder":"","format":"DD-MM-YYYY"}', NEW), { folder: 'Inbox/Today', format: 'DD-MM-YYYY', fromSettings: true, ignored: false, source: 'vault-new-notes' });
+  assert.equal(parseDailySettings(null, { newFileLocation: 'folder', newFileFolderPath: 'Inbox' }).source, 'vault-new-notes', 'an object works as well as text');
+  // 3. else the top of the vault: "root", an absent setting, "current", a blank folder path, an unknown value
+  for (const o of [{ newFileLocation: 'root' }, {}, { newFileLocation: 'current', newFileFolderPath: 'Inbox' }, { newFileLocation: 'folder', newFileFolderPath: '' }, { newFileLocation: 'folder' }, { newFileLocation: 'elsewhere', newFileFolderPath: 'Inbox' }, { newFileFolderPath: 'Inbox' }]) {
+    assert.deepEqual(parseDailySettings(null, app(o)), { folder: '', format: DEFAULT_FORMAT, fromSettings: false, ignored: false, source: 'vault-top' }, JSON.stringify(o));
+  }
+});
+
+test('parseDailySettings: an unsafe app.json folder is ignored (and said) and the next step is used; a bad daily folder does not stop app.json', () => {
+  for (const newFileFolderPath of ['../x', '/abs', 'C:/x', 'a/../b', 'a\\b', 'a:b', 'ends.', 'a//b', '.hidden', 7, null, {}]) {
+    const s = parseDailySettings(null, JSON.stringify({ newFileLocation: 'folder', newFileFolderPath }));
+    assert.equal(s.folder, '', String(newFileFolderPath));
+    assert.equal(s.source, 'vault-top');
+    assert.equal(s.ignored, true, String(newFileFolderPath));
+  }
+  const both = parseDailySettings('{"folder":"../x"}', JSON.stringify({ newFileLocation: 'folder', newFileFolderPath: 'Inbox' }));
+  assert.deepEqual(both, { folder: 'Inbox', format: DEFAULT_FORMAT, fromSettings: false, ignored: true, source: 'vault-new-notes' });
+  // not an object, not JSON, too long
+  assert.equal(parseDailySettings(null, '[1]').ignored, true);
+  assert.equal(parseDailySettings(null, 'nope').ignored, false);
+  assert.deepEqual(parseDailySettings(null, undefined), parseDailySettings(null));
+  const sl = parseDailySettings(null, JSON.stringify({ newFileLocation: 'folder', newFileFolderPath: 'Inbox', pad: 'x'.repeat(21000) }));
+  assert.equal(sl.source, 'vault-top');
+  assert.equal(sl.ignored, true);
 });
 
 test('pathOk: relative, forward slashes, safe names, ends .md', () => {
@@ -43,7 +78,8 @@ test('pathOk: relative, forward slashes, safe names, ends .md', () => {
 });
 
 test('planNotePath: the folder and the date format make the one path, or the word path', () => {
-  assert.deepEqual(planNotePath(parseDailySettings(null), DAY), { rel: '10_Daily/2026-11-16.md', folder: '10_Daily', name: '2026-11-16.md' });
+  assert.deepEqual(planNotePath(parseDailySettings(null), DAY), { rel: '2026-11-16.md', folder: '', name: '2026-11-16.md' });
+  assert.deepEqual(planNotePath(parseDailySettings(null, { newFileLocation: 'folder', newFileFolderPath: 'Inbox' }), DAY), { rel: 'Inbox/2026-11-16.md', folder: 'Inbox', name: '2026-11-16.md' });
   assert.equal(planNotePath({ folder: 'Journal', format: 'YYYY/MM/YYYY-MM-DD' }, DAY).rel, 'Journal/2026/11/2026-11-16.md');
   assert.equal(planNotePath({ folder: '', format: 'YYYY-MM-DD' }, DAY).rel, '2026-11-16.md');
   assert.deepEqual(planNotePath({ folder: 'a', format: '[../]YYYY' }, DAY), { error: 'path' });
