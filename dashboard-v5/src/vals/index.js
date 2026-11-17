@@ -51,11 +51,12 @@ import { todayVals } from './today.js';   // Home › Where today went: the ribb
 import { vaultDeskVals } from './vault-desk.js';   // Life › Notes › Vault desk: today's daily note and one capture line: ONE top-level key vdkv
 import { crewVals } from './crew.js';   // Claude › Crew: the installed skills by role and Start: ONE top-level key crwv
 import { moneyStartVals } from './money-start.js';   // Money in one minute: the start card + the quick line (mst*)
+import { launcherVals } from './launcher.js';   // batch 9: Settings > Launcher: ONE top-level key lnchv (the Open workspace button nests as pg.workspace)
 import { workbenchVals } from './workbench.js';   // batch 8: the Workbench look (look attribute + five small illustrations): ONE top-level key wbnv
 
 const SURFACES = [
   shellVals, homeVals, projectsVals, projectPageVals, tasksVals, scrubVals, runsVals, askVals, paletteVals,
-  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, versionCardVals, delightsVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, crewVals, vaultDeskVals, workbenchVals, consoleSkinVals,
+  focusVals, commitVals, overlaysVals, automationsVals, claudeVals, claudeLibVals, claudeChatVals, historyVals, systemVals, lifeVals, extrasVals, claudeVaultVals, githubVals, accountsVals, moneyVals, briefVals, briefHistoryVals, reachVals, moneyAccessVals, todayVals, sessionsBoardVals, moneyStartVals, deliveryVals, shelfVals, memoryCardVals, cheatsVals, versionCardVals, delightsVals, deliveryCheckVals, clientsVals, cosmosVals, driftVals, securityVals, crewVals, vaultDeskVals, workbenchVals, launcherVals, consoleSkinVals,
 ];
 
 export function renderVals() {

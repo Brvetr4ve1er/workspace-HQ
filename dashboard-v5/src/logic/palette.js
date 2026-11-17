@@ -12,12 +12,18 @@ export const paletteLogic = {
     // through the same confirm-first askRun (logic/runs.js).
     const runPool = M.AUTOS.concat(M.INTERACTIVE || []);
     const termHint = (a, bg) => (libKindOf(a) === 'interactive' ? 'opens a terminal' : bg);
+    // <!-- v5: Launcher (batch 9) — only a typed query offers Open workspace rows; the empty palette is unchanged. The click is the same call as the project page's button. -->
+    if (typeof this.lnchEnsure === 'function') this.lnchEnsure();   // reads the Launcher once per opening (deferred); Set up Launcher needs to know whether an editor is chosen
+    const wm = q.match(/^(?:open\s+)?workspace(?:\s+(.*))?$/), canWs = typeof this.lnchCanWorkspace === 'function' && this.lnchCanWorkspace();
+    const wsRow = (p) => ({ glyph: '⌂', label: 'Open workspace · ' + p.name, hint: 'dev server, editor, terminal', run: () => { this.lnchWorkspace(p.id, p.dev || ''); this.openProject(p.id); } });
     const vm = q.match(/^(commit|open|run|focus|theme|go)\s+(.+)$/), doItems = [];
     // capture <text>: the text keeps its case (the other verbs match lowercased)
     const cap = raw.match(/^capture\s+(.+)$/i);
     if (cap) { const text = cap[1].trim(); doItems.push({ glyph: '✎', label: 'Capture to Ideas · ' + text, hint: 'reloads the window', run: () => this.paletteCapture(text) }); }
+    if (wm && canWs) { const arg = (wm[1] || '').trim(); this.projectsAt(0).filter((p) => !arg || p.name.toLowerCase().includes(arg) || p.id === arg).slice(0, 8).forEach((p) => doItems.push(wsRow(p))); }
     if (vm) {
       const verb = vm[1], arg = vm[2].trim();
+      if (verb === 'open' && canWs && !wm) this.projectsAt(0).filter((p) => p.name.toLowerCase().includes(arg) || p.id === arg).forEach((p) => doItems.push(wsRow(p)));
       if (verb === 'commit' || verb === 'open') this.projectsAt(0).filter((p) => p.name.toLowerCase().includes(arg) || p.id === arg).forEach((p) => doItems.push({ glyph: '›', label: (verb === 'commit' ? 'Commit ' : 'Open ') + p.name, hint: verb === 'commit' ? (p.dirty || 0) + ' files' : 'project page', run: () => (verb === 'commit' ? this.openCommit(p.id) : this.openProject(p.id)) }));
       if (verb === 'run') runPool.filter((a) => a.name.toLowerCase().includes(arg)).forEach((a) => doItems.push({ glyph: '›', label: 'Run ' + a.name, hint: termHint(a, 'confirm first'), run: () => this.askRun(a) }));
       if (verb === 'focus') this.openTasks(0).filter((t) => t.title.toLowerCase().includes(arg)).forEach((t) => doItems.push({ glyph: '›', label: 'Focus · ' + t.title, hint: 'F', run: () => this.startFocus(t.id) }));
@@ -46,6 +52,8 @@ export const paletteLogic = {
       // the capture verb, found by searching; it fills the box and waits for the text
       { glyph: '✎', label: 'Capture an idea…', hint: 'capture <text>', run: () => this.setState({ paletteOpen: true, paletteMode: 'go', paletteQuery: 'capture ', paletteSel: 0 }) },
     ];
+    // Set up Launcher: only while the Launcher has been read and no editor is chosen (the empty palette never reaches it: Commands shows its first four)
+    { const ld = S.lnch && S.lnch.data; if (ld && !ld.locked && !ld.editor && this.lnchCan()) cmds.push({ glyph: '⌂', label: 'Set up Launcher', hint: 'pick your editor', run: () => this.setState({ settingsOpen: true, paletteOpen: false }) }); }
     // K-3: What's new (logic/whats-new.js, P3-SHELL); listed only once that build has it
     if (typeof this.openWhatsNew === 'function') cmds.push({ glyph: '★', label: 'What’s new · trailers', hint: '', run: () => this.openWhatsNew() });
     if (S.snapOffset) cmds.unshift({ glyph: '●', label: 'Back to live', hint: '', run: () => this.setState({ snapOffset: 0, paletteOpen: false }) });

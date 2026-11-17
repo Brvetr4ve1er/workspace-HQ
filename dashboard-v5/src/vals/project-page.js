@@ -1,6 +1,7 @@
 // Project page render values ("pg") and its journal composer.
 import { FX, normText } from '../logic/shared.js';
 import { gapsOf } from '../live/adapter.mjs';
+import { workspaceVals } from './launcher.js';   // batch 9: Open workspace beside Resume (pg.workspace)
 import { hashShown, startAnswer, REFUSED_TEXT, NOT_ALLOWED_TEXT, BUSY_TEXT, ALLOW_NOTE } from '../logic/dev-allow.mjs';
 
 // the same text twice in Next is one item: case, spacing and trailing punctuation don't count
@@ -129,6 +130,8 @@ function projectPage(p, { off, live, tasks, cantWrite, tabStyle, actText, viewed
       this.toast(!failed.length ? 'success' : done.length ? 'info' : 'error', text, { ms: failed.length ? 6000 : 3600 });
       if (done.length) FX().event('cheer', 'Back to work!');
     },
+    // Open workspace (batch 9, Launcher): main runs the dev server (allowed commands only), the editor and the terminal; the line under the button is main's own sentence
+    workspace: workspaceVals.call(this, p), workspaceGo: () => this.lnchWorkspace(p.id, p.dev || ''),
     resumeHint: ask && ask.kind === 'allow' ? 'Allow and run “' + ask.text + '”? ' + ALLOW_NOTE + ' Resume skips it until you allow it.' : 'Resume opens the folder' + (p.dev ? ', starts ' + p.dev + ' once you have allowed it' : '') + (p.recent[0] ? ' and opens ' + p.recent[0] : '') + '.',
     // the commit preview decides what is in the set, so a clean scan doesn't disable it
     dirty: p.dirty || 0, cantCommit: cantWrite || !p.hasGit, commit: () => this.openCommit(p.id),
