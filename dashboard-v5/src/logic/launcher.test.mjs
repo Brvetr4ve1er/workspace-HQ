@@ -243,7 +243,7 @@ test('vals: the command rows show the scan\'s text, main\'s state, and the right
   assert.equal(v.cmds[0].allowed, false);
 });
 
-test('pg.workspace is exactly { on, label, busy, line }; the button is off with no bridge or while it runs', async () => {
+test('pg.workspace is exactly { on, label, busy, line }; the button is off with no bridge, and stays enabled while it runs', async () => {
   const r = rig();
   const w = workspaceVals.call(r.self, { id: 'a' });
   assert.deepEqual(Object.keys(w).sort(), ['busy', 'label', 'line', 'on']);
@@ -251,7 +251,7 @@ test('pg.workspace is exactly { on, label, busy, line }; the button is off with 
   assert.equal(w.label, '⌂ Open workspace');
   r.self.state.lnch = { ...lnchInit(), ws: { a: { busy: true, line: '' } } };
   const b = workspaceVals.call(r.self, { id: 'a' });
-  assert.deepEqual([b.on, b.busy, b.label], [false, true, 'Opening…']);
+  assert.deepEqual([b.on, b.busy, b.label], [true, true, 'Opening…']); // enabled while busy so keyboard focus is kept
   assert.equal(workspaceVals.call(rig({ noBridge: true }).self, { id: 'a' }).on, false);
   r.self.state.lnch = { ...lnchInit(), ws: { a: { busy: false, line: 'Folder not found: rescan' } } };
   assert.equal(workspaceVals.call(r.self, { id: 'a' }).line, 'Folder not found: rescan');

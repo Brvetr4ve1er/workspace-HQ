@@ -14,13 +14,15 @@ function makeKeyStore({ dir, fsApi = fs, crypto, randomBytes = nodeCrypto.random
   const keyFile = path.join(dir, 'key.json');
   const enc = crypto && typeof crypto.encrypt === 'function' ? crypto.encrypt : () => null;
   const dec = crypto && typeof crypto.decrypt === 'function' ? crypto.decrypt : () => null;
-  function readJson(file) {
+  // 'missing' only when lstat says ENOENT; anything else that is not a valid enc: record (garbage, oversized, a link, unreadable) is 'bad' = locked
+  function readKeyFile() {
+    let st;
+    try { st = fsApi.lstatSync(keyFile); } catch (e) { return e && e.code === 'ENOENT' ? { missing: true } : { bad: true }; }
     try {
-      const st = fsApi.lstatSync(file);
-      if (!st.isFile() || st.size > 256 * 1024) return null;
-      const v = JSON.parse(fsApi.readFileSync(file, 'utf8'));
-      return isObj(v) ? v : null;
-    } catch { return null; }
+      if (!st.isFile() || st.size > 256 * 1024) return { bad: true };
+      const v = JSON.parse(fsApi.readFileSync(keyFile, 'utf8'));
+      return isObj(v) && typeof v.key === 'string' && v.key.startsWith('enc:') ? { rec: v } : { bad: true };
+    } catch { return { bad: true }; }
   }
   function writeJson(file, obj) {
     fsApi.mkdirSync(dir, { recursive: true });
@@ -29,12 +31,12 @@ function makeKeyStore({ dir, fsApi = fs, crypto, randomBytes = nodeCrypto.random
     fsApi.renameSync(tmp, file);
   }
   return function getKey() {
-    const k = readJson(keyFile);
-    if (k && typeof k.key === 'string' && k.key.startsWith('enc:')) {
+    const r = readKeyFile();
+    if (r.bad) return null;
+    if (r.rec) {
       let hex = null;
-      try { hex = dec(k.key.slice(4)); } catch { hex = null; }
-      if (typeof hex === 'string' && /^[0-9a-f]{64}$/.test(hex)) return hex;
-      return null;
+      try { hex = dec(r.rec.key.slice(4)); } catch { hex = null; }
+      return typeof hex === 'string' && /^[0-9a-f]{64}$/.test(hex) ? hex : null;
     }
     let sealed = null;
     const hex = randomBytes(32).toString('hex');

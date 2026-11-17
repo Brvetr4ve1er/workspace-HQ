@@ -92,7 +92,7 @@ export function workspaceVals(p) {
   const can = typeof this.lnchCanWorkspace === 'function' && this.lnchCanWorkspace();
   const busy = !!w.busy;
   return {
-    on: can && !busy,
+    on: can, // stays enabled while busy: a button that turns disabled under focus drops keyboard focus; lnchWorkspace ignores a second click
     label: busy ? 'Opening…' : '⌂ Open workspace',
     busy,
     line: typeof w.line === 'string' && w.line ? w.line : !can ? 'Open workspace needs the desktop app' : '',
