@@ -9,7 +9,7 @@
 //                             and a fourth link; choosing Console leaves the look (and removes its sheet); the layer off is all zeros again
 //   workbench-art             under the look, Claude > Crew and Life > Notes carry their small picture: the readout reads "<n> SKILLS" / "<n> NOTES" with n the number the app holds, the
 //                             picture is named once (role img, aria-label), the readout sits inside its screen box, the drawing has real size; with the look off there is no picture at all
-//   (workbench-art also reads the label colour of a gold-filled button: dark on the dark look, white on the light look and on the light red accent with or without the look, dark on the plain light base)
+//   (workbench-art also reads the label colour, fill and hovered label of a gold-filled button on Crew and Home: WHITE on every light base (default, ember, tide, signal, Workbench, with and without the look) from the one rule in app.css; DARK, unchanged, on the dark base, the Workbench dark look and the Console skin; each at 4.5, hover included)
 //   workbench-reduced-motion  the screen cursor blinks only when the OS and the app both allow motion: with Reduce motion on, and again with the OS preference emulated, its computed
 //                             animation is none; with both free it is the sheet's own wbn- keyframes
 //   workbench-leave           the shell Light/dark button, the palette's "Toggle light / dark" and the Dark chip each leave the look (attribute empty, sheet gone, layer still on, the red accent kept)
@@ -158,17 +158,40 @@ export function makeWorkbenchScenarios({ fresh, sleep }) {
           await t.evaluate("(() => { const L = WHQ.app.logic, s = L.state; L.setState({ vdk: { ...s.vdk, data: { ...s.vdk.data, noteCountCapped: false } } }); return true; })()");
           if (await t.evaluate(PAGE.artCount) !== 1) out.push('more than one picture is on the Vault desk screen: ' + await t.evaluate(PAGE.artCount));
         }
-        // the label on a gold-filled control (Crew Start): dark on the dark look, white on the light look and on the light red accent, dark again on the plain light base
+        // the label on a gold-filled control (Crew Start, then a Home one): the light base takes ONE white label for every palette (rule in app.css), the dark bases and the Console skin keep the dark label.
+        // For each case: the label colour, the fill, and the same two with :hover forced (CSS.forcePseudoState: a hidden window gets no real mouse hover); the hovered label must still read at 4.5.
         const DARK_LABEL = 'rgb(26, 15, 10)', WHITE = 'rgb(255, 255, 255)';
+        const rgbOf = (v) => (/rgba?\((\d+), (\d+), (\d+)/.exec(String(v)) || []).slice(1, 4).map(Number);
+        const lumOf = (c) => { const k = c.map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2]; };
+        const ratioOf = (x, y) => { const p = lumOf(x), q2 = lumOf(y); return (Math.max(p, q2) + 0.05) / (Math.min(p, q2) + 0.05); };
+        // the buttons' hover is a generated class ".scpN:hover{...!important}" in the runtime's pseudo sheet. A hidden harness window gets no real hover, so the same declarations are
+        // re-applied under the selector ".scpN[data-gold-probe]" (same weight as :hover) in a temporary sheet: the cascade against the light-base label rule is then the real one.
+        const HOVER_READ = "(() => { const e = [...document.querySelectorAll('[style*=\"background: var(--gold);\"]')].find((x) => x.tagName === 'BUTTON' && x.textContent.trim()); if (!e) return null; const cls = [...e.classList].filter((c) => /^scp/.test(c)); const st = document.createElement('style'); st.id = 'gold-probe-style'; document.head.appendChild(st); let n = 0; st.sheet.insertRule('[data-gold-probe]{transition:none !important}', 0); for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch (x) { continue; } for (const r of rules) if (r.selectorText && cls.some((c) => r.selectorText === '.' + c + ':hover')) { st.sheet.insertRule(r.cssText.replace(':hover', '[data-gold-probe]'), st.sheet.cssRules.length); n++; } } e.setAttribute('data-gold-probe', '1'); const cs = getComputedStyle(e); const o = { n, label: cs.color, bg: cs.backgroundColor, filter: cs.filter }; e.removeAttribute('data-gold-probe'); st.remove(); return JSON.stringify(o); })()";
+        const hoverRead = async (where) => {
+          try { const h = await json(t, HOVER_READ); if (h && !h.n) out.push(where + ': the gold button has no generated hover rule to read'); return h; }
+          catch (e) { out.push(where + ': hover read failed: ' + e.message); return null; }
+        };
         const gold = async (where, label, bg) => {
           if (bg) await t.waitFor(`JSON.parse(${PAGE.goldFills}).bg === ${q(bg)}`, 4000);
+          await t.waitFor(`${PAGE.goldFills} && JSON.parse(${PAGE.goldFills}).wrongBg === 0`, 4000);   // the fill transitions for 150 ms when the theme flips
           await pause(t, 600);
-          if (!await t.waitFor(`${PAGE.goldFills} && JSON.parse(${PAGE.goldFills}).label !== null`, 4000)) { out.push(where + ': no gold-filled button with a label on the Crew screen'); return; }
+          if (!await t.waitFor(`${PAGE.goldFills} && JSON.parse(${PAGE.goldFills}).label !== null`, 4000)) { out.push(where + ': no gold-filled button with a label on this screen'); return; }
           const g = await json(t, PAGE.goldFills);
           if (!g.attr) out.push(where + ': the gold fill is not in the style attribute as "background: var(--gold);"');
           if (g.label !== label) out.push(where + ': the gold button label is ' + g.label + ', want ' + label);
           if (bg && g.bg !== bg) out.push(where + ': the gold button fill is ' + g.bg + ', want ' + bg);
           if (g.wrongBg) out.push(where + ': ' + g.wrongBg + ' gold-filled element(s) have a fill that is not the --gold token');
+          const r0 = ratioOf(rgbOf(g.label), rgbOf(g.bg));
+          if (r0 < 4.5) out.push(where + ': the label ' + g.label + ' on the fill ' + g.bg + ' reads at ' + r0.toFixed(2) + ', want 4.5');
+          const h = await hoverRead(where);
+          if (h) {
+            if (h.label !== label) out.push(where + ': hovered, the label is ' + h.label + ', want ' + label);
+            const k = /brightness\(([\d.]+)\)/.exec(h.filter || ''), m = k ? +k[1] : 1;
+            const fill = rgbOf(h.bg).map((x) => Math.min(255, x * m));
+            const rh = ratioOf(rgbOf(h.label), fill);
+            if (rh < 4.5) out.push(where + ': hovered, the label reads at ' + rh.toFixed(2) + ' on the fill ' + h.bg + ' (filter ' + h.filter + '), want 4.5');
+          }
+          console.log('    [gold] ' + where + ': label ' + g.label + ' on ' + g.bg + ' = ' + r0.toFixed(2) + (h ? '; hovered ' + h.label + ' on ' + h.bg + ' (' + (h.filter || 'no filter') + ')' : ''));
         };
         await t.evaluate(PAGE.go('claude', 'crew'));
         await t.waitFor(`!!document.querySelector('[data-crw="view"]')`, 8000);
@@ -179,11 +202,23 @@ export function makeWorkbenchScenarios({ fresh, sleep }) {
         await gold('light + Workbench + red accent', WHITE, 'rgb(179, 38, 30)');
         await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', palette: 'signal' }));
         await gold('light + red accent, no look', WHITE, 'rgb(179, 38, 30)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', palette: 'ember' }));
+        await gold('light + ember', WHITE, 'rgb(150, 82, 0)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', palette: 'tide' }));
+        await gold('light + tide', WHITE, 'rgb(27, 110, 106)');
         await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', palette: '' }));
-        await gold('light, plain (label stays dark)', DARK_LABEL, 'rgb(181, 88, 58)');
+        await gold('light, plain default', WHITE, 'rgb(157, 77, 50)');
+        // a Home primary button on the light default (the same rule, another screen)
+        await t.evaluate(PAGE.go('home', null));
+        await gold('light default, Home', WHITE, 'rgb(157, 77, 50)');
+        await t.evaluate(PAGE.go('claude', 'crew'));
+        await t.waitFor(`!!document.querySelector('[data-crw="view"]')`, 8000);
         await t.evaluate(PAGE.setState({ themePref: 'dark' }));
+        await gold('dark, plain default (unchanged)', DARK_LABEL);
         await t.evaluate(C.setLayer({ ...LAYER_LOOK, palette: 'signal' }));
         await gold('dark + Workbench + red accent', DARK_LABEL, 'rgb(224, 88, 74)');
+        await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', skin: true }));
+        await gold('Console skin (unchanged)', DARK_LABEL);
         await t.evaluate(C.setLayer({ ...LAYER_LOOK }));
         // the Console skin and the layer off show none
         await t.evaluate(C.setLayer({ ...LAYER_LOOK, look: '', skin: true }));

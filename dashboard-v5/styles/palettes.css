@@ -12,14 +12,14 @@
 /* ember: warm amber. dark base */
 [data-hq-theme][data-hq-accent="ember"] { --gold: #e8902c; --gold-2: #ffb86b; --accent-text: #ffa94d; --link: #ffa94d; --link-hover: #ffd2a0; --tone-gold: var(--gold); }
 /* ember: light base (deep amber, so the text tokens stay readable on the light card) */
-[data-hq-theme="light"][data-hq-accent="ember"] { --gold: #b26200; --gold-2: #8f4a00; --accent-text: #8f4a00; --link: #8f4a00; --link-hover: #5e3000; --tone-gold: var(--gold); }
+[data-hq-theme="light"][data-hq-accent="ember"] { --gold: #965200; --gold-2: #8f4a00; --accent-text: #8f4a00; --link: #8f4a00; --link-hover: #5e3000; --tone-gold: var(--gold); }
 /* ember: Console skin */
 [data-hq-skin="console"][data-hq-accent="ember"] { --gold: #ffa94d; --gold-2: #ffb86b; --accent-text: #ffa94d; --link: #ffa94d; --link-hover: #ffd2a0; --tone-gold: var(--gold); }
 
 /* tide: cool teal. dark base */
 [data-hq-theme][data-hq-accent="tide"] { --gold: #3fb8b0; --gold-2: #5fd0c8; --accent-text: #5fd0c8; --link: #5fd0c8; --link-hover: #9be6df; --tone-gold: var(--gold); }
 /* tide: light base */
-[data-hq-theme="light"][data-hq-accent="tide"] { --gold: #1f7f7a; --gold-2: #17615d; --accent-text: #17615d; --link: #17615d; --link-hover: #0e3f3c; --tone-gold: var(--gold); }
+[data-hq-theme="light"][data-hq-accent="tide"] { --gold: #1b6e6a; --gold-2: #17615d; --accent-text: #17615d; --link: #17615d; --link-hover: #0e3f3c; --tone-gold: var(--gold); }
 /* tide: Console skin */
 [data-hq-skin="console"][data-hq-accent="tide"] { --gold: #6fe0d6; --gold-2: #6fe0d6; --accent-text: #6fe0d6; --link: #6fe0d6; --link-hover: #b0f0ea; --tone-gold: var(--gold); }
 
@@ -32,6 +32,3 @@
 /* signal: Workbench look, dark then light (three attributes: they beat the look's own two-attribute token blocks whatever the link order) */
 [data-hq-look="workbench"][data-hq-theme][data-hq-accent="signal"] { --gold: #e0584a; --gold-2: #ff7c6d; --accent-text: #ff8a7a; --link: #ff8a7a; --link-hover: #ffb8ad; --tone-gold: var(--gold); }
 [data-hq-look="workbench"][data-hq-theme="light"][data-hq-accent="signal"] { --gold: #b3261e; --gold-2: #8f1d17; --accent-text: #8f1d17; --link: #8f1d17; --link-hover: #5e120f; --tone-gold: var(--gold); }
-
-/* signal on a light base: the red is dark enough to read as text, so a control filled with it takes a white label (see workbench.css for why the selector is spelled with a space) */
-[data-hq-theme="light"][data-hq-accent="signal"]:not([data-hq-skin="console"]) [style*="background: var(--gold);"] { color: #ffffff !important; }

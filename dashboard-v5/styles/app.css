@@ -25,3 +25,9 @@ input::placeholder,textarea::placeholder{color:var(--faint)}
   [data-sec="sheet"]{position:absolute!important;left:0!important;top:0!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important;color:#000!important}
   [data-sec="sheet-close"],[data-sec="sheet-print"]{display:none!important}
 }
+
+/* A control filled with the accent (--gold) takes a WHITE label on the light base. The templates and vals write the dark label inline (#1a0f0a, #3a2a00) and
+   the runtime sets each property on its own, so Chromium serializes the style attribute as "background: var(--gold);" and this rule can match it. The
+   light --gold of every palette (default, ember, tide, signal, the Workbench steel) reads at 4.5 under white and as text. The dark bases keep the dark
+   label; the Console skin is dark and keeps its own, so it is excluded. One rule only: styles/palettes.test.mjs pins it. */
+[data-hq-theme="light"]:not([data-hq-skin="console"]) [style*="background: var(--gold);"]{color:#ffffff !important}

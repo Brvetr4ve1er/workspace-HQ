@@ -61,8 +61,7 @@
   outline-offset:2px !important;
 }
 
-/* the light steel blue is dark enough to read as text, so a control filled with it takes a white label (the templates write the dark label inline; the runtime sets each property on its own, so the style attribute reads "background: var(--gold);") */
-[data-hq-look="workbench"][data-hq-theme="light"] [style*="background: var(--gold);"]{color:#ffffff !important}
+/* the label on a gold fill under the light base is one general rule in app.css (white); it covers this look too */
 
 [data-hq-look="workbench"] ::selection{background:var(--gold);color:var(--ink)}
 [data-hq-look="workbench"] ::-webkit-scrollbar-thumb{background:var(--frame-hi)}

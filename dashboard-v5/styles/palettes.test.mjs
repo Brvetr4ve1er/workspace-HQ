@@ -15,9 +15,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(resolve(HERE, p), 'utf8');
 const CSS = read('palettes.css');
 const pal = parseTokens(CSS);
-// the one label rule (a white label on a light-base signal fill) is not a token block: set it apart so the token checks below read only token rules
-const labelRules = {};
-for (const k of Object.keys(pal.rules)) if (k.includes('[style*=')) { labelRules[k] = pal.rules[k]; delete pal.rules[k]; }
 const tokens = parseTokens(read('tokens.css'));
 
 const FAMILY = ['--gold', '--gold-2', '--accent-text', '--link', '--link-hover', '--tone-gold'];
@@ -112,11 +109,11 @@ test('the palettes differ from each other and from the base accent in every base
   }
 });
 
-test('nothing animates and nothing moves: no @keyframes, transition, animation, position or !important in the file (except the one label rule)', () => {
+test('nothing animates and nothing moves: no @keyframes, transition, animation, position or !important in the file (the white label rule lives in app.css, not here)', () => {
   const body = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
-  const bodyNoLabel = body.split(/\r?\n/).filter((l) => !l.includes('[style*=')).join('\n');
-  assert.doesNotMatch(bodyNoLabel, /@keyframes|@media|@import/);
-  assert.doesNotMatch(bodyNoLabel, /\btransition\b|\banimation\b|\bposition\s*:|!important/);
+  assert.doesNotMatch(body, /@keyframes|@media|@import/);
+  assert.doesNotMatch(body, /transition|animation|positions*:|!important/);
+  assert.ok(!body.includes('[style*='), 'no label rule in this sheet: app.css carries the one general rule');
   assert.ok(body.trim().length > 200);
 });
 
@@ -147,40 +144,58 @@ test('the colour maths agrees with a known pair (white on black is 21, a colour 
   assert.equal(ratio(parseColor('#8f4a00'), parseColor('#8f4a00')), 1);
 });
 
-// The label on a gold fill (Crew Start, Vault desk Add, the all-clear Got it). The templates write the dark label #1a0f0a inline. On every dark base and on the
-// plain Console skin it must read at 4.5 on the fill. On the light signal bases (plain light and Workbench light) the red is dark so it can also be TEXT, and the
-// file carries one rule that gives a gold-filled control a white label instead; that rule's colour must read at 4.5 on the fill.
-// Known and open (the default light accent and the two cheat-code palettes on the light base sit at 3.9 to 4.2 under the dark label: a brand-colour decision, listed in the handoff)
-const LABEL_OPEN = ['light/ember', 'light/tide'];
-const LIGHT_SIGNAL = ['light', 'wblight'];
-for (const b of Object.keys(BASES)) {
+// The label on a gold fill (Crew Start, Vault desk Add, the all-clear Got it, the On switches). The templates write the dark label #1a0f0a inline.
+// DARK bases (dark, Workbench dark) and the Console skin keep the dark label: it must read at 4.5 on the fill.
+// LIGHT bases (plain light and Workbench light, every palette) take a WHITE label from ONE rule in app.css, scoped to the light theme and not the Console skin
+// (the owner decided 2026-11-17: change the label, not the brand colour). For each light combination: white on the fill, white on the fill while hovered
+// (the buttons' hover is filter: brightness(1.1)), and the accent as TEXT on --bg and --card, all at 4.5. Nothing is left open.
+const LABEL_OPEN = [];
+const DARK_BASES = ['dark', 'console', 'wbdark'];
+for (const b of DARK_BASES) {
   for (const p of PALETTES.filter((x) => basesOf(x).includes(b) && !LABEL_OPEN.includes(b + '/' + x))) {
-    if (p === 'signal' && LIGHT_SIGNAL.includes(b)) continue;
     test(`the dark label on the ${p} --gold fill reads at 4.5 on the ${b} base`, () => {
       const r = ratio(parseColor('#1a0f0a'), accent(b, p)('--gold'));
       assert.ok(r >= 4.5, `${p}/${b} label on --gold is ${r.toFixed(2)}`);
     });
   }
 }
-
-test('signal on the light bases: one white-label rule, scoped to the light signal accent (not the Console skin), reads at 4.5 on the fill', () => {
-  const keys = Object.keys(labelRules);
-  assert.equal(keys.length, 1, 'exactly one label rule in the file');
-  assert.equal(keys[0], '[data-hq-theme=light][data-hq-accent=signal]:not([data-hq-skin=console]) [style*=background: var(--gold);]');
-  const d = labelRules[keys[0]];
-  assert.match(d.color, /^#ffffff !important$/);
-  const label = parseColor(d.color.replace(/ !important$/, ''));
-  for (const b of LIGHT_SIGNAL) {
-    const r = ratio(label, accent(b, 'signal')('--gold'));
-    assert.ok(r >= 4.5, `signal/${b} white label on --gold is ${r.toFixed(2)}`);
-  }
+test('the dark label on the base (no palette) --gold fill reads at 4.5 on the dark base', () => {
+  assert.ok(ratio(parseColor('#1a0f0a'), parseColor(tokens.dark['--gold'])) >= 4.5);
 });
+assert.deepEqual(LABEL_OPEN, [], 'no known-open list is left');
 
-test('signal --gold as TEXT (marks, tags, glyphs, the gold badge tone) reads at 4.5 on --bg and --card of the plain light base and the Workbench light base', () => {
-  for (const b of LIGHT_SIGNAL) {
+const WHITE = { r: 255, g: 255, b: 255, a: 1 };
+const bright = (c, k) => ({ r: Math.min(255, c.r * k), g: Math.min(255, c.g * k), b: Math.min(255, c.b * k), a: 1 });
+const wbLight = parseTokens(read('workbench.css')).rules['[data-hq-look=workbench][data-hq-theme=light]'];
+// every light combination: [name, base, the --gold it shows]
+const LIGHT_COMBOS = [
+  ['light default', 'light', () => parseColor(tokens.light['--gold'])],
+  ['light ember', 'light', () => accent('light', 'ember')('--gold')],
+  ['light tide', 'light', () => accent('light', 'tide')('--gold')],
+  ['light signal', 'light', () => accent('light', 'signal')('--gold')],
+  ['Workbench light', 'wblight', () => parseColor(wbLight['--gold'])],
+  ['Workbench light signal', 'wblight', () => accent('wblight', 'signal')('--gold')],
+];
+for (const [name, b, gold] of LIGHT_COMBOS) {
+  test(`${name}: a white label on the --gold fill reads at 4.5 (rest and hovered), and --gold as text reads at 4.5 on --bg and --card`, () => {
+    const g = gold();
     const { bg, card } = base(b);
-    const g = accent(b, 'signal')('--gold');
-    assert.ok(ratio(g, card) >= 4.5, `signal/${b} --gold on --card is ${ratio(g, card).toFixed(2)}`);
-    assert.ok(ratio(g, bg) >= 4.5, `signal/${b} --gold on --bg is ${ratio(g, bg).toFixed(2)}`);
+    const rest = ratio(WHITE, g), hov = ratio(WHITE, bright(g, 1.1));
+    assert.ok(rest >= 4.5, `${name}: white on --gold is ${rest.toFixed(2)}`);
+    assert.ok(hov >= 4.5, `${name}: white on the hovered (brightness 1.1) fill is ${hov.toFixed(2)}`);
+    assert.ok(ratio(g, bg) >= 4.5, `${name}: --gold on --bg is ${ratio(g, bg).toFixed(2)}`);
+    assert.ok(ratio(g, card) >= 4.5, `${name}: --gold on --card is ${ratio(g, card).toFixed(2)}`);
+  });
+}
+
+test('the white label rule exists exactly once in app.css, scoped to the light theme and not the Console skin; no other sheet carries one', () => {
+  const app = parseTokens(read('app.css'));
+  const labels = Object.entries(app.rules).filter(([sel]) => sel.includes('[style*='));
+  assert.equal(labels.length, 1, 'exactly one label rule in app.css');
+  const [sel, d] = labels[0];
+  assert.equal(sel, '[data-hq-theme=light]:not([data-hq-skin=console]) [style*=background: var(--gold);]');
+  assert.match(d.color, /^#ffffff !important$/);
+  for (const f of ['palettes.css', 'workbench.css', 'console.css', 'tokens.css', 'delights.css']) {
+    if (existsSync(resolve(HERE, f))) assert.ok(!read(f).replace(/\/\*[\s\S]*?\*\//g, '').includes('[style*='), f + ' carries no label rule');
   }
 });

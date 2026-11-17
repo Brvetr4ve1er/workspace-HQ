@@ -170,13 +170,9 @@ test('the sheet is attached only by the layer: no page links it, no file in the 
   assert.equal(/workbench\.css/.test(read('app.css')), false, 'app.css does not import it');
 });
 
-test('the label on a gold fill (Crew Start, Vault desk Add, the all-clear Got it) reads at 4.5: dark base keeps the dark label, light base has a white-label rule', () => {
+test('the label on a gold fill: the dark base keeps the dark label; the light base takes the one general white-label rule in app.css, so this sheet carries none', () => {
   assert.ok(ratio(parseColor('#1a0f0a'), parseColor(dark['--gold'])) >= 4.5, 'dark: the dark label on --gold');
-  const rules = allRules().filter(([sel]) => sel.includes('[style*='));
-  assert.equal(rules.length, 1, 'exactly one label rule in the sheet');
-  const [sel, d] = rules[0];
-  assert.match(sel, /^\[data-hq-look=workbench\]\[data-hq-theme=light\] \[style\*=background: var\(--gold\);\]$/, 'scoped to the light look, spelled as Chromium serializes the inline style');
-  assert.match(d.color, /^#ffffff !important$/);
-  const r = ratio(parseColor(d.color.replace(/ !important$/, '')), parseColor(light['--gold']));
-  assert.ok(r >= 4.5, 'light: the label rule colour on --gold = ' + r.toFixed(2));
+  assert.equal(allRules().filter(([sel]) => sel.includes('[style*=')).length, 0, 'no label rule in this sheet (app.css holds the general one)');
+  assert.ok(ratio({ r: 255, g: 255, b: 255, a: 1 }, parseColor(light['--gold'])) >= 4.5, 'light: white on --gold');
+  assert.ok(readFileSync(resolve(HERE, 'app.css'), 'utf8').includes('[data-hq-theme="light"]:not([data-hq-skin="console"]) [style*="background: var(--gold);"]{color:#ffffff !important}'));
 });
