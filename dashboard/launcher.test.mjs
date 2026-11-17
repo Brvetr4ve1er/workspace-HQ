@@ -477,3 +477,15 @@ test('no launcher source spawns with a shell, builds a command string, or reads 
     assert.ok(!/homedir\(|\.claude|Documents/.test(src.replace(/documentsRoot/g, '').replace(/\/\/.*$/gm, '')), f + ' hard-codes no home or Documents path');
   }
 });
+
+test('add: the app dialog starts at the usual install folder when the system names one; every other kind starts at the Documents root', async (t) => {
+  const r = rig(t, { over: { env: { SystemRoot: 'C:\\Windows', ProgramFiles: 'C:\\Program Files' } }, wt: false });
+  const app = r.mk('tools/edit.exe'), doc = r.mk('files/Plan A.pdf');
+  assert.equal((await r.addVia('app', app)).state, 'added');
+  assert.equal(r.dialog.last.defaultPath, 'C:\\Program Files');
+  assert.equal((await r.addVia('file', doc)).state, 'added');
+  assert.equal(r.dialog.last.defaultPath, r.docs);
+  const odd = rig(t, { over: { env: { SystemRoot: 'C:\\Windows', ProgramFiles: '\\\\server\\share' } }, wt: false });
+  await odd.addVia('app', odd.mk('tools/edit.exe'));
+  assert.equal(odd.dialog.last.defaultPath, odd.docs, 'a value that is not a drive path is ignored');
+});

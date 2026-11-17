@@ -204,7 +204,9 @@ function create({ dataDir, documentsRoot, resolveProjectPath, latest, dev, shell
       if (cur.entries.length >= core.MAX_ENTRIES) return { state: 'full' };
       const properties = kind === 'folder' ? ['openDirectory'] : ['openFile'];
       const filters = kind === 'app' ? [{ name: 'Programs', extensions: ['exe'] }] : kind === 'url' ? [{ name: 'Internet shortcuts', extensions: ['url'] }] : undefined;
-      const opts = { properties, defaultPath: documentsRoot, ...(filters ? { filters } : {}) };
+      // the app dialog starts at the usual install folder (the owner still picks the file); every other kind starts at the Documents root
+      const startAt = kind === 'app' && typeof env.ProgramFiles === 'string' && /^[A-Za-z]:[\\/]/.test(env.ProgramFiles) ? env.ProgramFiles : documentsRoot;
+      const opts = { properties, defaultPath: startAt, ...(filters ? { filters } : {}) };
       let res;
       const win = getWin();
       try { res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts); } catch { return { state: 'cancelled' }; }
