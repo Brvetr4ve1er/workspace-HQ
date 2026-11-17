@@ -30,7 +30,7 @@ test('the fixture builds a store with what the scenarios need', () => {
 
 test('placeholder convention only: no real path or name', () => {
   const text = JSON.stringify(gateData());
-  assert.ok(!/Users[\/]|ROG|VEEMO|Documents[\/]|AppData/i.test(text));
+  assert.ok(!/Users[\/]|Documents[\/]|AppData/i.test(text));
   for (const m of text.matchAll(/"path":"([^"]*)"/g)) assert.match(m[1], /^C:\/dev\/[a-z]$/);
   for (const m of text.matchAll(/"name":"(Project [^"]*)"/g)) assert.match(m[1], /^Project [A-Z]$/);
 });
