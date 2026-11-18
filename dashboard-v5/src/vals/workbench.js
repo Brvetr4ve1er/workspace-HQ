@@ -1,6 +1,6 @@
 // The Workbench look's render values. ONE top-level key, wbnv (renderVals has a hard ceiling of 1015 top-level keys):
 //   wbnv = { wbnLook, wbnOn, cleared, skills, notes, needyou, projects }
-//     wbnLook  what the root's data-hq-look attribute carries: 'workbench' only while the Console layer is on AND that look is chosen, '' otherwise
+//     wbnLook  what the root's data-hq-look attribute carries: the EFFECTIVE look id ('workbench' or 'lantern') only while the Console layer is on AND that look is chosen, '' otherwise
 //              (an EMPTY attribute, never a missing one, never a node: tpl/shell.tpl.js binds data-hq-look="{{ wbnv.wbnLook }}")
 //     wbnOn    the look is on. Each picture also carries `show`: true only while the look is on AND its number was really read (no false 0)
 //     cleared / skills / notes / needyou / projects
@@ -8,13 +8,20 @@
 //              app already holds: cleared this week (the Brief history read), the skills the Crew read, the notes the Vault desk counted (noteCount; "N+" when its walk was capped), 0 for the empty
 //              Brief, the projects in the list. While the look is off every one of the five is the same frozen empty picture.
 //
+// Under the Lantern look (batch 11) this key still owns the attribute (so the shell template stays as it is) and answers WBN_LANTERN: wbnLook 'lantern', wbnOn false,
+// all five pictures the empty one (the Workbench art is not drawn; the Lantern cards live under lntv, vals/lantern.js).
+//
 // renderVals runs every surface on every machine push, so with the look off this returns ONE frozen constant and reads nothing. With it on the five
 // pictures are rebuilt only when their numbers change (one memo keyed by the numbers).
-import { consoleEffective, WORKBENCH_LOOK } from '../logic/console-layer.mjs';
+import { consoleEffective, WORKBENCH_LOOK, LANTERN_LOOK } from '../logic/console-layer.mjs';
 import { bindArt, WBN_EMPTY_ART, WBN_KINDS } from '../logic/workbench-art.mjs';
 
 export const WBN_OFF = Object.freeze({
   wbnv: Object.freeze({ wbnLook: '', wbnOn: false, cleared: WBN_EMPTY_ART, skills: WBN_EMPTY_ART, notes: WBN_EMPTY_ART, needyou: WBN_EMPTY_ART, projects: WBN_EMPTY_ART }),
+});
+
+export const WBN_LANTERN = Object.freeze({
+  wbnv: Object.freeze({ wbnLook: LANTERN_LOOK, wbnOn: false, cleared: WBN_EMPTY_ART, skills: WBN_EMPTY_ART, notes: WBN_EMPTY_ART, needyou: WBN_EMPTY_ART, projects: WBN_EMPTY_ART }),
 });
 
 const num = (x) => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0);
@@ -39,7 +46,8 @@ let memo = { key: '', out: null };
 export function workbenchVals(ctx) {
   const S = (ctx && ctx.S) || this.state || {};
   const cl = consoleEffective(S.consoleLayer);
-  if (!cl.on || cl.look !== WORKBENCH_LOOK) return WBN_OFF;
+  if (!cl.on || !cl.look) return WBN_OFF;
+  if (cl.look === LANTERN_LOOK) return WBN_LANTERN;
   const n = workbenchNumbers(S, ctx);
   const capped = !!(S.vdk && S.vdk.data && S.vdk.data.noteCountCapped === true);
   const key = WBN_KINDS.map((k) => String(n[k])).join('|') + (capped ? '|+' : '');

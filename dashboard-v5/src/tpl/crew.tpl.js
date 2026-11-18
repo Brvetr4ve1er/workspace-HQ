@@ -4,6 +4,7 @@
 // vals/crew.js (roster from main: dashboard/crew.js). A skill's description is bound as TEXT only, never as markup or a style.
 // Colours are tokens only (var(--...)); the gold ink #1a0f0a is the one literal, as in the other fragments.
 import { wbnArt } from './workbench.tpl.js';   // <!-- v5: Workbench art --> one small illustration, drawn only while the Workbench look is on
+import { lntArt } from './lantern.tpl.js';   // <!-- v5: Lantern card --> the same host's card, drawn only while the Lantern look is on (never beside the Workbench picture)
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
 const GOLD = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
@@ -26,7 +27,7 @@ export default String.raw`            <!-- v5: Claude › Crew — installed ski
             <sc-if value="{{ crwv.on }}" hint-placeholder-val="{{ false }}">
               <section data-crw="view" aria-label="Crew: the installed Claude skills by role" style="display:flex;flex-direction:column;gap:12px;max-width:980px">
                 <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span style="font-size:19px">Crew</span><span style="${LABEL}">{{ crwv.summary }}</span><span style="flex:1"></span><button type="button" data-crw="refresh" onClick="{{ crwv.refresh }}" disabled="{{ crwv.refreshOff }}" style="${BTN}" ${BTN_HOVER}>{{ crwv.refreshLabel }}</button></div>
-                ${wbnArt('skills')}
+                ${wbnArt('skills')}${lntArt('skills')}
                 <div style="font-size:12px;color:var(--faint)">{{ crwv.note }}</div>
                 <sc-if value="{{ crwv.offline }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">{{ crwv.offlineText }}</div></sc-if>
                 <sc-if value="{{ crwv.loading }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">Reading the installed skills…</div></sc-if>

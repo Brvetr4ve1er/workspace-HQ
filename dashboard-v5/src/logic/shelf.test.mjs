@@ -24,8 +24,11 @@ import { ST } from '../live/catalog.mjs';
 import { fakeShelfProjects } from '../../tools/console-fixture.mjs';
 import { shelfStates, shelfInitState, swapProjects, SHELF_COUNTS } from '../selftest-shelf.mjs';
 import { workbenchVals } from '../vals/workbench.js';
+import { lanternVals } from '../vals/lantern.js';
 // the empty-shelf line carries the Workbench art (batch 8); its bindings resolve against the look-on vals
 const WBN_ON = workbenchVals.call({ state: { consoleLayer: { on: true, look: 'workbench' } } }, { rows: [] }).wbnv;
+const LNT_ON = lanternVals.call({ state: { consoleLayer: { on: true, look: 'lantern' } } }, { rows: [] }).lntv;   // batch 11: the Lantern card beside the Workbench picture (sealed here: nothing read)
+const SHAPE = { ...WBN_ON.projects.shapes[0], ...LNT_ON.projects.shapes[0] };   // both pictures loop their shapes as p
 
 globalThis.window = globalThis.window || { HQFx: { sfx() {} } };
 
@@ -559,7 +562,7 @@ const dig = (obj, path) => path.split('.').reduce((o, k) => (o !== null && o !==
 
 test('template: every binding resolves against the real vals (so the unresolved-path counter stays 0)', () => {
   const on = valsOf(projectsOf(83), { consoleLayer: SHELF_ON }, { dec: { next: { proj: 'ph-005' } } }).v;
-  const scope = { shfv: on, c: on.rows[0].items[0], r: on.rows[0], b: on.toggle[0], cslv: { cslOn: true }, wbnv: WBN_ON, p: WBN_ON.projects.shapes[0] };
+  const scope = { shfv: on, c: on.rows[0].items[0], r: on.rows[0], b: on.toggle[0], cslv: { cslOn: true }, wbnv: WBN_ON, lntv: LNT_ON, p: SHAPE };
   const seen = new Set();
   // the inserted console binds a cartridge too, with the console art and the caption: those two resolve against the inserted one
   const ins = { ...scope, c: on.insertedList[0] };
@@ -576,13 +579,13 @@ test('template: every binding resolves against the real vals (so the unresolved-
   for (const key of Object.keys(SHF_OFF)) assert.ok([...seen].some((e) => e.startsWith('shfv.' + key)) || ['on', 'listOn'].includes(key), 'shfv.' + key + ' is never bound by the template (dead value)');
   // and against the off constant: every shfv binding is a key of it
   for (const expr of seen) if (expr.startsWith('shfv.')) assert.ok(expr.slice(5).split('.')[0] in SHF_OFF, expr + ' is not in SHF_OFF');
-  assert.deepEqual([...seen].filter((e) => !/^(shfv|c|r|b|cslv|wbnv|p)\./.test(e)), [], 'no binding outside shfv, the loop variables, cslv.cslOn and the Workbench art (wbnv)');
+  assert.deepEqual([...seen].filter((e) => !/^(shfv|c|r|b|cslv|wbnv|lntv|p)\./.test(e)), [], 'no binding outside shfv, the loop variables, cslv.cslOn and the Workbench and Lantern art (wbnv, lntv)');
   assert.deepEqual([...seen].filter((e) => e.startsWith('cslv.')), ['cslv.cslOn'], 'the only thing read from the console skin dish is cslv.cslOn');
 });
 
 test('template: the real dc-lite resolver finds every binding, mixed attribute strings included (no hole is reported)', () => {
   const on = valsOf(projectsOf(83), { consoleLayer: SHELF_ON }).v;
-  const base = { shfv: on, c: on.rows[0].items[0], r: on.rows[0], b: on.toggle[0], cslv: { cslOn: true }, wbnv: WBN_ON, p: WBN_ON.projects.shapes[0] };
+  const base = { shfv: on, c: on.rows[0].items[0], r: on.rows[0], b: on.toggle[0], cslv: { cslOn: true }, wbnv: WBN_ON, lntv: LNT_ON, p: SHAPE };
   const inserted = { ...base, c: on.insertedList[0] };
   unresolved.clear();
   let n = 0;

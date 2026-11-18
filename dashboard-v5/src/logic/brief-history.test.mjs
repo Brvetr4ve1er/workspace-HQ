@@ -12,6 +12,7 @@ import bhsTpl, { bhsFooter, bhsAllClear } from '../tpl/brief-history.tpl.js';
 
 import './brief-history-strip.test.mjs';   // batch 8: the strip, the clean card and the Settings counts (same command runs them)
 import { wbnArt } from '../tpl/workbench.tpl.js';   // the Workbench art sits inside the clean-board card; it is tested in workbench-art.test.mjs, so it is cut out here
+import { lntArt } from '../tpl/lantern.tpl.js';   // likewise the Lantern card (tested in lantern-art.test.mjs)
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 const local = (d, h = 9, mi = 0) => new Date(2026, 10, d, h, mi).toISOString();   // 2026-11-<d> local: Nov 10 2026 is a Tuesday
 const entry = (o) => ({ text: 'Work not pushed', rule: 'unpushed', severity: 'med', first: local(10, 9, 12), ended: local(12, 14, 0), how: 'resolved', after: '2 d', ...o });
@@ -295,7 +296,7 @@ test('the template fragments bind only bhs keys that the vals return, and use th
   const v = vals(rig({ api: { read: async () => ({}) } }));
   const have = new Set(Object.keys(v.bhs));
   const loopVars = new Set(['r', 'c', 'l', 'a']);
-  for (const [name, frag] of [['operator', bhsTpl], ['footer', bhsFooter], ['card', bhsAllClear.split(wbnArt('cleared')).join('')]]) {
+  for (const [name, frag] of [['operator', bhsTpl], ['footer', bhsFooter], ['card', bhsAllClear.split(wbnArt('cleared')).join('').split(lntArt('cleared')).join('')]]) {
     for (const m of frag.matchAll(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g)) {
       const [head, root] = m[1].split('.');
       if (loopVars.has(head) || head === 'true' || head === 'false') continue;   // loop variables and hint-placeholder literals

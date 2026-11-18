@@ -5,6 +5,7 @@
 //   bhsAllClear     the one-time all-clear card: interpolated into tpl/brief.tpl.js under the empty line
 // Nothing here pushes or sends: the only action is "Got it", which tells main the card was shown.
 import { wbnArt } from './workbench.tpl.js';   // <!-- v5: Workbench art --> one small illustration, drawn only while the Workbench look is on
+import { lntArt } from './lantern.tpl.js';   // <!-- v5: Lantern card --> the same host's card, drawn only while the Lantern look is on (never beside the Workbench picture)
 const GOLD = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const GOLD_HOVER = 'style-hover="filter:brightness(1.1);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
 const LABEL = 'font-family:var(--term);font-size:11px;letter-spacing:.02em;text-transform:lowercase;font-weight:500;color:var(--muted)';
@@ -23,7 +24,7 @@ export const bhsAllClear = String.raw`                <!-- v5: Brief clean-board
                 <sc-if value="{{ bhs.bhsCleanShow }}" hint-placeholder-val="{{ false }}">
                   <section aria-label="Brief: board clean" style="padding:12px 14px;background:var(--card);border:1px solid var(--green);border-radius:12px;display:flex;flex-direction:column;gap:6px">
                     <div style="font-size:14px;color:var(--green)">{{ bhs.bhsCleanTitle }}</div>
-                    ${wbnArt('cleared')}
+                    ${wbnArt('cleared')}${lntArt('cleared')}
                     <sc-if value="{{ bhs.bhsCleanHasLines }}" hint-placeholder-val="{{ false }}"><div role="list" style="display:flex;flex-direction:column;gap:4px"><sc-for list="{{ bhs.bhsCleanLines }}" as="c" hint-placeholder-count="1"><div role="listitem" style="font-size:13px;color:var(--text)">{{ c.text }}</div></sc-for></div></sc-if>
                   </section>
                 </sc-if>

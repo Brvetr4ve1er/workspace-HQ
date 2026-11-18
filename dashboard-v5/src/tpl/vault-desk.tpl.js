@@ -4,6 +4,7 @@
 // vals/vault-desk.js (answer from main: dashboard/vault-desk.js). The note text is bound as TEXT only, never as markup or a style.
 // Colours are tokens only (var(--...)); the gold ink #1a0f0a is the one literal, as in the other fragments.
 import { wbnArt } from './workbench.tpl.js';   // <!-- v5: Workbench art --> one small illustration, drawn only while the Workbench look is on
+import { lntArt } from './lantern.tpl.js';   // <!-- v5: Lantern card --> the same host's card, drawn only while the Lantern look is on (never beside the Workbench picture)
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
 const BTN_HOVER = 'style-hover="border-color:var(--frame-hi);transform:translateY(-1px)" style-active="transform:translateY(1px) scale(.98)"';
 const GOLD = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--gold);color:#1a0f0a;border:1px solid var(--gold);font-weight:600;border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer;transition:transform .12s, background .15s, border-color .15s, filter .15s';
@@ -15,7 +16,7 @@ export default String.raw`                <!-- v5: Life › Notes › Vault desk
                 <sc-if value="{{ vdkv.on }}" hint-placeholder-val="{{ false }}">
                   <section data-vdk="view" aria-label="Vault desk: today's daily note" style="display:flex;flex-direction:column;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--frame);border-radius:12px">
                     <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span style="font-size:19px">Vault desk</span><span data-vdk="title" style="${LABEL}">{{ vdkv.noteTitle }}</span><span style="flex:1"></span><sc-if value="{{ vdkv.canOpen }}" hint-placeholder-val="{{ false }}"><button type="button" data-vdk="open" onClick="{{ vdkv.open }}" style="${BTN}" ${BTN_HOVER}>Open in Obsidian</button></sc-if><button type="button" data-vdk="refresh" onClick="{{ vdkv.refresh }}" disabled="{{ vdkv.refreshOff }}" style="${BTN}" ${BTN_HOVER}>{{ vdkv.refreshLabel }}</button></div>
-                    ${wbnArt('notes')}
+                    ${wbnArt('notes')}${lntArt('notes')}
                     <sc-if value="{{ vdkv.offline }}" hint-placeholder-val="{{ false }}"><div data-vdk="offline" style="font-size:13px;color:var(--muted)">{{ vdkv.offlineText }}</div></sc-if>
                     <sc-if value="{{ vdkv.loading }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:var(--muted)">Reading today’s note…</div></sc-if>
                     <sc-if value="{{ vdkv.error }}" hint-placeholder-val="{{ false }}"><div role="status" data-vdk="error" style="font-size:13px;color:var(--red)">Couldn’t read the vault · {{ vdkv.errorText }}</div></sc-if>

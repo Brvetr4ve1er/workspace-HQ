@@ -9,6 +9,7 @@ import { briefHistoryVals } from '../vals/brief-history.js';
 import { bhsFooter, bhsAllClear, bhsSettings } from '../tpl/brief-history.tpl.js';
 import { STANDING_EXEMPT } from '../../../dashboard/brief-core.mjs';
 import { wbnArt } from '../tpl/workbench.tpl.js';   // the Workbench art sits inside the clean-board card; it is tested in workbench-art.test.mjs, so it is cut out here
+import { lntArt } from '../tpl/lantern.tpl.js';   // likewise the Lantern card (tested in lantern-art.test.mjs)
 
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 const local = (d, h = 9, mi = 0) => new Date(2026, 10, d, h, mi).toISOString();   // 2026-11-<d> local: Nov 10 2026 is a Tuesday
@@ -170,7 +171,7 @@ test('the strip and Settings views send no marks and write nothing', async () =>
 
 test('the fragments: the strip and the settings block bind only bhs keys vals return; settings is read-only', () => {
   const have = new Set(Object.keys(vals(rig({ api: { read: async () => ({}) } })).bhs));
-  for (const [name, frag] of [['footer', bhsFooter], ['card', bhsAllClear.split(wbnArt('cleared')).join('')], ['settings', bhsSettings]]) {
+  for (const [name, frag] of [['footer', bhsFooter], ['card', bhsAllClear.split(wbnArt('cleared')).join('').split(lntArt('cleared')).join('')], ['settings', bhsSettings]]) {
     for (const m of frag.matchAll(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g)) {
       const [head, root] = m[1].split('.');
       if (['l', 'c', 'r', 'x', 'true', 'false'].includes(head)) continue;

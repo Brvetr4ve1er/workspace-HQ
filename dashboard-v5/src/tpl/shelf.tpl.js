@@ -10,6 +10,7 @@
 // Hover: the lifting variant and the outlining variant are two sc-if branches chosen by shfv.lift (the reduceMotion pref OR the OS
 // query), because style-hover is compiled once from its literal text and cannot be bound. No transition anywhere in the outline one.
 import { wbnArt } from './workbench.tpl.js';   // <!-- v5: Workbench art --> one small illustration, drawn only while the Workbench look is on
+import { lntArt } from './lantern.tpl.js';   // <!-- v5: Lantern card --> the same host's card, drawn only while the Lantern look is on (never beside the Workbench picture)
 const BTN = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;height:28px;padding:0 10px;font-size:12px;background:var(--card);color:var(--text);border:1px solid var(--frame);border-radius:8px;font-family:var(--term);line-height:1;white-space:nowrap;cursor:pointer';
 const CART_BTN = 'display:block;padding:0;margin:0;background:none;border:0;color:inherit;cursor:pointer';
 
@@ -66,7 +67,7 @@ export default String.raw`<!-- v5: Projects Shelf view (batch 7, Console layer o
           <span style="flex:1"></span>
           <span data-shelf="count" style="font-size:12px;color:var(--faint);white-space:nowrap">{{ shfv.countLine }}</span>
         </div>
-        <sc-if value="{{ shfv.empty }}" hint-placeholder-val="{{ false }}"><div data-shelf="empty" style="font-size:14px;color:var(--muted)">{{ shfv.emptyLine }}${wbnArt('projects')}</div></sc-if>
+        <sc-if value="{{ shfv.empty }}" hint-placeholder-val="{{ false }}"><div data-shelf="empty" style="font-size:14px;color:var(--muted)">{{ shfv.emptyLine }}${wbnArt('projects')}${lntArt('projects')}</div></sc-if>
         <div role="list" aria-label="{{ shfv.listLabel }}" data-shelf="shelf" style="display:flex;flex-direction:column;gap:10px">
           <sc-for list="{{ shfv.rows }}" as="r" hint-placeholder-count="6">
             <div data-shelf="row" style="display:flex;flex-direction:column;gap:0">

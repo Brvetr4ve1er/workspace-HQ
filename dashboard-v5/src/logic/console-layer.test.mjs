@@ -359,16 +359,16 @@ test('vals: the Console chip is absent while the layer is off and present while 
   const c = comp({ consoleLayer: { on: false, skin: true } });
   assert.deepEqual(consoleThemeOpts.call(c, c.state, tabStyle).map((x) => x.label), ['Dark', 'Light', 'Follow system']);
   c.state.consoleLayer = { on: true };
-  assert.deepEqual(consoleThemeOpts.call(c, c.state, tabStyle).map((x) => x.label), ['Dark', 'Light', 'Follow system', 'Console', 'Workbench']);
+  assert.deepEqual(consoleThemeOpts.call(c, c.state, tabStyle).map((x) => x.label), ['Dark', 'Light', 'Follow system', 'Console', 'Workbench', 'Lantern']);
 });
 
 test('vals: only one chip reads selected; under the skin it is Console, never the base theme', () => {
   const c = comp({ themePref: 'light', consoleLayer: { on: true, skin: false } });
   let chips = consoleThemeOpts.call(c, c.state, tabStyle);
-  assert.deepEqual(chips.map((x) => x.style.selected), [false, true, false, false, false]);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, true, false, false, false, false]);
   c.state.consoleLayer = { on: true, skin: true };
   chips = consoleThemeOpts.call(c, c.state, tabStyle);
-  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, true, false]);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, true, false, false]);
 });
 
 test('vals: choosing Dark, Light or Follow system clears the skin and sets the base theme; choosing Console sets the skin and leaves themePref alone', () => {
@@ -711,7 +711,7 @@ test('look: the Appearance chips. Workbench chip only while the layer is on; it 
   assert.deepEqual([layerOf(c).skin, layerOf(c).look], [false, 'workbench']);
   assert.equal(c.state.themePref, 'dark', 'a look over the base theme, it never replaces it');
   chips = consoleThemeOpts.call(c, c.state, tabStyle);
-  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, false, true]);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, false, true, false]);
   chips[3].go();
   assert.deepEqual([layerOf(c).skin, layerOf(c).look], [true, ''], 'choosing Console leaves Workbench');
   consoleThemeOpts.call(c, c.state, tabStyle)[4].go();
@@ -766,4 +766,128 @@ test('look: the Console skin is untouched. skin:true still gives cslSkin "consol
   assert.match(shell, /data-hq-skin="\{\{ cslv\.cslSkin \}\}" data-hq-look="\{\{ wbnv\.wbnLook \}\}"/);
   assert.match(read('src/vals/index.js'), /workbenchVals/);
   assert.match(read('src/vals/cheats.js'), /consoleEffective\(L\)\.palette/, 'the accent attribute follows the layer own rule');
+});
+
+// ---- the Lantern look (batch 11) ----------------------------------------------------------------------------------------------------
+// A third pref value beside the Workbench look: '' | 'workbench' | 'lantern', mutually exclusive with the skin and with the other look, off by default.
+import { LANTERN_LOOK, LANTERN_HREF, LOOK_PALETTES } from './console-layer.mjs';
+import { LNT_CHIP } from './console-skin.js';
+
+test('lantern: only the exact id turns it on, garbage and other ids are none; the id and the sheet path are the documented ones', () => {
+  assert.equal(LANTERN_LOOK, 'lantern');
+  assert.equal(LANTERN_HREF, './styles/lantern.css');
+  assert.equal(LNT_CHIP, 'Lantern');
+  for (const raw of [{ look: 'Lantern' }, { look: ' lantern ' }, { look: 'LANTERN' }, { look: ['lantern'] }, { look: true }, { look: 'lamp' }]) assert.equal(normaliseConsoleLayer(raw).look, '', JSON.stringify(raw));
+  assert.equal(normaliseConsoleLayer({ look: 'lantern' }).look, 'lantern');
+  assert.equal(normaliseConsoleLayer({ look: 'workbench' }).look, 'workbench', 'the Workbench id is untouched');
+  assert.deepEqual([...CONSOLE_KEYS], ['on', 'skin', 'scan', 'palette', 'debug', 'shelf', 'look'], 'no new key: a look is one more value of look');
+  assert.equal(withLook({ on: true }, 'lantern').look, 'lantern');
+  assert.equal(withLook({ on: true, look: 'lantern' }, '').look, '');
+});
+
+test('lantern: it clears the skin and the Workbench look, and each of them clears it; a stored skin + lantern pair is the skin', () => {
+  const a = withConsoleLayer({ on: true, skin: true, scan: true }, { look: 'lantern' });
+  assert.deepEqual([a.skin, a.look, a.scan], [false, 'lantern', true], 'choosing Lantern leaves the skin; the scanline choice is kept for later');
+  assert.equal(withConsoleLayer({ on: true, look: 'workbench' }, { look: 'lantern' }).look, 'lantern', 'Lantern replaces the Workbench look');
+  assert.equal(withConsoleLayer({ on: true, look: 'lantern' }, { look: 'workbench' }).look, 'workbench', 'the Workbench look replaces Lantern');
+  const k = withConsoleLayer({ on: true, look: 'lantern' }, { skin: true });
+  assert.deepEqual([k.skin, k.look], [true, ''], 'choosing the Console skin clears Lantern');
+  assert.deepEqual(normaliseConsoleLayer({ on: true, skin: true, look: 'lantern' }), { ...CONSOLE_DEFAULTS, on: true, skin: true });
+  assert.equal(withSkin({ on: true, look: 'lantern' }, true).look, '');
+  const c = comp({ consoleLayer: { on: true, look: 'lantern' } });
+  assert.equal(c.cslLeaveSkin(c.state).consoleLayer.look, '', 'a base theme (shell button, Ctrl K verb) leaves Lantern too');
+  c.cslChooseBase('light');
+  assert.deepEqual([layerOf(c).look, c.state.themePref, layerOf(c).on], ['', 'light', true]);
+  const off = comp({ consoleLayer: { on: false } });
+  off.cslChooseLantern();
+  assert.equal(layerOf(off).look, '', 'choosing needs the layer on');
+});
+
+test('lantern: no accent palette does anything under it (stored palettes stay on disk, inert); the Workbench look still takes the red one', () => {
+  assert.deepEqual({ ...LOOK_PALETTES }, { workbench: ['signal'], lantern: [] });
+  for (const palette of ['ember', 'tide', 'signal']) {
+    assert.equal(consoleEffective({ on: true, look: 'lantern', palette }).palette, '', palette + ' is inert');
+    assert.equal(normaliseConsoleLayer({ on: true, look: 'lantern', palette }).palette, palette, palette + ' stays on disk');
+  }
+  assert.equal(consoleEffective({ on: true, look: 'workbench', palette: 'signal' }).palette, 'signal');
+  assert.equal(consoleEffective({ on: true, look: 'workbench', palette: 'ember' }).palette, '');
+  assert.deepEqual([...WORKBENCH_PALETTES], ['signal'], 'the old export is kept as an alias');
+  assert.equal(consoleEffective({ on: true, look: 'lantern', scan: true }).scan, false, 'scanlines belong to the skin');
+  assert.deepEqual(consoleEffective({ on: false, look: 'lantern' }), { ...CONSOLE_DEFAULTS });
+});
+
+test('lantern: its stylesheet is one counted link added only while the look is chosen (probe: layer 2, look 3, same as the Workbench look), never beside the other look, removed with it', () => {
+  const f = fakeEnv();
+  const env = { ...f.env, win: {} };
+  const c = comp({ consoleLayer: { on: true } });
+  const ids = () => f.head.children.map((n) => n.attrs.id).sort();
+  try {
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css']);
+    c.state.consoleLayer = { on: true, look: 'lantern' };
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css', 'hq-lantern-css']);
+    assert.equal(env.win.__hqLayerProbe().links, 3, 'the Workbench count with no palette');
+    assert.equal(f.head.children.find((n) => n.attrs.id === 'hq-lantern-css').attrs.href, LANTERN_HREF);
+    assert.equal(f.attrs['data-hq-scan'], undefined);
+    c.state.consoleLayer = { on: true, look: 'lantern', palette: 'signal', scan: true };
+    c.cslSync(env);
+    assert.equal(env.win.__hqLayerProbe().links, 3, 'a stored palette adds no link under Lantern');
+    c.state.consoleLayer = { on: true, look: 'workbench' };
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css', 'hq-workbench-css'], 'the Workbench look replaces the Lantern sheet');
+    c.state.consoleLayer = { on: true, look: 'lantern' };
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css', 'hq-lantern-css']);
+    c.state.consoleLayer = { on: true, skin: true };
+    c.cslSync(env);
+    assert.deepEqual(ids(), ['hq-console-css', 'hq-delights-css'], 'the skin leaves no look sheet');
+    c.state.consoleLayer = { on: true, look: 'lantern' };
+    c.cslSync(env);
+    c.state.consoleLayer = { on: false, look: 'lantern' };
+    c.cslSync(env);
+    assert.equal(f.head.children.length, 0);
+    assert.deepEqual({ ...env.win.__hqLayerProbe() }, ZERO, 'layer off: the probe is all zeros, whatever look is stored');
+  } finally { detachDefault(); }
+});
+
+test('lantern: the Appearance chips. Lantern chip last, only while the layer is on; it clears the skin and the Workbench look; only one chip reads selected; the red-accent row is hidden under it', () => {
+  const c = comp({ themePref: 'dark', consoleLayer: { on: true, look: 'workbench' } });
+  let chips = consoleThemeOpts.call(c, c.state, tabStyle);
+  assert.deepEqual(chips.map((x) => x.label), ['Dark', 'Light', 'Follow system', 'Console', 'Workbench', 'Lantern']);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, false, true, false], 'the Workbench chip does not light under another look');
+  chips[5].go();
+  assert.deepEqual([layerOf(c).skin, layerOf(c).look], [false, 'lantern']);
+  assert.equal(c.state.themePref, 'dark', 'a look over the base theme, it never replaces it');
+  chips = consoleThemeOpts.call(c, c.state, tabStyle);
+  assert.deepEqual(chips.map((x) => x.style.selected), [false, false, false, false, false, true]);
+  chips[3].go();
+  assert.deepEqual([layerOf(c).skin, layerOf(c).look], [true, ''], 'choosing Console leaves Lantern');
+  consoleThemeOpts.call(c, c.state, tabStyle)[5].go();
+  consoleThemeOpts.call(c, c.state, tabStyle)[4].go();
+  assert.deepEqual([layerOf(c).skin, layerOf(c).look], [false, 'workbench'], 'choosing Workbench leaves Lantern');
+  consoleThemeOpts.call(c, c.state, tabStyle)[5].go();
+  consoleThemeOpts.call(c, c.state, tabStyle)[0].go();
+  assert.deepEqual([layerOf(c).look, c.state.themePref], ['', 'dark'], 'a base theme chip leaves Lantern');
+  const off = comp({ consoleLayer: { on: false, look: 'lantern' } });
+  assert.equal(consoleThemeOpts.call(off, off.state, tabStyle).length, 3);
+  const rows = (cl) => { const x = comp({ consoleLayer: cl }); return consoleSettings.call(x, x.state, sw).map((r) => r.label); };
+  assert.deepEqual(rows({ on: true, look: 'lantern', palette: 'signal' }), ['Console layer'], 'a switch that does nothing under this look is not offered');
+  assert.deepEqual(rows({ on: true, look: 'workbench' }), ['Console layer', 'Warm red accent'], 'the Workbench row is unchanged');
+});
+
+test('lantern: the root attribute is empty off and "lantern" only under the look, bound from wbnv (the shell template is unchanged); the skin attribute is empty under it', () => {
+  const k = (cl) => consoleSkinVals({ S: { consoleLayer: cl } }).cslv;
+  assert.equal(k({ on: true, look: 'lantern' }).cslSkin, '', 'every [data-hq-skin="console"] rule is inactive under the look');
+  assert.equal(k({ on: true, look: 'lantern', scan: true }).cslScan, false);
+  assert.equal(workbenchVals.call({ state: {} }, { S: { consoleLayer: { on: true, look: 'lantern' } }, rows: [] }).wbnv.wbnLook, 'lantern');
+  assert.equal(workbenchVals.call({ state: {} }, { S: { consoleLayer: { on: false, look: 'lantern' } }, rows: [] }), WBN_OFF);
+  assert.match(read('src/vals/index.js'), /lanternVals/);
+  assert.match(read('src/vals/cheats.js'), /consoleEffective\(L\)\.palette/, 'the accent attribute follows the layer own rule, so it is empty under Lantern');
+});
+
+test('lantern: the sheet is added only through layerSheet, and the Lantern files register nothing outside the layer (source rule)', () => {
+  const skin = read('src/logic/console-skin.js');
+  assert.match(skin, /layerSheet\('lantern', cl\.look === LANTERN_LOOK \? LANTERN_HREF : null\)/);
+  for (const f of ['src/logic/lantern-art.mjs', 'src/vals/lantern.js', 'src/tpl/lantern.tpl.js']) assert.doesNotMatch(read(f).replace(/\/\/[^\n]*/g, ''), /addEventListener|setTimeout|setInterval|requestAnimationFrame/, f);
 });

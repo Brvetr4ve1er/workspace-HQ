@@ -2,9 +2,12 @@
 // Cut verbatim from lines 333-428 of src/app.tpl.js @ a8e0bf1. src/app.tpl.js joins
 // the fragments in order; tpl.hash.test.mjs checks the joined string.
 import deliveryCheck from './delivery-check.tpl.js';   // 2026-11-10 phone-and-language check of the local dev server, right under the delivery card
+import { lntArt } from './lantern.tpl.js';   // 2026-11-18 (batch 11) the project's own tarot card, drawn only while the Lantern look is on
 import delivery from './delivery.tpl.js';   // 2026-11-07 client delivery card, before the Claude section
 export default String.raw`        <sc-if value="{{ v.project }}" hint-placeholder-val="{{ false }}">
           <div>
+            <!-- v5: Lantern card (batch 11): the project's own tarot card, a float at the head of the page; nothing while the Lantern look is off -->
+            ${lntArt('project')}
             <button onClick="{{ pg.back }}" style="background:none;border:0;padding:0;color:var(--link);font-size:13px;cursor:pointer" style-hover="color:var(--link-hover)">← {{ pg.backLabel }}</button>
             <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:12px 0 6px">
               <h1 style="margin:0;font-weight:400;font-size:clamp(26px,3.2vw,37px);line-height:1"><x-import component-from-global-scope="hq-type" text="{{ pg.name }}" hint-size="auto,1em"></x-import></h1>
