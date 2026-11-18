@@ -8,8 +8,8 @@
 //   consoleThemeOpts.call(this, S, tabStyle)  the Appearance chips: Dark · Light · Follow system, plus 'Console' ONLY while the layer is on.
 //                                             The three base chips light up only when Console is not the chosen skin.
 //   consoleSettings.call(this, S, sw)         the generic settings rows: 'Console layer', and 'CRT scanlines' only while the skin is on
-import { consoleEffective, CONSOLE_SKIN } from '../logic/console-layer.mjs';
-import { CSL_TITLE, CSL_LINE, CSL_CHIP, CSL_SCAN_TITLE, CSL_SCAN_LINE, WBN_CHIP, WBN_SIGNAL_TITLE, WBN_SIGNAL_LINE } from '../logic/console-skin.js';
+import { consoleEffective, CONSOLE_SKIN, WORKBENCH_LOOK, LANTERN_LOOK } from '../logic/console-layer.mjs';
+import { CSL_TITLE, CSL_LINE, CSL_CHIP, CSL_SCAN_TITLE, CSL_SCAN_LINE, WBN_CHIP, LNT_CHIP, WBN_SIGNAL_TITLE, WBN_SIGNAL_LINE } from '../logic/console-skin.js';
 
 export function consoleSkinVals(ctx) {
   const cl = consoleEffective(ctx.S.consoleLayer);
@@ -25,14 +25,15 @@ export function consoleThemeOpts(S, tabStyle) {
   const cl = consoleEffective(S.consoleLayer);
   const chips = [['dark', 'Dark'], ['light', 'Light'], ['os', 'Follow system']].map(([id, label]) => ({ label, go: () => this.cslChooseBase(id), style: tabStyle(S.themePref === id && !cl.skin && !cl.look) }));
   if (cl.on) chips.push({ label: CSL_CHIP, go: () => this.cslChooseSkin(), style: tabStyle(cl.skin) });
-  if (cl.on) chips.push({ label: WBN_CHIP, go: () => this.cslChooseLook(), style: tabStyle(!!cl.look) });
+  if (cl.on) chips.push({ label: WBN_CHIP, go: () => this.cslChooseLook(), style: tabStyle(cl.look === WORKBENCH_LOOK) });
+  if (cl.on) chips.push({ label: LNT_CHIP, go: () => this.cslChooseLantern(), style: tabStyle(cl.look === LANTERN_LOOK) });
   return chips;
 }
 
 export function consoleSettings(S, sw) {
   const cl = consoleEffective(S.consoleLayer);
   const rows = [sw(CSL_TITLE, CSL_LINE, cl.on, () => this.cslToggleOn())];
-  if (cl.on) rows.push(sw(WBN_SIGNAL_TITLE, WBN_SIGNAL_LINE, cl.palette === 'signal', () => this.cslToggleSignal()));
+  if (cl.on && cl.look !== LANTERN_LOOK) rows.push(sw(WBN_SIGNAL_TITLE, WBN_SIGNAL_LINE, cl.palette === 'signal', () => this.cslToggleSignal()));
   if (cl.on && cl.skin) rows.push(sw(CSL_SCAN_TITLE, CSL_SCAN_LINE, cl.scan, () => this.cslToggleScan()));
   return rows;
 }

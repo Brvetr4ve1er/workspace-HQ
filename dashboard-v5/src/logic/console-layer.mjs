@@ -3,8 +3,8 @@
 //
 // ---- the pref (consoleLayer, an object in the renderer prefs; renderer-only, main never sees it) --------------------------------------
 //   { on:false, skin:false, scan:false, palette:'', debug:false, shelf:false, look:'' }       EVERYTHING off by default
-//       look ('' | 'workbench') is the second look (batch 8): flat vectors, warm field. It is mutually exclusive with the Console skin: a
-//       stored object that somehow carries both keeps the skin (the older choice) and drops the look; withConsoleLayer(raw, { look }) turns the skin off
+//       look ('' | 'workbench' | 'lantern') is a second look (batch 8 Workbench, batch 11 Lantern: ink, bone and brass). A look is mutually exclusive with the Console skin and with the other look: a
+//       stored object that somehow carries a skin and a look keeps the skin (the older choice) and drops the look; withConsoleLayer(raw, { look }) turns the skin off
 //       and withConsoleLayer(raw, { skin:true }) clears the look. Scanlines belong to the skin only, so they never run under the look.
 //   normaliseConsoleLayer(raw) -> a fresh, complete object. Missing, garbage, partial: the defaults. Only a strict `true` turns a flag on;
 //       palette is a short lowercase id ('' = none); unknown keys are dropped. Later dishes add their keys HERE, with a test.
@@ -37,16 +37,20 @@ export const CONSOLE_SKIN = 'console';   // the value data-hq-skin carries while
 export const CONSOLE_SCAN_ATTR = 'data-hq-scan';
 export const WORKBENCH_LOOK = 'workbench';   // the value data-hq-look carries while the Workbench look is on ('' otherwise)
 export const WORKBENCH_HREF = './styles/workbench.css';
+export const LANTERN_LOOK = 'lantern';   // the value data-hq-look carries while the Lantern look is on (batch 11; ink, bone and brass, a tarot card per project)
+export const LANTERN_HREF = './styles/lantern.css';
 
 const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const flag = (x) => x === true;
 export const CONSOLE_PALETTES = Object.freeze(['ember', 'tide', 'signal']);   // ember and tide are the hidden accent palettes (cheat codes); signal is the warm red one, chosen from a Settings chip; anything else is none
-export const WORKBENCH_PALETTES = Object.freeze(['signal']);   // the only accent palette the Workbench look carries (ember and tide stay stored but do nothing under it)
+// the accent palettes each look carries (a stored palette a look does not carry stays on disk and does nothing under it): the Workbench look takes the red one, Lantern none
+export const LOOK_PALETTES = Object.freeze({ [WORKBENCH_LOOK]: Object.freeze(['signal']), [LANTERN_LOOK]: Object.freeze([]) });
+export const WORKBENCH_PALETTES = LOOK_PALETTES[WORKBENCH_LOOK];   // kept as an alias
 export const CONSOLE_PALETTES_HREF = './styles/palettes.css';
 export const CONSOLE_DELIGHTS_HREF = './styles/delights.css';   // small delights: the attract scene's and the back room lamp's only motion, attached with the layer (a second counted link)
 const paletteId = (x) => { const s = typeof x === 'string' ? x.trim().toLowerCase() : ''; return CONSOLE_PALETTES.includes(s) ? s : ''; };
 
-const lookId = (x) => (x === WORKBENCH_LOOK ? WORKBENCH_LOOK : '');
+const lookId = (x) => (x === WORKBENCH_LOOK || x === LANTERN_LOOK ? x : '');
 
 export function normaliseConsoleLayer(raw) {
   const s = isObj(raw) ? raw : {};
@@ -57,8 +61,8 @@ export function normaliseConsoleLayer(raw) {
 export function consoleEffective(raw) {
   const n = normaliseConsoleLayer(raw);
   if (!n.on) return { ...CONSOLE_DEFAULTS };
-  // under the Workbench look only the red palette does anything; the cheat palettes are kept on disk but inert
-  const palette = n.look && !WORKBENCH_PALETTES.includes(n.palette) ? '' : n.palette;
+  // under a look only the palettes that look carries do anything (Workbench: the red one; Lantern: none); the rest are kept on disk but inert
+  const palette = n.look && !LOOK_PALETTES[n.look].includes(n.palette) ? '' : n.palette;
   return { ...n, palette, scan: n.skin && n.scan };
 }
 

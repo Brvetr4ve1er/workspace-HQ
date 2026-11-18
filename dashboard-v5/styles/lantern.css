@@ -1,0 +1,112 @@
+/* The Lantern look (batch 11): near-black ink, bone text, brass accents, blood red for what needs the owner most; a parchment version for the light base.
+   Headings in an engraved serif (Cinzel only if the machine already has it, else Georgia; nothing is downloaded and there is no @font-face), small labels in the
+   bundled IBM Plex Mono through the --term token, and a tarot card for every project (src/tpl/lantern.tpl.js).
+   Loaded ONLY by logic/console-layer.mjs (layerSheet 'lantern', <link id="hq-lantern-css">) while consoleLayer.look is 'lantern' (and the layer is on);
+   while the look is not chosen this file is not in the page at all. Every rule is under [data-hq-look="lantern"], the attribute the shell root carries then
+   (an EMPTY attribute otherwise, bound from vals/workbench.js wbnv.wbnLook). No accent palette does anything under this look (consoleEffective drops it).
+   Two token blocks: the first remaps the whole token contract over the dark base, the second (after it, same weight) over the light base. Both use two
+   attributes, so they beat the one-attribute theme blocks in tokens.css whatever the link order. --lnt-* are this look's own tokens: the cards are bone
+   with ink glyphs on EVERY base, the face-down back is ink with brass, and the blood red is for fills and rules only (never text).
+   Nothing here moves a box: no layout property on a real element, no position change on #tabs or .timemachine. The only motion is a card turning face up,
+   inside ONE prefers-reduced-motion: no-preference block and also scoped to :root:not([data-hq-reduce]) (app.js setReduceFlag writes that attribute while the
+   Reduce motion pref is on). styles/lantern.test.mjs pins all of this and the WCAG AA contrast of the text tokens. */
+
+[data-hq-look="lantern"][data-hq-theme]{
+  --bg:#0a090b;--bg2:#110f13;--panel:rgba(17,15,19,.92);--card:rgba(24,21,26,.95);--card-hi:#201c22;--ink:#050406;
+  --frame:#2a2529;--frame-hi:#5a4f45;
+  --text:#ece5d6;--muted:#cfc6b4;--faint:#a8a08e;
+  --gold:#d9a84e;--gold-2:#f0c878;--accent-text:#f0c878;--link:#f0c878;--link-hover:#ece5d6;
+  --green:#a3c98e;--red:#e8747a;--orange:#e3a066;--yellow:#e6cf7a;--blue:#94b2dc;--purple:#bba2e0;--cyan:#8cc8c0;
+  --scrim:rgba(5,4,6,.72);
+  --lnt-blood:#9e1c24;--lnt-card:#ece5d6;--lnt-glyph:#0a090b;--lnt-back:#121014;--lnt-brass:#d9a84e;--lnt-brass-dim:#a07c3c;
+  --lnt-serif:'Cinzel',Georgia,'Times New Roman',serif;
+  --term:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --px:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted);
+}
+
+[data-hq-look="lantern"][data-hq-theme="light"]{
+  --bg:#ece5d6;--bg2:#e4dccb;--panel:rgba(236,229,214,.92);--card:rgba(245,240,228,.96);--card-hi:#fbf8f0;--ink:#ddd3bf;
+  --frame:#c4b79f;--frame-hi:#7a6c58;
+  --text:#1a1517;--muted:#4a4038;--faint:#5f5446;
+  --gold:#7a5414;--gold-2:#5e400c;--accent-text:#6b4a10;--link:#6b4a10;--link-hover:#3e2a06;
+  --green:#3f6a34;--red:#8e1a22;--orange:#8a4f14;--yellow:#6e5a10;--blue:#2f5080;--purple:#5a3f86;--cyan:#2a6460;
+  --scrim:rgba(26,21,23,.3);
+  --lnt-blood:#8e1a22;--lnt-card:#ece5d6;--lnt-glyph:#0a090b;--lnt-back:#121014;--lnt-brass:#d9a84e;--lnt-brass-dim:#a07c3c;
+  --lnt-serif:'Cinzel',Georgia,'Times New Roman',serif;
+  --term:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --px:'IBM Plex Mono','Cascadia Mono',Consolas,ui-monospace,Menlo,monospace;
+  --tone-red:var(--red);--tone-orange:var(--orange);--tone-green:var(--green);--tone-blue:var(--blue);--tone-gold:var(--gold);--tone-default:var(--muted);
+}
+
+/* engraved headings: the serif stack, upper case, wide tracking (the headings carry their own inline tracking, so this one is !important) */
+[data-hq-look="lantern"] h1,
+[data-hq-look="lantern"] h2,
+[data-hq-look="lantern"] h3{
+  font-family:var(--lnt-serif) !important;
+  text-transform:uppercase;
+  letter-spacing:.06em !important;
+}
+
+/* the small lower-case mono labels (section kickers, row labels) read as engraved capitals; the text itself is unchanged */
+[data-hq-look="lantern"] [style*="font-family: var(--term)"][style*="text-transform: lowercase"]{
+  text-transform:uppercase !important;
+  letter-spacing:.08em !important;
+}
+
+/* thin brass-grey frames, small corners, no gradient, no depth shadow */
+[data-hq-look="lantern"] section{
+  border-radius:4px !important;
+  box-shadow:inset 0 0 0 .5px var(--frame-hi) !important;
+}
+[data-hq-look="lantern"] button{
+  border-radius:4px !important;
+  background-image:none !important;
+  box-shadow:inset 0 0 0 .5px var(--frame-hi) !important;
+}
+[data-hq-look="lantern"] input,
+[data-hq-look="lantern"] textarea{border-radius:4px !important}
+
+/* blood for urgency: a Brief row whose badge is the red "urgent" one gets a thin blood-red rule on its leading edge (the row already renders that badge, so no text and no markup changes) */
+[data-hq-look="lantern"] [role="listitem"]:has(> [style*="border: 1px solid var(--red)"]){
+  box-shadow:inset 3px 0 0 var(--lnt-blood) !important;
+}
+
+/* the cards: the roman number and the bottom line are laid over the drawing (tpl/lantern.tpl.js). Ink on bone when face up, dim brass on the ink back when sealed. */
+[data-hq-look="lantern"] [data-lnt="roman"]{
+  font-family:var(--lnt-serif);
+  font-weight:700;
+  color:var(--lnt-glyph);
+}
+[data-hq-look="lantern"] [data-lnt="readout"]{
+  font-family:var(--term);
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--lnt-glyph);
+}
+[data-hq-look="lantern"] [data-lnt-face="sealed"] [data-lnt="readout"]{
+  color:var(--lnt-brass-dim);
+}
+
+/* the focus ring stays a plain 2 px ring, outside the box (nothing is clipped under this look) */
+[data-hq-look="lantern"] :focus-visible{
+  outline:2px solid var(--gold-2) !important;
+  outline-offset:2px !important;
+}
+
+/* the label on a gold fill under the light base is one general rule in app.css (white); it covers this look too */
+
+[data-hq-look="lantern"] ::selection{background:var(--gold);color:var(--ink)}
+[data-hq-look="lantern"] ::-webkit-scrollbar-thumb{background:var(--frame-hi)}
+
+/* the one piece of motion: a card turns face up (from its sealed back) while the OS and the app both allow motion */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-hq-reduce]) [data-hq-look="lantern"] [data-lnt-face="up"] {
+    animation: lnt-turn .45s ease-out both;
+  }
+  @keyframes lnt-turn {
+    from { transform: perspective(520px) rotateY(88deg); opacity: .35; }
+    to { transform: none; opacity: 1; }
+  }
+}

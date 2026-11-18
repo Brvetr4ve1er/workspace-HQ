@@ -12,12 +12,13 @@
 //   cslToggleOn() · cslToggleScan() · cslChooseSkin() · cslChooseBase(id)   the Settings actions
 //
 // Nothing here touches the DOM except cslSync, and cslSync goes through the layer (logic/console-layer.mjs), the only file allowed to attach.
-import { attach, detach, layerAttr, layerSheet, exposeProbe, normaliseConsoleLayer, consoleEffective, withConsoleLayer, withSkin, CONSOLE_SCAN_ATTR, CONSOLE_PALETTES_HREF, CONSOLE_DELIGHTS_HREF, WORKBENCH_HREF, WORKBENCH_LOOK } from './console-layer.mjs';
+import { attach, detach, layerAttr, layerSheet, exposeProbe, normaliseConsoleLayer, consoleEffective, withConsoleLayer, withSkin, CONSOLE_SCAN_ATTR, CONSOLE_PALETTES_HREF, CONSOLE_DELIGHTS_HREF, WORKBENCH_HREF, WORKBENCH_LOOK, LANTERN_HREF, LANTERN_LOOK } from './console-layer.mjs';
 
 export const CSL_TITLE = 'Console layer';
 export const CSL_LINE = 'Opt-in look and a few extras. Off = nothing loads.';
 export const CSL_CHIP = 'Console';
 export const WBN_CHIP = 'Workbench';
+export const LNT_CHIP = 'Lantern';
 export const WBN_SIGNAL_TITLE = 'Warm red accent';
 export const WBN_SIGNAL_LINE = 'A warm red for links and highlights. Off = the look’s own accent.';
 export const CSL_SCAN_TITLE = 'CRT scanlines';
@@ -38,6 +39,7 @@ export const consoleSkinLogic = {
     if (!attach(e)) return false;
     layerAttr(CONSOLE_SCAN_ATTR, cl.scan ? 'on' : null);
     layerSheet('workbench', cl.look === WORKBENCH_LOOK ? WORKBENCH_HREF : null);   // the Workbench look's one stylesheet exists only while that look is chosen (added before the palettes' so the red accent wins at equal weight)
+    layerSheet('lantern', cl.look === LANTERN_LOOK ? LANTERN_HREF : null);   // the Lantern look's one stylesheet, the same way (batch 11); the two looks never load together
     layerSheet('delights', CONSOLE_DELIGHTS_HREF);   // small delights: its one stylesheet rides with the layer (counted in the probe's links); detach() removes it
     layerSheet('palettes', cl.palette ? CONSOLE_PALETTES_HREF : null);   // the accent palettes' stylesheet exists only while a palette is chosen (cheat codes)
     return true;
@@ -57,6 +59,9 @@ export const consoleSkinLogic = {
   },
   cslChooseLook() {
     this.setState((s) => (normaliseConsoleLayer(s.consoleLayer).on ? { consoleLayer: withConsoleLayer(s.consoleLayer, { look: WORKBENCH_LOOK }) } : {}));
+  },
+  cslChooseLantern() {
+    this.setState((s) => (normaliseConsoleLayer(s.consoleLayer).on ? { consoleLayer: withConsoleLayer(s.consoleLayer, { look: LANTERN_LOOK }) } : {}));
   },
   cslToggleSignal() {
     this.setState((s) => { const cl = normaliseConsoleLayer(s.consoleLayer); return cl.on ? { consoleLayer: withConsoleLayer(cl, { palette: cl.palette === 'signal' ? '' : 'signal' }) } : {}; });
