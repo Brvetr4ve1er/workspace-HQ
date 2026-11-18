@@ -38,6 +38,8 @@
 //   vault-desk-read · vault-desk-capture · vault-desk-missing-note · vault-desk-open
 // The Workbench look (batch 8; --preload=fake; tools/cdp-workbench.mjs; the second Console-layer look: its sheet, the red accent, the five small pictures with real numbers, the reduced-motion rule, leaving it; each scenario ends with hqFake.reset(true) and the layer put back)
 //   workbench-skin · workbench-art · workbench-reduced-motion · workbench-leave
+// The Lantern look (batch 11; --preload=fake; tools/cdp-lantern.mjs; the third Console-layer look: its sheet, the serif headings, the five readout cards and the project's own card with real numbers, the face-down card for a number not read yet, the blood-red urgent row, the reduced-motion rule, leaving it; each scenario ends with hqFake.reset(true)):
+//   lantern-skin · lantern-art · lantern-sealed · lantern-reduced-motion · lantern-leave
 // Clients list (batch 2; --preload=fake; tools/cdp-clients-list.mjs; the fake's hq.delivery.clients answers three invented client jobs and one gone from the scan; each scenario ends with hqFake.reset(true)):
 //   clients-list-open · clients-list-open-card · clients-list-empty
 // Brief act in place + waiting session (batch 2; --preload=fake; tools/cdp-brief-act.mjs; the fake's hq.brief.act answers like main's table; each scenario serves its own placeholder brief and ends with hqFake.reset(true)):
@@ -106,6 +108,7 @@ import { makeCrewScenarios } from './cdp-crew.mjs';
 import { makeDevCommandScenarios } from './cdp-dev-command.mjs';
 import { makeLauncherScenarios } from './cdp-launcher.mjs';   // batch 9: the Launcher screens (launcher-*)
 import { makeVaultDeskScenarios } from './cdp-vault-desk.mjs';
+import { makeLanternScenarios } from './cdp-lantern.mjs';   // batch 11: lantern-skin, lantern-art, lantern-sealed, lantern-reduced-motion, lantern-leave
 import { makeWorkbenchScenarios } from './cdp-workbench.mjs';   // batch 8: workbench-skin, workbench-art, workbench-reduced-motion, workbench-leave
 import { makeBriefActScenarios } from './cdp-brief-act.mjs';
 import { makeMoneyAccessScenarios } from './cdp-money-access.mjs';
@@ -2151,6 +2154,7 @@ Object.assign(SCENARIOS, makeDevCommandScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeLauncherScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeVaultDeskScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeWorkbenchScenarios({ fresh, sleep }));
+Object.assign(SCENARIOS, makeLanternScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeBriefActScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeMoneyAccessScenarios({ fresh, sleep }));
 Object.assign(SCENARIOS, makeTodayScenarios({ fresh, sleep }));
