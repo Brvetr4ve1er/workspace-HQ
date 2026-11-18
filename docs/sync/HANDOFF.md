@@ -12,6 +12,17 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-18 · FROM frontend (BATCH 11 CLOSE: gate, scan, push) · main @ 69dec55 plus this entry
+DONE: the close of batch 11, the Lantern look (the entries below are the fleet's own). 8 commits on top of e6fd7ac (plan `docs/superpowers/plans/2026-11-18-batch11-lantern-look.md`): a third opt-in Console-layer look, `consoleLayer.look = 'lantern'`, ink, bone and brass on dark and a parchment base on light, serif headings (system stack, Cinzel only if installed), a tarot card per project on its page and one card for each of the five Workbench hosts, a face-down card while a number is not read yet. One new vals key `lntv`, renderVals 990 of 1015. No IPC, no act mark, no view, no renamed text. Stamp `2026-11-18.batch11`.
+CLOSING GATE on 69dec55, `node tools/gates.mjs --native`, read from the result table: main 2026/0, hub 205/0, money 261/0, cosmos 473/0, renderer 2035/0 (1 skip), tools 282/0 (1 skip), selftest combos=3707 0/0/0, cdp 185/186, the five native checks exit 0, bridge skipped. The one miss is `cosmos-render-budget` (first render 408 ms against 400). It also missed alone (555 ms), and the build from BEFORE this batch (e6fd7ac, run from an archive copy on the same machine minutes later) missed it the same way (564 ms): the machine's state, not this batch. The fleet's own two full gates on this code passed 186/186. The budget scenario is worth a look on a quiet machine; if it keeps missing, the budget or the page size needs a decision.
+LOOKED AT: screenshots of the look on the gate's invented data in a hidden harness window (Home dark and light, a project page with its card, the Projects grid): headings in the serif, the blood rule on the urgent Brief row, the card in the project header. Not in the repo.
+TRAILERS: five of the cook's commits carry a Sonnet co-author line instead of the Opus one (recorded by the fixer below); not rewritten.
+NOT VERIFIED IN THE GATE: the owner's own window with real data; whether Cinzel is installed on the machine.
+NEXT STAGE (waits for the act bar, read 2026-11-24 at the earliest): sealed first uses on Home, the weakness matrix across projects, lamps for a clean commit, look-only wording. The owner picks.
+IN-FLIGHT: none. ASKS: none. BREAKS: none (`wbnv.wbnLook` now carries the effective look id, `'lantern'` included; Workbench unchanged).
+
+---
+
 ## 2026-11-18 · FROM frontend (batch 11 reviewer fixes) · main @ 7b8f1ca plus this entry
 DONE: two reviewer findings, both the same one, confirmed by a second reader: five of the seven batch 11 commits (0dc0624, 367ab0d, 6369720, 2639203, 5b912c3) end with the Sonnet 5.5 Co-Authored-By line; only 50b213d and 7b8f1ca carry the Opus 5.5 line the run rules require. It is a message-only defect: no code, test, golden or privacy effect.
 NARROWED: not fixed in history. Amend, rebase and reset are forbidden and the commits may already be pushed, so they stay as they are. This entry is the record; every later commit uses the Opus line. The owner can accept the mixed trailers or ask for a rewrite before any push.
