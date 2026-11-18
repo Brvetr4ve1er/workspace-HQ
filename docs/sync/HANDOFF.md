@@ -12,6 +12,15 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-18 · FROM frontend (batch 11 reviewer fixes) · main @ 7b8f1ca plus this entry
+DONE: two reviewer findings, both the same one, confirmed by a second reader: five of the seven batch 11 commits (0dc0624, 367ab0d, 6369720, 2639203, 5b912c3) end with the Sonnet 5.5 Co-Authored-By line; only 50b213d and 7b8f1ca carry the Opus 5.5 line the run rules require. It is a message-only defect: no code, test, golden or privacy effect.
+NARROWED: not fixed in history. Amend, rebase and reset are forbidden and the commits may already be pushed, so they stay as they are. This entry is the record; every later commit uses the Opus line. The owner can accept the mixed trailers or ask for a rewrite before any push.
+CHANGES: this entry only; no code or test changed, so no test was added (a trailer in an old commit cannot be tested forward).
+GATE `node tools/gates.mjs --native` at 7b8f1ca, read from the result table: main 2026/0, hub 205/0, money 261/0, cosmos 473/0, renderer 2035/0 (1 skip), tools 282/0 (1 skip), selftest combos=3707 0/0/0, cdp 186/186, bridge skipped (no test files), cosmos-native, delivery-native, dev-native, main-gate-native, launcher-native exit 0, total 1010.4 s. No flakes. No golden touched.
+IN-FLIGHT: none. ASKS: none. BREAKS: none.
+
+---
+
 ## 2026-11-18 · FROM frontend (BATCH 11 CLOSE: the Lantern look, integrated and gated) · main @ 50b213d plus this entry
 DONE: the close of batch 11 (the cook's entry below has the build detail). Checked against the plan line by line: the pref value and mutual exclusion both ways, inert palettes, the one sheet, the five cards, the project card, sealed backs, the chip, reduced motion, both bases, the word list. One gap found and closed in 50b213d: the What's new sentence from the plan ("A new look, Lantern: ink, bone and brass, a tarot card for each project. Turn it on under Settings > Appearance.") is added as one `CHANGES` line gated on `cslChooseLantern`. Stamp `2026-11-18.batch11` was already set by the cook and is pinned by `build-stamp.test.mjs`. With the look off: `lntv` and `wbnv` return frozen constants and read nothing, the layer probe reads zeros, no Lantern node, link, listener or timer exists (tests, selftest rows and `lantern-leave` cdp).
 CHOICES: the Appearance chip lives in `vals/console-skin.js` and `logic/console-skin.js` (where the chips are); the red-accent Settings row is hidden under Lantern; selftest rows in `selftest-lantern.mjs`; each picture carries `face` so the sheet can turn a card over; a 1 px hairline on the card edge so bone shows on parchment; the never-appears word list lives in `lantern-art.test.mjs` only.
