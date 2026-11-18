@@ -141,6 +141,7 @@ export async function run(W = window.WHQ) {
     const { briefHistoryStates, BHS_OFFLINE_ROWS } = await import('./selftest-brief-history.mjs');   // Brief history: the Operator rows, the footer, the all-clear card
     const { foldStates, FOLD_RESET } = await import('./selftest-fold.mjs');   // subtraction: folded surfaces, Show everything, the Settings row
     const { workbenchInitState, workbenchStates, workbenchSeen, workbenchProblems } = await import('./selftest-workbench.mjs');   // batch 8: the Workbench look (look attribute, the red accent, the five small pictures with real numbers)
+    const { lanternInitState, lanternStates, lanternSeen, lanternProblems } = await import('./selftest-lantern.mjs');   // batch 11: the Lantern look (look attribute, one sheet, five readout cards, sealed cards, the project's own card)
     const { consoleInitState, consoleStates, consoleSeen, consoleProblems } = await import('./selftest-console.mjs');   // Console layer: off (probe zeros), on, skin, scanlines
     const { launcherStates, LNCH_OFFLINE_ROWS, LNCH_PAGE_ROWS } = await import('./selftest-launcher.mjs');   // batch 9: Settings > Launcher and Open workspace on the project page (invented entries)
     const { homeOneStates } = await import('./selftest-home-one.mjs');   // Home as one decision: the card follows the Brief or the fixed rules, More on Home closed and open
@@ -612,6 +613,26 @@ export async function run(W = window.WHQ) {
             });
             workbenchProblems(row, workbenchSeen(document)).forEach((p) => note('workbench', [row.name + ': ' + p]));
           } finally { if (restoreP) restoreP(); delete L.crwArrive; delete L.vdkArrive; LV.brief = brief10; L.setState(Object.assign(workbenchInitState(), { consoleLayer: cl10, crw: null, vdk: null, shelfMore: null })); }
+        }
+        // The Lantern look (src/selftest-lantern.mjs): the look attribute and its one stylesheet, the five readout cards with the numbers the app holds (Home's empty Brief, Claude > Crew,
+        // Life > Notes, the empty Projects shelf), the face-down card while a number is not read yet, the project page's own card, and the rows where nothing of it may appear (layer on without
+        // the look, the Console skin, the Workbench look, a stored look with the layer off). Held and put back exactly like the Workbench rows above.
+        for (const row of lanternStates({ projectId: M.P0[0] ? M.P0[0].id : 'a' })) {
+          const cl11 = L.state.consoleLayer, brief11 = LV.brief;
+          const restoreP = row.kind === 'shelf-empty' ? swapProjects(M.at(0).P0, fakeShelf({ count: 0 }), toProj) : null;
+          try {
+            await combo([theme, 'p3:' + row.name].join(' '), () => {
+              if (row.brief) LV.brief = row.brief;
+              L.crwArrive = () => Promise.resolve(null); L.vdkArrive = () => Promise.resolve(null);
+              if (row.kind === 'crew') L.go('claude', 'crew');
+              else if (row.kind === 'notes') L.go('life', 'notes');
+              else if (row.kind === 'shelf-empty') L.go('projects', 'grid');
+              else if (row.kind === 'project' && M.P0[0]) { L.go('projects', 'grid'); L.openProject(M.P0[0].id); }
+              else L.go('home', null);
+              L.setState(Object.assign({}, CLEAR, base, lanternInitState(), { themePref: theme, snapOffset: 0, shelfMore: null }, row.state));
+            });
+            lanternProblems(row, lanternSeen(document)).forEach((p) => note('lantern', [row.name + ': ' + p]));
+          } finally { if (restoreP) restoreP(); delete L.crwArrive; delete L.vdkArrive; LV.brief = brief11; L.setState(Object.assign(lanternInitState(), { consoleLayer: cl11, crw: null, vdk: null, shelfMore: null, route: null })); }
         }
         // Folded surfaces (src/selftest-fold.mjs): the two fold prefs go straight into state; FOLD_RESET puts them back after the rows (CLEAR does not cover them)
         for (const [name, tab, sub, foldState, extra] of foldStates()) {
