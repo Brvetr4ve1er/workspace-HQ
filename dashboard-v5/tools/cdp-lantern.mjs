@@ -116,9 +116,9 @@ export function makeLanternScenarios({ fresh, sleep }) {
         const dark = (await t.evaluate(PAGE.theme)) !== 'light';
         const want = dark ? tok.dark : tok.light;
         for (const k of ['--bg', '--gold', '--text', '--lnt-brass', '--lnt-card']) if (hex(await t.evaluate(PAGE.tokenNow(k))) !== hex(want[k])) out.push(k + ' computes to ' + await t.evaluate(PAGE.tokenNow(k)) + ', the sheet says ' + want[k]);
-        // no download: the serif is a system stack
-        const fonts = await t.evaluate(`[...document.fonts].map((f) => f.family).join('|')`);
-        if (/cinzel/i.test(String(fonts))) out.push('a Cinzel font face is loaded by the page (nothing may be downloaded): ' + fonts);
+        // the serif is the app's own Cinzel: two faces declared by the look's sheet, and the file really loads from the app (no network: font-src 'self')
+        const cinzel = await json(t, `(async () => { try { await document.fonts.load('700 24px Cinzel', 'WORKSPACE'); } catch (e) {} const fs = [...document.fonts].filter((f) => /cinzel/i.test(f.family)); return JSON.stringify({ n: fs.length, loaded: fs.filter((f) => f.status === 'loaded').length, ok: document.fonts.check('700 24px Cinzel', 'WORKSPACE') }); })()`);
+        if (!cinzel || cinzel.n !== 2 || cinzel.loaded < 1 || cinzel.ok !== true) out.push('the bundled Cinzel did not load under the look: ' + JSON.stringify(cinzel));
         // the headings take the engraved stack in capitals (every space but Home opens with an h1)
         await t.evaluate(PAGE.go('tasks', 'ranked'));
         if (!await t.waitFor(`${PAGE.heading} !== null`, 6000)) out.push('no heading on Tasks to read (h1/h2/h3 in the page: ' + await t.evaluate("document.querySelectorAll('h1,h2,h3').length") + ')');
@@ -335,6 +335,8 @@ export function makeLanternScenarios({ fresh, sleep }) {
       const snap = await snapshotOf(t);
       const left = async (where) => {
         if (!await t.waitFor(`${PAGE.links} === 0 && ${PAGE.look} === '' && ${PAGE.artCount} === 0`, 6000)) { out.push(where + ': the look stayed on (sheets ' + await t.evaluate(PAGE.links) + ', attr ' + JSON.stringify(await t.evaluate(PAGE.look)) + ', cards ' + await t.evaluate(PAGE.artCount) + ')'); return; }
+        const faces = await t.evaluate(`[...document.fonts].filter((f) => /cinzel/i.test(f.family)).length`);
+        if (faces !== 0) out.push(where + ': the Cinzel faces stayed declared after the look left: ' + faces);
         const L = await json(t, C.layer);
         if (!L || L.on !== true) out.push(where + ': the layer itself was switched off: ' + JSON.stringify(L));
         if (!L || L.look !== '') out.push(where + ': the stored look is not cleared: ' + JSON.stringify(L));

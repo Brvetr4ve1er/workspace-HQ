@@ -1,5 +1,5 @@
 /* The Lantern look (batch 11): near-black ink, bone text, brass accents, blood red for what needs the owner most; a parchment version for the light base.
-   Headings in an engraved serif (Cinzel only if the machine already has it, else Georgia; nothing is downloaded and there is no @font-face), small labels in the
+   Headings in Cinzel, an engraved serif bundled with the app (fonts/Cinzel-Bold-*.woff2, OFL in fonts/OFL-Cinzel.txt; declared below, so the files load only while this look is on; Georgia while they load and as the fallback), small labels in the
    bundled IBM Plex Mono through the --term token, and a tarot card for every project (src/tpl/lantern.tpl.js).
    Loaded ONLY by logic/console-layer.mjs (layerSheet 'lantern', <link id="hq-lantern-css">) while consoleLayer.look is 'lantern' (and the layer is on);
    while the look is not chosen this file is not in the page at all. Every rule is under [data-hq-look="lantern"], the attribute the shell root carries then
@@ -10,6 +10,11 @@
    Nothing here moves a box: no layout property on a real element, no position change on #tabs or .timemachine. The only motion is a card turning face up,
    inside ONE prefers-reduced-motion: no-preference block and also scoped to :root:not([data-hq-reduce]) (app.js setReduceFlag writes that attribute while the
    Reduce motion pref is on). styles/lantern.test.mjs pins all of this and the WCAG AA contrast of the text tokens. */
+
+/* Cinzel 700, the app's own copy (latin and latin-ext subsets, the ranges the font's publisher ships). Declared in THIS sheet so nothing is fetched
+   while the look is off; font-src 'self' in index.html allows it. */
+@font-face{font-family:'Cinzel';font-style:normal;font-weight:700;font-display:swap;src:url('../fonts/Cinzel-Bold-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Cinzel';font-style:normal;font-weight:700;font-display:swap;src:url('../fonts/Cinzel-Bold-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 
 [data-hq-look="lantern"][data-hq-theme]{
   --bg:#0a090b;--bg2:#110f13;--panel:rgba(17,15,19,.92);--card:rgba(24,21,26,.95);--card-hi:#201c22;--ink:#050406;

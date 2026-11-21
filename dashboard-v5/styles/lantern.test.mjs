@@ -56,7 +56,7 @@ test('the required token set is present in both blocks: the whole --tone-* set, 
     assert.match(b['--term'], /monospace/);
     assert.match(b['--px'], /monospace/);
     assert.match(b['--term'], /IBM Plex Mono/, 'the bundled mono');
-    assert.match(b['--lnt-serif'], /^'Cinzel',Georgia,'Times New Roman',serif$/, 'the engraved serif stack: Cinzel only if installed, Georgia after it, system fonts only');
+    assert.match(b['--lnt-serif'], /^'Cinzel',Georgia,'Times New Roman',serif$/, 'the engraved serif stack: the bundled Cinzel, Georgia while it loads and after it');
   }
   assert.equal(base.dark['--mono'], undefined, 'the v5 contract grew a --mono token: remap it too');
   // the cards are bone with ink on every base, the back is ink on every base
@@ -151,7 +151,10 @@ test('type: headings take the serif stack in upper case with tracking; the mono 
   assert.equal(ro['text-transform'], 'uppercase');
   assert.match(ro['font-family'], /var\(--term\)/);
   assert.match(allRules().find(([sel]) => sel.includes('[data-lnt=roman]'))[1]['font-family'], /var\(--lnt-serif\)/);
-  assert.doesNotMatch(CSS, /@font-face|@import|url\(/i, 'no font file, no image and nothing remote');
+  assert.doesNotMatch(CSS, /@import/i, 'nothing imported');
+  // the ONLY url() in the sheet are the two bundled Cinzel files: no image, nothing remote
+  const urls = [...CSS.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi)].map((m) => m[1]);
+  assert.deepEqual(urls.sort(), ['../fonts/Cinzel-Bold-latin-ext.woff2', '../fonts/Cinzel-Bold-latin.woff2']);
 });
 
 test('every rule that is not inside the media block is under [data-hq-look="lantern"]; none is global', () => {
@@ -198,4 +201,22 @@ test('the sheet is attached only by the layer: no page links it, no file in the 
   assert.match(read('../src/logic/console-layer.mjs'), /LANTERN_HREF = '\.\/styles\/lantern\.css'/);
   assert.equal(/lantern\.css/.test(read('../index.html')), false, 'index.html does not link it');
   assert.equal(/lantern\.css/.test(read('app.css')), false, 'app.css does not import it');
+});
+
+test('Cinzel is the app\'s own copy: two 700 faces from fonts/, both files on disk, real woff2, and the open font licence beside them', () => {
+  const faces = parsed.fontFaces.filter((f) => /cinzel/i.test(f.family));
+  assert.equal(faces.length, 2, 'two Cinzel faces (latin and latin-ext)');
+  assert.equal(parsed.fontFaces.length, 2, 'no other font face in this sheet');
+  for (const f of faces) {
+    assert.equal(String(f.weight), '700');
+    assert.equal(f.display, 'swap', 'Georgia shows while the file loads');
+    assert.ok(f.urls.length === 1, 'one file per face');
+    for (const u of f.urls) {
+      assert.match(u, /^\.\.\/fonts\/Cinzel-Bold-latin(-ext)?\.woff2$/);
+      assert.equal(readFileSync(resolve(HERE, u)).subarray(0, 4).toString('latin1'), 'wOF2', u + ' is a woff2 file');
+    }
+  }
+  const lic = read('../fonts/OFL-Cinzel.txt');
+  assert.match(lic, /Cinzel Project Authors/);
+  assert.match(lic, /SIL Open Font License, Version 1\.1/);
 });
