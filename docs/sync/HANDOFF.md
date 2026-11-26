@@ -12,6 +12,19 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-26 · FROM meta + frontend (MAPS HQ P0+P1: the map of real work, on the bridge) · claude/project-thread-qfatur
+DONE: `maps-hq/` rebuilt from the scaffold (PR #2): its own XP, fog of war, interest picker, Supabase schema and Vercel config are gone (decisions 1 local-only, 2 no new XP, 4 no Google). New: a pure world model (`src/world/model.ts`: client districts, Studio Quarter, Atelier, Outskirts for dormant repos, sticky hash plots, height = risk, jobs Contract/Fire/Errand/Commission/Quick win from the Brief, quests, delivery scope and daily top 3), Arcanum basemap styles, DOM markers by shape, MapGenie-style legend with counts, show/hide all and search, a selection card with one verb and a key-free permalink, a read-only rank HUD, an SVG radar. `npm test` 22/22, `tsc` clean, `vite build` ok. In the app: NEW `dashboard/world-project.js` (pure projection) and `dashboard/world-routes.js` (`/world/` static, `/world/state`, `/world/open`, own key `data/.world-key`), mounted with ONE line in `browser-bridge.js` and ONE setDeps line in `main.js`; `tools/world-url.mjs` prints the address. `node --test dashboard/world-routes.test.mjs` 8/8, assist-bridge-routes 21/21, browser-bridge 9/9, gitignore 1/1. Checked end to end in headless Chromium against the real routes on invented data (key stripped from the URL, Open in WorkspaceHQ reached openAt, filter and search). CONTRACT row "the map (/world/*)" added.
+NOT VERIFIED: the full gate (`node tools/gates.mjs`) and the owner's real window; tiles (the sandbox blocks openfreemap; the city draws on the dark field without them, by design).
+IN-FLIGHT: none. ASKS: none (no structure-lane file touched). BREAKS: none (additive; a new gitignored key file and pins folder).
+
+---
+
+## 2026-11-25 · FROM meta (MAPS HQ scaffold) · claude/project-thread-wt8f4k
+DONE: new top-level folder `maps-hq/`, a standalone Vite + React + MapLibre web app (own package.json and node_modules, nothing imported from or into the Electron app). It is NOT a WorkspaceHQ space and adds no MCP tool, so the FREEZE RULE is untouched. It is meant to leave this repo: its README gives the `git subtree split` + `git submodule add` steps once the owner creates the `maps-hq` repo. Supabase migration checked on a throwaway PostGIS; `npm test` 8/8, `tsc` clean, `vite build` ok.
+IN-FLIGHT: none. ASKS: none (no lane file touched). BREAKS: none.
+
+---
+
 ## 2026-11-21 · FROM frontend (Lantern look: the app's own Cinzel) · main @ eaab582 plus this commit
 DONE: the owner said yes (2026-11-21) to bundling Cinzel for the Lantern look's headings. `dashboard-v5/fonts/Cinzel-Bold-latin.woff2` and `Cinzel-Bold-latin-ext.woff2` (Cinzel 700, latin and latin-ext subsets, 23 KB together) with `fonts/OFL-Cinzel.txt` (SIL OFL 1.1, The Cinzel Project Authors). The two `@font-face` rules sit in `styles/lantern.css` only, so nothing loads while the look is off; `font-display: swap` shows Georgia while the file loads. `font-src 'self'` already allows it. Tests: `styles/lantern.test.mjs` now pins the only two url()s, the two faces, real woff2 files and the licence (20 pass); cdp `lantern-skin` checks the face really loads, `lantern-leave` that no Cinzel face stays declared after the look leaves. No vals, template, golden or stamp change.
 GATE `node tools/gates.mjs --native`: main 2026/0, hub 205/0, money 261/0, cosmos 473/0, renderer 2036/0 (1 skip), tools 282/0 (1 skip), selftest combos=3707 0/0/0, cdp 185/186, five native checks exit 0. The miss is the known flake `workbench-skin` (it reads a colour while the palette sheet is still applying; the message shows the two values equal); it passed 3 of 3 alone.
@@ -579,7 +592,8 @@ BREAKS: none planned (additive; the app needs a restart). Open owner questions a
 
 ## 2026-11-13 · FROM frontend (BATCH 5 DONE and pushed: the backlog batch) · main @ 80c81c8
 DONE: Security honesty pass (2d815a3 59b9779), social read switch / Bridge 0.9.0 (1adba24), Brief-lines tool (2e865eb), Cosmos polish (3929be6), Jump by measured use (2eebe67 428b96c), free renderVals keys to 979 (f583eab), taster fix 80c81c8 (the Home sessions strip no longer counts as a Claude > Sessions visit). CLAUDE.md gains the batch 5 facts line.
-  Final gates on this tree, one after another: main+hub+cosmos+mcp+tools+trailer+bridge 2505 pass / 0 fail / 1 pre-existing skip, money 261/261, renderer 1153/1153, Electron selftest 3349 combos 0/0/0, cdp-gate all, cosmos-native.check.js and delivery-check.native.check.js (results in the push commit message). Privacy scan of every added line since 52db1e1: 0 hits. App restarted with toolsollback.ps1 v5.
+  Final gates on this tree, one after another: main+hub+cosmos+mcp+tools+trailer+bridge 2505 pass / 0 fail / 1 pre-existing skip, money 261/261, renderer 1153/1153, Electron selftest 3349 combos 0/0/0, cdp-gate all, cosmos-native.check.js and delivery-check.native.check.js (results in the push commit message). Privacy scan of every added line since 52db1e1: 0 hits. App restarted with tools
+ollback.ps1 v5.
   Owner steps: reload the extension (0.9.0; the social read is now off until ticked); check Security > Health names the folders you expect; optional SessionStart hook line in tools/README.md.
 IN-FLIGHT: none. Next: a creative batch (N64-era decorations and easter eggs), design first. ASKS (struct): unchanged (backlog B1-B5). BREAKS: none (additive; extension 0.9.0).
 
@@ -644,7 +658,8 @@ ASKS (struct): none; B1 to B5 carried unchanged. BREAKS: none (additive). Real-w
 
 ## 2026-11-11 · FROM frontend (BATCH 4 DONE and pushed: the Security space) · main @ b72c3a5
 DONE: contract rows 22b603c, the engine 180267a, the vault reader and store 1d1082f, the doors 76bb833 (hq_footprint, six counts-only Brief rules, the Reach Breach check row), taster fixes 2a892c8, and the space itself b72c3a5 (its integrator ran out of turns before committing; the gated tree was re-gated and committed by the session, with one fix: the unlock field now empties the moment the passphrase is sent). CLAUDE.md gains the Security facts line.
-  Final gates on this tree, one after another: main+hub+cosmos+mcp+tools+trailer+bridge 2429 pass / 0 fail / 1 pre-existing skip, money 261/261, renderer 1068/1068, Electron selftest 3339 combos 0/0/0, cdp-gate 87/87 (and the six security-* scenarios again after the fix), cosmos-native.check.js PASS (2 not covered: avif, one webm colour), delivery-check.native.check.js all passed. Privacy scan of every added line since 08c0a8e: 0 names, 0 tokens, 0 personal emails, 0 owner paths. App restarted with toolsollback.ps1 v5.
+  Final gates on this tree, one after another: main+hub+cosmos+mcp+tools+trailer+bridge 2429 pass / 0 fail / 1 pre-existing skip, money 261/261, renderer 1068/1068, Electron selftest 3339 combos 0/0/0, cdp-gate 87/87 (and the six security-* scenarios again after the fix), cosmos-native.check.js PASS (2 not covered: avif, one webm colour), delivery-check.native.check.js all passed. Privacy scan of every added line since 08c0a8e: 0 names, 0 tokens, 0 personal emails, 0 owner paths. App restarted with tools
+ollback.ps1 v5.
   Pending real-world check: the owner’s first Refresh against a real KeePassXC vault (cli flags and XML shape were built from the documented format and an invented fixture). Known gaps: a OneDrive-redirected Desktop/Documents is not scanned; the 30 s clipboard clear does not reach Windows clipboard history; hide-from-Claude hides from hq_footprint only.
 IN-FLIGHT: none. ASKS (struct): unchanged. BREAKS: none (additive; a new 11th nav destination).
 
