@@ -113,6 +113,9 @@ data/brief-ledger.json*
 data/.brief-file.json*
 data/disk-history.json*
 data/intents/
+# MAPS HQ (2026-11-25): the map's key and the owner's hand-set pins
+data/.world-key*
+data/world/
 # Security space (batch 4, 2026-11-11): the account map, the owner's edits, status and snapshots - owner data, never committed
 data/security/
 # (2026-11-17) the dev command allow list and the leftover-server record (batch 9; the launcher's entries join them)

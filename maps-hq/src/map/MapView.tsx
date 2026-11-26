@@ -1,113 +1,177 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Map as MLMap, addProtocol, setWorkerUrl, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl';
+import { useEffect, useRef, useState } from 'react';
+import { Map as MLMap, Marker, addProtocol, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
 // maplibre v6 ships its worker as a separate ESM file; Vite must emit it as an asset.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { Protocol } from 'pmtiles';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { basemapStyle } from './style';
-import { useGame } from '../game/store';
-import { fogCells } from '../game/fog';
-import { interestBySlug } from '../game/interests';
-import type { NearbyPlace } from '../lib/supabase';
+import type { FeatureCollection } from 'geojson';
+import { ARC, basemapStyle } from './style';
+import { markerSvg } from './markers';
+import type { Job, World } from '../world/model';
+import { useUi } from '../ui/store';
 
 let pmtilesRegistered = false;
-export function ensurePmtiles() {
+function ensurePmtiles() {
   if (pmtilesRegistered) return;
   setWorkerUrl(workerUrl);
   addProtocol('pmtiles', new Protocol().tile);
   pmtilesRegistered = true;
 }
 
-type Props = { places: NearbyPlace[]; onMap?: (m: MLMap) => void };
+const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
-export function MapView({ places, onMap }: Props) {
+function districtsGeo(w: World): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: w.districts.filter((d) => d.ring).map((d) => ({
+      type: 'Feature', properties: { id: d.id, kind: d.kind },
+      geometry: { type: 'Polygon', coordinates: [d.ring!] },
+    })),
+  };
+}
+function routesGeo(w: World): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: w.districts.filter((d) => d.fixer).map((d) => ({
+      type: 'Feature', properties: { id: d.id },
+      geometry: { type: 'LineString', coordinates: [d.center, d.fixer!] },
+    })),
+  };
+}
+function buildingsGeo(w: World): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: w.buildings.map((b) => ({
+      type: 'Feature',
+      properties: { id: b.projectId, height: b.height, risk: b.risk, smoke: b.smoke, dormant: b.dormant, scaffold: b.scaffold },
+      geometry: { type: 'Polygon', coordinates: [b.ring] },
+    })),
+  };
+}
+
+type Props = { world: World; jobs: Job[]; onMap?: (m: MLMap) => void };
+
+export function MapView({ world, jobs, onMap }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
-  const player = useGame((s) => s.player);
-  const revealed = useGame((s) => s.revealed);
-  const discoveries = useGame((s) => s.discoveries);
-  const movePlayer = useGame((s) => s.movePlayer);
-  const revealedSet = useMemo(() => new Set(revealed), [revealed]);
+  const markers = useRef<Marker[]>([]);
   const [ready, setReady] = useState(false);
+  const select = useUi((s) => s.select);
+  const selected = useUi((s) => s.selected);
 
   useEffect(() => {
     ensurePmtiles();
     const map = new MLMap({
-      container: el.current!,
-      style: basemapStyle(),
-      center: player,
-      zoom: 15.5,
-      pitch: 55,
-      bearing: -12,
-      maxPitch: 75,
-      attributionControl: { compact: true },
+      container: el.current!, style: basemapStyle(), center: world.hq, zoom: 13.4, pitch: 52, bearing: -14,
+      maxPitch: 75, attributionControl: { compact: true },
     });
     mapRef.current = map;
-    map.on('load', () => {
-      map.addSource('fog', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: 'fog', type: 'fill', source: 'fog', paint: { 'fill-color': '#05070b', 'fill-opacity': 0.72, 'fill-antialias': false } });
-      map.addSource('places', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    // 'style.load', not 'load': the work layers must draw even when the tile host is down or blocked
+    map.once('style.load', () => {
+      map.addSource('districts', { type: 'geojson', data: EMPTY });
+      map.addSource('routes', { type: 'geojson', data: EMPTY });
+      map.addSource('buildings', { type: 'geojson', data: EMPTY });
+      map.addLayer({ id: 'district-fill', type: 'fill', source: 'districts', paint: { 'fill-color': ARC.plum, 'fill-opacity': 0.42 } });
+      map.addLayer({ id: 'district-edge', type: 'line', source: 'districts', paint: { 'line-color': ARC.brass, 'line-width': 1.4, 'line-opacity': 0.75, 'line-dasharray': [4, 2] } });
+      map.addLayer({ id: 'routes', type: 'line', source: 'routes', layout: { 'line-cap': 'round' }, paint: { 'line-color': ARC.brass, 'line-width': 1.6, 'line-opacity': 0.55, 'line-dasharray': [1, 2.5] } });
       map.addLayer({
-        id: 'places-glow', type: 'circle', source: 'places',
-        paint: { 'circle-radius': 16, 'circle-color': ['get', 'color'], 'circle-opacity': ['case', ['get', 'found'], 0.06, 0.22], 'circle-blur': 1 },
-      });
-      map.addLayer({
-        id: 'places', type: 'circle', source: 'places',
+        id: 'buildings', type: 'fill-extrusion', source: 'buildings',
         paint: {
-          'circle-radius': 6, 'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#07090d', 'circle-stroke-width': 2,
-          'circle-opacity': ['case', ['get', 'found'], 0.35, 1],
+          'fill-extrusion-color': ['case',
+            ['get', 'smoke'], '#7A3530',
+            ['get', 'dormant'], '#1C2A3D',
+            ['interpolate', ['linear'], ['get', 'risk'], 0, '#3E5068', 4, '#8C6E35', 10, ARC.brass]],
+          'fill-extrusion-height': ['get', 'height'],
+          'fill-extrusion-opacity': 0.92,
         },
       });
-      map.addSource('player', { type: 'geojson', data: { type: 'Point', coordinates: player } });
-      map.addLayer({ id: 'player-halo', type: 'circle', source: 'player', paint: { 'circle-radius': 22, 'circle-color': '#3ae3ff', 'circle-opacity': 0.18, 'circle-blur': 0.6 } });
-      map.addLayer({ id: 'player', type: 'circle', source: 'player', paint: { 'circle-radius': 7, 'circle-color': '#3ae3ff', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      map.addLayer({ id: 'buildings-scaffold', type: 'line', source: 'buildings', filter: ['==', ['get', 'scaffold'], true], paint: { 'line-color': ARC.brass, 'line-width': 1, 'line-dasharray': [1, 1] } });
+      map.on('click', 'buildings', (e: MapLayerMouseEvent) => {
+        const id = e.features?.[0]?.properties?.id;
+        if (typeof id === 'string') select({ kind: 'building', id });
+      });
+      map.on('mouseenter', 'buildings', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'buildings', () => { map.getCanvas().style.cursor = ''; });
       onMap?.(map);
       setReady(true);
     });
-    // Click = travel there (dev / desktop play). Real play uses GPS from the HUD.
-    map.on('click', (e: MapMouseEvent) => movePlayer([e.lngLat.lng, e.lngLat.lat]));
-    return () => { setReady(false); map.remove(); };
+    return () => { setReady(false); markers.current.forEach((m) => m.remove()); map.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Player + camera follow.
+  // Frame the whole city once, on the first world read.
+  const framed = useRef(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || framed.current) return;
+    framed.current = true;
+    const pts = [world.hq, ...world.districts.map((d) => d.center), ...world.buildings.map((b) => b.at)];
+    const lng = pts.map((p) => p[0]), lat = pts.map((p) => p[1]);
+    map.fitBounds([[Math.min(...lng), Math.min(...lat)], [Math.max(...lng), Math.max(...lat)]], { padding: map.getContainer().clientWidth < 720 ? 40 : { top: 140, bottom: 80, left: 300, right: 360 }, pitch: 50, bearing: -14, duration: 0, maxZoom: 15.5 });
+  }, [world, ready]);
+
+  // Geometry.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    (map.getSource('player') as GeoJSONSource | undefined)?.setData({ type: 'Point', coordinates: player });
-    map.easeTo({ center: player, duration: 350 });
-  }, [player, ready]);
+    (map.getSource('districts') as GeoJSONSource).setData(districtsGeo(world));
+    (map.getSource('routes') as GeoJSONSource).setData(routesGeo(world));
+    (map.getSource('buildings') as GeoJSONSource).setData(buildingsGeo(world));
+  }, [world, ready]);
 
-  // Places layer.
-  useEffect(() => {
-    const map = mapRef.current;
-    const push = () =>
-      (map?.getSource('places') as GeoJSONSource | undefined)?.setData({
-        type: 'FeatureCollection',
-        features: places.map((p) => ({
-          type: 'Feature',
-          properties: { id: p.id, name: p.name, color: interestBySlug[p.category]?.color ?? '#9aa4b2', found: !!discoveries[p.id] },
-          geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-        })),
-      });
-    if (ready) push();
-  }, [places, discoveries, ready]);
-
-  // Fog follows the view.
+  // DOM markers: jobs, fixers, district name cards, HQ. Text goes in through textContent only.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const draw = () => {
-      const b = map.getBounds();
-      (map.getSource('fog') as GeoJSONSource | undefined)?.setData(
-        fogCells({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() }, revealedSet),
-      );
-    };
-    draw();
-    map.on('moveend', draw);
-    return () => void map.off('moveend', draw);
-  }, [revealedSet, ready]);
+    markers.current.forEach((m) => m.remove());
+    const out: Marker[] = [];
+    const sel = selected?.kind === 'job' ? selected.id : null;
+
+    for (const d of world.districts) {
+      const card = document.createElement('div');
+      card.className = `district-card k-${d.kind}`;
+      const name = document.createElement('div'); name.className = 'dc-name'; name.textContent = d.name;
+      const prog = document.createElement('div'); prog.className = 'dc-prog';
+      prog.textContent = d.progress.need ? `${d.progress.have}/${d.progress.need} ${d.progress.word}` : 'no repos yet';
+      card.append(name, prog);
+      out.push(new Marker({ element: card, anchor: 'bottom' }).setLngLat(d.labelAt).addTo(map));
+      if (d.fixer) {
+        const f = document.createElement('button');
+        f.className = 'mk mk-fixer'; f.type = 'button';
+        f.innerHTML = markerSvg('fixer', 'brass');
+        f.title = d.fixerLabel ?? `${d.name} (fixer)`;
+        f.setAttribute('aria-label', f.title);
+        out.push(new Marker({ element: f, anchor: 'bottom' }).setLngLat(d.fixer).addTo(map));
+      }
+    }
+    const hq = document.createElement('div');
+    hq.className = 'mk mk-hq';
+    hq.innerHTML = markerSvg('hq', 'cyan');
+    hq.title = world.hqLabel;
+    out.push(new Marker({ element: hq, anchor: 'bottom' }).setLngLat(world.hq).addTo(map));
+
+    for (const j of jobs) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `mk mk-job k-${j.kind} u-${j.urgency}${sel === j.id ? ' is-sel' : ''}`;
+      b.innerHTML = markerSvg(j.kind, j.urgency);
+      b.title = j.title;
+      b.setAttribute('aria-label', j.title);
+      b.addEventListener('click', (e) => { e.stopPropagation(); select({ kind: 'job', id: j.id }); });
+      out.push(new Marker({ element: b, anchor: 'center' }).setLngLat(j.at).addTo(map));
+    }
+    markers.current = out;
+  }, [world, jobs, ready, selected, select]);
+
+  // Fly to a selection.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !selected) return;
+    const at = selected.kind === 'job'
+      ? world.jobs.find((j) => j.id === selected.id)?.at
+      : world.buildings.find((b) => b.projectId === selected.id)?.at;
+    if (at) map.easeTo({ center: at, zoom: Math.max(map.getZoom(), 15.4), duration: 700 });
+  }, [selected, ready, world]);
 
   return <div ref={el} className="map" />;
 }

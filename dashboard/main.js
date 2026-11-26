@@ -1238,6 +1238,7 @@ if (!app.requestSingleInstanceLock()) {
     require('./quick-targets').init({ ipcMain, latest, trayBrief, showMainAt, runScan, log: (f) => useLogApi.mark(f.surface, f.action), isCastSender: (e) => !!castWin && !castWin.isDestroyed() && e.sender === castWin.webContents });   // quick-run palette: Needs-you rows + Go mode (IPC-CONTRACT hq:quick:*); only the cast window may call
     require('./grab-routes').setDeps({ dataDir: DATA, grabRoot: path.join(app.getPath('downloads'), 'WorkspaceHQ', 'grabs'), addClip: (a) => cosmosCtl.addClip(a), log: (m) => console.log(m) });   // Bridge 0.8.0: POST /library/grab (a grabbed file also lands in Cosmos as a clip; CONTRACT "Local bridge routes")
     require('./assist-bridge-routes').setDeps({ dataDir: DATA, dialog, openAt: (r) => showMainAt(r), log: (m) => console.log(m) });   // Bridge 0.7.0: POST /pair (native dialog), GET /assist/brief, POST /assist/open (CONTRACT "Local bridge routes")
+    require('./world-routes').setDeps({ dataDir: DATA, worldRoot: path.join(__dirname, '..', 'maps-hq', 'dist'), openAt: (r) => showMainAt(r), log: (m) => console.log(m) });   // MAPS HQ: the map on the bridge under /world/ (CONTRACT "Local bridge routes — the map")
     createWindow(!START_HIDDEN);
     createTray();
     watchData();

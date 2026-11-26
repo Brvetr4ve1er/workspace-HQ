@@ -12,6 +12,13 @@ BREAKS: anything that changes the other lane's world (contract, files, hotkeys)
 
 ---
 
+## 2026-11-26 · FROM meta + frontend (MAPS HQ P0+P1: the map of real work, on the bridge) · claude/project-thread-qfatur
+DONE: `maps-hq/` rebuilt from the scaffold (PR #2): its own XP, fog of war, interest picker, Supabase schema and Vercel config are gone (decisions 1 local-only, 2 no new XP, 4 no Google). New: a pure world model (`src/world/model.ts`: client districts, Studio Quarter, Atelier, Outskirts for dormant repos, sticky hash plots, height = risk, jobs Contract/Fire/Errand/Commission/Quick win from the Brief, quests, delivery scope and daily top 3), Arcanum basemap styles, DOM markers by shape, MapGenie-style legend with counts, show/hide all and search, a selection card with one verb and a key-free permalink, a read-only rank HUD, an SVG radar. `npm test` 22/22, `tsc` clean, `vite build` ok. In the app: NEW `dashboard/world-project.js` (pure projection) and `dashboard/world-routes.js` (`/world/` static, `/world/state`, `/world/open`, own key `data/.world-key`), mounted with ONE line in `browser-bridge.js` and ONE setDeps line in `main.js`; `tools/world-url.mjs` prints the address. `node --test dashboard/world-routes.test.mjs` 8/8, assist-bridge-routes 21/21, browser-bridge 9/9, gitignore 1/1. Checked end to end in headless Chromium against the real routes on invented data (key stripped from the URL, Open in WorkspaceHQ reached openAt, filter and search). CONTRACT row "the map (/world/*)" added.
+NOT VERIFIED: the full gate (`node tools/gates.mjs`) and the owner's real window; tiles (the sandbox blocks openfreemap; the city draws on the dark field without them, by design).
+IN-FLIGHT: none. ASKS: none (no structure-lane file touched). BREAKS: none (additive; a new gitignored key file and pins folder).
+
+---
+
 ## 2026-11-25 · FROM meta (MAPS HQ scaffold) · claude/project-thread-wt8f4k
 DONE: new top-level folder `maps-hq/`, a standalone Vite + React + MapLibre web app (own package.json and node_modules, nothing imported from or into the Electron app). It is NOT a WorkspaceHQ space and adds no MCP tool, so the FREEZE RULE is untouched. It is meant to leave this repo: its README gives the `git subtree split` + `git submodule add` steps once the owner creates the `maps-hq` repo. Supabase migration checked on a throwaway PostGIS; `npm test` 8/8, `tsc` clean, `vite build` ok.
 IN-FLIGHT: none. ASKS: none (no lane file touched). BREAKS: none.

@@ -1,23 +1,21 @@
 {
   "name": "maps-hq",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "MAPS HQ: an interest-adaptive, game-layer world map. Standalone app and WorkspaceHQ submodule.",
+  "description": "MAPS HQ: a game map of your real work, served by the WorkspaceHQ bridge under /world/. Reads the app's facts, mints nothing.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc -b --noEmit",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts"
+    "typecheck": "tsc -b --noEmit"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@protomaps/basemaps": "^5.7.2",
-    "@supabase/supabase-js": "^2.119.2",
     "maplibre-gl": "^6.19.0",
     "pmtiles": "^4.5.0",
     "react": "^19.3.1",
@@ -29,7 +27,6 @@
     "@types/react": "^19.3.2",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
-    "supabase": "^3.4.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.2"

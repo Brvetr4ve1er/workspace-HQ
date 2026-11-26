@@ -35,6 +35,8 @@ const OWNER_DATA = [
   'data/security/snapshots.jsonl', 'data/security/snapshots.jsonl.1234.tmp',
   // batch 6 (2026-11-14): the phone brief file's state
   'data/.brief-file.json', 'data/.brief-file.json.1234.tmp',
+  // MAPS HQ (2026-11-25): the map key and the owner's pins
+  'data/.world-key', 'data/world/pins.json', 'data/world/pins.json.1234.tmp',
 ];
 
 test('every owner data path is gitignored (public repo)', () => {
